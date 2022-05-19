@@ -1,3 +1,3 @@
 module github.com/notaryproject/notation-core-go
 
-go 1.18
+go 1.17
