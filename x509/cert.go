@@ -15,7 +15,8 @@ func ReadCertificateFile(path string) ([]*x509.Certificate, error) {
 	return ParseCertificatePEM(data)
 }
 
-// ParseCertificatePEM parses a certificate PEM.
+// ParseCertificatePEM parses a certificate PEM,
+// Does not perform any additional validations if the certs are a valid cert chain.
 func ParseCertificatePEM(data []byte) ([]*x509.Certificate, error) {
 	var certs []*x509.Certificate
 	block, rest := pem.Decode(data)
