@@ -22,10 +22,11 @@ func parseCertificates(data []byte) ([]*x509.Certificate, error) {
 	block, rest := pem.Decode(data)
 	if block == nil {
 		// data may be in DER format
-		cert, err := x509.ParseCertificate(data)
-		if err == nil {
-			certs = append(certs, cert)
+		derCerts, err := x509.ParseCertificates(data)
+		if err != nil {
+			return nil, err
 		}
+		certs = append(certs, derCerts...)
 	} else {
 		// data is in PEM format
 		for block != nil {
