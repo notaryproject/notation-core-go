@@ -1,4 +1,4 @@
-package cryptoutil
+package x509
 
 import (
 	"crypto/x509"
@@ -12,21 +12,32 @@ func ReadCertificateFile(path string) ([]*x509.Certificate, error) {
 	if err != nil {
 		return nil, err
 	}
-	return ParseCertificatePEM(data)
+	return parseCertificates(data)
 }
 
-// ParseCertificatePEM parses a certificate PEM,
-// Does not perform any additional validations if the certs are a valid cert chain.
-func ParseCertificatePEM(data []byte) ([]*x509.Certificate, error) {
+// parseCertificates parses certificates from either PEM or DER data
+// returns an empty list if no certificates are found
+func parseCertificates(data []byte) ([]*x509.Certificate, error) {
 	var certs []*x509.Certificate
 	block, rest := pem.Decode(data)
-	for block != nil {
-		cert, err := x509.ParseCertificate(block.Bytes)
+	if block == nil {
+		// data may be in DER format
+		derCerts, err := x509.ParseCertificates(data)
 		if err != nil {
 			return nil, err
 		}
-		certs = append(certs, cert)
-		block, rest = pem.Decode(rest)
+		certs = append(certs, derCerts...)
+	} else {
+		// data is in PEM format
+		for block != nil {
+			cert, err := x509.ParseCertificate(block.Bytes)
+			if err != nil {
+				return nil, err
+			}
+			certs = append(certs, cert)
+			block, rest = pem.Decode(rest)
+		}
 	}
+
 	return certs, nil
 }

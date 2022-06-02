@@ -1,4 +1,4 @@
-package cryptoutil
+package x509
 
 import (
 	"crypto"
