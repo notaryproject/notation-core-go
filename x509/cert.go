@@ -48,7 +48,7 @@ func parseCertificates(data []byte) ([]*x509.Certificate, error) {
 // ValidateCertChain takes an ordered certificate chain and validates issuance from leaf to root
 func ValidateCertChain(certChain []*x509.Certificate) error {
 	if len(certChain) < 2 {
-		return errors.New("certificate chain must contain at least two certificates")
+		return errors.New("certificate chain must contain at least two certificates: a root and a leaf certificate")
 	}
 
 	for i, cert := range certChain {
@@ -60,7 +60,7 @@ func ValidateCertChain(certChain []*x509.Certificate) error {
 			if isSelfSigned(cert) {
 				return errors.New("certificate chain must not contain self-signed intermediate certificates")
 			} else if nextCert := certChain[i+1]; !isIssuedBy(cert, nextCert) {
-				return fmt.Errorf("signature on certificate %q is not issued by %q", cert.Subject.String(), nextCert.Subject.String())
+				return fmt.Errorf("certificate with subject %q is not issued by %q", cert.Subject, nextCert.Subject)
 			}
 		}
 	}

@@ -141,7 +141,7 @@ func TestFailEmptyChain(t *testing.T) {
 	certChain := []*x509.Certificate{signingCert}
 
 	err := ValidateCertChain(certChain)
-	assertErrorEqual("certificate chain must contain at least two certificates", err, t)
+	assertErrorEqual("certificate chain must contain at least two certificates: a root and a leaf certificate", err, t)
 }
 
 func TestFailChainNotEndingInRoot(t *testing.T) {
@@ -155,14 +155,14 @@ func TestFailChainNotOrdered(t *testing.T) {
 	certChain := []*x509.Certificate{signingCert, intermediateCert2, intermediateCert1, rootCert}
 
 	err := ValidateCertChain(certChain)
-	assertErrorEqual("signature on certificate \"CN=Wallaby,OU=Signer,O=Amazon.com Services LLC,L=Seattle,ST=Washington,C=US,1.2.840.113549.1.9.1=#0c126a64646f6e617340616d617a6f6e2e636f6d\" is not issued by \"CN=jddonas-intermediate,OU=Wallaby,O=Marsupial Ventures\"", err, t)
+	assertErrorEqual("certificate with subject \"CN=Wallaby,OU=Signer,O=Amazon.com Services LLC,L=Seattle,ST=Washington,C=US,1.2.840.113549.1.9.1=#0c126a64646f6e617340616d617a6f6e2e636f6d\" is not issued by \"CN=jddonas-intermediate,OU=Wallaby,O=Marsupial Ventures\"", err, t)
 }
 
 func TestFailChainWithUnrelatedCert(t *testing.T) {
 	certChain := []*x509.Certificate{signingCert, unrelatedCert, intermediateCert2, rootCert}
 
 	err := ValidateCertChain(certChain)
-	assertErrorEqual("signature on certificate \"CN=Wallaby,OU=Signer,O=Amazon.com Services LLC,L=Seattle,ST=Washington,C=US,1.2.840.113549.1.9.1=#0c126a64646f6e617340616d617a6f6e2e636f6d\" is not issued by \"CN=imburger-dev-root,OU=AWS Cryptography,O=Marsupial Ventures,L=Seattle,ST=Washington,C=US\"", err, t)
+	assertErrorEqual("certificate with subject \"CN=Wallaby,OU=Signer,O=Amazon.com Services LLC,L=Seattle,ST=Washington,C=US,1.2.840.113549.1.9.1=#0c126a64646f6e617340616d617a6f6e2e636f6d\" is not issued by \"CN=imburger-dev-root,OU=AWS Cryptography,O=Marsupial Ventures,L=Seattle,ST=Washington,C=US\"", err, t)
 }
 
 func TestFailChainWithDuplicateRepeatedRoots(t *testing.T) {
