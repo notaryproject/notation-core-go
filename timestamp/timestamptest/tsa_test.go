@@ -2,6 +2,7 @@ package timestamptest
 
 import (
 	"context"
+	"crypto"
 	"crypto/x509"
 	"testing"
 	"time"
@@ -24,7 +25,7 @@ func TestTSATimestampGranted(t *testing.T) {
 
 	// do timestamp
 	message := []byte("notation")
-	req, err := timestamp.NewRequestFromBytes(message)
+	req, err := timestamp.NewRequestWithData(message, crypto.SHA256)
 	if err != nil {
 		t.Fatalf("NewRequestFromString() error = %v", err)
 	}
@@ -55,13 +56,13 @@ func TestTSATimestampGranted(t *testing.T) {
 	if err != nil {
 		t.Fatal("SignedToken.Info() error =", err)
 	}
-	if err := info.Verify(message); err != nil {
+	if err := info.VerifyWithData(message); err != nil {
 		t.Errorf("TSTInfo.Verify() error = %v", err)
 	}
-	timestamp, accuracy := info.Timestamp()
+	ts, accuracy := info.Timestamp()
 	wantTimestamp := now
-	if timestamp != wantTimestamp {
-		t.Errorf("TSTInfo.Timestamp() Timestamp = %v, want %v", timestamp, wantTimestamp)
+	if ts != wantTimestamp {
+		t.Errorf("TSTInfo.Timestamp() Timestamp = %v, want %v", ts, wantTimestamp)
 	}
 	wantAccuracy := time.Second
 	if accuracy != wantAccuracy {
@@ -78,7 +79,7 @@ func TestTSATimestampRejection(t *testing.T) {
 
 	// do timestamp
 	message := []byte("notation")
-	req, err := timestamp.NewRequestFromBytes(message)
+	req, err := timestamp.NewRequestWithData(message, crypto.SHA256)
 	if err != nil {
 		t.Fatalf("NewRequestFromString() error = %v", err)
 	}

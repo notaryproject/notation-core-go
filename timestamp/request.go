@@ -1,14 +1,15 @@
 package timestamp
 
 import (
+	"crypto"
 	"crypto/x509/pkix"
 	"encoding/asn1"
-	"encoding/hex"
 	"errors"
+	"fmt"
+	"github.com/notaryproject/notation-core-go/internal/crypto/hashutil"
 	"math/big"
 
 	"github.com/notaryproject/notation-core-go/internal/crypto/oid"
-	digest "github.com/opencontainers/go-digest"
 )
 
 // MessageImprint contains the hash of the datum to be time-stamped.
@@ -37,36 +38,38 @@ type Request struct {
 	Extensions     []pkix.Extension      `asn1:"optional,tag:0"`
 }
 
-// NewRequest creates a request based on the given digest.
-func NewRequest(contentDigest digest.Digest) (*Request, error) {
-	hashAlgorithm, err := getOIDFromDigestAlgorithm(contentDigest.Algorithm())
+// NewRequest creates a request based on the given digest and hash algorithm.
+func NewRequest(digest []byte, alg crypto.Hash) (*Request, error) {
+	err := validate(digest, alg)
 	if err != nil {
 		return nil, err
 	}
-	hashedMessage, err := hex.DecodeString(contentDigest.Encoded())
+
+	hashAlg, err := getOID(alg)
 	if err != nil {
 		return nil, err
 	}
+
 	return &Request{
 		Version: 1,
 		MessageImprint: MessageImprint{
 			HashAlgorithm: pkix.AlgorithmIdentifier{
-				Algorithm: hashAlgorithm,
+				Algorithm: hashAlg,
 			},
-			HashedMessage: hashedMessage,
+			HashedMessage: digest,
 		},
 		CertReq: true,
 	}, nil
 }
 
-// NewRequestFromBytes creates a request based on the given byte slice.
-func NewRequestFromBytes(content []byte) (*Request, error) {
-	return NewRequest(digest.FromBytes(content))
-}
+// NewRequestWithData creates a request based on the given data and hash algorithm.
+func NewRequestWithData(content []byte, alg crypto.Hash) (*Request, error) {
+	digest, err := hashutil.ComputeHash(alg, content)
+	if err != nil {
+		return nil, err
+	}
 
-// NewRequestFromString creates a request based on the given string.
-func NewRequestFromString(content string) (*Request, error) {
-	return NewRequest(digest.FromString(content))
+	return NewRequest(digest, alg)
 }
 
 // MarshalBinary encodes the request to binary form.
@@ -85,15 +88,34 @@ func (r *Request) UnmarshalBinary(data []byte) error {
 	return err
 }
 
-// getOIDFromDigestAlgorithm returns corresponding ASN.1 OID for the given digest algorithm.
-func getOIDFromDigestAlgorithm(alg digest.Algorithm) (asn1.ObjectIdentifier, error) {
+// getOID returns corresponding ASN.1 OID for the given Hash algorithm.
+func getOID(alg crypto.Hash) (asn1.ObjectIdentifier, error) {
 	switch alg {
-	case digest.SHA256:
+	case crypto.SHA256:
 		return oid.SHA256, nil
-	case digest.SHA384:
+	case crypto.SHA384:
 		return oid.SHA384, nil
-	case digest.SHA512:
+	case crypto.SHA512:
 		return oid.SHA512, nil
 	}
-	return nil, digest.ErrDigestUnsupported
+	return nil, MalformedRequestError{msg: fmt.Sprintf("unsupported hashing algorithm: %s", alg)}
+}
+
+func validate(digest []byte, alg crypto.Hash) error {
+	l := len(digest)
+	var validContent bool
+	switch alg {
+	case crypto.SHA256:
+		validContent = l == 256/8
+	case crypto.SHA384:
+		validContent =  l == 384/8
+	case crypto.SHA512:
+		validContent = l == 384/8
+	default:
+		return MalformedRequestError{msg: fmt.Sprintf("unsupported hashing algorithm: %s", alg)}
+	}
+	if !validContent {
+		return MalformedRequestError{msg: fmt.Sprintf("digest is of incorrect size: %d", l)}
+	}
+	return nil
 }

@@ -7,11 +7,11 @@ import (
 	"encoding/asn1"
 	"errors"
 	"fmt"
+	"github.com/notaryproject/notation-core-go/internal/crypto/hashutil"
 	"math/big"
 	"time"
 
 	"github.com/notaryproject/notation-core-go/internal/crypto/cms"
-	"github.com/notaryproject/notation-core-go/internal/crypto/hashutil"
 	"github.com/notaryproject/notation-core-go/internal/crypto/oid"
 	asn1util "github.com/notaryproject/notation-core-go/internal/encoding/asn1"
 )
@@ -83,16 +83,16 @@ type Accuracy struct {
 }
 
 // TSTInfo ::= SEQUENCE {
-//  version         INTEGER                 { v1(1) },
-//  policy          TSAPolicyId,
-//  messageImprint  MessageImprint,
-//  serialNumber    INTEGER,
-//  genTime         GeneralizedTime,
-//  accuracy        Accuracy                OPTIONAL,
-//  ordering        BOOLEAN                 DEFAULT FALSE,
-//  nonce           INTEGER                 OPTIONAL,
-//  tsa             [0] GeneralName         OPTIONAL,
-//  extensions      [1] IMPLICIT Extensions OPTIONAL }
+// 	 version         INTEGER                 { v1(1) },
+// 	 policy          TSAPolicyId,
+// 	 messageImprint  MessageImprint,
+// 	 serialNumber    INTEGER,
+// 	 genTime         GeneralizedTime,
+// 	 accuracy        Accuracy                OPTIONAL,
+// 	 ordering        BOOLEAN                 DEFAULT FALSE,
+// 	 nonce           INTEGER                 OPTIONAL,
+// 	 tsa             [0] GeneralName         OPTIONAL,
+// 	 extensions      [1] IMPLICIT Extensions OPTIONAL }
 type TSTInfo struct {
 	Version        int // fixed to 1 as defined in RFC 3161 2.4.2 Response Format
 	Policy         asn1.ObjectIdentifier
@@ -106,8 +106,8 @@ type TSTInfo struct {
 	Extensions     []pkix.Extension `asn1:"optional,tag:1"`
 }
 
-// Verify verifies the message against the timestamp token information.
-func (tst *TSTInfo) Verify(message []byte) error {
+// VerifyWithData verifies the message against the timestamp token information.
+func (tst *TSTInfo) VerifyWithData(message []byte) error {
 	hashAlg := tst.MessageImprint.HashAlgorithm.Algorithm
 	hash, ok := oid.ConvertToHash(hashAlg)
 	if !ok {
@@ -117,6 +117,12 @@ func (tst *TSTInfo) Verify(message []byte) error {
 	if err != nil {
 		return err
 	}
+
+	return tst.Verify(messageDigest)
+}
+
+// Verify verifies the message digest against the timestamp token information.
+func (tst *TSTInfo) Verify(messageDigest []byte) error {
 	if !bytes.Equal(tst.MessageImprint.HashedMessage, messageDigest) {
 		return errors.New("mismatch message digest")
 	}

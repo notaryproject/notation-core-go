@@ -75,7 +75,7 @@ func TestHTTPTimestampGranted(t *testing.T) {
 		t.Fatalf("NewHTTPTimestamper() error = %v", err)
 	}
 	message := []byte("notation")
-	req, err := NewRequestFromBytes(message)
+	req, err := NewRequestWithData(message, crypto.SHA256)
 	if err != nil {
 		t.Fatalf("NewRequestFromString() error = %v", err)
 	}
@@ -128,7 +128,7 @@ func TestHTTPTimestampGranted(t *testing.T) {
 	if err != nil {
 		t.Fatal("SignedToken.Info() error =", err)
 	}
-	if err := info.Verify(message); err != nil {
+	if err := info.VerifyWithData(message); err != nil {
 		t.Errorf("TSTInfo.Verify() error = %v", err)
 	}
 	timestamp, accuracy := info.Timestamp()
@@ -173,7 +173,7 @@ func TestHTTPTimestampRejection(t *testing.T) {
 		t.Fatalf("NewHTTPTimestamper() error = %v", err)
 	}
 	message := []byte("notation")
-	req, err := NewRequestFromBytes(message)
+	req, err := NewRequestWithData(message, crypto.SHA256)
 	if err != nil {
 		t.Fatalf("NewRequestFromString() error = %v", err)
 	}
@@ -215,7 +215,8 @@ func TestHTTPTimestampBadEndpoint(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewHTTPTimestamper() error = %v", err)
 	}
-	req, err := NewRequestFromString("notation")
+	message := []byte("notation")
+	req, err := NewRequestWithData(message, crypto.SHA256)
 	if err != nil {
 		t.Fatalf("NewRequestFromString() error = %v", err)
 	}
@@ -238,7 +239,8 @@ func TestHTTPTimestampEndpointNotFound(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewHTTPTimestamper() error = %v", err)
 	}
-	req, err := NewRequestFromString("notation")
+	message := []byte("notation")
+	req, err := NewRequestWithData(message, crypto.SHA256)
 	if err != nil {
 		t.Fatalf("NewRequestFromString() error = %v", err)
 	}
