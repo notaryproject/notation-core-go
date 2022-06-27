@@ -25,9 +25,9 @@ func TestTSATimestampGranted(t *testing.T) {
 
 	// do timestamp
 	message := []byte("notation")
-	req, err := timestamp.NewRequestWithData(message, crypto.SHA256)
+	req, err := timestamp.NewRequestWithContent(message, crypto.SHA256)
 	if err != nil {
-		t.Fatalf("NewRequestFromString() error = %v", err)
+		t.Fatalf("NewRequestWithContent() error = %v", err)
 	}
 	ctx := context.Background()
 	resp, err := tsa.Timestamp(ctx, req)
@@ -56,7 +56,7 @@ func TestTSATimestampGranted(t *testing.T) {
 	if err != nil {
 		t.Fatal("SignedToken.Info() error =", err)
 	}
-	if err := info.VerifyWithData(message); err != nil {
+	if err := info.VerifyWithContent(message); err != nil {
 		t.Errorf("TSTInfo.Verify() error = %v", err)
 	}
 	ts, accuracy := info.Timestamp()
@@ -79,9 +79,9 @@ func TestTSATimestampRejection(t *testing.T) {
 
 	// do timestamp
 	message := []byte("notation")
-	req, err := timestamp.NewRequestWithData(message, crypto.SHA256)
+	req, err := timestamp.NewRequestWithContent(message, crypto.SHA256)
 	if err != nil {
-		t.Fatalf("NewRequestFromString() error = %v", err)
+		t.Fatalf("NewRequestWithContent() error = %v", err)
 	}
 	req.MessageImprint.HashAlgorithm.Algorithm = oid.SHA1WithRSA // set bad algorithm
 	ctx := context.Background()

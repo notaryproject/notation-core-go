@@ -7,11 +7,11 @@ import (
 	"encoding/asn1"
 	"errors"
 	"fmt"
-	"github.com/notaryproject/notation-core-go/internal/crypto/hashutil"
 	"math/big"
 	"time"
 
 	"github.com/notaryproject/notation-core-go/internal/crypto/cms"
+	"github.com/notaryproject/notation-core-go/internal/crypto/hashutil"
 	"github.com/notaryproject/notation-core-go/internal/crypto/oid"
 	asn1util "github.com/notaryproject/notation-core-go/internal/encoding/asn1"
 )
@@ -106,8 +106,8 @@ type TSTInfo struct {
 	Extensions     []pkix.Extension `asn1:"optional,tag:1"`
 }
 
-// VerifyWithData verifies the message against the timestamp token information.
-func (tst *TSTInfo) VerifyWithData(message []byte) error {
+// VerifyWithContent verifies the message against the timestamp token information.
+func (tst *TSTInfo) VerifyWithContent(message []byte) error {
 	hashAlg := tst.MessageImprint.HashAlgorithm.Algorithm
 	hash, ok := oid.ConvertToHash(hashAlg)
 	if !ok {

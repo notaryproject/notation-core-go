@@ -75,9 +75,9 @@ func TestHTTPTimestampGranted(t *testing.T) {
 		t.Fatalf("NewHTTPTimestamper() error = %v", err)
 	}
 	message := []byte("notation")
-	req, err := NewRequestWithData(message, crypto.SHA256)
+	req, err := NewRequestWithContent(message, crypto.SHA256)
 	if err != nil {
-		t.Fatalf("NewRequestFromString() error = %v", err)
+		t.Fatalf("NewRequestWithContent() error = %v", err)
 	}
 	ctx := context.Background()
 	resp, err := tsa.Timestamp(ctx, req)
@@ -128,7 +128,7 @@ func TestHTTPTimestampGranted(t *testing.T) {
 	if err != nil {
 		t.Fatal("SignedToken.Info() error =", err)
 	}
-	if err := info.VerifyWithData(message); err != nil {
+	if err := info.VerifyWithContent(message); err != nil {
 		t.Errorf("TSTInfo.Verify() error = %v", err)
 	}
 	timestamp, accuracy := info.Timestamp()
@@ -173,9 +173,9 @@ func TestHTTPTimestampRejection(t *testing.T) {
 		t.Fatalf("NewHTTPTimestamper() error = %v", err)
 	}
 	message := []byte("notation")
-	req, err := NewRequestWithData(message, crypto.SHA256)
+	req, err := NewRequestWithContent(message, crypto.SHA256)
 	if err != nil {
-		t.Fatalf("NewRequestFromString() error = %v", err)
+		t.Fatalf("NewRequestWithContent() error = %v", err)
 	}
 	ctx := context.Background()
 	resp, err := tsa.Timestamp(ctx, req)
@@ -216,9 +216,9 @@ func TestHTTPTimestampBadEndpoint(t *testing.T) {
 		t.Fatalf("NewHTTPTimestamper() error = %v", err)
 	}
 	message := []byte("notation")
-	req, err := NewRequestWithData(message, crypto.SHA256)
+	req, err := NewRequestWithContent(message, crypto.SHA256)
 	if err != nil {
-		t.Fatalf("NewRequestFromString() error = %v", err)
+		t.Fatalf("NewRequestWithContent() error = %v", err)
 	}
 	ctx := context.Background()
 	_, err = tsa.Timestamp(ctx, req)
@@ -240,9 +240,9 @@ func TestHTTPTimestampEndpointNotFound(t *testing.T) {
 		t.Fatalf("NewHTTPTimestamper() error = %v", err)
 	}
 	message := []byte("notation")
-	req, err := NewRequestWithData(message, crypto.SHA256)
+	req, err := NewRequestWithContent(message, crypto.SHA256)
 	if err != nil {
-		t.Fatalf("NewRequestFromString() error = %v", err)
+		t.Fatalf("NewRequestWithContent() error = %v", err)
 	}
 	ctx := context.Background()
 	_, err = tsa.Timestamp(ctx, req)

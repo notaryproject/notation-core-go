@@ -6,9 +6,9 @@ import (
 	"encoding/asn1"
 	"errors"
 	"fmt"
-	"github.com/notaryproject/notation-core-go/internal/crypto/hashutil"
 	"math/big"
 
+	"github.com/notaryproject/notation-core-go/internal/crypto/hashutil"
 	"github.com/notaryproject/notation-core-go/internal/crypto/oid"
 )
 
@@ -49,7 +49,6 @@ func NewRequest(digest []byte, alg crypto.Hash) (*Request, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	return &Request{
 		Version: 1,
 		MessageImprint: MessageImprint{
@@ -62,8 +61,8 @@ func NewRequest(digest []byte, alg crypto.Hash) (*Request, error) {
 	}, nil
 }
 
-// NewRequestWithData creates a request based on the given data and hash algorithm.
-func NewRequestWithData(content []byte, alg crypto.Hash) (*Request, error) {
+// NewRequestWithContent creates a request based on the given data and hash algorithm.
+func NewRequestWithContent(content []byte, alg crypto.Hash) (*Request, error) {
 	digest, err := hashutil.ComputeHash(alg, content)
 	if err != nil {
 		return nil, err
@@ -106,11 +105,11 @@ func validate(digest []byte, alg crypto.Hash) error {
 	var validContent bool
 	switch alg {
 	case crypto.SHA256:
-		validContent = l == 256/8
+		validContent = l == crypto.SHA256.Size()
 	case crypto.SHA384:
-		validContent =  l == 384/8
+		validContent = l == crypto.SHA384.Size()
 	case crypto.SHA512:
-		validContent = l == 384/8
+		validContent = l == crypto.SHA512.Size()
 	default:
 		return MalformedRequestError{msg: fmt.Sprintf("unsupported hashing algorithm: %s", alg)}
 	}
