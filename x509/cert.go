@@ -1,11 +1,8 @@
 package x509
 
 import (
-	"bytes"
 	"crypto/x509"
 	"encoding/pem"
-	"errors"
-	"fmt"
 	"os"
 )
 
@@ -43,36 +40,4 @@ func parseCertificates(data []byte) ([]*x509.Certificate, error) {
 	}
 
 	return certs, nil
-}
-
-// ValidateCertChain takes an ordered certificate chain and validates issuance from leaf to root
-func ValidateCertChain(certChain []*x509.Certificate) error {
-	if len(certChain) < 2 {
-		return errors.New("certificate chain must contain at least two certificates: a root and a leaf certificate")
-	}
-
-	for i, cert := range certChain {
-		if i == len(certChain)-1 {
-			if !isSelfSigned(cert) {
-				return errors.New("certificate chain must end with a root certificate (root certificates are self-signed)")
-			}
-		} else {
-			if isSelfSigned(cert) {
-				return errors.New("certificate chain must not contain self-signed intermediate certificates")
-			} else if nextCert := certChain[i+1]; !isIssuedBy(cert, nextCert) {
-				return fmt.Errorf("certificate with subject %q is not issued by %q", cert.Subject, nextCert.Subject)
-			}
-		}
-	}
-
-	return nil
-}
-
-func isSelfSigned(cert *x509.Certificate) bool {
-	return isIssuedBy(cert, cert)
-}
-
-func isIssuedBy(subject *x509.Certificate, issuer *x509.Certificate) bool {
-	err := subject.CheckSignatureFrom(issuer)
-	return err == nil && bytes.Equal(issuer.RawSubject, subject.RawIssuer)
 }
