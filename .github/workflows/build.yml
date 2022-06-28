@@ -1,4 +1,4 @@
-name: build
+name: Build
 
 on:
   push:
@@ -8,23 +8,4 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        go-version: [1.17, 1.18]
-      fail-fast: true
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-      - name: Set up Go ${{ matrix.go-version }} environment
-        uses: actions/setup-go@v3
-        with:
-          go-version: ${{ matrix.go-version }}
-          check-latest: true
-      - name: Run unit tests
-        run: make test
-      - name: Upload coverage report
-        uses: actions/upload-artifact@master
-        with:
-          name: notation-coverage-report-${{ github.sha }}
-          path: .cover/
+    uses: ./.github/workflows/reusable-build.yml
