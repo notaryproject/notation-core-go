@@ -106,8 +106,8 @@ type TSTInfo struct {
 	Extensions     []pkix.Extension `asn1:"optional,tag:1"`
 }
 
-// Verify verifies the message against the timestamp token information.
-func (tst *TSTInfo) Verify(message []byte) error {
+// VerifyContent verifies the message against the timestamp token information.
+func (tst *TSTInfo) VerifyContent(message []byte) error {
 	hashAlg := tst.MessageImprint.HashAlgorithm.Algorithm
 	hash, ok := oid.ConvertToHash(hashAlg)
 	if !ok {
@@ -117,6 +117,12 @@ func (tst *TSTInfo) Verify(message []byte) error {
 	if err != nil {
 		return err
 	}
+
+	return tst.Verify(messageDigest)
+}
+
+// Verify verifies the message digest against the timestamp token information.
+func (tst *TSTInfo) Verify(messageDigest []byte) error {
 	if !bytes.Equal(tst.MessageImprint.HashedMessage, messageDigest) {
 		return errors.New("mismatch message digest")
 	}
