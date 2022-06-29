@@ -83,16 +83,16 @@ type Accuracy struct {
 }
 
 // TSTInfo ::= SEQUENCE {
-// 	 version         INTEGER                 { v1(1) },
-// 	 policy          TSAPolicyId,
-// 	 messageImprint  MessageImprint,
-// 	 serialNumber    INTEGER,
-// 	 genTime         GeneralizedTime,
-// 	 accuracy        Accuracy                OPTIONAL,
-// 	 ordering        BOOLEAN                 DEFAULT FALSE,
-// 	 nonce           INTEGER                 OPTIONAL,
-// 	 tsa             [0] GeneralName         OPTIONAL,
-// 	 extensions      [1] IMPLICIT Extensions OPTIONAL }
+//  version         INTEGER                 { v1(1) },
+//  policy          TSAPolicyId,
+//  messageImprint  MessageImprint,
+//  serialNumber    INTEGER,
+//  genTime         GeneralizedTime,
+//  accuracy        Accuracy                OPTIONAL,
+//  ordering        BOOLEAN                 DEFAULT FALSE,
+//  nonce           INTEGER                 OPTIONAL,
+//  tsa             [0] GeneralName         OPTIONAL,
+//  extensions      [1] IMPLICIT Extensions OPTIONAL }
 type TSTInfo struct {
 	Version        int // fixed to 1 as defined in RFC 3161 2.4.2 Response Format
 	Policy         asn1.ObjectIdentifier
@@ -106,8 +106,8 @@ type TSTInfo struct {
 	Extensions     []pkix.Extension `asn1:"optional,tag:1"`
 }
 
-// VerifyWithContent verifies the message against the timestamp token information.
-func (tst *TSTInfo) VerifyWithContent(message []byte) error {
+// VerifyContent verifies the message against the timestamp token information.
+func (tst *TSTInfo) VerifyContent(message []byte) error {
 	hashAlg := tst.MessageImprint.HashAlgorithm.Algorithm
 	hash, ok := oid.ConvertToHash(hashAlg)
 	if !ok {

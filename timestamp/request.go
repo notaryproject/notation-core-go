@@ -61,8 +61,8 @@ func NewRequest(digest []byte, alg crypto.Hash) (*Request, error) {
 	}, nil
 }
 
-// NewRequestWithContent creates a request based on the given data and hash algorithm.
-func NewRequestWithContent(content []byte, alg crypto.Hash) (*Request, error) {
+// NewRequestFromContent creates a request based on the given data and hash algorithm.
+func NewRequestFromContent(content []byte, alg crypto.Hash) (*Request, error) {
 	digest, err := hashutil.ComputeHash(alg, content)
 	if err != nil {
 		return nil, err
@@ -101,20 +101,12 @@ func getOID(alg crypto.Hash) (asn1.ObjectIdentifier, error) {
 }
 
 func validate(digest []byte, alg crypto.Hash) error {
-	l := len(digest)
-	var validContent bool
-	switch alg {
-	case crypto.SHA256:
-		validContent = l == crypto.SHA256.Size()
-	case crypto.SHA384:
-		validContent = l == crypto.SHA384.Size()
-	case crypto.SHA512:
-		validContent = l == crypto.SHA512.Size()
-	default:
+	if !(alg == crypto.SHA256 || alg == crypto.SHA384 || alg == crypto.SHA512) {
 		return MalformedRequestError{msg: fmt.Sprintf("unsupported hashing algorithm: %s", alg)}
 	}
-	if !validContent {
-		return MalformedRequestError{msg: fmt.Sprintf("digest is of incorrect size: %d", l)}
+
+	if len(digest) != alg.Size() {
+		return MalformedRequestError{msg: fmt.Sprintf("digest is of incorrect size: %d", len(digest))}
 	}
 	return nil
 }
