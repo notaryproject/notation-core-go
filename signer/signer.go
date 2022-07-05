@@ -8,21 +8,6 @@ import (
 	nx509 "github.com/notaryproject/notation-core-go/x509"
 )
 
-// SignatureMediaType list the supported media-type for signatures.
-type SignatureMediaType string
-
-// SignatureAlgorithm lists supported signature algorithms.
-type SignatureAlgorithm string
-
-const (
-	RSASSA_PSS_SHA_256 SignatureAlgorithm = "RSASSA_PSS_SHA_256"
-	RSASSA_PSS_SHA_384 SignatureAlgorithm = "RSASSA_PSS_SHA_384"
-	RSASSA_PSS_SHA_512 SignatureAlgorithm = "RSASSA_PSS_SHA_512"
-	ECDSA_SHA_256      SignatureAlgorithm = "ECDSA_SHA_256"
-	ECDSA_SHA_384      SignatureAlgorithm = "ECDSA_SHA_384"
-	ECDSA_SHA_512      SignatureAlgorithm = "ECDSA_SHA_512"
-)
-
 // SignerInfo represents a parsed signature envelope that is agnostic to signature envelope format.
 type SignerInfo struct {
 	Payload            []byte
@@ -51,7 +36,7 @@ type UnsignedAttributes struct {
 type SignRequest struct {
 	Payload             []byte
 	PayloadContentType  string
-	CertificateChain    []*x509.Certificate
+	SignatureAlgorithm  SignatureAlgorithm
 	SignatureProvider   SignatureProvider
 	SigningTime         time.Time
 	Expiry              time.Time
@@ -68,7 +53,7 @@ type Attribute struct {
 
 // SignatureProvider is used to sign bytes generated after creating Signature envelope.
 type SignatureProvider interface {
-	Sign([]byte) ([]byte, error)
+	Sign([]byte) ([]byte, []*x509.Certificate, error)
 }
 
 // SignatureEnvelope provides functions to generate signature and verify signature.
@@ -144,7 +129,11 @@ func validateSignerInfo(info *SignerInfo) error {
 	errorFunc := func(s string) error {
 		return MalformedSignatureError{msg: s}
 	}
-	if err := validate(info.Payload, info.PayloadContentType, info.SignedAttributes.SigningTime, info.SignedAttributes.Expiry, info.CertificateChain, errorFunc); err != nil {
+	if err := validate(info.Payload, info.PayloadContentType, info.SignedAttributes.SigningTime, info.SignedAttributes.Expiry, errorFunc); err != nil {
+		return err
+	}
+
+	if err := validateCertificateChain(info.CertificateChain, info.SignatureAlgorithm, errorFunc); err != nil {
 		return err
 	}
 
@@ -160,7 +149,7 @@ func validateSignRequest(req SignRequest) error {
 	errorFunc := func(s string) error {
 		return MalformedSignRequestError{msg: s}
 	}
-	if err := validate(req.Payload, req.PayloadContentType, req.SigningTime, req.Expiry, req.CertificateChain, errorFunc); err != nil {
+	if err := validate(req.Payload, req.PayloadContentType, req.SigningTime, req.Expiry, errorFunc); err != nil {
 		return err
 	}
 
@@ -172,10 +161,35 @@ func validateSignRequest(req SignRequest) error {
 		return MalformedSignRequestError{msg: "SignatureProvider is nil"}
 	}
 
+	if req.SignatureAlgorithm == "" {
+		return MalformedSignRequestError{msg: "SignatureAlgorithm is not present"}
+	}
+
 	return nil
 }
 
-func validate(payload []byte, payloadCty string, signTime, expTime time.Time, certChain []*x509.Certificate, f func(string) error) error {
+func validateCertificateChain(certChain []*x509.Certificate, expectedAlg SignatureAlgorithm, f func(string) error) error {
+	if len(certChain) == 0 {
+		return f("certificate-chain not present or is empty")
+	}
+
+	err := nx509.ValidateCertChain(certChain)
+	if err != nil {
+		return f(fmt.Sprintf("certificate-chain is invalid, %s", err))
+	}
+
+	resSignAlgo, err := DeriveSignatureAlgorithm(certChain[0])
+	if err != nil {
+		return f(err.Error())
+	}
+	if resSignAlgo != expectedAlg {
+		return f("mismatch between signature algorithm derived from signing certificate and signing algorithm specified")
+	}
+
+	return nil
+}
+
+func validate(payload []byte, payloadCty string, signTime, expTime time.Time, f func(string) error) error {
 	if len(payload) == 0 {
 		return f("payload not present")
 	}
@@ -191,15 +205,6 @@ func validate(payload []byte, payloadCty string, signTime, expTime time.Time, ce
 
 	if !expTime.IsZero() && (expTime.Before(signTime) || expTime.Equal(signTime)) {
 		return f("expiry cannot be equal or before the signing time")
-	}
-
-	if len(certChain) == 0 {
-		return f("certificate-chain not present or is empty")
-	}
-
-	err := nx509.ValidateCertChain(certChain)
-	if err != nil {
-		return f(fmt.Sprintf("certificate-chain is invalid, %s", err))
 	}
 
 	return nil

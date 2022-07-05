@@ -14,14 +14,14 @@ import (
 )
 
 var (
-	rsaRoot     CertTuple
-	rsaLeaf     CertTuple
+	rsaRoot     RSACertTuple
+	rsaLeaf     RSACertTuple
 	ecdsaRoot   ECCertTuple
 	ecdsaLeaf   ECCertTuple
-	unsupported CertTuple
+	unsupported RSACertTuple
 )
 
-type CertTuple struct {
+type RSACertTuple struct {
 	Cert       *x509.Certificate
 	PrivateKey *rsa.PrivateKey
 }
@@ -37,12 +37,12 @@ func init() {
 }
 
 // GetRSARootCertificate returns root certificate signed using RSA algorithm
-func GetRSARootCertificate() CertTuple {
+func GetRSARootCertificate() RSACertTuple {
 	return rsaRoot
 }
 
 // GetRSALeafCertificate returns leaf certificate signed using RSA algorithm
-func GetRSALeafCertificate() CertTuple {
+func GetRSALeafCertificate() RSACertTuple {
 	return rsaLeaf
 }
 
@@ -58,7 +58,7 @@ func GetECLeafCertificate() ECCertTuple {
 
 // GetUnsupportedCertificate returns certificate signed using RSA algorithm with key size of 1024 bits
 // which is not supported by notary.
-func GetUnsupportedCertificate() CertTuple {
+func GetUnsupportedCertificate() RSACertTuple {
 	return unsupported
 }
 
@@ -71,20 +71,20 @@ func setupCertificates() {
 	// This will be flagged by the static code analyzer as 'Use of a weak cryptographic key' but its intentional
 	// and is used only for testing.
 	k, _ := rsa.GenerateKey(rand.Reader, 1024)
-	unsupported = getRSACertTupleWithPK(k, "Notation Unsupported Root", nil)
+	unsupported = GetRSACertTupleWithPK(k, "Notation Unsupported Root", nil)
 }
 
-func getCertTuple(cn string, issuer *CertTuple) CertTuple {
+func getCertTuple(cn string, issuer *RSACertTuple) RSACertTuple {
 	pk, _ := rsa.GenerateKey(rand.Reader, 3072)
-	return getRSACertTupleWithPK(pk, cn, issuer)
+	return GetRSACertTupleWithPK(pk, cn, issuer)
 }
 
 func getECCertTuple(cn string, issuer *ECCertTuple) ECCertTuple {
 	k, _ := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
-	return getECDSACertTupleWithPK(k, cn, issuer)
+	return GetECDSACertTupleWithPK(k, cn, issuer)
 }
 
-func getRSACertTupleWithPK(privKey *rsa.PrivateKey, cn string, issuer *CertTuple) CertTuple {
+func GetRSACertTupleWithPK(privKey *rsa.PrivateKey, cn string, issuer *RSACertTuple) RSACertTuple {
 	template := getCertTemplate(issuer == nil, cn)
 
 	var certBytes []byte
@@ -95,13 +95,13 @@ func getRSACertTupleWithPK(privKey *rsa.PrivateKey, cn string, issuer *CertTuple
 	}
 
 	cert, _ := x509.ParseCertificate(certBytes)
-	return CertTuple{
+	return RSACertTuple{
 		Cert:       cert,
 		PrivateKey: privKey,
 	}
 }
 
-func getECDSACertTupleWithPK(privKey *ecdsa.PrivateKey, cn string, issuer *ECCertTuple) ECCertTuple {
+func GetECDSACertTupleWithPK(privKey *ecdsa.PrivateKey, cn string, issuer *ECCertTuple) ECCertTuple {
 	template := getCertTemplate(issuer == nil, cn)
 
 	var certBytes []byte

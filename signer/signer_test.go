@@ -1,10 +1,6 @@
 package signer
 
 import (
-	"crypto"
-	"crypto/ecdsa"
-	"crypto/rand"
-	"crypto/rsa"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
@@ -15,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/notaryproject/notation-core-go/internal/testhelper"
+	"github.com/notaryproject/notation-core-go/testhelper"
 )
 
 const (
@@ -100,9 +96,9 @@ func TestSignErrors(t *testing.T) {
 		verifySignErrorWithRequest(env, req, t)
 	})
 
-	t.Run("when CertificateChain is absent", func(t *testing.T) {
+	t.Run("when SigningAlgorithm is absent", func(t *testing.T) {
 		req = getSignRequest()
-		req.CertificateChain = nil
+		req.SignatureAlgorithm = ""
 		verifySignErrorWithRequest(env, req, t)
 	})
 
@@ -117,12 +113,12 @@ func TestSignErrors(t *testing.T) {
 func TestVerify(t *testing.T) {
 	certs := "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"
-	var trustedCertsBytes []byte
+	var certsBytes []byte
 	for _, element := range strings.Split(certs, ",") {
 		certBytes, _ := base64.StdEncoding.DecodeString(element)
-		trustedCertsBytes = append(trustedCertsBytes, certBytes...)
+		certsBytes = append(certsBytes, certBytes...)
 	}
-	trustedCerts, _ := x509.ParseCertificates(trustedCertsBytes)
+	signingCerts, _ := x509.ParseCertificates(certsBytes)
 
 	env, err := NewSignatureEnvelopeFromBytes([]byte(TestValidSig), MediaTypeJWSJson)
 	if err != nil {
@@ -142,7 +138,8 @@ func TestVerify(t *testing.T) {
 	req := getSignRequest()
 	req.SigningTime, err = time.Parse(time.RFC3339, "2022-06-24T10:56:22-07:00")
 	req.Expiry = req.SigningTime.AddDate(0, 0, 1)
-	req.CertificateChain = []*x509.Certificate{trustedCerts[0], trustedCerts[1]}
+	req.SignatureAlgorithm, _ = DeriveSignatureAlgorithm(signingCerts[0])
+	req.SignatureProvider, _ = GetLocalSignatureProvider(signingCerts, testhelper.GetECLeafCertificate().PrivateKey)
 	verifySignerInfo(info, req, t)
 
 	if !areSignInfoEqual(vSignInfo, info) {
@@ -207,8 +204,9 @@ func TestSignAndVerify(t *testing.T) {
 		}
 
 		req := getSignRequest()
-		req.CertificateChain = []*x509.Certificate{testhelper.GetECLeafCertificate().Cert, testhelper.GetECRootCertificate().Cert}
-		req.SignatureProvider = MySigner{ecdsaKey: testhelper.GetECLeafCertificate().PrivateKey}
+		certs := []*x509.Certificate{testhelper.GetECLeafCertificate().Cert, testhelper.GetECRootCertificate().Cert}
+		req.SignatureAlgorithm, _ = DeriveSignatureAlgorithm(certs[0])
+		req.SignatureProvider, _ = GetLocalSignatureProvider(certs, testhelper.GetECLeafCertificate().PrivateKey)
 		sig, err := env.Sign(req)
 		if err != nil || len(sig) == 0 {
 			t.Fatalf("Sign() error = %v", err)
@@ -241,7 +239,7 @@ func TestGetSignerInfoErrors(t *testing.T) {
 
 	t.Run("when called GetSignerInfo after failed sign or verify call.", func(t *testing.T) {
 		req := getSignRequest()
-		req.Payload = []byte("Sad")
+		req.SignatureProvider = nil
 		env.Sign(req)
 		env.Verify()
 		_, err := env.GetSignerInfo()
@@ -258,7 +256,8 @@ func TestVerifyAuthenticity(t *testing.T) {
 	info, _ := env.GetSignerInfo()
 
 	t.Run("when trustedCerts is root cert", func(t *testing.T) {
-		root := req.CertificateChain[len(req.CertificateChain)-1]
+		certs := getSigningCerts()
+		root := certs[len(certs)-1]
 		trust, err := VerifyAuthenticity(info, []*x509.Certificate{root, testhelper.GetECRootCertificate().Cert})
 		if err != nil {
 			t.Fatalf("VerifyAuthenticity() error = %v", err)
@@ -271,7 +270,7 @@ func TestVerifyAuthenticity(t *testing.T) {
 	})
 
 	t.Run("when trustedCerts is leaf cert", func(t *testing.T) {
-		leaf := req.CertificateChain[0]
+		leaf := getSigningCerts()[0]
 		trust, err := VerifyAuthenticity(info, []*x509.Certificate{leaf, testhelper.GetECRootCertificate().Cert})
 		if err != nil {
 			t.Fatalf("VerifyAuthenticity() error = %v", err)
@@ -329,55 +328,30 @@ func TestVerifyAuthenticityError(t *testing.T) {
 
 }
 
-type MySigner struct {
-	rsaKey   *rsa.PrivateKey
-	ecdsaKey *ecdsa.PrivateKey
-}
-
-func (m MySigner) Sign(bytes []byte) ([]byte, error) {
-	hasher := crypto.SHA384.New()
-	hasher.Write(bytes)
-	if m.ecdsaKey == nil {
-		// Sign the string and return the encoded bytes
-		return rsa.SignPSS(rand.Reader, m.rsaKey, crypto.SHA384, hasher.Sum(nil), &rsa.PSSOptions{SaltLength: rsa.PSSSaltLengthEqualsHash})
-	}
-
-	// Sign the string and return r, s
-	r, s, _ := ecdsa.Sign(rand.Reader, m.ecdsaKey, hasher.Sum(nil))
-	curveBits := m.ecdsaKey.Curve.Params().BitSize
-
-	keyBytes := curveBits / 8
-	if curveBits%8 > 0 {
-		keyBytes += 1
-	}
-	out := make([]byte, 2*keyBytes)
-	r.FillBytes(out[0:keyBytes]) // r is assigned to the first half of output.
-	s.FillBytes(out[keyBytes:])  // s is assigned to the second half of output.
-	return out, nil
-}
-
 func getSignRequest() SignRequest {
+	lSigner, _ := GetLocalSignatureProvider(getSigningCerts(), testhelper.GetRSALeafCertificate().PrivateKey)
+
 	return SignRequest{
 		Payload:            []byte(TestPayload),
 		PayloadContentType: PayloadContentTypeJWSV1,
-		CertificateChain:   []*x509.Certificate{testhelper.GetRSALeafCertificate().Cert, testhelper.GetRSARootCertificate().Cert},
+		SignatureAlgorithm: RSASSA_PSS_SHA_384,
 		SigningTime:        time.Now(),
 		Expiry:             time.Now().AddDate(0, 0, 1),
 		ExtendedSignedAttrs: []Attribute{
 			{Key: "signedCritKey1", Value: "signedValue1", Critical: true},
 			{Key: "signedKey1", Value: "signedKey2", Critical: false}},
 		SigningAgent:      "NotationUnitTest/1.0.0",
-		SignatureProvider: MySigner{rsaKey: testhelper.GetRSALeafCertificate().PrivateKey},
+		SignatureProvider: lSigner,
 	}
+}
+
+func getSigningCerts() []*x509.Certificate {
+	return []*x509.Certificate{testhelper.GetRSALeafCertificate().Cert, testhelper.GetRSARootCertificate().Cert}
 }
 
 func verifySignerInfo(signInfo *SignerInfo, request SignRequest, t *testing.T) {
 	if request.SigningAgent != signInfo.UnsignedAttributes.SigningAgent {
 		t.Errorf("SigningAgent: expected value %q but found %q", request.SigningAgent, signInfo.UnsignedAttributes.SigningAgent)
-	}
-
-	if !reflect.DeepEqual(request.CertificateChain, signInfo.CertificateChain) {
-		t.Errorf("Mistmatch between expected and actual CertificateChain")
 	}
 
 	if request.SigningTime.Format(time.RFC3339) != signInfo.SignedAttributes.SigningTime.Format(time.RFC3339) {
@@ -396,6 +370,11 @@ func verifySignerInfo(signInfo *SignerInfo, request SignRequest, t *testing.T) {
 
 	if request.PayloadContentType != signInfo.PayloadContentType {
 		t.Errorf("PayloadContentType: expected value %q but found %q", request.PayloadContentType, signInfo.PayloadContentType)
+	}
+
+	_, certs, err := request.SignatureProvider.Sign([]byte(""))
+	if err != nil || !reflect.DeepEqual(certs, signInfo.CertificateChain) {
+		t.Errorf("Mistmatch between expected and actual CertificateChain")
 	}
 
 	// The input payload and the payload signed are different because the jwt library we are using converts
