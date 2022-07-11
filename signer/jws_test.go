@@ -168,7 +168,6 @@ func TestSignPayload(t *testing.T) {
 	t.Run("using ec key  with newJWSEnvelope works", func(t *testing.T) {
 		certs := []*x509.Certificate{testhelper.GetECLeafCertificate().Cert, testhelper.GetECRootCertificate().Cert}
 		req := getSignRequest()
-		req.SignatureAlgorithm, _ = DeriveSignatureAlgorithm(certs[0])
 		req.SignatureProvider, _ = GetLocalSignatureProvider(certs, testhelper.GetECLeafCertificate().PrivateKey)
 		_, err := env.signPayload(req)
 		if err != nil {

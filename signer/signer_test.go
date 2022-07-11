@@ -96,12 +96,6 @@ func TestSignErrors(t *testing.T) {
 		verifySignErrorWithRequest(env, req, t)
 	})
 
-	t.Run("when SigningAlgorithm is absent", func(t *testing.T) {
-		req = getSignRequest()
-		req.SignatureAlgorithm = ""
-		verifySignErrorWithRequest(env, req, t)
-	})
-
 	t.Run("when expiry is before singing time", func(t *testing.T) {
 		req = getSignRequest()
 		req.Expiry = req.SigningTime.AddDate(0, 0, -1)
@@ -138,7 +132,6 @@ func TestVerify(t *testing.T) {
 	req := getSignRequest()
 	req.SigningTime, err = time.Parse(time.RFC3339, "2022-06-24T10:56:22-07:00")
 	req.Expiry = req.SigningTime.AddDate(0, 0, 1)
-	req.SignatureAlgorithm, _ = DeriveSignatureAlgorithm(signingCerts[0])
 	req.SignatureProvider, _ = GetLocalSignatureProvider(signingCerts, testhelper.GetECLeafCertificate().PrivateKey)
 	verifySignerInfo(info, req, t)
 
@@ -205,7 +198,6 @@ func TestSignAndVerify(t *testing.T) {
 
 		req := getSignRequest()
 		certs := []*x509.Certificate{testhelper.GetECLeafCertificate().Cert, testhelper.GetECRootCertificate().Cert}
-		req.SignatureAlgorithm, _ = DeriveSignatureAlgorithm(certs[0])
 		req.SignatureProvider, _ = GetLocalSignatureProvider(certs, testhelper.GetECLeafCertificate().PrivateKey)
 		sig, err := env.Sign(req)
 		if err != nil || len(sig) == 0 {
@@ -334,7 +326,6 @@ func getSignRequest() SignRequest {
 	return SignRequest{
 		Payload:            []byte(TestPayload),
 		PayloadContentType: PayloadContentTypeJWSV1,
-		SignatureAlgorithm: RSASSA_PSS_SHA_384,
 		SigningTime:        time.Now(),
 		Expiry:             time.Now().AddDate(0, 0, 1),
 		ExtendedSignedAttrs: []Attribute{

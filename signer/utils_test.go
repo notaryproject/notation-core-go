@@ -114,9 +114,9 @@ func TestDeriveSignatureAlgorithm(t *testing.T) {
 		pk, _ := rsa.GenerateKey(rand.Reader, v)
 		certTuple := testhelper.GetRSACertTupleWithPK(pk, "TestDeriveSignatureAlgorithm_"+strconv.Itoa(pk.Size()), &rsaRoot)
 		t.Run(fmt.Sprintf("for RSA certificates of size %d", pk.Size()), func(t *testing.T) {
-			_, err := DeriveSignatureAlgorithm(certTuple.Cert)
+			_, err := getSignatureAlgorithm(certTuple.Cert)
 			if err != nil {
-				t.Errorf("DeriveSignatureAlgorithm(). Error: %s", err)
+				t.Errorf("getSignatureAlgorithm(). Error: %s", err)
 			}
 		})
 	}
@@ -126,9 +126,9 @@ func TestDeriveSignatureAlgorithm(t *testing.T) {
 		pk, _ := ecdsa.GenerateKey(v, rand.Reader)
 		certTuple := testhelper.GetECDSACertTupleWithPK(pk, "TestDeriveSignatureAlgorithm_"+strconv.Itoa(pk.Params().BitSize), &ecRoot)
 		t.Run(fmt.Sprintf("for EC certificates of size %d", pk.Params().BitSize), func(t *testing.T) {
-			_, err := DeriveSignatureAlgorithm(certTuple.Cert)
+			_, err := getSignatureAlgorithm(certTuple.Cert)
 			if err != nil {
-				t.Errorf("DeriveSignatureAlgorithm(). Error: %s", err)
+				t.Errorf("getSignatureAlgorithm(). Error: %s", err)
 			}
 		})
 	}
@@ -140,7 +140,7 @@ func TestDeriveSignatureAlgorithmError(t *testing.T) {
 		pk, _ := rsa.GenerateKey(rand.Reader, 1024)
 		certTuple := testhelper.GetRSACertTupleWithPK(pk, "TestDeriveSignatureAlgorithm_"+strconv.Itoa(pk.Size()), &rsaRoot)
 
-		_, err := DeriveSignatureAlgorithm(certTuple.Cert)
+		_, err := getSignatureAlgorithm(certTuple.Cert)
 		if !(err != nil && errors.As(err, new(UnsupportedSigningKeyError))) {
 			t.Errorf("Expected UnsupportedSigningKeyError but found %q", reflect.TypeOf(err))
 		}
@@ -151,7 +151,7 @@ func TestDeriveSignatureAlgorithmError(t *testing.T) {
 		pk, _ := ecdsa.GenerateKey(elliptic.P224(), rand.Reader)
 		certTuple := testhelper.GetECDSACertTupleWithPK(pk, "TestDeriveSignatureAlgorithm_"+strconv.Itoa(pk.Params().BitSize), &ecRoot)
 
-		_, err := DeriveSignatureAlgorithm(certTuple.Cert)
+		_, err := getSignatureAlgorithm(certTuple.Cert)
 		if !(err != nil && errors.As(err, new(UnsupportedSigningKeyError))) {
 			t.Errorf("Expected UnsupportedSigningKeyError but found %q", reflect.TypeOf(err))
 		}

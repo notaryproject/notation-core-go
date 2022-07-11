@@ -36,7 +36,6 @@ type UnsignedAttributes struct {
 type SignRequest struct {
 	Payload             []byte
 	PayloadContentType  string
-	SignatureAlgorithm  SignatureAlgorithm
 	SignatureProvider   SignatureProvider
 	SigningTime         time.Time
 	Expiry              time.Time
@@ -54,6 +53,7 @@ type Attribute struct {
 // SignatureProvider is used to sign bytes generated after creating Signature envelope.
 type SignatureProvider interface {
 	Sign([]byte) ([]byte, []*x509.Certificate, error)
+	KeySpec() (KeySpec, error)
 }
 
 // SignatureEnvelope provides functions to generate signature and verify signature.
@@ -126,6 +126,14 @@ func (s SignatureEnvelope) GetSignerInfo() (*SignerInfo, error) {
 
 // validateSignerInfo performs basic set of validations on SignerInfo struct.
 func validateSignerInfo(info *SignerInfo) error {
+	if len(info.Signature) == 0 {
+		return MalformedSignatureError{msg: "signature not present or is empty"}
+	}
+
+	if info.SignatureAlgorithm == "" {
+		return MalformedSignRequestError{msg: "SignatureAlgorithm is not present"}
+	}
+
 	errorFunc := func(s string) error {
 		return MalformedSignatureError{msg: s}
 	}
@@ -135,10 +143,6 @@ func validateSignerInfo(info *SignerInfo) error {
 
 	if err := validateCertificateChain(info.CertificateChain, info.SignatureAlgorithm, errorFunc); err != nil {
 		return err
-	}
-
-	if len(info.Signature) == 0 {
-		return MalformedSignatureError{msg: "signature not present or is empty"}
 	}
 
 	return nil
@@ -161,10 +165,6 @@ func validateSignRequest(req SignRequest) error {
 		return MalformedSignRequestError{msg: "SignatureProvider is nil"}
 	}
 
-	if req.SignatureAlgorithm == "" {
-		return MalformedSignRequestError{msg: "SignatureAlgorithm is not present"}
-	}
-
 	return nil
 }
 
@@ -178,7 +178,7 @@ func validateCertificateChain(certChain []*x509.Certificate, expectedAlg Signatu
 		return f(fmt.Sprintf("certificate-chain is invalid, %s", err))
 	}
 
-	resSignAlgo, err := DeriveSignatureAlgorithm(certChain[0])
+	resSignAlgo, err := getSignatureAlgorithm(certChain[0])
 	if err != nil {
 		return f(err.Error())
 	}

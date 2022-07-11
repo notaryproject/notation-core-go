@@ -42,7 +42,7 @@ const (
 	RSA_4096 KeySpec = "RSA_4096"
 	EC_256   KeySpec = "EC_256"
 	EC_384   KeySpec = "EC_384"
-	EC_512   KeySpec = "EC_512"
+	EC_521   KeySpec = "EC_521"
 )
 
 // SignatureAlgorithm returns the signing algorithm associated with KeyType k.
@@ -58,7 +58,7 @@ func (k KeySpec) SignatureAlgorithm() SignatureAlgorithm {
 		return ECDSA_SHA_256
 	case EC_384:
 		return ECDSA_SHA_384
-	case EC_512:
+	case EC_521:
 		return ECDSA_SHA_512
 	}
 	return ""

@@ -4,26 +4,10 @@ import (
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/rsa"
-	"crypto/x509"
-	"encoding/base64"
-	"encoding/json"
 	"fmt"
 
 	"github.com/golang-jwt/jwt/v4"
 )
-
-// signJWT signs the given payload and headers using the given signing method and signature provider
-func signJWT(payload []byte, headers map[string]interface{}, sigPro SignatureProvider) (string, []*x509.Certificate, error) {
-
-	s, err := signingString(payload, headers)
-	if err != nil {
-		return "", nil, err
-	}
-	sigB, certs, err := sigPro.Sign([]byte(s))
-
-	finalSig := s + "." + base64.RawURLEncoding.EncodeToString(sigB)
-	return finalSig, certs, err
-}
 
 // verifyJWT verifies the JWT token against the specified verification key
 func verifyJWT(tokenString string, key crypto.PublicKey) error {
@@ -80,15 +64,4 @@ func getSigningMethod(key crypto.PublicKey) (jwt.SigningMethod, error) {
 		}
 	}
 	return nil, UnsupportedSigningKeyError{}
-}
-
-func signingString(payload []byte, headers map[string]interface{}) (string, error) {
-	jsonPHeaders, err := json.Marshal(headers)
-	if err != nil {
-		return "", fmt.Errorf("failed to encode protected headers: %v", err)
-	}
-
-	protectedRaw := base64.RawURLEncoding.EncodeToString(jsonPHeaders)
-	payloadRaw := base64.RawURLEncoding.EncodeToString(payload)
-	return protectedRaw + "." + payloadRaw, nil
 }

@@ -8,18 +8,8 @@ import (
 	"crypto/x509"
 )
 
-// DeriveSignatureAlgorithm picks up a recommended signing algorithm for given certificate.
-func DeriveSignatureAlgorithm(signingCert *x509.Certificate) (SignatureAlgorithm, error) {
-	keySpec, err := DeriveKeySpec(signingCert)
-	if err != nil {
-		return "", err
-	}
-
-	return keySpec.SignatureAlgorithm(), nil
-}
-
-// DeriveKeySpec picks up a recommended signing algorithm for given certificate.
-func DeriveKeySpec(signingCert *x509.Certificate) (KeySpec, error) {
+// GetKeySpec picks up a recommended signing algorithm for given certificate.
+func GetKeySpec(signingCert *x509.Certificate) (KeySpec, error) {
 	var keyspec KeySpec
 	switch key := signingCert.PublicKey.(type) {
 	case *rsa.PublicKey:
@@ -40,7 +30,7 @@ func DeriveKeySpec(signingCert *x509.Certificate) (KeySpec, error) {
 		case 384:
 			keyspec = EC_384
 		case 521:
-			keyspec = EC_512
+			keyspec = EC_521
 		default:
 			return "", UnsupportedSigningKeyError{keyType: "ecdsa", keyLength: key.Curve.Params().BitSize}
 		}
@@ -54,35 +44,36 @@ func GetLocalSignatureProvider(certs []*x509.Certificate, pk crypto.PrivateKey) 
 		return nil, MalformedArgumentError{param: "certs"}
 	}
 
-	signAlg, err := DeriveSignatureAlgorithm(certs[0])
+	ks, err := GetKeySpec(certs[0])
 	if err != nil {
 		return nil, err
 	}
 
 	return &LocalSignatureProvider{
-		key:    pk,
-		certs:  certs,
-		hasher: signAlg.Hash(),
+		key:     pk,
+		certs:   certs,
+		keySpec: ks,
 	}, nil
 }
 
 // LocalSignatureProvider implements SignatureEnvelope's SignatureProvider to facilitate signing using local certificates and private key.
 type LocalSignatureProvider struct {
-	key    crypto.PrivateKey
+	keySpec KeySpec
+	key     crypto.PrivateKey
 	certs  []*x509.Certificate
-	hasher crypto.Hash
 }
 
 func (l LocalSignatureProvider) Sign(bytes []byte) ([]byte, []*x509.Certificate, error) {
 	// calculate hash
-	h := l.hasher.New()
+	hasher := l.keySpec.SignatureAlgorithm().Hash()
+	h := hasher.New()
 	h.Write(bytes)
 	hash := h.Sum(nil)
 
 	// sign
 	switch key := l.key.(type) {
 	case *rsa.PrivateKey:
-		sig, err := rsa.SignPSS(rand.Reader, key, l.hasher.HashFunc(), hash, &rsa.PSSOptions{SaltLength: rsa.PSSSaltLengthEqualsHash})
+		sig, err := rsa.SignPSS(rand.Reader, key, hasher.HashFunc(), hash, &rsa.PSSOptions{SaltLength: rsa.PSSSaltLengthEqualsHash})
 		if err != nil {
 			return nil, nil, err
 		}
@@ -106,4 +97,18 @@ func (l LocalSignatureProvider) Sign(bytes []byte) ([]byte, []*x509.Certificate,
 	}
 
 	return nil, nil, UnsupportedSigningKeyError{}
+}
+
+func (l LocalSignatureProvider) KeySpec() (KeySpec, error) {
+	return l.keySpec, nil
+}
+
+// getSignatureAlgorithm picks up a recommended signing algorithm for given certificate.
+func getSignatureAlgorithm(signingCert *x509.Certificate) (SignatureAlgorithm, error) {
+	keySpec, err := GetKeySpec(signingCert)
+	if err != nil {
+		return "", err
+	}
+
+	return keySpec.SignatureAlgorithm(), nil
 }

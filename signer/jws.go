@@ -67,22 +67,28 @@ func (jws *jwsEnvelope) validateIntegrity() error {
 }
 
 func (jws *jwsEnvelope) signPayload(req SignRequest) ([]byte, error) {
-	signedAttrs, err := getSignedAttrs(req)
-	if err != nil {
-		return nil, err
-	}
-
 	errorFunc := func(s string) error {
 		return MalformedSignRequestError{msg: s}
 	}
 
-	compact, certs, err := signJWT(req.Payload, signedAttrs, req.SignatureProvider)
+	ks, err := req.SignatureProvider.KeySpec()
+	if err != nil {
+		return nil, errorFunc(err.Error())
+	}
+	alg := ks.SignatureAlgorithm()
+
+	signedAttrs, err := getSignedAttrs(req, alg)
+	if err != nil {
+		return nil, err
+	}
+
+	compact, certs, err := sign(req.Payload, signedAttrs, req.SignatureProvider)
 	if err != nil {
 		return nil, errorFunc(err.Error())
 	}
 
 	// not performed by SignatureEnvelope's Sign function as we don't have access to certificates.
-	if err := validateCertificateChain(certs, req.SignatureAlgorithm, errorFunc); err != nil {
+	if err := validateCertificateChain(certs, alg, errorFunc); err != nil {
 		return nil, err
 	}
 
@@ -224,7 +230,7 @@ func validateCriticalHeaders(pheader *jwsProtectedHeader) error {
 	return nil
 }
 
-func getSignedAttrs(req SignRequest) (map[string]interface{}, error) {
+func getSignedAttrs(req SignRequest, sigAlg SignatureAlgorithm) (map[string]interface{}, error) {
 	extAttrs := make(map[string]interface{})
 	var crit []string
 	if !req.Expiry.IsZero() {
@@ -238,7 +244,7 @@ func getSignedAttrs(req SignRequest) (map[string]interface{}, error) {
 		}
 	}
 
-	alg, err := getJWSAlgo(req.SignatureAlgorithm)
+	alg, err := getJWSAlgo(sigAlg)
 	if err != nil {
 		return nil, err
 	}
@@ -276,7 +282,6 @@ type jwsInternalEnvelope struct {
 	Payload string `json:"payload"`
 
 	// jwsProtectedHeader Base64URL-encoded.
-
 	Protected string `json:"protected"`
 
 	// Signature metadata that is not integrity Protected
@@ -349,6 +354,24 @@ func generateJws(compact string, req SignRequest, certs []*x509.Certificate) (*j
 			SigningAgent: req.SigningAgent,
 		},
 	}, nil
+}
+
+// sign the given payload and headers using the given signing method and signature provider
+func sign(payload []byte, headers map[string]interface{}, sigPro SignatureProvider) (string, []*x509.Certificate, error) {
+	jsonPHeaders, err := json.Marshal(headers)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to encode protected headers: %v", err)
+	}
+	protectedRaw := base64.RawURLEncoding.EncodeToString(jsonPHeaders)
+	payloadRaw := base64.RawURLEncoding.EncodeToString(payload)
+	signingString := protectedRaw + "." + payloadRaw
+
+	sigB, certs, err := sigPro.Sign([]byte(signingString))
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to sign digest. error : %v", err)
+	}
+	finalSig := signingString + "." + base64.RawURLEncoding.EncodeToString(sigB)
+	return finalSig, certs, err
 }
 
 func getSignatureAlgo(alg string) (SignatureAlgorithm, error) {
