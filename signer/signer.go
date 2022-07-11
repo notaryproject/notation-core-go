@@ -196,7 +196,7 @@ func validate(payload []byte, payloadCty PayloadContentType, signTime, expTime t
 
 	// TODO: perform PayloadContentType value validations
 	if payloadCty == "" {
-		return f("signature content type not present or is empty")
+		return f("payload content type not present or is empty")
 	}
 
 	if signTime.IsZero() {
