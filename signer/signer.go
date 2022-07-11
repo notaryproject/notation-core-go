@@ -3,6 +3,7 @@ package signer
 import (
 	"crypto/x509"
 	"fmt"
+	"strings"
 	"time"
 
 	nx509 "github.com/notaryproject/notation-core-go/x509"
@@ -17,14 +18,17 @@ type SignerInfo struct {
 	SignatureAlgorithm SignatureAlgorithm
 	CertificateChain   []*x509.Certificate
 	Signature          []byte
+	SigningScheme      SigningScheme
 	TimestampSignature []byte
 }
 
 // SignedAttributes represents signed metadata in the Signature envelope
 type SignedAttributes struct {
-	SigningTime        time.Time
-	Expiry             time.Time
-	ExtendedAttributes []Attribute
+	SigningTime                  time.Time
+	Expiry                       time.Time
+	VerificationPlugin           string
+	VerificationPluginMinVersion string
+	ExtendedAttributes           []Attribute
 }
 
 // UnsignedAttributes represents unsigned metadata in the Signature envelope
@@ -34,13 +38,16 @@ type UnsignedAttributes struct {
 
 // SignRequest is used to generate Signature.
 type SignRequest struct {
-	Payload             []byte
-	PayloadContentType  PayloadContentType
-	SignatureProvider   SignatureProvider
-	SigningTime         time.Time
-	Expiry              time.Time
-	ExtendedSignedAttrs []Attribute
-	SigningAgent        string
+	Payload                      []byte
+	PayloadContentType           PayloadContentType
+	SignatureProvider            SignatureProvider
+	SigningTime                  time.Time
+	Expiry                       time.Time
+	ExtendedSignedAttrs          []Attribute
+	SigningAgent                 string
+	SigningScheme                SigningScheme
+	VerificationPlugin           string
+	VerificationPluginMinVersion string  // TODO: Implement SimVer structure
 }
 
 // Attribute represents metadata in the Signature envelope
@@ -94,10 +101,16 @@ func (s *SignatureEnvelope) Verify() (*SignerInfo, error) {
 
 // Sign generates Signature using given SignRequest.
 func (s *SignatureEnvelope) Sign(req SignRequest) ([]byte, error) {
+	// Sanitize request
+	req.SigningTime = req.SigningTime.Truncate(time.Second)
+	req.Expiry = req.Expiry.Truncate(time.Second)
+
+	// validate request
 	if err := validateSignRequest(req); err != nil {
 		return nil, err
 	}
 
+	// perform signature generation
 	sig, err := s.internalEnvelope.signPayload(req)
 	if err != nil {
 		return nil, err
@@ -137,7 +150,10 @@ func validateSignerInfo(info *SignerInfo) error {
 	errorFunc := func(s string) error {
 		return MalformedSignatureError{msg: s}
 	}
-	if err := validate(info.Payload, info.PayloadContentType, info.SignedAttributes.SigningTime, info.SignedAttributes.Expiry, errorFunc); err != nil {
+
+	sAttr := info.SignedAttributes
+	if err := validate(info.Payload, info.PayloadContentType, sAttr.VerificationPlugin, sAttr.VerificationPluginMinVersion,
+		sAttr.SigningTime, sAttr.Expiry, info.SigningScheme, errorFunc); err != nil {
 		return err
 	}
 
@@ -153,7 +169,9 @@ func validateSignRequest(req SignRequest) error {
 	errorFunc := func(s string) error {
 		return MalformedSignRequestError{msg: s}
 	}
-	if err := validate(req.Payload, req.PayloadContentType, req.SigningTime, req.Expiry, errorFunc); err != nil {
+
+	if err := validate(req.Payload, req.PayloadContentType, req.VerificationPlugin, req.VerificationPluginMinVersion,
+		req.SigningTime, req.Expiry, req.SigningScheme, errorFunc); err != nil {
 		return err
 	}
 
@@ -189,12 +207,11 @@ func validateCertificateChain(certChain []*x509.Certificate, signTime time.Time,
 	return nil
 }
 
-func validate(payload []byte, payloadCty PayloadContentType, signTime, expTime time.Time, f func(string) error) error {
+func validate(payload []byte, payloadCty PayloadContentType, vPlugin, vPluginVersion string, signTime, expTime time.Time, scheme SigningScheme, f func(string) error) error {
 	if len(payload) == 0 {
 		return f("payload not present")
 	}
 
-	// TODO: perform PayloadContentType value validations
 	if payloadCty == "" {
 		return f("payload content type not present or is empty")
 	}
@@ -205,6 +222,22 @@ func validate(payload []byte, payloadCty PayloadContentType, signTime, expTime t
 
 	if !expTime.IsZero() && (expTime.Before(signTime) || expTime.Equal(signTime)) {
 		return f("expiry cannot be equal or before the signing time")
+	}
+
+	if scheme == "" {
+		return f("SigningScheme not present")
+	}
+
+	if vPlugin != "" && strings.TrimSpace(vPlugin) == "" {
+		return MalformedSignRequestError{msg: "VerificationPlugin cannot contain only whitespaces"}
+	}
+
+	if vPluginVersion != "" && strings.TrimSpace(vPluginVersion) == "" {
+		return MalformedSignRequestError{msg: "VerificationPluginMinVersion cannot contain only whitespaces"}
+	}
+
+	if vPlugin == "" && vPluginVersion != "" {
+		return MalformedSignRequestError{msg: "VerificationPluginMinVersion cannot be used without VerificationPlugin"}
 	}
 
 	return nil

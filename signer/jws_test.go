@@ -104,7 +104,22 @@ func TestGetSignerInfo(t *testing.T) {
 		}
 	})
 
-	t.Run("with missing crit header works", func(t *testing.T) {
+	t.Run("with invalid base64 bytes sig envelope returns error", func(t *testing.T) {
+		env, _ := newJWSEnvelopeFromBytes([]byte("{\"Payload\":\"Hi!\",\"Protected\":\"Hi\",\"Header\":{},\"Signature\":\"Hi!\"}"))
+		if _, err := env.getSignerInfo(); err == nil {
+			t.Errorf("Expected error but not found")
+		}
+	})
+
+	t.Run("with invalid singing time returns error", func(t *testing.T) {
+		env, _ := newJWSEnvelopeFromBytes([]byte("{\"Payload\":\"eyJhbGciOiJIUzI1NiJ9\",\"Protected\":\"eyJhbGciOiJQUzI1NiIsImNyaXQiOlsiaW8uY25jZi5ub3Rhcnkuc2lnbmluZ1RpbWUiXSwiaW8uY25jZi5ub3Rhcnkuc2lnbmluZ1RpbWUiOiIyMDA2LS0wMlQxNTowNDowNVoifQ\"" +
+			",\"Header\":{},\"Signature\":\"YjGj\"}"))
+		if _, err := env.getSignerInfo(); !(err != nil && errors.As(err, new(MalformedSignatureError))) {
+			t.Errorf("Expected MalformedSignatureError but found %q", reflect.TypeOf(err))
+		}
+	})
+
+	t.Run("with missing crit header returns error", func(t *testing.T) {
 		sig := "{\"payload\":\"eyJ0YXJnZXRBcnRpZmFjdCI6eyJtZWRpYVR5cGUiOiJhcHBsaWNhdGlvbi92bmQub2NpLmltYWdlLm1hbmlmZXN0LnYxK2pzb24iLCJkaWdlc3QiOiJzaGEyNTY6NzNjODAzOTMwZWEzYmExZTU0YmMyNWMyYmRjNTNlZGQwMjg0YzYyZWQ2NTFmZTdiMDAzNjlkYTUxOWEzYzMzMyIsInNpemUiOjE2NzI0LCJhbm5vdGF0aW9ucyI6eyJpby53YWJiaXQtbmV0d29ya3MuYnVpbGRJZCI6IjEyMyJ9fX0\"," +
 			"\"protected\":\"eyJhbGciOiJQUzM4NCIsImN0eSI6ImFwcGxpY2F0aW9uL3ZuZC5jbmNmLm5vdGFyeS52Mi5qd3MudjEiLCJpby5jbmNmLm5vdGFyeS5zaWduaW5nVGltZSI6IjIwMjItMDctMDZUMjA6MjU6NDYtMDc6MDAifQ\"," +
 			"\"header\":{" +
@@ -117,21 +132,6 @@ func TestGetSignerInfo(t *testing.T) {
 			t.Errorf("validateIntegrity(). Error: %s", err.Error())
 		}
 
-		if _, err := env.getSignerInfo(); err != nil {
-			t.Errorf("validateIntegrity(). Error: %s", err.Error())
-		}
-	})
-
-	t.Run("with invalid base64 bytes sig envelope returns error", func(t *testing.T) {
-		env, _ := newJWSEnvelopeFromBytes([]byte("{\"Payload\":\"Hi!\",\"Protected\":\"Hi\",\"Header\":{},\"Signature\":\"Hi!\"}"))
-		if _, err := env.getSignerInfo(); err == nil {
-			t.Errorf("Expected error but not found")
-		}
-	})
-
-	t.Run("with invalid singing time returns error", func(t *testing.T) {
-		env, _ := newJWSEnvelopeFromBytes([]byte("{\"Payload\":\"eyJhbGciOiJIUzI1NiJ9\",\"Protected\":\"eyJhbGciOiJQUzI1NiIsImNyaXQiOlsiaW8uY25jZi5ub3Rhcnkuc2lnbmluZ1RpbWUiXSwiaW8uY25jZi5ub3Rhcnkuc2lnbmluZ1RpbWUiOiIyMDA2LS0wMlQxNTowNDowNVoifQ\"" +
-			",\"Header\":{},\"Signature\":\"YjGj\"}"))
 		if _, err := env.getSignerInfo(); !(err != nil && errors.As(err, new(MalformedSignatureError))) {
 			t.Errorf("Expected MalformedSignatureError but found %q", reflect.TypeOf(err))
 		}

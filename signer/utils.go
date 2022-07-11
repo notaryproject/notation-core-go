@@ -60,7 +60,7 @@ func NewLocalSignatureProvider(certs []*x509.Certificate, pk crypto.PrivateKey) 
 type LocalSignatureProvider struct {
 	keySpec KeySpec
 	key     crypto.PrivateKey
-	certs  []*x509.Certificate
+	certs   []*x509.Certificate
 }
 
 func (l *LocalSignatureProvider) Sign(bytes []byte) ([]byte, []*x509.Certificate, error) {

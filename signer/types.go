@@ -64,6 +64,14 @@ func (k KeySpec) SignatureAlgorithm() SignatureAlgorithm {
 	return ""
 }
 
+// SigningScheme formalizes the feature set (guarantees) provided by the signature.
+type SigningScheme string
+
+const (
+	SigningSchemeX509Default          SigningScheme = "notary.default.x509"
+	SigningSchemeX509SigningAuthority SigningScheme = "notary.signingAuthority.x509"
+)
+
 // PayloadContentType list the supported content types for signature's  payload .
 type PayloadContentType string
 

@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"reflect"
 	"sort"
 	"strings"
@@ -16,7 +17,7 @@ import (
 
 const (
 	TestPayload  = "{\"targetArtifact\":{\"mediaType\":\"application/vnd.oci.image.manifest.v1+json\",\"digest\":\"sha256:73c803930ea3ba1e54bc25c2bdc53edd0284c62ed651fe7b00369da519a3c333\",\"size\":16724,\"annotations\":{\"io.wabbit-networks.buildId\":\"123\"}}}"
-	TestValidSig = "{\"payload\":\"eyJ0YXJnZXRBcnRpZmFjdCI6eyJtZWRpYVR5cGUiOiJhcHBsaWNhdGlvbi92bmQub2NpLmltYWdlLm1hbmlmZXN0LnYxK2pzb24iLCJkaWdlc3QiOiJzaGEyNTY6NzNjODAzOTMwZWEzYmExZTU0YmMyNWMyYmRjNTNlZGQwMjg0YzYyZWQ2NTFmZTdiMDAzNjlkYTUxOWEzYzMzMyIsInNpemUiOjE2NzI0LCJhbm5vdGF0aW9ucyI6eyJpby53YWJiaXQtbmV0d29ya3MuYnVpbGRJZCI6IjEyMyJ9fX0\",\"protected\":\"eyJhbGciOiJQUzM4NCIsImNyaXQiOlsiaW8uY25jZi5ub3RhcnkuZXhwaXJ5Iiwic2lnbmVkQ3JpdEtleTEiXSwiY3R5IjoiYXBwbGljYXRpb24vdm5kLmNuY2Yubm90YXJ5LnBheWxvYWQudjEranNvbiIsImlvLmNuY2Yubm90YXJ5LmV4cGlyeSI6IjIwMjItMDctMTJUMTM6MDY6MTgtMDc6MDAiLCJpby5jbmNmLm5vdGFyeS5zaWduaW5nVGltZSI6IjIwMjItMDctMTFUMTM6MDY6MTgtMDc6MDAiLCJzaWduZWRDcml0S2V5MSI6InNpZ25lZFZhbHVlMSIsInNpZ25lZEtleTEiOiJzaWduZWRLZXkyIn0\",\"header\":{\"x5c\":[\"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\"],\"io.cncf.notary.SigningAgent\":\"NotationUnitTest/1.0.0\"},\"signature\":\"hTQd14wr0WzrNQjdyex76iXjfGfAhYPyl7mczD_KbNZPkDah2tBeXHQKTAJ4tmbCQxQ5Wh3DpQMphkD4wS10BWKED4Fex2w2hiN0m2FovehMnCkVgvjBWOKei2R0Ubwu_M0LhHUawqj2QohaoXjO6OzKjZlTsmYrr-dJAIgatKYe9ERwZRSQlrhwQNsW10cNaSmPckoRpVx26fzfSVZTO7nRKNj-PqyKOgoWjxee9A9bIPdTdCN_ihFEskTIp3nOhBFRbDOUlDp_QSRZ-BYCSjNMW4GkeWbYTNJwn_EjVhMDr4uX0YubzGwW-oW3wmJLRS406ICt_r7z2fpWZVwHdh1cJCKlaAwEw7F4FCQCGrvtN6_hjNqMtiRUOMtMa80mm5By0rBgMmEy8_JipfaVnAEkQpyk4UWVGIK4IrPIHyAo92LxIVftmiLgvLXSjsC7W82VToJws7uWtgA0niW3LjD7DPf8bGXu_vQHFReQWB5S9Vc2Bz8nsPxg3MSJclit\"}\n"
+	TestValidSig = "{\"payload\":\"eyJ0YXJnZXRBcnRpZmFjdCI6eyJtZWRpYVR5cGUiOiJhcHBsaWNhdGlvbi92bmQub2NpLmltYWdlLm1hbmlmZXN0LnYxK2pzb24iLCJkaWdlc3QiOiJzaGEyNTY6NzNjODAzOTMwZWEzYmExZTU0YmMyNWMyYmRjNTNlZGQwMjg0YzYyZWQ2NTFmZTdiMDAzNjlkYTUxOWEzYzMzMyIsInNpemUiOjE2NzI0LCJhbm5vdGF0aW9ucyI6eyJpby53YWJiaXQtbmV0d29ya3MuYnVpbGRJZCI6IjEyMyJ9fX0\",\"protected\":\"eyJhbGciOiJQUzM4NCIsImNyaXQiOlsiaW8uY25jZi5ub3Rhcnkuc2lnbmluZ1NjaGVtZSIsInNpZ25lZENyaXRLZXkxIiwiaW8uY25jZi5ub3RhcnkuZXhwaXJ5Il0sImN0eSI6ImFwcGxpY2F0aW9uL3ZuZC5jbmNmLm5vdGFyeS5wYXlsb2FkLnYxK2pzb24iLCJpby5jbmNmLm5vdGFyeS5hdXRoZW50aWNTaWduaW5nVGltZSI6IjAwMDEtMDEtMDFUMDA6MDA6MDBaIiwiaW8uY25jZi5ub3RhcnkuZXhwaXJ5IjoiMjAyMi0wNy0xMlQxNjoxMDo1Ny0wNzowMCIsImlvLmNuY2Yubm90YXJ5LnNpZ25pbmdTY2hlbWUiOiJub3RhcnkuZGVmYXVsdC54NTA5IiwiaW8uY25jZi5ub3Rhcnkuc2lnbmluZ1RpbWUiOiIyMDIyLTA3LTExVDE2OjEwOjU3LTA3OjAwIiwic2lnbmVkQ3JpdEtleTEiOiJzaWduZWRWYWx1ZTEiLCJzaWduZWRLZXkxIjoic2lnbmVkS2V5MiJ9\",\"header\":{\"x5c\":[\"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\"],\"io.cncf.notary.SigningAgent\":\"NotationUnitTest/1.0.0\"},\"signature\":\"OW8sQepnQ8xI8fTj8swBFV_pLRBPCJpanZ10Ha9upMAJuAXfMCjojUuUOXytxHmA03zKT5uFxqZV1GtMCxksJ17CCSy5sYl78bjarT26KkO6-cEEnmtQQWILOs36Qdyg-0iYSwHG1D14XscfE2pITZksKVbDiwKRAzsXNo-s7jCnZZ_xzMso1oIX3ScIm0FhZAEtsK2bBhXgSzqN441wHZuMMbu5sMP73qQpCn_mlAhDq2wg433Y0QCnzH7PzbhbdSDlDASWVIFaBWZ-oVTMc8oOFe_hDkTVJfb3vLYRMdT7ANPlZEIeQwUboG3jsqhZMXqrCjSABNBl4vqM-IEoVghuU9fJb9LJjZwOoeRrVlF5Et9L3D44KSiyys9Q-e2lllu818M1_1fSxUDjzMMDZCvhRMyNtYOY0sx5A89fk0CLu8MSA-iM9YbLb8D-WinOJstYCTe6UnmnHE9DsPjejEd92MnxqH0dRFmQyFn-nnEBwrlIh8fqNUgFR3r0rOVS\"}\n"
 )
 
 var (
@@ -37,28 +38,55 @@ func TestSign(t *testing.T) {
 		t.Fatalf("NewSignatureEnvelope() error = %v", err)
 	}
 
-	t.Run("when all arguments are present", func(t *testing.T) {
-		req := getSignRequest()
-		verifySignWithRequest(env, req, t)
-	})
+	for _, scheme := range []SigningScheme{SigningSchemeX509Default, SigningSchemeX509SigningAuthority} {
+		t.Run(fmt.Sprintf("with %s scheme when all arguments are present", scheme), func(t *testing.T) {
+			req := newSignRequest(scheme)
+			verifySignWithRequest(env, req, t)
+		})
 
-	t.Run("when expiry is not present", func(t *testing.T) {
-		req := getSignRequest()
-		req.Expiry = time.Time{}
-		verifySignWithRequest(env, req, t)
-	})
+		t.Run(fmt.Sprintf("with %s scheme when minimal arguments are present", scheme), func(t *testing.T) {
+			lSigner, _ := NewLocalSignatureProvider(getSigningCerts(), testhelper.GetRSALeafCertificate().PrivateKey)
+			req := SignRequest{
+				Payload:            []byte(TestPayload),
+				PayloadContentType: PayloadContentTypeV1,
+				SigningScheme:      scheme,
+				SigningTime:        time.Now(),
+				SignatureProvider:  lSigner,
+			}
+			verifySignWithRequest(env, req, t)
+		})
 
-	t.Run("when signing agent is not present", func(t *testing.T) {
-		req := getSignRequest()
-		req.SigningAgent = ""
-		verifySignWithRequest(env, req, t)
-	})
+		t.Run(fmt.Sprintf("with %s scheme when expiry is not present", scheme), func(t *testing.T) {
+			req := newSignRequest(scheme)
+			req.Expiry = time.Time{}
+			verifySignWithRequest(env, req, t)
+		})
 
-	t.Run("when extended attributes are not present", func(t *testing.T) {
-		req := getSignRequest()
-		req.ExtendedSignedAttrs = nil
-		verifySignWithRequest(env, req, t)
-	})
+		t.Run(fmt.Sprintf("with %s scheme when signing agent is not present", scheme), func(t *testing.T) {
+			req := newSignRequest(scheme)
+			req.SigningAgent = ""
+			verifySignWithRequest(env, req, t)
+		})
+
+		t.Run(fmt.Sprintf("with %s scheme when extended attributes are not present", scheme), func(t *testing.T) {
+			req := newSignRequest(scheme)
+			req.ExtendedSignedAttrs = nil
+			verifySignWithRequest(env, req, t)
+		})
+
+		t.Run(fmt.Sprintf("with %s scheme when verification plugin is not present", scheme), func(t *testing.T) {
+			req := newSignRequest(scheme)
+			req.VerificationPlugin = ""
+			req.VerificationPluginMinVersion = ""
+			verifySignWithRequest(env, req, t)
+		})
+
+		t.Run(fmt.Sprintf("with %s scheme when verification plugin version is not present", scheme), func(t *testing.T) {
+			req := getSignRequest()
+			req.VerificationPluginMinVersion = ""
+			verifySignWithRequest(env, req, t)
+		})
+	}
 }
 
 // Tests various error scenarios around generating a signature envelope
@@ -94,12 +122,30 @@ func TestSignErrors(t *testing.T) {
 		req.Expiry = req.SigningTime.AddDate(0, 0, -1)
 		verifySignErrorWithRequest(env, req, t)
 	})
+
+	t.Run("when VerificationPlugin is blank string", func(t *testing.T) {
+		req = getSignRequest()
+		req.VerificationPlugin = "  "
+		verifySignErrorWithRequest(env, req, t)
+	})
+
+	t.Run("when VerificationPluginMinVersion is blank string", func(t *testing.T) {
+		req = getSignRequest()
+		req.VerificationPluginMinVersion = "  "
+		verifySignErrorWithRequest(env, req, t)
+	})
+
+	t.Run("when VerificationPluginMinVersion is specified but not VerificationPlugin", func(t *testing.T) {
+		req = getSignRequest()
+		req.VerificationPlugin = ""
+		verifySignErrorWithRequest(env, req, t)
+	})
 }
 
 // Tests various scenarios around signature envelope verification
 func TestVerify(t *testing.T) {
-	certs := "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"
+	certs := "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"
 	var certsBytes []byte
 	for _, element := range strings.Split(certs, ",") {
 		certBytes, _ := base64.StdEncoding.DecodeString(element)
@@ -123,7 +169,7 @@ func TestVerify(t *testing.T) {
 	}
 
 	req := getSignRequest()
-	req.SigningTime, err = time.Parse(time.RFC3339, "2022-07-11T13:06:18-07:00")
+	req.SigningTime, err = time.Parse(time.RFC3339, "2022-07-11T16:10:57-07:00")
 	req.Expiry = req.SigningTime.AddDate(0, 0, 1)
 	req.SignatureProvider, _ = NewLocalSignatureProvider(signingCerts, testhelper.GetECLeafCertificate().PrivateKey)
 	verifySignerInfo(info, req, t)
@@ -313,20 +359,27 @@ func TestVerifyAuthenticityError(t *testing.T) {
 
 }
 
-func getSignRequest() SignRequest {
+func newSignRequest(scheme SigningScheme) SignRequest {
 	lSigner, _ := NewLocalSignatureProvider(getSigningCerts(), testhelper.GetRSALeafCertificate().PrivateKey)
 
 	return SignRequest{
 		Payload:            []byte(TestPayload),
 		PayloadContentType: PayloadContentTypeV1,
+		SigningScheme:      scheme,
 		SigningTime:        time.Now(),
 		Expiry:             time.Now().AddDate(0, 0, 1),
 		ExtendedSignedAttrs: []Attribute{
 			{Key: "signedCritKey1", Value: "signedValue1", Critical: true},
 			{Key: "signedKey1", Value: "signedKey2", Critical: false}},
-		SigningAgent:      "NotationUnitTest/1.0.0",
-		SignatureProvider: lSigner,
+		SigningAgent:                 "NotationUnitTest/1.0.0",
+		SignatureProvider:            lSigner,
+		VerificationPlugin:           "Hola Plugin",
+		VerificationPluginMinVersion: "1.1.1",
 	}
+}
+
+func getSignRequest() SignRequest {
+	return newSignRequest(SigningSchemeX509Default)
 }
 
 func getSigningCerts() []*x509.Certificate {
