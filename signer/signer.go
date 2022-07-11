@@ -11,7 +11,7 @@ import (
 // SignerInfo represents a parsed signature envelope that is agnostic to signature envelope format.
 type SignerInfo struct {
 	Payload            []byte
-	PayloadContentType string
+	PayloadContentType PayloadContentType
 	SignedAttributes   SignedAttributes
 	UnsignedAttributes UnsignedAttributes
 	SignatureAlgorithm SignatureAlgorithm
@@ -35,7 +35,7 @@ type UnsignedAttributes struct {
 // SignRequest is used to generate Signature.
 type SignRequest struct {
 	Payload             []byte
-	PayloadContentType  string
+	PayloadContentType  PayloadContentType
 	SignatureProvider   SignatureProvider
 	SigningTime         time.Time
 	Expiry              time.Time
@@ -189,13 +189,13 @@ func validateCertificateChain(certChain []*x509.Certificate, expectedAlg Signatu
 	return nil
 }
 
-func validate(payload []byte, payloadCty string, signTime, expTime time.Time, f func(string) error) error {
+func validate(payload []byte, payloadCty PayloadContentType, signTime, expTime time.Time, f func(string) error) error {
 	if len(payload) == 0 {
 		return f("payload not present")
 	}
 
 	// TODO: perform PayloadContentType value validations
-	if len(payloadCty) == 0 {
+	if payloadCty == "" {
 		return f("signature content type not present or is empty")
 	}
 

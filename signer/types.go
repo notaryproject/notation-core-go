@@ -63,3 +63,10 @@ func (k KeySpec) SignatureAlgorithm() SignatureAlgorithm {
 	}
 	return ""
 }
+
+// PayloadContentType list the supported content types for signature's  payload .
+type PayloadContentType string
+
+const (
+	PayloadContentTypeV1 PayloadContentType = "application/vnd.cncf.notary.payload.v1+json"
+)

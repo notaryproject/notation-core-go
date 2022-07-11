@@ -156,6 +156,9 @@ func parseProtectedHeaders(encoded string) (*jwsProtectedHeader, error) {
 		return nil, MalformedSignatureError{msg: fmt.Sprintf("jws envelope protected header can't be decoded: %s", err.Error())}
 	}
 
+	// To Unmarshal JSON with some known(jwsProtectedHeader), and some unknown(jwsProtectedHeader.ExtendedAttributes) field names.
+	// We unmarshal twice: once into a value of type jwsProtectedHeader and once into a value of type jwsProtectedHeader.ExtendedAttributes(map[string]interface{})
+	// and removing the keys are already been defined in jwsProtectedHeader.
 	var protected jwsProtectedHeader
 	if err = json.Unmarshal(rawProtected, &protected); err != nil {
 		return nil, MalformedSignatureError{msg: fmt.Sprintf("jws envelope protected header can't be decoded: %s", err.Error())}
@@ -174,22 +177,22 @@ func parseProtectedHeaders(encoded string) (*jwsProtectedHeader, error) {
 	return &protected, nil
 }
 
-func populateProtectedHeaders(pHeader *jwsProtectedHeader, signInfo *SignerInfo) error {
-	err := validateCriticalHeaders(pHeader)
+func populateProtectedHeaders(protectedHdr *jwsProtectedHeader, signInfo *SignerInfo) error {
+	err := validateCriticalHeaders(protectedHdr)
 	if err != nil {
 		return err
 	}
 
-	if signInfo.SignatureAlgorithm, err = getSignatureAlgo(pHeader.Algorithm); err != nil {
+	if signInfo.SignatureAlgorithm, err = getSignatureAlgo(protectedHdr.Algorithm); err != nil {
 		return err
 	}
 
-	signInfo.PayloadContentType = pHeader.ContentType
-	signInfo.SignedAttributes.SigningTime = pHeader.SigningTime.Truncate(time.Second)
-	if pHeader.Expiry != nil {
-		signInfo.SignedAttributes.Expiry = pHeader.Expiry.Truncate(time.Second)
+	signInfo.PayloadContentType = protectedHdr.ContentType
+	signInfo.SignedAttributes.SigningTime = protectedHdr.SigningTime.Truncate(time.Second)
+	if protectedHdr.Expiry != nil {
+		signInfo.SignedAttributes.Expiry = protectedHdr.Expiry.Truncate(time.Second)
 	}
-	signInfo.SignedAttributes.ExtendedAttributes = getExtendedAttributes(pHeader.ExtendedAttributes, pHeader.Critical)
+	signInfo.SignedAttributes.ExtendedAttributes = getExtendedAttributes(protectedHdr.ExtendedAttributes, protectedHdr.Critical)
 	return nil
 }
 
@@ -205,17 +208,17 @@ func getExtendedAttributes(attrs map[string]interface{}, critical []string) []At
 	return extendedAttr
 }
 
-func validateCriticalHeaders(pheader *jwsProtectedHeader) error {
+func validateCriticalHeaders(protectedHdr *jwsProtectedHeader) error {
 	mustMarkedCrit := map[string]bool{}
-	if pheader.Expiry != nil && !pheader.Expiry.IsZero() {
+	if protectedHdr.Expiry != nil && !protectedHdr.Expiry.IsZero() {
 		mustMarkedCrit[headerKeyExpiry] = true
 	}
 
-	for _, val := range pheader.Critical {
+	for _, val := range protectedHdr.Critical {
 		if _, ok := mustMarkedCrit[val]; ok {
 			delete(mustMarkedCrit, val)
 		} else {
-			if _, ok := pheader.ExtendedAttributes[val]; !ok {
+			if _, ok := protectedHdr.ExtendedAttributes[val]; !ok {
 				return MalformedSignatureError{msg: fmt.Sprintf("%q header is marked critical but not present", val)}
 			}
 		}
@@ -249,7 +252,7 @@ func getSignedAttrs(req SignRequest, sigAlg SignatureAlgorithm) (map[string]inte
 		return nil, err
 	}
 
-	pHeader := jwsProtectedHeader{
+	jwsProtectedHdr := jwsProtectedHeader{
 		Algorithm:   alg,
 		ContentType: req.PayloadContentType,
 		Critical:    crit,
@@ -257,10 +260,10 @@ func getSignedAttrs(req SignRequest, sigAlg SignatureAlgorithm) (map[string]inte
 	}
 	if !req.Expiry.IsZero() {
 		truncTime := req.Expiry.Truncate(time.Second)
-		pHeader.Expiry = &truncTime
+		jwsProtectedHdr.Expiry = &truncTime
 	}
 
-	m, err := convertToMap(pHeader)
+	m, err := convertToMap(jwsProtectedHdr)
 	if err != nil {
 		return nil, MalformedSignRequestError{msg: fmt.Sprintf("unexpected error occured while creating protected headers, Error: %s", err.Error())}
 	}
@@ -271,10 +274,6 @@ func getSignedAttrs(req SignRequest, sigAlg SignatureAlgorithm) (map[string]inte
 // ***********************************************************************
 // jwsEnvelope-JSON specific code
 // ***********************************************************************
-const (
-	// PayloadContentTypeJWSV1 describes the media type of the jwsEnvelope envelope.
-	PayloadContentTypeJWSV1 = "application/vnd.cncf.notary.v2.jws.v1"
-)
 
 // jwsInternalEnvelope is the final Signature envelope.
 type jwsInternalEnvelope struct {
@@ -297,7 +296,7 @@ type jwsProtectedHeader struct {
 	Algorithm string `json:"alg"`
 
 	// Media type of the secured content (the payload).
-	ContentType string `json:"cty"`
+	ContentType PayloadContentType `json:"cty"`
 
 	// Lists the headers that implementation MUST understand and process.
 	Critical []string `json:"crit,omitempty"`
