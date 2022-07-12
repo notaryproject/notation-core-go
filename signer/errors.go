@@ -47,23 +47,15 @@ func (e SignatureAuthenticityError) Error() string {
 	return "signature is not produced by a trusted signer"
 }
 
-// UnsupportedOperationError is used when an operation is not supported.
-type UnsupportedOperationError struct {
-	operation string
-}
-
-func (e UnsupportedOperationError) Error() string {
-	return fmt.Sprintf("%q operation is not supported", e.operation)
-}
-
 // UnsupportedSigningKeyError is used when a signing key is not supported
 type UnsupportedSigningKeyError struct {
-	keyType string
+	keyType   string
+	keyLength int
 }
 
 func (e UnsupportedSigningKeyError) Error() string {
-	if e.keyType != "" {
-		return fmt.Sprintf("%q signing key is not supported", e.keyType)
+	if e.keyType != "" && e.keyLength != 0 {
+		return fmt.Sprintf("%q signing key of size %d is not supported", e.keyType, e.keyLength)
 	}
 	return "signing key is not supported"
 }

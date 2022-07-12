@@ -4,26 +4,10 @@ import (
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/rsa"
-	"encoding/base64"
 	"fmt"
 
 	"github.com/golang-jwt/jwt/v4"
 )
-
-// signJWT signs the given payload and headers using the given signing method and signature provider
-func signJWT(payload, headers map[string]interface{}, method jwt.SigningMethod, sigPro SignatureProvider) (string, error) {
-	var claims jwt.MapClaims = payload
-	token := &jwt.Token{
-		Header: headers,
-		Claims: claims,
-	}
-
-	token.Method = signingMethodForSign{algo: method.Alg(), sigProvider: sigPro}
-
-	// We are using custom signing method called `signingMethodForSign` which already has signature provider
-	// thus we don't need to pass signing key as input.
-	return token.SignedString(nil)
-}
 
 // verifyJWT verifies the JWT token against the specified verification key
 func verifyJWT(tokenString string, key crypto.PublicKey) error {
@@ -53,28 +37,6 @@ func verifyJWT(tokenString string, key crypto.PublicKey) error {
 	return nil
 }
 
-// signingMethodForSign is only used during signature generation operation. It's required by JWT library we are using
-type signingMethodForSign struct {
-	algo        string
-	sigProvider SignatureProvider
-}
-
-func (s signingMethodForSign) Verify(_, _ string, _ interface{}) error {
-	return UnsupportedOperationError{}
-}
-
-func (s signingMethodForSign) Sign(signingString string, _ interface{}) (string, error) {
-	seg, err := s.sigProvider.Sign([]byte(signingString))
-	if err != nil {
-		return "", err
-	}
-	return base64.RawURLEncoding.EncodeToString(seg), nil
-}
-
-func (s signingMethodForSign) Alg() string {
-	return s.algo
-}
-
 // getSigningMethod picks up a recommended algorithm for given public keys.
 func getSigningMethod(key crypto.PublicKey) (jwt.SigningMethod, error) {
 	switch key := key.(type) {
@@ -87,7 +49,7 @@ func getSigningMethod(key crypto.PublicKey) (jwt.SigningMethod, error) {
 		case 512:
 			return jwt.SigningMethodPS512, nil
 		default:
-			return nil, UnsupportedSigningKeyError{keyType: "rsa"}
+			return nil, UnsupportedSigningKeyError{keyType: "rsa", keyLength: key.Size()}
 		}
 	case *ecdsa.PublicKey:
 		switch key.Curve.Params().BitSize {
@@ -98,7 +60,7 @@ func getSigningMethod(key crypto.PublicKey) (jwt.SigningMethod, error) {
 		case jwt.SigningMethodES512.CurveBits:
 			return jwt.SigningMethodES512, nil
 		default:
-			return nil, UnsupportedSigningKeyError{keyType: "ecdsa"}
+			return nil, UnsupportedSigningKeyError{keyType: "ecdsa", keyLength: key.Curve.Params().BitSize}
 		}
 	}
 	return nil, UnsupportedSigningKeyError{}

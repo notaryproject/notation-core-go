@@ -8,8 +8,6 @@ import (
 	"fmt"
 	"strings"
 	"time"
-
-	"github.com/golang-jwt/jwt/v4"
 )
 
 const (
@@ -23,6 +21,17 @@ const (
 	headerKeyAlg         = "alg"
 	headerKeyCty         = "cty"
 )
+
+var signatureAlgJWSAlgMap = map[SignatureAlgorithm]string{
+	RSASSA_PSS_SHA_256: "PS256",
+	RSASSA_PSS_SHA_384: "PS384",
+	RSASSA_PSS_SHA_512: "PS512",
+	ECDSA_SHA_256:      "ES256",
+	ECDSA_SHA_384:      "ES384",
+	ECDSA_SHA_512:      "ES512",
+}
+
+var jwsAlgSignatureAlgMap = reverseMap(signatureAlgJWSAlgMap)
 
 // jwsEnvelope represents implements internalSignatureEnvelope interface.
 type jwsEnvelope struct {
@@ -58,27 +67,32 @@ func (jws *jwsEnvelope) validateIntegrity() error {
 }
 
 func (jws *jwsEnvelope) signPayload(req SignRequest) ([]byte, error) {
-	leafPublicKey := req.CertificateChain[0].PublicKey
-	var m map[string]interface{}
-	if err := json.Unmarshal(req.Payload, &m); err != nil {
-		return nil, err
+	errorFunc := func(s string) error {
+		return MalformedSignRequestError{msg: s}
 	}
-	signingMethod, err := getSigningMethod(leafPublicKey)
+
+	ks, err := req.SignatureProvider.KeySpec()
+	if err != nil {
+		return nil, errorFunc(err.Error())
+	}
+	alg := ks.SignatureAlgorithm()
+
+	signedAttrs, err := getSignedAttrs(req, alg)
 	if err != nil {
 		return nil, err
 	}
 
-	signedAttrs, err := getSignedAttrs(req, signingMethod)
+	compact, certs, err := sign(req.Payload, signedAttrs, req.SignatureProvider)
 	if err != nil {
+		return nil, errorFunc(err.Error())
+	}
+
+	// not performed by SignatureEnvelope's Sign function as we don't have access to certificates.
+	if err := validateCertificateChain(certs, alg, errorFunc); err != nil {
 		return nil, err
 	}
 
-	compact, err := signJWT(m, signedAttrs, signingMethod, req.SignatureProvider)
-	if err != nil {
-		return nil, err
-	}
-
-	j, err := generateJws(compact, req)
+	j, err := generateJws(compact, req, certs)
 	if err != nil {
 		return nil, err
 	}
@@ -142,6 +156,9 @@ func parseProtectedHeaders(encoded string) (*jwsProtectedHeader, error) {
 		return nil, MalformedSignatureError{msg: fmt.Sprintf("jws envelope protected header can't be decoded: %s", err.Error())}
 	}
 
+	// To Unmarshal JSON with some known(jwsProtectedHeader), and some unknown(jwsProtectedHeader.ExtendedAttributes) field names.
+	// We unmarshal twice: once into a value of type jwsProtectedHeader and once into a value of type jwsProtectedHeader.ExtendedAttributes(map[string]interface{})
+	// and removing the keys are already been defined in jwsProtectedHeader.
 	var protected jwsProtectedHeader
 	if err = json.Unmarshal(rawProtected, &protected); err != nil {
 		return nil, MalformedSignatureError{msg: fmt.Sprintf("jws envelope protected header can't be decoded: %s", err.Error())}
@@ -160,20 +177,22 @@ func parseProtectedHeaders(encoded string) (*jwsProtectedHeader, error) {
 	return &protected, nil
 }
 
-func populateProtectedHeaders(pHeader *jwsProtectedHeader, signInfo *SignerInfo) error {
-	err := validateCriticalHeaders(pHeader)
+func populateProtectedHeaders(protectedHdr *jwsProtectedHeader, signInfo *SignerInfo) error {
+	err := validateCriticalHeaders(protectedHdr)
 	if err != nil {
 		return err
 	}
 
-	if signInfo.SignatureAlgorithm, err = getAlgo(pHeader.Algorithm); err != nil {
+	if signInfo.SignatureAlgorithm, err = getSignatureAlgo(protectedHdr.Algorithm); err != nil {
 		return err
 	}
 
-	signInfo.PayloadContentType = pHeader.ContentType
-	signInfo.SignedAttributes.SigningTime = pHeader.SigningTime.Truncate(time.Second)
-	signInfo.SignedAttributes.Expiry = pHeader.Expiry.Truncate(time.Second)
-	signInfo.SignedAttributes.ExtendedAttributes = getExtendedAttributes(pHeader.ExtendedAttributes, pHeader.Critical)
+	signInfo.PayloadContentType = protectedHdr.ContentType
+	signInfo.SignedAttributes.SigningTime = protectedHdr.SigningTime.Truncate(time.Second)
+	if protectedHdr.Expiry != nil {
+		signInfo.SignedAttributes.Expiry = protectedHdr.Expiry.Truncate(time.Second)
+	}
+	signInfo.SignedAttributes.ExtendedAttributes = getExtendedAttributes(protectedHdr.ExtendedAttributes, protectedHdr.Critical)
 	return nil
 }
 
@@ -189,21 +208,17 @@ func getExtendedAttributes(attrs map[string]interface{}, critical []string) []At
 	return extendedAttr
 }
 
-func validateCriticalHeaders(pheader *jwsProtectedHeader) error {
-	if len(pheader.Critical) == 0 {
-		return MalformedSignatureError{"missing `crit` header"}
-	}
-
+func validateCriticalHeaders(protectedHdr *jwsProtectedHeader) error {
 	mustMarkedCrit := map[string]bool{}
-	if !pheader.Expiry.IsZero() {
+	if protectedHdr.Expiry != nil && !protectedHdr.Expiry.IsZero() {
 		mustMarkedCrit[headerKeyExpiry] = true
 	}
 
-	for _, val := range pheader.Critical {
+	for _, val := range protectedHdr.Critical {
 		if _, ok := mustMarkedCrit[val]; ok {
 			delete(mustMarkedCrit, val)
 		} else {
-			if _, ok := pheader.ExtendedAttributes[val]; !ok {
+			if _, ok := protectedHdr.ExtendedAttributes[val]; !ok {
 				return MalformedSignatureError{msg: fmt.Sprintf("%q header is marked critical but not present", val)}
 			}
 		}
@@ -218,7 +233,7 @@ func validateCriticalHeaders(pheader *jwsProtectedHeader) error {
 	return nil
 }
 
-func getSignedAttrs(req SignRequest, method jwt.SigningMethod) (map[string]interface{}, error) {
+func getSignedAttrs(req SignRequest, sigAlg SignatureAlgorithm) (map[string]interface{}, error) {
 	extAttrs := make(map[string]interface{})
 	var crit []string
 	if !req.Expiry.IsZero() {
@@ -232,17 +247,23 @@ func getSignedAttrs(req SignRequest, method jwt.SigningMethod) (map[string]inter
 		}
 	}
 
-	pHeader := jwsProtectedHeader{
-		Algorithm:   method.Alg(),
+	alg, err := getJWSAlgo(sigAlg)
+	if err != nil {
+		return nil, err
+	}
+
+	jwsProtectedHdr := jwsProtectedHeader{
+		Algorithm:   alg,
 		ContentType: req.PayloadContentType,
 		Critical:    crit,
 		SigningTime: req.SigningTime.Truncate(time.Second),
 	}
 	if !req.Expiry.IsZero() {
-		pHeader.Expiry = req.Expiry.Truncate(time.Second)
+		truncTime := req.Expiry.Truncate(time.Second)
+		jwsProtectedHdr.Expiry = &truncTime
 	}
 
-	m, err := convertToMap(pHeader)
+	m, err := convertToMap(jwsProtectedHdr)
 	if err != nil {
 		return nil, MalformedSignRequestError{msg: fmt.Sprintf("unexpected error occured while creating protected headers, Error: %s", err.Error())}
 	}
@@ -253,10 +274,6 @@ func getSignedAttrs(req SignRequest, method jwt.SigningMethod) (map[string]inter
 // ***********************************************************************
 // jwsEnvelope-JSON specific code
 // ***********************************************************************
-const (
-	// PayloadContentTypeJWSV1 describes the media type of the jwsEnvelope envelope.
-	PayloadContentTypeJWSV1 = "application/vnd.cncf.notary.v2.jws.v1"
-)
 
 // jwsInternalEnvelope is the final Signature envelope.
 type jwsInternalEnvelope struct {
@@ -264,7 +281,6 @@ type jwsInternalEnvelope struct {
 	Payload string `json:"payload"`
 
 	// jwsProtectedHeader Base64URL-encoded.
-
 	Protected string `json:"protected"`
 
 	// Signature metadata that is not integrity Protected
@@ -280,16 +296,16 @@ type jwsProtectedHeader struct {
 	Algorithm string `json:"alg"`
 
 	// Media type of the secured content (the payload).
-	ContentType string `json:"cty"`
+	ContentType PayloadContentType `json:"cty"`
 
 	// Lists the headers that implementation MUST understand and process.
-	Critical []string `json:"crit"`
+	Critical []string `json:"crit,omitempty"`
 
 	// The time at which the signature was generated.
 	SigningTime time.Time `json:"io.cncf.notary.signingTime"`
 
 	// The "best by use" time for the artifact, as defined by the signer.
-	Expiry time.Time `json:"io.cncf.notary.expiry,omitempty"`
+	Expiry *time.Time `json:"io.cncf.notary.expiry,omitempty"`
 
 	// The user defined attributes.
 	ExtendedAttributes map[string]interface{} `json:"-"`
@@ -316,15 +332,15 @@ func newJwsInternalEnvelopeFromBytes(b []byte) (*jwsInternalEnvelope, error) {
 	return &jws, nil
 }
 
-func generateJws(compact string, req SignRequest) (*jwsInternalEnvelope, error) {
+func generateJws(compact string, req SignRequest, certs []*x509.Certificate) (*jwsInternalEnvelope, error) {
 	parts := strings.Split(compact, ".")
 	if len(parts) != 3 {
 		// this should never happen
-		return nil, errors.New("unexpected error while generating a JWS-JSON serialization from compact serialization")
+		return nil, errors.New("unexpected error occurred while generating a JWS-JSON serialization from compact serialization")
 	}
 
-	rawCerts := make([][]byte, len(req.CertificateChain))
-	for i, cert := range req.CertificateChain {
+	rawCerts := make([][]byte, len(certs))
+	for i, cert := range certs {
 		rawCerts[i] = cert.Raw
 	}
 
@@ -339,23 +355,48 @@ func generateJws(compact string, req SignRequest) (*jwsInternalEnvelope, error) 
 	}, nil
 }
 
-func getAlgo(alg string) (SignatureAlgorithm, error) {
-	switch alg {
-	case "PS256":
-		return RSASSA_PSS_SHA_256, nil
-	case "PS384":
-		return RSASSA_PSS_SHA_384, nil
-	case "PS512":
-		return RSASSA_PSS_SHA_512, nil
-	case "ES256":
-		return ECDSA_SHA_256, nil
-	case "ES384":
-		return ECDSA_SHA_384, nil
-	case "ES512":
-		return ECDSA_SHA_512, nil
+// sign the given payload and headers using the given signing method and signature provider
+func sign(payload []byte, headers map[string]interface{}, sigPro SignatureProvider) (string, []*x509.Certificate, error) {
+	jsonPHeaders, err := json.Marshal(headers)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to encode protected headers: %v", err)
+	}
+	protectedRaw := base64.RawURLEncoding.EncodeToString(jsonPHeaders)
+	payloadRaw := base64.RawURLEncoding.EncodeToString(payload)
+	signingString := protectedRaw + "." + payloadRaw
+
+	sigB, certs, err := sigPro.Sign([]byte(signingString))
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to sign digest. error : %v", err)
+	}
+	finalSig := signingString + "." + base64.RawURLEncoding.EncodeToString(sigB)
+	return finalSig, certs, err
+}
+
+func getSignatureAlgo(alg string) (SignatureAlgorithm, error) {
+	signatureAlg, ok := jwsAlgSignatureAlgMap[alg]
+	if !ok {
+		return "", SignatureAlgoNotSupportedError{alg: alg}
 	}
 
-	return RSASSA_PSS_SHA_512, SignatureAlgoNotSupportedError{alg: alg}
+	return signatureAlg, nil
+}
+
+func getJWSAlgo(alg SignatureAlgorithm) (string, error) {
+	jwsAlg, ok := signatureAlgJWSAlgMap[alg]
+	if !ok {
+		return "", SignatureAlgoNotSupportedError{alg: string(alg)}
+	}
+
+	return jwsAlg, nil
+}
+
+func reverseMap(m map[SignatureAlgorithm]string) map[string]SignatureAlgorithm {
+	n := make(map[string]SignatureAlgorithm, len(m))
+	for k, v := range m {
+		n[v] = k
+	}
+	return n
 }
 
 func convertToMap(i interface{}) (map[string]interface{}, error) {
