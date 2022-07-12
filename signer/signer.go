@@ -141,7 +141,7 @@ func validateSignerInfo(info *SignerInfo) error {
 		return err
 	}
 
-	if err := validateCertificateChain(info.CertificateChain, info.SignatureAlgorithm, errorFunc); err != nil {
+	if err := validateCertificateChain(info.CertificateChain, info.SignedAttributes.SigningTime, info.SignatureAlgorithm, errorFunc); err != nil {
 		return err
 	}
 
@@ -168,12 +168,12 @@ func validateSignRequest(req SignRequest) error {
 	return nil
 }
 
-func validateCertificateChain(certChain []*x509.Certificate, expectedAlg SignatureAlgorithm, f func(string) error) error {
+func validateCertificateChain(certChain []*x509.Certificate, signTime time.Time, expectedAlg SignatureAlgorithm, f func(string) error) error {
 	if len(certChain) == 0 {
 		return f("certificate-chain not present or is empty")
 	}
 
-	err := nx509.ValidateCertChain(certChain)
+	err := nx509.ValidateCodeSigningCertChain(certChain, signTime)
 	if err != nil {
 		return f(fmt.Sprintf("certificate-chain is invalid, %s", err))
 	}

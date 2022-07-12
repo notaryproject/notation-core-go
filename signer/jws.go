@@ -88,7 +88,7 @@ func (jws *jwsEnvelope) signPayload(req SignRequest) ([]byte, error) {
 	}
 
 	// not performed by SignatureEnvelope's Sign function as we don't have access to certificates.
-	if err := validateCertificateChain(certs, alg, errorFunc); err != nil {
+	if err := validateCertificateChain(certs, req.SigningTime, alg, errorFunc); err != nil {
 		return nil, err
 	}
 
