@@ -38,8 +38,8 @@ func GetKeySpec(signingCert *x509.Certificate) (KeySpec, error) {
 	return keyspec, nil
 }
 
-// GetLocalSignatureProvider returns the LocalSignatureProvider created using given certificates and private key.
-func GetLocalSignatureProvider(certs []*x509.Certificate, pk crypto.PrivateKey) (*LocalSignatureProvider, error) {
+// NewLocalSignatureProvider returns the LocalSignatureProvider created using given certificates and private key.
+func NewLocalSignatureProvider(certs []*x509.Certificate, pk crypto.PrivateKey) (*LocalSignatureProvider, error) {
 	if len(certs) == 0 {
 		return nil, MalformedArgumentError{param: "certs"}
 	}
@@ -63,7 +63,7 @@ type LocalSignatureProvider struct {
 	certs  []*x509.Certificate
 }
 
-func (l LocalSignatureProvider) Sign(bytes []byte) ([]byte, []*x509.Certificate, error) {
+func (l *LocalSignatureProvider) Sign(bytes []byte) ([]byte, []*x509.Certificate, error) {
 	// calculate hash
 	hasher := l.keySpec.SignatureAlgorithm().Hash()
 	h := hasher.New()
@@ -99,7 +99,7 @@ func (l LocalSignatureProvider) Sign(bytes []byte) ([]byte, []*x509.Certificate,
 	return nil, nil, UnsupportedSigningKeyError{}
 }
 
-func (l LocalSignatureProvider) KeySpec() (KeySpec, error) {
+func (l *LocalSignatureProvider) KeySpec() (KeySpec, error) {
 	return l.keySpec, nil
 }
 

@@ -125,7 +125,7 @@ func TestVerify(t *testing.T) {
 	req := getSignRequest()
 	req.SigningTime, err = time.Parse(time.RFC3339, "2022-07-11T13:06:18-07:00")
 	req.Expiry = req.SigningTime.AddDate(0, 0, 1)
-	req.SignatureProvider, _ = GetLocalSignatureProvider(signingCerts, testhelper.GetECLeafCertificate().PrivateKey)
+	req.SignatureProvider, _ = NewLocalSignatureProvider(signingCerts, testhelper.GetECLeafCertificate().PrivateKey)
 	verifySignerInfo(info, req, t)
 
 	if !areSignInfoEqual(vSignInfo, info) {
@@ -191,7 +191,7 @@ func TestSignAndVerify(t *testing.T) {
 
 		req := getSignRequest()
 		certs := []*x509.Certificate{testhelper.GetECLeafCertificate().Cert, testhelper.GetECRootCertificate().Cert}
-		req.SignatureProvider, _ = GetLocalSignatureProvider(certs, testhelper.GetECLeafCertificate().PrivateKey)
+		req.SignatureProvider, _ = NewLocalSignatureProvider(certs, testhelper.GetECLeafCertificate().PrivateKey)
 		sig, err := env.Sign(req)
 		if err != nil || len(sig) == 0 {
 			t.Fatalf("Sign() error = %v", err)
@@ -314,7 +314,7 @@ func TestVerifyAuthenticityError(t *testing.T) {
 }
 
 func getSignRequest() SignRequest {
-	lSigner, _ := GetLocalSignatureProvider(getSigningCerts(), testhelper.GetRSALeafCertificate().PrivateKey)
+	lSigner, _ := NewLocalSignatureProvider(getSigningCerts(), testhelper.GetRSALeafCertificate().PrivateKey)
 
 	return SignRequest{
 		Payload:            []byte(TestPayload),
