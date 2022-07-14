@@ -47,7 +47,7 @@ type SignRequest struct {
 	SigningAgent                 string
 	SigningScheme                SigningScheme
 	VerificationPlugin           string
-	VerificationPluginMinVersion string  // TODO: Implement SimVer structure
+	VerificationPluginMinVersion string  // TODO: Implement SemVer structure
 }
 
 // Attribute represents metadata in the Signature envelope

@@ -263,7 +263,7 @@ func validateCriticalHeaders(protectedHdr *jwsProtectedHeader) error {
 		for k := range mustMarkedCrit {
 			keys = append(keys, k)
 		}
-		return MalformedSignatureError{fmt.Sprintf("required headers not marked critical : %v", keys)}
+		return MalformedSignatureError{fmt.Sprintf("these required headers are not marked as critical: %v", keys)}
 	}
 
 	return nil
@@ -357,17 +357,17 @@ type jwsProtectedHeader struct {
 	// Specifies the Notary v2 Signing Scheme used by the signature.
 	SigningScheme SigningScheme `json:"io.cncf.notary.signingScheme"`
 
-	// The time at which the signature was generated. only valid when signing scheme is SigningSchemeX509Default
+	// The time at which the signature was generated. only valid when signing scheme is `notary.default.x509`
 	SigningTime *time.Time `json:"io.cncf.notary.signingTime,omitempty"`
 
-	// The time at which the signature was generated. only valid when signing scheme is SigningSchemeX509SigningAuthority
+	// The time at which the signature was generated. only valid when signing scheme is `notary.signingAuthority.x509`
 	AuthenticSigningTime *time.Time `json:"io.cncf.notary.authenticSigningTime,omitempty"`
 
-	// VerificationPlugin specifies the name of the verification plugin that would be used to verify the signature.
+	// VerificationPlugin specifies the name of the verification plugin that should be used to verify the signature.
 	VerificationPlugin string `json:"io.cncf.notary.verificationPlugin,omitempty"`
 
-	// VerificationPluginMinVersion specifies the minimum version of the verification plugin that would be used to verify the signature.
-	// TODO: replace string with well defined struct for SimVer.
+	// VerificationPluginMinVersion specifies the minimum version of the verification plugin that should be used to verify the signature.
+	// TODO: replace string with well defined struct for SemVer.
 	VerificationPluginMinVersion string `json:"io.cncf.notary.verificationPluginMinVersion,omitempty"`
 
 	// The user defined attributes.
