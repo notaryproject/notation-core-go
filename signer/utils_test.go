@@ -27,9 +27,9 @@ func TestLocalSignatureProvider(t *testing.T) {
 		pk, _ := rsa.GenerateKey(rand.Reader, k)
 		certTuple := testhelper.GetRSACertTupleWithPK(pk, "TestDeriveSignatureAlgorithm_"+strconv.Itoa(pk.Size()), &rsaRoot)
 		t.Run(fmt.Sprintf("for RSA certificates of size %d", pk.Size()), func(t *testing.T) {
-			lsp, err := GetLocalSignatureProvider([]*x509.Certificate{certTuple.Cert, rsaRoot.Cert}, pk)
+			lsp, err := NewLocalSignatureProvider([]*x509.Certificate{certTuple.Cert, rsaRoot.Cert}, pk)
 			if err != nil {
-				t.Errorf("GetLocalSignatureProvider(). Error: %s", err)
+				t.Errorf("NewLocalSignatureProvider(). Error: %s", err)
 			}
 
 			sig, certs, err := lsp.Sign(payload)
@@ -55,9 +55,9 @@ func TestLocalSignatureProvider(t *testing.T) {
 		certTuple := testhelper.GetECDSACertTupleWithPK(pk, "TestDeriveSignatureAlgorithm_"+strconv.Itoa(pk.Params().BitSize), &ecRoot)
 
 		t.Run(fmt.Sprintf("for EC certificates of size %d", pk.Params().BitSize), func(t *testing.T) {
-			lsp, err := GetLocalSignatureProvider([]*x509.Certificate{certTuple.Cert, ecRoot.Cert}, pk)
+			lsp, err := NewLocalSignatureProvider([]*x509.Certificate{certTuple.Cert, ecRoot.Cert}, pk)
 			if err != nil {
-				t.Errorf("GetLocalSignatureProvider(). Error: %s", err)
+				t.Errorf("NewLocalSignatureProvider(). Error: %s", err)
 			}
 
 			sig, certs, err := lsp.Sign(payload)
@@ -89,7 +89,7 @@ func TestLocalSignatureProviderError(t *testing.T) {
 		pk, _ := rsa.GenerateKey(rand.Reader, k)
 		certTuple := testhelper.GetRSACertTupleWithPK(pk, "TestDeriveSignatureAlgorithm_"+strconv.Itoa(pk.Size()), &rsaRoot)
 
-		_, err := GetLocalSignatureProvider([]*x509.Certificate{certTuple.Cert, rsaRoot.Cert}, pk)
+		_, err := NewLocalSignatureProvider([]*x509.Certificate{certTuple.Cert, rsaRoot.Cert}, pk)
 		if !(err != nil && errors.As(err, new(UnsupportedSigningKeyError))) {
 			t.Errorf("Expected UnsupportedSigningKeyError but found %q", reflect.TypeOf(err))
 		}
@@ -101,7 +101,7 @@ func TestLocalSignatureProviderError(t *testing.T) {
 		pk, _ := ecdsa.GenerateKey(k, rand.Reader)
 		certTuple := testhelper.GetECDSACertTupleWithPK(pk, "TestDeriveSignatureAlgorithm_"+strconv.Itoa(pk.Params().BitSize), &ecRoot)
 
-		_, err := GetLocalSignatureProvider([]*x509.Certificate{certTuple.Cert, ecRoot.Cert}, pk)
+		_, err := NewLocalSignatureProvider([]*x509.Certificate{certTuple.Cert, ecRoot.Cert}, pk)
 		if !(err != nil && errors.As(err, new(UnsupportedSigningKeyError))) {
 			t.Errorf("Expected UnsupportedSigningKeyError but found %q", reflect.TypeOf(err))
 		}
