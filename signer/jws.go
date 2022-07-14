@@ -367,7 +367,6 @@ type jwsProtectedHeader struct {
 	VerificationPlugin string `json:"io.cncf.notary.verificationPlugin,omitempty"`
 
 	// VerificationPluginMinVersion specifies the minimum version of the verification plugin that should be used to verify the signature.
-	// TODO: replace string with well defined struct for SemVer.
 	VerificationPluginMinVersion string `json:"io.cncf.notary.verificationPluginMinVersion,omitempty"`
 
 	// The user defined attributes.

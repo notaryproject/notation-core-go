@@ -3,6 +3,7 @@ package signer
 import (
 	"crypto/x509"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -47,7 +48,7 @@ type SignRequest struct {
 	SigningAgent                 string
 	SigningScheme                SigningScheme
 	VerificationPlugin           string
-	VerificationPluginMinVersion string  // TODO: Implement SemVer structure
+	VerificationPluginMinVersion string
 }
 
 // Attribute represents metadata in the Signature envelope
@@ -232,8 +233,10 @@ func validate(payload []byte, payloadCty PayloadContentType, vPlugin, vPluginVer
 		return MalformedSignRequestError{msg: "VerificationPlugin cannot contain only whitespaces"}
 	}
 
-	if vPluginVersion != "" && strings.TrimSpace(vPluginVersion) == "" {
-		return MalformedSignRequestError{msg: "VerificationPluginMinVersion cannot contain only whitespaces"}
+	// copied from https://semver.org/#is-there-a-suggested-regular-expression-regex-to-check-a-semver-string
+	semVerRegEx := regexp.MustCompile("^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-((?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?$")
+	if vPluginVersion != "" && !semVerRegEx.MatchString(vPluginVersion) {
+		return MalformedSignRequestError{msg: fmt.Sprintf("VerificationPluginMinVersion %q is not valid SemVer", vPluginVersion)}
 	}
 
 	if vPlugin == "" && vPluginVersion != "" {

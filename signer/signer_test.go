@@ -81,10 +81,12 @@ func TestSign(t *testing.T) {
 			verifySignWithRequest(env, req, t)
 		})
 
-		t.Run(fmt.Sprintf("with %s scheme when verification plugin version is not present", scheme), func(t *testing.T) {
-			req := getSignRequest()
-			req.VerificationPluginMinVersion = ""
-			verifySignWithRequest(env, req, t)
+		t.Run(fmt.Sprintf("with %s scheme when verification plugin version is valid", scheme), func(t *testing.T) {
+			for _, v := range []string{"", "0.0.0", "1.1.1", "123.456.789", "2.1.0-alpha.1+cheers"} {
+				req := getSignRequest()
+				req.VerificationPluginMinVersion = v
+				verifySignWithRequest(env, req, t)
+			}
 		})
 	}
 }
@@ -129,10 +131,12 @@ func TestSignErrors(t *testing.T) {
 		verifySignErrorWithRequest(env, req, t)
 	})
 
-	t.Run("when VerificationPluginMinVersion is blank string", func(t *testing.T) {
-		req = getSignRequest()
-		req.VerificationPluginMinVersion = "  "
-		verifySignErrorWithRequest(env, req, t)
+	t.Run("when VerificationPluginMinVersion is invalid", func(t *testing.T) {
+		for _, v := range []string{"  ", "1", "1.1", "1.1.1.1", "v1.1.1", "1.alpha.1"} {
+			req = getSignRequest()
+			req.VerificationPluginMinVersion = v
+			verifySignErrorWithRequest(env, req, t)
+		}
 	})
 
 	t.Run("when VerificationPluginMinVersion is specified but not VerificationPlugin", func(t *testing.T) {
