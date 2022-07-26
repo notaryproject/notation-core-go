@@ -2,5 +2,4 @@
 .vscode
 
 # Custom
-.cover/
-.test/
+coverage.txt
