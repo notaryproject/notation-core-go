@@ -14,14 +14,6 @@ const (
 	MediaTypeJWSJson SignatureMediaType = "application/jose+json"
 )
 
-const (
-	headerKeyExpiry      = "io.cncf.notary.expiry"
-	headerKeySigningTime = "io.cncf.notary.signingTime"
-	headerKeyCrit        = "crit"
-	headerKeyAlg         = "alg"
-	headerKeyCty         = "cty"
-)
-
 var signatureAlgJWSAlgMap = map[SignatureAlgorithm]string{
 	RSASSA_PSS_SHA_256: "PS256",
 	RSASSA_PSS_SHA_384: "PS384",

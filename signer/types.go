@@ -11,6 +11,18 @@ type SignatureAlgorithm string
 // HashAlgorithm algorithm associated with the key spec.
 type HashAlgorithm string
 
+// Protected Headers
+// https://github.com/notaryproject/notaryproject/blob/cose-envelope/signature-envelope-cose.md
+const (
+	headerKeyExpiry          = "io.cncf.notary.expiry"
+	headerKeySigningTime     = "io.cncf.notary.signingTime"
+	headerKeySigningScheme   = "io.cncf.notary.signingScheme"
+	headerKeyAuthSigningTime = "io.cncf.notary.authenticSigningTime"
+	headerKeyCrit            = "crit"
+	headerKeyAlg             = "alg"
+	headerKeyCty             = "cty"
+)
+
 // One of following supported specs
 // https://github.com/notaryproject/notaryproject/blob/main/signature-specification.md#algorithm-selection
 const (

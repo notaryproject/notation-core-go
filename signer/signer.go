@@ -219,6 +219,12 @@ func NewSignatureEnvelopeFromBytes(envelopeBytes []byte, envelopeMediaType Signa
 			return nil, MalformedArgumentError{"envelopeBytes", err}
 		}
 		return &SignatureEnvelope{envelopeBytes, internal}, nil
+	case MediaTypeCOSE:
+		internal, err := newCoseEnvelopeFromBytes(envelopeBytes)
+		if err != nil {
+			return nil, MalformedArgumentError{"envelopeBytes", err}
+		}
+		return &SignatureEnvelope{envelopeBytes, internal}, nil
 	default:
 		return nil, UnsupportedSignatureFormatError{mediaType: string(envelopeMediaType)}
 	}
@@ -229,6 +235,8 @@ func NewSignatureEnvelope(envelopeMediaType SignatureMediaType) (*SignatureEnvel
 	switch envelopeMediaType {
 	case MediaTypeJWSJson:
 		return &SignatureEnvelope{internalEnvelope: &jwsEnvelope{}}, nil
+	case MediaTypeCOSE:
+		return &SignatureEnvelope{internalEnvelope: &coseEnvelope{}}, nil
 	default:
 		return nil, UnsupportedSignatureFormatError{mediaType: string(envelopeMediaType)}
 	}
