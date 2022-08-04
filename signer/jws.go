@@ -186,7 +186,7 @@ func parseProtectedHeaders(encoded string) (*jwsProtectedHeader, error) {
 }
 
 func populateProtectedHeaders(protectedHdr *jwsProtectedHeader, signInfo *SignerInfo) error {
-	err := validateCriticalHeaders(protectedHdr)
+	err := validateProtectedHeaders(protectedHdr)
 	if err != nil {
 		return err
 	}
@@ -205,9 +205,13 @@ func populateProtectedHeaders(protectedHdr *jwsProtectedHeader, signInfo *Signer
 	}
 	switch protectedHdr.SigningScheme {
 	case SigningSchemeX509:
-		signInfo.SignedAttributes.SigningTime = *protectedHdr.SigningTime
+		if protectedHdr.SigningTime != nil {
+			signInfo.SignedAttributes.SigningTime = *protectedHdr.SigningTime
+		}
 	case SigningSchemeX509SigningAuthority:
-		signInfo.SignedAttributes.SigningTime = *protectedHdr.AuthenticSigningTime
+		if protectedHdr.AuthenticSigningTime != nil {
+			signInfo.SignedAttributes.SigningTime = *protectedHdr.AuthenticSigningTime
+		}
 	}
 	return nil
 }
@@ -224,6 +228,26 @@ func getExtendedAttributes(attrs map[string]interface{}, critical []string) []At
 	return extendedAttr
 }
 
+func validateProtectedHeaders(protectedHdr *jwsProtectedHeader) error {
+	// validate headers that should not be present as per signing schemes
+	switch protectedHdr.SigningScheme {
+	case SigningSchemeX509:
+		if protectedHdr.AuthenticSigningTime != nil {
+			return MalformedSignatureError{msg: fmt.Sprintf("%q header must not be present for %s signing scheme", headerKeyAuthenticSigningTime, SigningSchemeX509)}
+		}
+	case SigningSchemeX509SigningAuthority:
+		if protectedHdr.SigningTime != nil {
+			return MalformedSignatureError{msg: fmt.Sprintf("%q header must not be present for %s signing scheme", headerKeySigningTime, SigningSchemeX509SigningAuthority)}
+		}
+		if protectedHdr.AuthenticSigningTime == nil {
+			return MalformedSignatureError{msg: fmt.Sprintf("%q header must be present for %s signing scheme", headerKeyAuthenticSigningTime, SigningSchemeX509)}
+		}
+	}
+
+	return validateCriticalHeaders(protectedHdr)
+}
+
+// validateCriticalHeaders validates headers that should be present or marked critical as per singing scheme
 func validateCriticalHeaders(protectedHdr *jwsProtectedHeader) error {
 	if len(protectedHdr.Critical) == 0 {
 		return MalformedSignatureError{"missing `crit` header"}

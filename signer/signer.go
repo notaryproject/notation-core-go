@@ -13,14 +13,18 @@ import (
 // SignerInfo represents a parsed signature envelope that is agnostic to signature envelope format.
 type SignerInfo struct {
 	Payload            []byte
-	PayloadContentType PayloadContentType
-	SignedAttributes   SignedAttributes
-	UnsignedAttributes UnsignedAttributes
-	SignatureAlgorithm SignatureAlgorithm
-	CertificateChain   []*x509.Certificate
 	Signature          []byte
+
+	// Signed attributes
+	PayloadContentType PayloadContentType
+	SignatureAlgorithm SignatureAlgorithm
 	SigningScheme      SigningScheme
+	SignedAttributes   SignedAttributes
+
+	// Unsigned attributes
+	CertificateChain   []*x509.Certificate
 	TimestampSignature []byte
+	UnsignedAttributes UnsignedAttributes
 }
 
 // SignedAttributes represents signed metadata in the Signature envelope
@@ -208,7 +212,7 @@ func validateCertificateChain(certChain []*x509.Certificate, signTime time.Time,
 	return nil
 }
 
-func validate(payload []byte, payloadCty PayloadContentType, vPlugin, vPluginVersion string, signTime, expTime time.Time, scheme SigningScheme, f func(string) error) error {
+func validate(payload []byte, payloadCty PayloadContentType, verificationPlugin, verificationPluginVersion string, signTime, expTime time.Time, scheme SigningScheme, f func(string) error) error {
 	if len(payload) == 0 {
 		return f("payload not present")
 	}
@@ -229,17 +233,17 @@ func validate(payload []byte, payloadCty PayloadContentType, vPlugin, vPluginVer
 		return f("SigningScheme not present")
 	}
 
-	if vPlugin != "" && strings.TrimSpace(vPlugin) == "" {
+	if verificationPlugin != "" && strings.TrimSpace(verificationPlugin) == "" {
 		return MalformedSignRequestError{msg: "VerificationPlugin cannot contain only whitespaces"}
 	}
 
 	// copied from https://semver.org/#is-there-a-suggested-regular-expression-regex-to-check-a-semver-string
 	semVerRegEx := regexp.MustCompile("^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-((?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?$")
-	if vPluginVersion != "" && !semVerRegEx.MatchString(vPluginVersion) {
-		return MalformedSignRequestError{msg: fmt.Sprintf("VerificationPluginMinVersion %q is not valid SemVer", vPluginVersion)}
+	if verificationPluginVersion != "" && !semVerRegEx.MatchString(verificationPluginVersion) {
+		return MalformedSignRequestError{msg: fmt.Sprintf("VerificationPluginMinVersion %q is not valid SemVer", verificationPluginVersion)}
 	}
 
-	if vPlugin == "" && vPluginVersion != "" {
+	if verificationPlugin == "" && verificationPluginVersion != "" {
 		return MalformedSignRequestError{msg: "VerificationPluginMinVersion cannot be used without VerificationPlugin"}
 	}
 
