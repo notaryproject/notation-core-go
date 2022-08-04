@@ -38,7 +38,7 @@ func TestSign(t *testing.T) {
 		t.Fatalf("NewSignatureEnvelope() error = %v", err)
 	}
 
-	for _, scheme := range []SigningScheme{SigningSchemeX509Default, SigningSchemeX509SigningAuthority} {
+	for _, scheme := range []SigningScheme{SigningSchemeX509, SigningSchemeX509SigningAuthority} {
 		t.Run(fmt.Sprintf("with %s scheme when all arguments are present", scheme), func(t *testing.T) {
 			req := newSignRequest(scheme)
 			verifySignWithRequest(env, req, t)
@@ -383,7 +383,7 @@ func newSignRequest(scheme SigningScheme) SignRequest {
 }
 
 func getSignRequest() SignRequest {
-	return newSignRequest(SigningSchemeX509Default)
+	return newSignRequest(SigningSchemeX509)
 }
 
 func getSigningCerts() []*x509.Certificate {

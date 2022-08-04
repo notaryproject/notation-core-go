@@ -204,7 +204,7 @@ func populateProtectedHeaders(protectedHdr *jwsProtectedHeader, signInfo *Signer
 		signInfo.SignedAttributes.Expiry = *protectedHdr.Expiry
 	}
 	switch protectedHdr.SigningScheme {
-	case SigningSchemeX509Default:
+	case SigningSchemeX509:
 		signInfo.SignedAttributes.SigningTime = *protectedHdr.SigningTime
 	case SigningSchemeX509SigningAuthority:
 		signInfo.SignedAttributes.SigningTime = *protectedHdr.AuthenticSigningTime
@@ -292,7 +292,7 @@ func getSignedAttrs(req SignRequest, sigAlg SignatureAlgorithm) (map[string]inte
 	}
 
 	switch req.SigningScheme {
-	case SigningSchemeX509Default:
+	case SigningSchemeX509:
 		jwsProtectedHdr.SigningTime = &req.SigningTime
 	case SigningSchemeX509SigningAuthority:
 		crit = append(crit, headerKeyAuthenticSigningTime)
@@ -357,10 +357,10 @@ type jwsProtectedHeader struct {
 	// Specifies the Notary v2 Signing Scheme used by the signature.
 	SigningScheme SigningScheme `json:"io.cncf.notary.signingScheme"`
 
-	// The time at which the signature was generated. only valid when signing scheme is `notary.default.x509`
+	// The time at which the signature was generated. only valid when signing scheme is `notary.x509`
 	SigningTime *time.Time `json:"io.cncf.notary.signingTime,omitempty"`
 
-	// The time at which the signature was generated. only valid when signing scheme is `notary.signingAuthority.x509`
+	// The time at which the signature was generated. only valid when signing scheme is `notary.x509.signingAuthority`
 	AuthenticSigningTime *time.Time `json:"io.cncf.notary.authenticSigningTime,omitempty"`
 
 	// VerificationPlugin specifies the name of the verification plugin that should be used to verify the signature.

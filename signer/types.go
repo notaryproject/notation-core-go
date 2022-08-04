@@ -68,8 +68,8 @@ func (k KeySpec) SignatureAlgorithm() SignatureAlgorithm {
 type SigningScheme string
 
 const (
-	SigningSchemeX509Default          SigningScheme = "notary.default.x509"
-	SigningSchemeX509SigningAuthority SigningScheme = "notary.signingAuthority.x509"
+	SigningSchemeX509                 SigningScheme = "notary.x509"
+	SigningSchemeX509SigningAuthority SigningScheme = "notary.x509.signingAuthority"
 )
 
 // PayloadContentType list the supported content types for signature's  payload .
