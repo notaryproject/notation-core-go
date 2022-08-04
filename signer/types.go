@@ -14,13 +14,22 @@ type HashAlgorithm string
 // Protected Headers
 // https://github.com/notaryproject/notaryproject/blob/cose-envelope/signature-envelope-cose.md
 const (
-	headerKeyExpiry          = "io.cncf.notary.expiry"
-	headerKeySigningTime     = "io.cncf.notary.signingTime"
-	headerKeySigningScheme   = "io.cncf.notary.signingScheme"
-	headerKeyAuthSigningTime = "io.cncf.notary.authenticSigningTime"
-	headerKeyCrit            = "crit"
-	headerKeyAlg             = "alg"
-	headerKeyCty             = "cty"
+	headerKeyExpiry                       = "io.cncf.notary.expiry"
+	headerKeySigningTime                  = "io.cncf.notary.signingTime"
+	headerKeyAuthenticSigningTime         = "io.cncf.notary.authenticSigningTime"
+	headerKeySigningScheme                = "io.cncf.notary.signingScheme"
+	headerKeyVerificationPlugin           = "io.cncf.notary.verificationPlugin"
+	headerKeyVerificationPluginMinVersion = "io.cncf.notary.verificationPluginMinVersion"
+	headerKeyCrit                         = "crit"
+	headerKeyAlg                          = "alg"
+	headerKeyCty                          = "cty"
+)
+
+// Unprotected Headers
+// https://github.com/notaryproject/notaryproject/blob/cose-envelope/signature-envelope-cose.md
+const (
+	headerKeyTimeStampSignature = "io.cncf.notary.timestampSignature"
+	headerKeySigningAgent       = "io.cncf.notary.signingAgent"
 )
 
 // One of following supported specs
@@ -98,6 +107,15 @@ func (k KeySpec) SignatureAlgorithm() SignatureAlgorithm {
 	}
 	return ""
 }
+
+// SigningScheme formalizes the feature set (guarantees) provided by
+// the signature.
+type SigningScheme string
+
+const (
+	SigningSchemeX509                 SigningScheme = "notary.x509"
+	SigningSchemeX509SigningAuthority SigningScheme = "notary.x509.signingAuthority"
+)
 
 // PayloadContentType list the supported content types for signature's  payload .
 type PayloadContentType string
