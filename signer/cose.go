@@ -76,7 +76,39 @@ func (cose *coseEnvelope) validateIntegrity() error {
 
 // signPayload implements internalSignatureEnvelope interface
 func (cose *coseEnvelope) signPayload(req SignRequest) ([]byte, error) {
-	return nil, nil
+	errorFunc := func(s string) error {
+		return MalformedSignRequestError{msg: s}
+	}
+
+	ks, err := req.SignatureProvider.KeySpec()
+	if err != nil {
+		return nil, errorFunc(err.Error())
+	}
+	alg := ks.SignatureAlgorithm()
+
+	protected, err := generateCoseProtectedHeadersMap(req, alg)
+	if err != nil {
+		return nil, err
+	}
+	unprotected := generateCoseUnprotectedHeadersMap(req)
+	fmt.Println(protected)
+	fmt.Println(unprotected)
+	coseSigPro := req.SignatureProvider
+	// SetHeaders is a Setter implemented by CoseSignatureProvider
+	// coseSigPro.SetHeaders(protected, unprotected)
+	coseSign1MsgB, certs, err := coseSigPro.Sign(req.Payload)
+	if err != nil {
+		return nil, fmt.Errorf("failed to sign digest. error : %v", err)
+	}
+	if err := validateCertificateChain(certs, req.SigningTime, alg, errorFunc); err != nil {
+		return nil, err
+	}
+	err = cose.internalEnv.UnmarshalCBOR(coseSign1MsgB)
+	if err != nil {
+		return nil, err
+	}
+	return coseSign1MsgB, nil
+
 }
 
 // getSignerInfo implements internalSignatureEnvelope interface
@@ -129,6 +161,52 @@ func (cose *coseEnvelope) getSignerInfo() (*SignerInfo, error) {
 	return &signInfo, nil
 }
 
+func generateCoseProtectedHeadersMap(req SignRequest, sigAlg SignatureAlgorithm) (map[interface{}]interface{}, error) {
+	protected := make(map[interface{}]interface{})
+	// alg
+	alg, err := getCOSEAlgo(sigAlg)
+	if err != nil {
+		return nil, err
+	}
+	protected[cosepkg.HeaderLabelAlgorithm] = alg
+
+	// crit, signingScheme, expiry, signingTime, authenticSigningTime
+	var crit []interface{}
+	crit = append(crit, headerKeySigningScheme)
+	protected[headerKeySigningScheme] = string(req.SigningScheme)
+	if !req.Expiry.IsZero() {
+		crit = append(crit, headerKeyExpiry)
+		protected[headerKeyExpiry] = uint(req.Expiry.Unix())
+	}
+	switch req.SigningScheme {
+	case SigningSchemeX509:
+		protected[headerKeySigningTime] = uint(req.SigningTime.Unix())
+	case SigningSchemeX509SigningAuthority:
+		crit = append(crit, headerKeyAuthenticSigningTime)
+		protected[headerKeyAuthenticSigningTime] = uint(req.SigningTime.Unix())
+	}
+	protected[cosepkg.HeaderLabelCritical] = crit
+
+	// content type
+	protected[cosepkg.HeaderLabelContentType] = string(req.PayloadContentType)
+
+	return protected, nil
+}
+func generateCoseUnprotectedHeadersMap(req SignRequest) map[interface{}]interface{} {
+	unprotected := make(map[interface{}]interface{})
+	// Note: cosepkg.HeaderLabelX5Chain REQUIRED but not implemented here
+	// as we don't have access to certificates.
+	// This should be implemented inside CoseSignatureProvider.Sign()
+
+	// signingAgent
+	unprotected[headerKeySigningAgent] = req.SigningAgent
+
+	// TODO: needs to add headerKeyTimeStampSignature here, which requires
+	// updates of SignRequest
+
+	return unprotected
+}
+
 func processCoseProtectedHeaders(headers *cosepkg.Headers, signInfo *SignerInfo) error {
 	if len(headers.RawProtected) == 0 {
 		return MalformedSignatureError{msg: "Missing cose envelope protected header"}
@@ -158,8 +236,9 @@ func processCoseProtectedHeaders(headers *cosepkg.Headers, signInfo *SignerInfo)
 	}
 	switch PayloadContentType(cty) {
 	case PayloadContentTypeV1:
-		signInfo.PayloadContentType = PayloadContentType(cty)
+		signInfo.PayloadContentType = PayloadContentTypeV1
 	default:
+		// This check is not done in verifySignerInfo method
 		return MalformedSignatureError{msg: "Missing or wrong content type"}
 	}
 
@@ -193,6 +272,9 @@ func processCoseProtectedHeaders(headers *cosepkg.Headers, signInfo *SignerInfo)
 	return nil
 }
 
+// validateCritHeaders does a two-way check, namely:
+// 1. validate that all critical headers are present in the protected bucket
+// 2. validate that all required headers(as per spec) are marked critical
 func validateCritHeaders(protected cosepkg.ProtectedHeader) error {
 	// This ensures all critical headers are present in the protected bucket.
 	labels, err := protected.Critical()
@@ -217,9 +299,9 @@ func validateCritHeaders(protected cosepkg.ProtectedHeader) error {
 		delete(mustMarkedCrit, label)
 	}
 
-	// validate all required critical headers are present.
+	// validate that all required headers(as per spec) are marked critical
 	if len(mustMarkedCrit) != 0 {
-		// This is not taken care by VerifySignerInfo method
+		// This is not taken care by verifySignerInfo method
 		keys := make([]interface{}, 0, len(mustMarkedCrit))
 		for k := range mustMarkedCrit {
 			keys = append(keys, k)
@@ -227,4 +309,13 @@ func validateCritHeaders(protected cosepkg.ProtectedHeader) error {
 		return MalformedSignatureError{fmt.Sprintf("these required headers are not marked as critical: %v", keys)}
 	}
 	return nil
+}
+
+func getCOSEAlgo(alg SignatureAlgorithm) (int, error) {
+	coseAlg, ok := signatureAlgCOSEAlgMap[alg]
+	if !ok {
+		return 0, SignatureAlgoNotSupportedError{alg: string(alg)}
+	}
+
+	return int(coseAlg), nil
 }

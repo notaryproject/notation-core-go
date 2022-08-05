@@ -42,6 +42,7 @@ type SignRequest struct {
 	Expiry              time.Time
 	ExtendedSignedAttrs []Attribute
 	SigningAgent        string
+	SigningScheme       SigningScheme
 }
 
 // Attribute represents metadata in the Signature envelope
@@ -95,6 +96,8 @@ func (s *SignatureEnvelope) Verify() (*SignerInfo, error) {
 
 // Sign generates Signature using given SignRequest.
 func (s *SignatureEnvelope) Sign(req SignRequest) ([]byte, error) {
+	req.SigningTime = req.SigningTime.Truncate(time.Second)
+	req.Expiry = req.Expiry.Truncate(time.Second)
 	if err := validateSignRequest(req); err != nil {
 		return nil, err
 	}
