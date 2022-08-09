@@ -35,6 +35,7 @@ type SignRequest struct {
 	Expiry                   time.Time
 	ExtendedSignedAttributes []Attribute
 	SigningAgent             string
+	SigningScheme            SigningScheme
 }
 
 // SignerInfo represents a parsed signature envelope that is agnostic to signature
@@ -53,3 +54,12 @@ type Payload struct {
 	ContentType string
 	Content     []byte
 }
+
+// SigningScheme formalizes the feature set (guarantees) provided by
+// the signature.
+type SigningScheme string
+
+const (
+	SigningSchemeX509                 SigningScheme = "notary.x509"
+	SigningSchemeX509SigningAuthority SigningScheme = "notary.x509.signingAuthority"
+)
