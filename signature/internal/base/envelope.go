@@ -17,7 +17,7 @@ type Envelope struct {
 }
 
 var errorFunc = func(s string) error {
-	return signature.NewErrMalformedSignature(s)
+	return &signature.MalformedSignatureError{Msg: s}
 }
 
 // Sign generates signature using given SignRequest.

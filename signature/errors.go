@@ -2,50 +2,51 @@ package signature
 
 import "fmt"
 
-// ErrMalformedSignature is used when Signature envelope is malformed.
-type ErrMalformedSignature struct {
-	msg string
-}
-
-// NewMalformedSignatureError creates a MalformedSignatureError with the message.
-func NewErrMalformedSignature(msg string) ErrMalformedSignature {
-	return ErrMalformedSignature{
-		msg: msg,
-	}
+// MalformedSignatureError is used when Signature envelope is malformed.
+type MalformedSignatureError struct {
+	Msg string
 }
 
 // Error returns the error message.
-func (e ErrMalformedSignature) Error() string {
-	if e.msg != "" {
-		return e.msg
+func (e *MalformedSignatureError) Error() string {
+	if e.Msg != "" {
+		return e.Msg
 	}
 	return "signature envelope format is malformed"
 }
 
-// ErrUnsupportedSigningKey is used when a signing key is not supported.
-type ErrUnsupportedSigningKey struct {
-	keyType   KeyType
-	keyLength int
+// UnsupportedSigningKeyError is used when a signing key is not supported.
+type UnsupportedSigningKeyError struct {
+	Msg string
 }
 
 // Error returns the error message.
-func (e ErrUnsupportedSigningKey) Error() string {
-	if e.keyType != KeyTypeRSA && e.keyType != KeyTypeEC && e.keyLength != 0 {
-		return fmt.Sprintf("%d signing key of size %d is not supported", e.keyType, e.keyLength)
+func (e UnsupportedSigningKeyError) Error() string {
+	if e.Msg != "" {
+		return e.Msg
 	}
 	return "signing key is not supported"
 }
 
-// ErrMalformedArgument is used when an argument to a function is malformed.
-type ErrMalformedArgument struct {
-	param string
-	err   error
+// MalformedArgumentError is used when an argument to a function is malformed.
+type MalformedArgumentError struct {
+	Param string
+	Err   error
+}
+
+// NewMalformedArgumentError creates a new MalformedArgumentError with malformed
+// paramaters and the actual error
+func NewMalformedArgumentError(param string, err error) *MalformedArgumentError {
+	return &MalformedArgumentError{
+		Param: param,
+		Err: err,
+	}
 }
 
 // Error returns the error message.
-func (e ErrMalformedArgument) Error() string {
-	if e.err != nil {
-		return fmt.Sprintf("%q param is malformed. Error: %s", e.param, e.err.Error())
+func (e MalformedArgumentError) Error() string {
+	if e.Err != nil {
+		return fmt.Sprintf("%q param is malformed. Error: %s", e.Param, e.Err.Error())
 	}
-	return fmt.Sprintf("%q param is malformed", e.param)
+	return fmt.Sprintf("%q param is malformed", e.Param)
 }
