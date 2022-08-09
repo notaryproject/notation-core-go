@@ -15,11 +15,15 @@ const (
 )
 
 const (
-	headerKeyExpiry      = "io.cncf.notary.expiry"
-	headerKeySigningTime = "io.cncf.notary.signingTime"
-	headerKeyCrit        = "crit"
-	headerKeyAlg         = "alg"
-	headerKeyCty         = "cty"
+	headerKeyExpiry                       = "io.cncf.notary.expiry"
+	headerKeySigningTime                  = "io.cncf.notary.signingTime"
+	headerKeyAuthenticSigningTime         = "io.cncf.notary.authenticSigningTime"
+	headerKeySigningScheme                = "io.cncf.notary.signingScheme"
+	headerKeyVerificationPlugin           = "io.cncf.notary.verificationPlugin"
+	headerKeyVerificationPluginMinVersion = "io.cncf.notary.verificationPluginMinVersion"
+	headerKeyCrit                         = "crit"
+	headerKeyAlg                          = "alg"
+	headerKeyCty                          = "cty"
 )
 
 var signatureAlgJWSAlgMap = map[SignatureAlgorithm]string{
@@ -173,12 +177,16 @@ func parseProtectedHeaders(encoded string) (*jwsProtectedHeader, error) {
 	delete(protected.ExtendedAttributes, headerKeyCrit)
 	delete(protected.ExtendedAttributes, headerKeySigningTime)
 	delete(protected.ExtendedAttributes, headerKeyExpiry)
+	delete(protected.ExtendedAttributes, headerKeyAuthenticSigningTime)
+	delete(protected.ExtendedAttributes, headerKeySigningScheme)
+	delete(protected.ExtendedAttributes, headerKeyVerificationPlugin)
+	delete(protected.ExtendedAttributes, headerKeyVerificationPluginMinVersion)
 
 	return &protected, nil
 }
 
 func populateProtectedHeaders(protectedHdr *jwsProtectedHeader, signInfo *SignerInfo) error {
-	err := validateCriticalHeaders(protectedHdr)
+	err := validateProtectedHeaders(protectedHdr)
 	if err != nil {
 		return err
 	}
@@ -188,11 +196,23 @@ func populateProtectedHeaders(protectedHdr *jwsProtectedHeader, signInfo *Signer
 	}
 
 	signInfo.PayloadContentType = protectedHdr.ContentType
-	signInfo.SignedAttributes.SigningTime = protectedHdr.SigningTime.Truncate(time.Second)
-	if protectedHdr.Expiry != nil {
-		signInfo.SignedAttributes.Expiry = protectedHdr.Expiry.Truncate(time.Second)
-	}
 	signInfo.SignedAttributes.ExtendedAttributes = getExtendedAttributes(protectedHdr.ExtendedAttributes, protectedHdr.Critical)
+	signInfo.SigningScheme = protectedHdr.SigningScheme
+	signInfo.SignedAttributes.VerificationPlugin = protectedHdr.VerificationPlugin
+	signInfo.SignedAttributes.VerificationPluginMinVersion = protectedHdr.VerificationPluginMinVersion
+	if protectedHdr.Expiry != nil {
+		signInfo.SignedAttributes.Expiry = *protectedHdr.Expiry
+	}
+	switch protectedHdr.SigningScheme {
+	case SigningSchemeX509:
+		if protectedHdr.SigningTime != nil {
+			signInfo.SignedAttributes.SigningTime = *protectedHdr.SigningTime
+		}
+	case SigningSchemeX509SigningAuthority:
+		if protectedHdr.AuthenticSigningTime != nil {
+			signInfo.SignedAttributes.SigningTime = *protectedHdr.AuthenticSigningTime
+		}
+	}
 	return nil
 }
 
@@ -208,10 +228,46 @@ func getExtendedAttributes(attrs map[string]interface{}, critical []string) []At
 	return extendedAttr
 }
 
+func validateProtectedHeaders(protectedHdr *jwsProtectedHeader) error {
+	// validate headers that should not be present as per signing schemes
+	switch protectedHdr.SigningScheme {
+	case SigningSchemeX509:
+		if protectedHdr.AuthenticSigningTime != nil {
+			return MalformedSignatureError{msg: fmt.Sprintf("%q header must not be present for %s signing scheme", headerKeyAuthenticSigningTime, SigningSchemeX509)}
+		}
+	case SigningSchemeX509SigningAuthority:
+		if protectedHdr.SigningTime != nil {
+			return MalformedSignatureError{msg: fmt.Sprintf("%q header must not be present for %s signing scheme", headerKeySigningTime, SigningSchemeX509SigningAuthority)}
+		}
+		if protectedHdr.AuthenticSigningTime == nil {
+			return MalformedSignatureError{msg: fmt.Sprintf("%q header must be present for %s signing scheme", headerKeyAuthenticSigningTime, SigningSchemeX509)}
+		}
+	}
+
+	return validateCriticalHeaders(protectedHdr)
+}
+
+// validateCriticalHeaders validates headers that should be present or marked critical as per singing scheme
 func validateCriticalHeaders(protectedHdr *jwsProtectedHeader) error {
-	mustMarkedCrit := map[string]bool{}
+	if len(protectedHdr.Critical) == 0 {
+		return MalformedSignatureError{"missing `crit` header"}
+	}
+
+	mustMarkedCrit := map[string]bool{headerKeySigningScheme: true}
 	if protectedHdr.Expiry != nil && !protectedHdr.Expiry.IsZero() {
 		mustMarkedCrit[headerKeyExpiry] = true
+	}
+
+	if protectedHdr.SigningScheme == SigningSchemeX509SigningAuthority {
+		mustMarkedCrit[headerKeyAuthenticSigningTime] = true
+	}
+
+	if protectedHdr.VerificationPlugin != "" {
+		mustMarkedCrit[headerKeyVerificationPlugin] = true
+	}
+
+	if protectedHdr.VerificationPluginMinVersion != "" {
+		mustMarkedCrit[headerKeyVerificationPluginMinVersion] = true
 	}
 
 	for _, val := range protectedHdr.Critical {
@@ -227,7 +283,11 @@ func validateCriticalHeaders(protectedHdr *jwsProtectedHeader) error {
 	// validate all required critical headers are present.
 	if len(mustMarkedCrit) != 0 {
 		// This is not taken care by VerifySignerInfo method
-		return MalformedSignatureError{"required headers not marked critical"}
+		keys := make([]string, 0, len(mustMarkedCrit))
+		for k := range mustMarkedCrit {
+			keys = append(keys, k)
+		}
+		return MalformedSignatureError{fmt.Sprintf("these required headers are not marked as critical: %v", keys)}
 	}
 
 	return nil
@@ -235,10 +295,7 @@ func validateCriticalHeaders(protectedHdr *jwsProtectedHeader) error {
 
 func getSignedAttrs(req SignRequest, sigAlg SignatureAlgorithm) (map[string]interface{}, error) {
 	extAttrs := make(map[string]interface{})
-	var crit []string
-	if !req.Expiry.IsZero() {
-		crit = append(crit, headerKeyExpiry)
-	}
+	crit := []string{headerKeySigningScheme}
 
 	for _, elm := range req.ExtendedSignedAttrs {
 		extAttrs[elm.Key] = elm.Value
@@ -253,16 +310,33 @@ func getSignedAttrs(req SignRequest, sigAlg SignatureAlgorithm) (map[string]inte
 	}
 
 	jwsProtectedHdr := jwsProtectedHeader{
-		Algorithm:   alg,
-		ContentType: req.PayloadContentType,
-		Critical:    crit,
-		SigningTime: req.SigningTime.Truncate(time.Second),
-	}
-	if !req.Expiry.IsZero() {
-		truncTime := req.Expiry.Truncate(time.Second)
-		jwsProtectedHdr.Expiry = &truncTime
+		Algorithm:     alg,
+		ContentType:   req.PayloadContentType,
+		SigningScheme: req.SigningScheme,
 	}
 
+	switch req.SigningScheme {
+	case SigningSchemeX509:
+		jwsProtectedHdr.SigningTime = &req.SigningTime
+	case SigningSchemeX509SigningAuthority:
+		crit = append(crit, headerKeyAuthenticSigningTime)
+		jwsProtectedHdr.AuthenticSigningTime = &req.SigningTime
+	}
+
+	if !req.Expiry.IsZero() {
+		crit = append(crit, headerKeyExpiry)
+		jwsProtectedHdr.Expiry = &req.Expiry
+	}
+	if strings.TrimSpace(req.VerificationPlugin) != "" {
+		crit = append(crit, headerKeyVerificationPlugin)
+		jwsProtectedHdr.VerificationPlugin = req.VerificationPlugin
+	}
+	if strings.TrimSpace(req.VerificationPluginMinVersion) != "" {
+		crit = append(crit, headerKeyVerificationPluginMinVersion)
+		jwsProtectedHdr.VerificationPluginMinVersion = req.VerificationPluginMinVersion
+	}
+
+	jwsProtectedHdr.Critical = crit
 	m, err := convertToMap(jwsProtectedHdr)
 	if err != nil {
 		return nil, MalformedSignRequestError{msg: fmt.Sprintf("unexpected error occured while creating protected headers, Error: %s", err.Error())}
@@ -301,11 +375,23 @@ type jwsProtectedHeader struct {
 	// Lists the headers that implementation MUST understand and process.
 	Critical []string `json:"crit,omitempty"`
 
-	// The time at which the signature was generated.
-	SigningTime time.Time `json:"io.cncf.notary.signingTime"`
-
 	// The "best by use" time for the artifact, as defined by the signer.
 	Expiry *time.Time `json:"io.cncf.notary.expiry,omitempty"`
+
+	// Specifies the Notary v2 Signing Scheme used by the signature.
+	SigningScheme SigningScheme `json:"io.cncf.notary.signingScheme"`
+
+	// The time at which the signature was generated. only valid when signing scheme is `notary.x509`
+	SigningTime *time.Time `json:"io.cncf.notary.signingTime,omitempty"`
+
+	// The time at which the signature was generated. only valid when signing scheme is `notary.x509.signingAuthority`
+	AuthenticSigningTime *time.Time `json:"io.cncf.notary.authenticSigningTime,omitempty"`
+
+	// VerificationPlugin specifies the name of the verification plugin that should be used to verify the signature.
+	VerificationPlugin string `json:"io.cncf.notary.verificationPlugin,omitempty"`
+
+	// VerificationPluginMinVersion specifies the minimum version of the verification plugin that should be used to verify the signature.
+	VerificationPluginMinVersion string `json:"io.cncf.notary.verificationPluginMinVersion,omitempty"`
 
 	// The user defined attributes.
 	ExtendedAttributes map[string]interface{} `json:"-"`

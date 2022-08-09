@@ -3,6 +3,8 @@ package signer
 import (
 	"crypto/x509"
 	"fmt"
+	"regexp"
+	"strings"
 	"time"
 
 	nx509 "github.com/notaryproject/notation-core-go/x509"
@@ -11,20 +13,27 @@ import (
 // SignerInfo represents a parsed signature envelope that is agnostic to signature envelope format.
 type SignerInfo struct {
 	Payload            []byte
-	PayloadContentType PayloadContentType
-	SignedAttributes   SignedAttributes
-	UnsignedAttributes UnsignedAttributes
-	SignatureAlgorithm SignatureAlgorithm
-	CertificateChain   []*x509.Certificate
 	Signature          []byte
+
+	// Signed attributes
+	PayloadContentType PayloadContentType
+	SignatureAlgorithm SignatureAlgorithm
+	SigningScheme      SigningScheme
+	SignedAttributes   SignedAttributes
+
+	// Unsigned attributes
+	CertificateChain   []*x509.Certificate
 	TimestampSignature []byte
+	UnsignedAttributes UnsignedAttributes
 }
 
 // SignedAttributes represents signed metadata in the Signature envelope
 type SignedAttributes struct {
-	SigningTime        time.Time
-	Expiry             time.Time
-	ExtendedAttributes []Attribute
+	SigningTime                  time.Time
+	Expiry                       time.Time
+	VerificationPlugin           string
+	VerificationPluginMinVersion string
+	ExtendedAttributes           []Attribute
 }
 
 // UnsignedAttributes represents unsigned metadata in the Signature envelope
@@ -34,13 +43,16 @@ type UnsignedAttributes struct {
 
 // SignRequest is used to generate Signature.
 type SignRequest struct {
-	Payload             []byte
-	PayloadContentType  PayloadContentType
-	SignatureProvider   SignatureProvider
-	SigningTime         time.Time
-	Expiry              time.Time
-	ExtendedSignedAttrs []Attribute
-	SigningAgent        string
+	Payload                      []byte
+	PayloadContentType           PayloadContentType
+	SignatureProvider            SignatureProvider
+	SigningTime                  time.Time
+	Expiry                       time.Time
+	ExtendedSignedAttrs          []Attribute
+	SigningAgent                 string
+	SigningScheme                SigningScheme
+	VerificationPlugin           string
+	VerificationPluginMinVersion string
 }
 
 // Attribute represents metadata in the Signature envelope
@@ -94,10 +106,16 @@ func (s *SignatureEnvelope) Verify() (*SignerInfo, error) {
 
 // Sign generates Signature using given SignRequest.
 func (s *SignatureEnvelope) Sign(req SignRequest) ([]byte, error) {
+	// Sanitize request
+	req.SigningTime = req.SigningTime.Truncate(time.Second)
+	req.Expiry = req.Expiry.Truncate(time.Second)
+
+	// validate request
 	if err := validateSignRequest(req); err != nil {
 		return nil, err
 	}
 
+	// perform signature generation
 	sig, err := s.internalEnvelope.signPayload(req)
 	if err != nil {
 		return nil, err
@@ -137,7 +155,10 @@ func validateSignerInfo(info *SignerInfo) error {
 	errorFunc := func(s string) error {
 		return MalformedSignatureError{msg: s}
 	}
-	if err := validate(info.Payload, info.PayloadContentType, info.SignedAttributes.SigningTime, info.SignedAttributes.Expiry, errorFunc); err != nil {
+
+	sAttr := info.SignedAttributes
+	if err := validate(info.Payload, info.PayloadContentType, sAttr.VerificationPlugin, sAttr.VerificationPluginMinVersion,
+		sAttr.SigningTime, sAttr.Expiry, info.SigningScheme, errorFunc); err != nil {
 		return err
 	}
 
@@ -153,7 +174,9 @@ func validateSignRequest(req SignRequest) error {
 	errorFunc := func(s string) error {
 		return MalformedSignRequestError{msg: s}
 	}
-	if err := validate(req.Payload, req.PayloadContentType, req.SigningTime, req.Expiry, errorFunc); err != nil {
+
+	if err := validate(req.Payload, req.PayloadContentType, req.VerificationPlugin, req.VerificationPluginMinVersion,
+		req.SigningTime, req.Expiry, req.SigningScheme, errorFunc); err != nil {
 		return err
 	}
 
@@ -189,12 +212,11 @@ func validateCertificateChain(certChain []*x509.Certificate, signTime time.Time,
 	return nil
 }
 
-func validate(payload []byte, payloadCty PayloadContentType, signTime, expTime time.Time, f func(string) error) error {
+func validate(payload []byte, payloadCty PayloadContentType, verificationPlugin, verificationPluginVersion string, signTime, expTime time.Time, scheme SigningScheme, f func(string) error) error {
 	if len(payload) == 0 {
 		return f("payload not present")
 	}
 
-	// TODO: perform PayloadContentType value validations
 	if payloadCty == "" {
 		return f("payload content type not present or is empty")
 	}
@@ -205,6 +227,24 @@ func validate(payload []byte, payloadCty PayloadContentType, signTime, expTime t
 
 	if !expTime.IsZero() && (expTime.Before(signTime) || expTime.Equal(signTime)) {
 		return f("expiry cannot be equal or before the signing time")
+	}
+
+	if scheme == "" {
+		return f("SigningScheme not present")
+	}
+
+	if verificationPlugin != "" && strings.TrimSpace(verificationPlugin) == "" {
+		return MalformedSignRequestError{msg: "VerificationPlugin cannot contain only whitespaces"}
+	}
+
+	// copied from https://semver.org/#is-there-a-suggested-regular-expression-regex-to-check-a-semver-string
+	semVerRegEx := regexp.MustCompile("^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-((?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?$")
+	if verificationPluginVersion != "" && !semVerRegEx.MatchString(verificationPluginVersion) {
+		return MalformedSignRequestError{msg: fmt.Sprintf("VerificationPluginMinVersion %q is not valid SemVer", verificationPluginVersion)}
+	}
+
+	if verificationPlugin == "" && verificationPluginVersion != "" {
+		return MalformedSignRequestError{msg: "VerificationPluginMinVersion cannot be used without VerificationPlugin"}
 	}
 
 	return nil
