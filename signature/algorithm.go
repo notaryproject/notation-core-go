@@ -4,6 +4,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/rsa"
 	"crypto/x509"
+	"fmt"
 )
 
 // Algorithm lists supported algorithms.
@@ -36,7 +37,6 @@ type KeySpec struct {
 
 // ExtractKeySpec extracts keySpec from the signing certificate
 func ExtractKeySpec(signingCert *x509.Certificate) (KeySpec, error) {
-	var keySpec KeySpec
 	switch key := signingCert.PublicKey.(type) {
 	case *rsa.PublicKey:
 		switch key.Size() {
@@ -85,7 +85,7 @@ func ExtractKeySpec(signingCert *x509.Certificate) (KeySpec, error) {
 			}
 		}
 	}
-	return keySpec, nil
+	return KeySpec{}, fmt.Errorf("invalid public key type")
 }
 
 // SignatureAlgorithm returns the signing algorithm associated with KeyType k.
