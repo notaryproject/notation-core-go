@@ -7,10 +7,9 @@ import (
 	"github.com/notaryproject/notation-core-go/signature/internal/base"
 )
 
-const MediaTypeEnvelope = "application/cose"
 
 func init() {
-	if err := signature.RegisterEnvelopeType(MediaTypeEnvelope, NewEnvelope, ParseEnvelope); err != nil {
+	if err := signature.RegisterEnvelopeType(signature.COSEMediaTypeEnvelope, NewEnvelope, ParseEnvelope); err != nil {
 		panic(err)
 	}
 }
