@@ -8,6 +8,9 @@ type SignatureMediaType string
 // SignatureAlgorithm lists supported signature algorithms.
 type SignatureAlgorithm string
 
+// HashAlgorithm algorithm associated with the key spec.
+type HashAlgorithm string
+
 // One of following supported specs
 // https://github.com/notaryproject/notaryproject/blob/main/signature-specification.md#algorithm-selection
 const (
@@ -19,18 +22,38 @@ const (
 	ECDSA_SHA_512      SignatureAlgorithm = "ECDSA_SHA_512"
 )
 
+// One of following supported specs
+// https://github.com/notaryproject/notaryproject/blob/main/signature-specification.md#algorithm-selection
+const (
+	SHA_256 HashAlgorithm = "SHA_256"
+	SHA_384 HashAlgorithm = "SHA_384"
+	SHA_512 HashAlgorithm = "SHA_512"
+)
+
+// HashFunc returns the Hash associated k.
+func (h HashAlgorithm) HashFunc() crypto.Hash {
+	switch h {
+	case SHA_256:
+		return crypto.SHA256
+	case SHA_384:
+		return crypto.SHA384
+	case SHA_512:
+		return crypto.SHA512
+	}
+	return 0
+}
+
 // Hash returns the Hash associated s.
-func (s SignatureAlgorithm) Hash() crypto.Hash {
-	var hash crypto.Hash
+func (s SignatureAlgorithm) Hash() HashAlgorithm {
 	switch s {
 	case RSASSA_PSS_SHA_256, ECDSA_SHA_256:
-		hash = crypto.SHA256
+		return SHA_256
 	case RSASSA_PSS_SHA_384, ECDSA_SHA_384:
-		hash = crypto.SHA384
+		return SHA_384
 	case RSASSA_PSS_SHA_512, ECDSA_SHA_512:
-		hash = crypto.SHA512
+		return SHA_512
 	}
-	return hash
+	return ""
 }
 
 // KeySpec defines a key type and size.
