@@ -5,14 +5,8 @@ import (
 	"time"
 )
 
-const (
-	// PayloadContentTypeV1 is the supported content type for signature's payload
-	PayloadContentTypeV1  = "application/vnd.cncf.notary.payload.v1+json"
-	// COSEMediaTypeEnvelope is the media type for COSE envelope
-	COSEMediaTypeEnvelope = "application/cose"
-	// JWSMediaTypeEnvelope is the media type for JWS envelope
-	JWSMediaTypeEnvelope  = "application/jose+json"
-)
+// MediaTypePayloadV1 is the supported content type for signature's payload
+const MediaTypePayloadV1 = "application/vnd.cncf.notary.payload.v1+json"
 
 // SignedAttributes represents signed metadata in the Signature envelope
 type SignedAttributes struct {
@@ -43,7 +37,7 @@ type SignRequest struct {
 	SigningAgent             string
 }
 
-// SignerInfo represents a parsed signature envelope that is agnostic to signature 
+// SignerInfo represents a parsed signature envelope that is agnostic to signature
 // envelope format.
 type SignerInfo struct {
 	SignedAttributes   SignedAttributes

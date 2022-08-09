@@ -54,13 +54,16 @@ func (e *Envelope) Verify() (*signature.Payload, *signature.SignerInfo, error) {
 
 // Payload returns the payload to be signed
 func (e *Envelope) Payload() (*signature.Payload, error) {
+	if len(e.Raw) == 0 {
+		return nil, errorFunc("raw signature is empty")
+	}
 	return e.Envelope.Payload()
 }
 
 // SignerInfo returns information about the Signature envelope
 func (e *Envelope) SignerInfo() (*signature.SignerInfo, error) {
 	if len(e.Raw) == 0 {
-		return nil, errorFunc("")
+		return nil, errorFunc("raw signature is empty")
 	}
 
 	signerInfo, err := e.Envelope.SignerInfo()
@@ -132,7 +135,7 @@ func validateSignerInfo(info *signature.SignerInfo) error {
 	)
 }
 
-// validateSigningTime checks that sigining time is within the valid range of 
+// validateSigningTime checks that sigining time is within the valid range of
 // time duration.
 func validateSigningTime(signingTime, expireTime time.Time) error {
 	if signingTime.IsZero() {
@@ -151,7 +154,7 @@ func validatePayload(payload *signature.Payload) error {
 		return errorFunc("content not present")
 	}
 
-	if payload.ContentType != signature.PayloadContentTypeV1 {
+	if payload.ContentType != signature.MediaTypePayloadV1 {
 		return errorFunc(fmt.Sprintf("payload content type: {%s} not supported", payload.ContentType))
 	}
 
