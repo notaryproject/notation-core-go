@@ -56,7 +56,7 @@ func ExtractKeySpec(signingCert *x509.Certificate) (KeySpec, error) {
 				Size: 4096,
 			}, nil
 		default:
-			return KeySpec{}, UnsupportedSigningKeyError{
+			return KeySpec{}, ErrUnsupportedSigningKey{
 				keyType:   KeyTypeRSA,
 				keyLength: key.Size(),
 			}
@@ -79,7 +79,7 @@ func ExtractKeySpec(signingCert *x509.Certificate) (KeySpec, error) {
 				Size: 521,
 			}, nil
 		default:
-			return KeySpec{}, UnsupportedSigningKeyError{
+			return KeySpec{}, ErrUnsupportedSigningKey{
 				keyType:   KeyTypeEC,
 				keyLength: key.Curve.Params().BitSize,
 			}

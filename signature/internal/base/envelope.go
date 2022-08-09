@@ -10,14 +10,14 @@ import (
 )
 
 // Envelope represents a general envelope wrapping a raw signature and envelope
-// in specific format
+// in specific format.
 type Envelope struct {
-	signature.Envelope
-	Raw []byte
+	signature.Envelope        // internal envelope in a specific format(COSE/JWS)
+	Raw                []byte // raw signature
 }
 
 var errorFunc = func(s string) error {
-	return signature.NewMalformedSignatureError(s)
+	return signature.NewErrMalformedSignature(s)
 }
 
 // Sign generates signature using given SignRequest.
@@ -33,7 +33,7 @@ func (e *Envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 	return e.Raw, nil
 }
 
-// Verify performs integrity and other signature specification related validations
+// Verify performs integrity and other signature specification related validations.
 // Returns the payload to be signed and SignerInfo object containing the information
 // about the signature.
 func (e *Envelope) Verify() (*signature.Payload, *signature.SignerInfo, error) {
@@ -41,18 +41,20 @@ func (e *Envelope) Verify() (*signature.Payload, *signature.SignerInfo, error) {
 		return nil, nil, errorFunc("")
 	}
 
-	if _, _, err := e.Envelope.Verify(); err != nil {
-		return nil, nil, err
-	}
-	signerInfo, err := e.Envelope.SignerInfo()
+	payload, _, err := e.Envelope.Verify()
 	if err != nil {
 		return nil, nil, err
 	}
 
-	return nil, signerInfo, nil
+	signerInfo, err := e.SignerInfo()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return payload, signerInfo, nil
 }
 
-// Payload returns the payload to be signed
+// Payload returns the payload to be signed.
 func (e *Envelope) Payload() (*signature.Payload, error) {
 	if len(e.Raw) == 0 {
 		return nil, errorFunc("raw signature is empty")
@@ -60,7 +62,7 @@ func (e *Envelope) Payload() (*signature.Payload, error) {
 	return e.Envelope.Payload()
 }
 
-// SignerInfo returns information about the Signature envelope
+// SignerInfo returns information about the Signature envelope.
 func (e *Envelope) SignerInfo() (*signature.SignerInfo, error) {
 	if len(e.Raw) == 0 {
 		return nil, errorFunc("raw signature is empty")
@@ -82,7 +84,7 @@ func (e *Envelope) SignerInfo() (*signature.SignerInfo, error) {
 	return signerInfo, nil
 }
 
-// validatePayload performs validation of the payload
+// validatePayload performs validation of the payload.
 func (e *Envelope) validatePayload() error {
 	payload, err := e.Envelope.Payload()
 	if err != nil {
@@ -148,7 +150,7 @@ func validateSigningTime(signingTime, expireTime time.Time) error {
 	return nil
 }
 
-// validatePayload performs validation of the payload
+// validatePayload performs validation of the payload.
 func validatePayload(payload *signature.Payload) error {
 	if len(payload.Content) == 0 {
 		return errorFunc("content not present")
@@ -161,7 +163,7 @@ func validatePayload(payload *signature.Payload) error {
 	return nil
 }
 
-// validateCertificateChain performs the validation of the certificate chain
+// validateCertificateChain performs the validation of the certificate chain.
 func validateCertificateChain(certChain []*x509.Certificate, signTime time.Time, expectedAlg signature.Algorithm) error {
 	if len(certChain) == 0 {
 		return errorFunc("certificate-chain not present or is empty")

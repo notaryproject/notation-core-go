@@ -32,7 +32,7 @@ type signer struct {
 // NewLocalSigner returns a new signer with certificates and private key
 func NewLocalSigner(certs []*x509.Certificate, key crypto.PrivateKey) (LocalSigner, error) {
 	if len(certs) == 0 {
-		return nil, MalformedArgumentError{param: "certs"}
+		return nil, ErrMalformedArgument{param: "certs"}
 	}
 	keySpec, err := ExtractKeySpec(certs[0])
 	if err != nil {
