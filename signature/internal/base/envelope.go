@@ -16,10 +16,6 @@ type Envelope struct {
 	Raw                []byte // raw signature
 }
 
-var errorFunc = func(s string) error {
-	return &signature.MalformedSignatureError{Msg: s}
-}
-
 // Sign generates signature using given SignRequest.
 func (e *Envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 	err := validateSignRequest(req)
@@ -38,7 +34,7 @@ func (e *Envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 // about the signature.
 func (e *Envelope) Verify() (*signature.Payload, *signature.SignerInfo, error) {
 	if len(e.Raw) == 0 {
-		return nil, nil, errorFunc("")
+		return nil, nil, &signature.MalformedSignatureError{}
 	}
 
 	payload, _, err := e.Envelope.Verify()
@@ -57,7 +53,7 @@ func (e *Envelope) Verify() (*signature.Payload, *signature.SignerInfo, error) {
 // Payload returns the payload to be signed.
 func (e *Envelope) Payload() (*signature.Payload, error) {
 	if len(e.Raw) == 0 {
-		return nil, errorFunc("raw signature is empty")
+		return nil, &signature.MalformedSignatureError{Msg: "raw signature is empty"}
 	}
 	return e.Envelope.Payload()
 }
@@ -65,12 +61,14 @@ func (e *Envelope) Payload() (*signature.Payload, error) {
 // SignerInfo returns information about the Signature envelope.
 func (e *Envelope) SignerInfo() (*signature.SignerInfo, error) {
 	if len(e.Raw) == 0 {
-		return nil, errorFunc("raw signature is empty")
+		return nil, &signature.MalformedSignatureError{Msg: "raw signature is empty"}
 	}
 
 	signerInfo, err := e.Envelope.SignerInfo()
 	if err != nil {
-		return nil, errorFunc(fmt.Sprintf("signature envelope format is malformed. error: %s", err))
+		return nil, &signature.MalformedSignatureError{
+			Msg: fmt.Sprintf("signature envelope format is malformed. error: %s", err),
+		}
 	}
 
 	if err := validateSignerInfo(signerInfo); err != nil {
@@ -105,11 +103,11 @@ func validateSignRequest(req *signature.SignRequest) error {
 	}
 
 	if len(req.Payload.Content) == 0 {
-		return errorFunc("payload not present")
+		return &signature.MalformedSignatureError{Msg: "payload not present"}
 	}
 
 	if req.Signer == nil {
-		return errorFunc("signer is nil")
+		return &signature.MalformedSignatureError{Msg: "signer is nil"}
 	}
 
 	return nil
@@ -118,11 +116,11 @@ func validateSignRequest(req *signature.SignRequest) error {
 // validateSignerInfo performs basic set of validations on SignerInfo struct.
 func validateSignerInfo(info *signature.SignerInfo) error {
 	if len(info.Signature) == 0 {
-		return errorFunc("signature not present or is empty")
+		return &signature.MalformedSignatureError{Msg: "signature not present or is empty"}
 	}
 
 	if info.SignatureAlgorithm == 0 {
-		return errorFunc("SignatureAlgorithm is not present")
+		return &signature.MalformedSignatureError{Msg: "SignatureAlgorithm is not present"}
 	}
 
 	signingTime := info.SignedAttributes.SigningTime
@@ -141,11 +139,11 @@ func validateSignerInfo(info *signature.SignerInfo) error {
 // time duration.
 func validateSigningTime(signingTime, expireTime time.Time) error {
 	if signingTime.IsZero() {
-		return errorFunc("signing-time not present")
+		return &signature.MalformedSignatureError{Msg: "signing-time not present"}
 	}
 
 	if !expireTime.IsZero() && (expireTime.Before(signingTime) || expireTime.Equal(signingTime)) {
-		return errorFunc("expiry cannot be equal or before the signing time")
+		return &signature.MalformedSignatureError{Msg: "expiry cannot be equal or before the signing time"}
 	}
 	return nil
 }
@@ -153,11 +151,13 @@ func validateSigningTime(signingTime, expireTime time.Time) error {
 // validatePayload performs validation of the payload.
 func validatePayload(payload *signature.Payload) error {
 	if len(payload.Content) == 0 {
-		return errorFunc("content not present")
+		return &signature.MalformedSignatureError{Msg: "content not present"}
 	}
 
 	if payload.ContentType != signature.MediaTypePayloadV1 {
-		return errorFunc(fmt.Sprintf("payload content type: {%s} not supported", payload.ContentType))
+		return &signature.MalformedSignatureError{
+			Msg: fmt.Sprintf("payload content type: {%s} not supported", payload.ContentType),
+		}
 	}
 
 	return nil
@@ -166,20 +166,24 @@ func validatePayload(payload *signature.Payload) error {
 // validateCertificateChain performs the validation of the certificate chain.
 func validateCertificateChain(certChain []*x509.Certificate, signTime time.Time, expectedAlg signature.Algorithm) error {
 	if len(certChain) == 0 {
-		return errorFunc("certificate-chain not present or is empty")
+		return &signature.MalformedSignatureError{Msg: "certificate-chain not present or is empty"}
 	}
 
 	err := nx509.ValidateCodeSigningCertChain(certChain, signTime)
 	if err != nil {
-		return errorFunc(fmt.Sprintf("certificate-chain is invalid, %s", err))
+		return &signature.MalformedSignatureError{
+			Msg: fmt.Sprintf("certificate-chain is invalid, %s", err),
+		}
 	}
 
 	signingAlg, err := getSignatureAlgorithm(certChain[0])
 	if err != nil {
-		return errorFunc(err.Error())
+		return &signature.MalformedSignatureError{Msg: err.Error()}
 	}
 	if signingAlg != expectedAlg {
-		return errorFunc("mismatch between signature algorithm derived from signing certificate and signing algorithm specified")
+		return &signature.MalformedSignatureError{
+			Msg: "mismatch between signature algorithm derived from signing certificate and signing algorithm specified",
+		}
 	}
 
 	return nil
