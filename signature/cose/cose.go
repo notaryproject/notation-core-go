@@ -353,6 +353,14 @@ func generateCoseProtectedHeaders(req *signature.SignRequest, protected cose.Pro
 	// content type
 	protected[cose.HeaderLabelContentType] = req.Payload.ContentType
 
+	// extended attributes
+	for _, elm := range req.ExtendedSignedAttributes {
+		if elm.Critical {
+			crit = append(crit, elm.Key)
+		}
+		protected[elm.Key] = elm.Value
+	}
+
 	return nil
 }
 
@@ -382,7 +390,7 @@ func sign(req *signature.SignRequest, signer signature.Signer, msgToSign *cose.S
 	if err != nil {
 		return nil, nil, err
 	}
-	var certChain [][]byte
+	certChain := make([][]byte, len(certs))
 	for i, c := range certs {
 		certChain[i] = c.Raw
 	}
@@ -401,6 +409,7 @@ func parseProtectedHeaders(headers *cose.Headers, signInfo *signature.SignerInfo
 		return signature.NewMalformedSignatureError("missing cose envelope protected header")
 	}
 	protected := headers.Protected
+
 	// crit
 	err := validateCritHeaders(protected)
 	if err != nil {
@@ -454,6 +463,21 @@ func parseProtectedHeaders(headers *cose.Headers, signInfo *signature.SignerInfo
 	if exp, ok := protected[headerKeyExpiry].(uint); ok {
 		signInfo.SignedAttributes.Expiry = time.Unix(int64(exp), 0)
 	}
+
+	// extended attributes
+	extendedAttributes := headers.Protected
+	delete(extendedAttributes, cose.HeaderLabelAlgorithm)
+	delete(extendedAttributes, cose.HeaderLabelContentType)
+	delete(extendedAttributes, cose.HeaderLabelCritical)
+	delete(extendedAttributes, headerKeySigningTime)
+	delete(extendedAttributes, headerKeyExpiry)
+	delete(extendedAttributes, headerKeyAuthenticSigningTime)
+	delete(extendedAttributes, headerKeySigningScheme)
+	signInfo.SignedAttributes.ExtendedAttributes, err = getExtendedAttributes(protected, extendedAttributes)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -471,12 +495,11 @@ func validateCritHeaders(protected cose.ProtectedHeader) error {
 	mustMarkedCrit[headerKeySigningScheme] = struct{}{}
 	signScheme, ok := protected[headerKeySigningScheme].(string)
 	if !ok {
-		return signature.NewMalformedSignatureError("Signature missing io.cncf.notary.signingScheme")
+		return signature.NewMalformedSignatureError("signature missing io.cncf.notary.signingScheme")
 	}
 	if signature.SigningScheme(signScheme) == signature.SigningSchemeX509SigningAuthority {
 		mustMarkedCrit[headerKeyAuthenticSigningTime] = struct{}{}
 	}
-
 	if _, ok := protected[headerKeyExpiry].(uint); ok {
 		mustMarkedCrit[headerKeyExpiry] = struct{}{}
 	}
@@ -494,4 +517,33 @@ func validateCritHeaders(protected cose.ProtectedHeader) error {
 		return signature.NewMalformedSignatureError(fmt.Sprintf("these required headers are not marked as critical: %v", headers))
 	}
 	return nil
+}
+
+func getExtendedAttributes(protected, extendAttributes cose.ProtectedHeader) ([]signature.Attribute, error) {
+	labels, err := protected.Critical()
+	if err != nil {
+		return nil, err
+	}
+	var extendedAttr []signature.Attribute
+	for k, v := range extendAttributes {
+		key, ok := k.(string)
+		if !ok {
+			return nil, errors.New("extendAttributes key requires string type")
+		}
+		extendedAttr = append(extendedAttr, signature.Attribute{
+			Key:      key,
+			Critical: contains(labels, key),
+			Value:    v,
+		})
+	}
+	return extendedAttr, nil
+}
+
+func contains(s []interface{}, e string) bool {
+	for _, a := range s {
+		if a == e {
+			return true
+		}
+	}
+	return false
 }
