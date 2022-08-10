@@ -148,11 +148,11 @@ func (e *envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 // Note: Verfiy only verifies integrity
 func (e *envelope) Verify() (*signature.Payload, *signature.SignerInfo, error) {
 	if e.coseEnvelope == nil {
-		return nil, nil, signature.NewMalformedSignatureError("missing Cose signature envelope")
+		return nil, nil, &signature.MalformedSignatureError{Msg: "missing Cose signature envelope"}
 	}
 	certs, ok := e.coseEnvelope.Headers.Unprotected[cose.HeaderLabelX5Chain].([][]byte)
 	if !ok || len(certs) == 0 {
-		return nil, nil, signature.NewMalformedSignatureError("malformed certificate chain")
+		return nil, nil, &signature.MalformedSignatureError{Msg: "malformed certificate chain"}
 	}
 	cert, err := x509.ParseCertificate(certs[0])
 	if err != nil {
@@ -188,21 +188,21 @@ func (e *envelope) Verify() (*signature.Payload, *signature.SignerInfo, error) {
 func (e *envelope) Payload() (*signature.Payload, error) {
 	payload := signature.Payload{}
 	if e.coseEnvelope == nil {
-		return nil, signature.NewMalformedSignatureError("missing Cose signature envelope")
+		return nil, &signature.MalformedSignatureError{Msg: "missing Cose signature envelope"}
 	}
 	if len(e.coseEnvelope.Payload) == 0 {
-		return nil, signature.NewMalformedSignatureError("missing payload")
+		return nil, &signature.MalformedSignatureError{Msg: "missing payload"}
 	}
 	payload.Content = e.coseEnvelope.Payload
 	if cty, ok := e.coseEnvelope.Headers.Protected[cose.HeaderLabelContentType]; !ok {
-		return nil, signature.NewMalformedSignatureError("missing Content type")
+		return nil, &signature.MalformedSignatureError{Msg: "missing Content type"}
 	} else {
 		if payload.ContentType, ok = cty.(string); !ok {
-			return nil, signature.NewMalformedSignatureError("content type requires tstr type")
+			return nil, &signature.MalformedSignatureError{Msg: "content type requires tstr type"}
 		}
 	}
 	if payload.ContentType != signature.MediaTypePayloadV1 {
-		return nil, signature.NewMalformedSignatureError("content type requires application/vnd.cncf.notary.payload.v1+json, but got " + payload.ContentType)
+		return nil, &signature.MalformedSignatureError{Msg: "content type requires application/vnd.cncf.notary.payload.v1+json, but got " + payload.ContentType}
 	}
 
 	return &payload, nil
@@ -212,7 +212,7 @@ func (e *envelope) Payload() (*signature.Payload, error) {
 func (e *envelope) SignerInfo() (*signature.SignerInfo, error) {
 	signInfo := signature.SignerInfo{}
 	if e.coseEnvelope == nil {
-		return nil, signature.NewMalformedSignatureError("missing Cose signature envelope")
+		return nil, &signature.MalformedSignatureError{Msg: "missing Cose signature envelope"}
 	}
 
 	// parse protected headers
@@ -224,7 +224,7 @@ func (e *envelope) SignerInfo() (*signature.SignerInfo, error) {
 	// parse signature
 	sig := e.coseEnvelope.Signature
 	if len(sig) == 0 {
-		return nil, signature.NewMalformedSignatureError("cose envelope missing signature")
+		return nil, &signature.MalformedSignatureError{Msg: "cose envelope missing signature"}
 	}
 	signInfo.Signature = sig
 
@@ -233,7 +233,7 @@ func (e *envelope) SignerInfo() (*signature.SignerInfo, error) {
 	var certChain []*x509.Certificate
 	certs, ok := e.coseEnvelope.Headers.Unprotected[cose.HeaderLabelX5Chain].([][]byte)
 	if !ok || len(certs) == 0 {
-		return nil, signature.NewMalformedSignatureError("missing certificate chain")
+		return nil, &signature.MalformedSignatureError{Msg: "missing certificate chain"}
 	}
 	for _, certBytes := range certs {
 		cert, err := x509.ParseCertificate(certBytes)
@@ -406,7 +406,7 @@ func sign(req *signature.SignRequest, signer signature.Signer, msgToSign *cose.S
 
 func parseProtectedHeaders(headers *cose.Headers, signInfo *signature.SignerInfo) error {
 	if len(headers.RawProtected) == 0 {
-		return signature.NewMalformedSignatureError("missing cose envelope protected header")
+		return &signature.MalformedSignatureError{Msg: "missing cose envelope protected header"}
 	}
 	protected := headers.Protected
 
@@ -423,39 +423,39 @@ func parseProtectedHeaders(headers *cose.Headers, signInfo *signature.SignerInfo
 	}
 	sigAlg, ok := coseAlgSignatureAlgMap[alg]
 	if !ok {
-		return signature.NewMalformedSignatureError("signature algorithm not supported: " + strconv.Itoa(int(alg)))
+		return &signature.MalformedSignatureError{Msg: "signature algorithm not supported: " + strconv.Itoa(int(alg))}
 	}
 	signInfo.SignatureAlgorithm = sigAlg
 
 	// content type
 	cty, ok := protected[cose.HeaderLabelContentType].(string)
 	if !ok {
-		return signature.NewMalformedSignatureError("malformed content type")
+		return &signature.MalformedSignatureError{Msg: "malformed content type"}
 	}
 	if cty != signature.MediaTypePayloadV1 {
-		return signature.NewMalformedSignatureError("content type requires application/vnd.cncf.notary.payload.v1+json, but got " + cty)
+		return &signature.MalformedSignatureError{Msg: "content type requires application/vnd.cncf.notary.payload.v1+json, but got " + cty}
 	}
 
 	// signingTime, signingScheme
 	signScheme, ok := protected[headerKeySigningScheme].(string)
 	if !ok {
-		return signature.NewMalformedSignatureError("malformed signScheme")
+		return &signature.MalformedSignatureError{Msg: "malformed signScheme"}
 	}
 	switch signature.SigningScheme(signScheme) {
 	case signature.SigningSchemeX509:
 		signTime, ok := protected[headerKeySigningTime].(uint)
 		if !ok {
-			return signature.NewMalformedSignatureError("malformed signingTime under notary.x509")
+			return &signature.MalformedSignatureError{Msg: "malformed signingTime under notary.x509"}
 		}
 		signInfo.SignedAttributes.SigningTime = time.Unix(int64(signTime), 0)
 	case signature.SigningSchemeX509SigningAuthority:
 		signTime, ok := protected[headerKeyAuthenticSigningTime].(uint)
 		if !ok {
-			return signature.NewMalformedSignatureError("malformed authenticSigningTime under notary.x509.signingAuthority")
+			return &signature.MalformedSignatureError{Msg: "malformed authenticSigningTime under notary.x509.signingAuthority"}
 		}
 		signInfo.SignedAttributes.SigningTime = time.Unix(int64(signTime), 0)
 	default:
-		return signature.NewMalformedSignatureError("unsupported signingScheme: " + signScheme)
+		return &signature.MalformedSignatureError{Msg: "unsupported signingScheme: " + signScheme}
 	}
 	signInfo.SigningScheme = signature.SigningScheme(signScheme)
 
@@ -495,7 +495,7 @@ func validateCritHeaders(protected cose.ProtectedHeader) error {
 	mustMarkedCrit[headerKeySigningScheme] = struct{}{}
 	signScheme, ok := protected[headerKeySigningScheme].(string)
 	if !ok {
-		return signature.NewMalformedSignatureError("signature missing io.cncf.notary.signingScheme")
+		return &signature.MalformedSignatureError{Msg: "signature missing io.cncf.notary.signingScheme"}
 	}
 	if signature.SigningScheme(signScheme) == signature.SigningSchemeX509SigningAuthority {
 		mustMarkedCrit[headerKeyAuthenticSigningTime] = struct{}{}
@@ -514,7 +514,7 @@ func validateCritHeaders(protected cose.ProtectedHeader) error {
 		for k := range mustMarkedCrit {
 			headers = append(headers, k)
 		}
-		return signature.NewMalformedSignatureError(fmt.Sprintf("these required headers are not marked as critical: %v", headers))
+		return &signature.MalformedSignatureError{Msg: fmt.Sprintf("these required headers are not marked as critical: %v", headers)}
 	}
 	return nil
 }
