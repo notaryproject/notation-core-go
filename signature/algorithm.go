@@ -39,15 +39,15 @@ type KeySpec struct {
 func ExtractKeySpec(signingCert *x509.Certificate) (KeySpec, error) {
 	switch key := signingCert.PublicKey.(type) {
 	case *rsa.PublicKey:
-		switch bitSize := key.Size(); bitSize {
-		case 256, 384, 512:
+		switch bitSize := key.Size() << 3; bitSize {
+		case 2048, 3072, 4096:
 			return KeySpec{
 				Type: KeyTypeRSA,
-				Size: bitSize << 3,
+				Size: bitSize,
 			}, nil
 		default:
 			return KeySpec{}, &UnsupportedSigningKeyError{
-				fmt.Sprintf("rsa algorithm of size %d is not supported", bitSize),
+				fmt.Sprintf("rsa key size %d is not supported", bitSize),
 			}
 		}
 	case *ecdsa.PublicKey:
@@ -59,7 +59,7 @@ func ExtractKeySpec(signingCert *x509.Certificate) (KeySpec, error) {
 			}, nil
 		default:
 			return KeySpec{}, &UnsupportedSigningKeyError{
-				fmt.Sprintf("ecdsa algorithm of size %d is not supported", bitSize),
+				fmt.Sprintf("ecdsa key size %d is not supported", bitSize),
 			}
 		}
 	}
