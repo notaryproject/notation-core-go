@@ -306,7 +306,7 @@ func getSignatureAlgorithmFromKeySpec(keySpec signature.KeySpec) (cose.Algorithm
 		case 4096:
 			return signatureAlgCOSEAlgMap[signature.AlgorithmPS512], nil
 		default:
-			return 0, errors.New("key size not supported")
+			return 0, errors.New("RSA: key size not supported")
 		}
 	case signature.KeyTypeEC:
 		switch keySpec.Size {
@@ -317,7 +317,7 @@ func getSignatureAlgorithmFromKeySpec(keySpec signature.KeySpec) (cose.Algorithm
 		case 521:
 			return signatureAlgCOSEAlgMap[signature.AlgorithmES512], nil
 		default:
-			return 0, errors.New("key size not supported")
+			return 0, errors.New("EC: key size not supported")
 		}
 	default:
 		return 0, errors.New("key type not supported")
@@ -437,18 +437,8 @@ func parseProtectedHeaders(headers *cose.Headers, signInfo *signature.SignerInfo
 
 	// extended attributes
 	extendedAttributes := headers.Protected
-	delete(extendedAttributes, cose.HeaderLabelAlgorithm)
-	delete(extendedAttributes, cose.HeaderLabelContentType)
-	delete(extendedAttributes, cose.HeaderLabelCritical)
-	delete(extendedAttributes, headerKeySigningTime)
-	delete(extendedAttributes, headerKeyExpiry)
-
 	signInfo.SignedAttributes.ExtendedAttributes, err = getExtendedAttributes(protected, extendedAttributes)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }
 
 // validateCritHeaders does a two-way check, namely:
@@ -481,16 +471,21 @@ func validateCritHeaders(protected cose.ProtectedHeader) error {
 	return nil
 }
 
-func getExtendedAttributes(protected, extendAttributes cose.ProtectedHeader) ([]signature.Attribute, error) {
+func getExtendedAttributes(protected, extendedAttributes cose.ProtectedHeader) ([]signature.Attribute, error) {
+	delete(extendedAttributes, cose.HeaderLabelAlgorithm)
+	delete(extendedAttributes, cose.HeaderLabelContentType)
+	delete(extendedAttributes, cose.HeaderLabelCritical)
+	delete(extendedAttributes, headerKeySigningTime)
+	delete(extendedAttributes, headerKeyExpiry)
 	labels, err := protected.Critical()
 	if err != nil {
 		return nil, err
 	}
 	var extendedAttr []signature.Attribute
-	for k, v := range extendAttributes {
+	for k, v := range extendedAttributes {
 		key, ok := k.(string)
 		if !ok {
-			return nil, errors.New("extendAttributes key requires string type")
+			return nil, errors.New("extendedAttributes key requires string type")
 		}
 		extendedAttr = append(extendedAttr, signature.Attribute{
 			Key:      key,
