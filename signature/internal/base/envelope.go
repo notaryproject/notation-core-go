@@ -33,23 +33,25 @@ func (e *Envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 	return e.Raw, nil
 }
 
-// Verify performs integrity and other signature specification related validations
+// Verify performs integrity and other signature specification related validations.
 // Returns the payload to be signed and SignerInfo object containing the information
 // about the signature.
 func (e *Envelope) Verify() (*signature.Payload, *signature.SignerInfo, error) {
 	if len(e.Raw) == 0 {
-		return nil, nil, errorFunc("")
+		return nil, nil, &signature.MalformedSignatureError{}
 	}
 
-	if _, _, err := e.Envelope.Verify(); err != nil {
+	payload, _, err := e.Envelope.Verify()
+	if err != nil {
 		return nil, nil, err
 	}
+
 	signerInfo, err := e.SignerInfo()
 	if err != nil {
 		return nil, nil, err
 	}
 
-	return nil, signerInfo, nil
+	return payload, signerInfo, nil
 }
 
 // Payload returns the payload to be signed
