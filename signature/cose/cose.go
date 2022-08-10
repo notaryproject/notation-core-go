@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strconv"
 	"time"
 
 	"github.com/notaryproject/notation-core-go/signature"
@@ -18,6 +19,12 @@ import (
 )
 
 const MediaTypeEnvelope = "application/cose"
+
+func init() {
+	if err := signature.RegisterEnvelopeType(MediaTypeEnvelope, NewEnvelope, ParseEnvelope); err != nil {
+		panic(err)
+	}
+}
 
 // Protected Headers
 // https://github.com/notaryproject/notaryproject/blob/cose-envelope/signature-envelope-cose.md
@@ -40,6 +47,7 @@ const (
 	headerKeySigningAgent       = "io.cncf.notary.signingAgent"
 )
 
+// Map of signature.Algorithm to cose.Algorithm
 var signatureAlgCOSEAlgMap = map[signature.Algorithm]cosepkg.Algorithm{
 	signature.AlgorithmPS256: cosepkg.AlgorithmPS256,
 	signature.AlgorithmPS384: cosepkg.AlgorithmES384,
@@ -49,22 +57,26 @@ var signatureAlgCOSEAlgMap = map[signature.Algorithm]cosepkg.Algorithm{
 	signature.AlgorithmES512: cosepkg.AlgorithmES512,
 }
 
-func init() {
-	if err := signature.RegisterEnvelopeType(MediaTypeEnvelope, NewEnvelope, ParseEnvelope); err != nil {
-		panic(err)
+var coseAlgSignatureAlgMap = reverseMapCOSE(signatureAlgCOSEAlgMap)
+
+func reverseMapCOSE(m map[signature.Algorithm]cosepkg.Algorithm) map[cosepkg.Algorithm]signature.Algorithm {
+	n := make(map[cosepkg.Algorithm]signature.Algorithm, len(m))
+	for k, v := range m {
+		n[v] = k
 	}
+	return n
 }
 
 type envelope struct {
-	internalEnv *cosepkg.Sign1Message
+	coseEnvelope *cosepkg.Sign1Message
 }
 
-type coseSigner struct {
+type pluginSigner struct {
 	signer signature.Signer
 }
 
 // Algorithm implements cosepkg.Signer interface
-func (coseSigner coseSigner) Algorithm() cosepkg.Algorithm {
+func (coseSigner pluginSigner) Algorithm() cosepkg.Algorithm {
 	keySpec, err := coseSigner.signer.KeySpec()
 	if err != nil {
 		return 0
@@ -77,7 +89,7 @@ func (coseSigner coseSigner) Algorithm() cosepkg.Algorithm {
 }
 
 // Sign implements cosepkg.Signer interface
-func (coseSigner coseSigner) Sign(rand io.Reader, digest []byte) ([]byte, error) {
+func (coseSigner pluginSigner) Sign(rand io.Reader, digest []byte) ([]byte, error) {
 	sig, err := coseSigner.signer.Sign(digest)
 	if err != nil {
 		return nil, err
@@ -86,7 +98,7 @@ func (coseSigner coseSigner) Sign(rand io.Reader, digest []byte) ([]byte, error)
 }
 
 // Sign implements signature.Envelope interface
-// On success, this function returns the signature
+// On success, this function returns the Cose signature envelope byte slice
 func (e *envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 	errorFunc := func(s string) error {
 		if s != "" {
@@ -118,61 +130,143 @@ func (e *envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 	// updates of SignRequest
 
 	signer := req.Signer
-	var sig []byte
-	var certs []*x509.Certificate
-	if localSigner, ok := signer.(signature.LocalSigner); ok {
-		// For a local signer, use go-cose
-		sig, certs, err = signLocal(req, localSigner, msgToSign, alg)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		// Use External plugin's sign
-		coseSigner := coseSigner{signer: signer}
-		err = msgToSign.Sign(rand.Reader, nil, coseSigner)
-		if err != nil {
-			return nil, err
-		}
-		sig, err = msgToSign.MarshalCBOR()
-		if err != nil {
-			return nil, err
-		}
-		certs, err = signer.CertificateChain()
-		if err != nil {
-			return nil, err
-		}
+	sig, certs, err := sign(req, signer, msgToSign, alg)
+	if err != nil {
+		return nil, err
 	}
 	if err := validateCertificateChain(certs, req.SigningTime, alg, errorFunc); err != nil {
 		return nil, err
 	}
-	err = e.internalEnv.UnmarshalCBOR(sig)
+	err = e.coseEnvelope.UnmarshalCBOR(sig)
 	if err != nil {
 		return nil, err
 	}
 	return sig, nil
 }
 
+// Verify implements signature.Envelope interface
+// Note: Verfiy only verifies integrity
 func (e *envelope) Verify() (*signature.Payload, *signature.SignerInfo, error) {
-	return nil, nil, fmt.Errorf("not implemented")
+	if e.coseEnvelope == nil {
+		return nil, nil, signature.NewMalformedSignatureError("missing Cose signature envelope")
+	}
+	certs, ok := e.coseEnvelope.Headers.Unprotected[cosepkg.HeaderLabelX5Chain].([][]byte)
+	if !ok || len(certs) == 0 {
+		return nil, nil, signature.NewMalformedSignatureError("malformed certificate chain")
+	}
+	cert, err := x509.ParseCertificate(certs[0])
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// verify COSE
+	publicKeyAlg, err := getSignatureAlgorithm(cert)
+	if err != nil {
+		return nil, nil, err
+	}
+	verifier, err := cosepkg.NewVerifier(publicKeyAlg, cert.PublicKey)
+	if err != nil {
+		return nil, nil, err
+	}
+	err = e.coseEnvelope.Verify(nil, verifier)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	payload, err := e.Payload()
+	if err != nil {
+		return nil, nil, err
+	}
+	signerInfo, err := e.SignerInfo()
+	if err != nil {
+		return nil, nil, err
+	}
+	return payload, signerInfo, nil
 }
 
+// Payload implements signature.Envelope interface
 func (e *envelope) Payload() (*signature.Payload, error) {
-	return nil, fmt.Errorf("not implemented")
+	payload := signature.Payload{}
+	if e.coseEnvelope == nil {
+		return nil, signature.NewMalformedSignatureError("missing Cose signature envelope")
+	}
+	if len(e.coseEnvelope.Payload) == 0 {
+		return nil, signature.NewMalformedSignatureError("missing payload")
+	}
+	payload.Content = e.coseEnvelope.Payload
+	if cty, ok := e.coseEnvelope.Headers.Protected[cosepkg.HeaderLabelContentType]; !ok {
+		return nil, signature.NewMalformedSignatureError("missing Content type")
+	} else {
+		if payload.ContentType, ok = cty.(string); !ok {
+			return nil, signature.NewMalformedSignatureError("content type requires tstr type")
+		}
+	}
+	if payload.ContentType != signature.MediaTypePayloadV1 {
+		return nil, signature.NewMalformedSignatureError("content type requires application/vnd.cncf.notary.payload.v1+json, but got " + payload.ContentType)
+	}
+
+	return &payload, nil
 }
 
+// SignerInfo implements signature.Envelope interface
 func (e *envelope) SignerInfo() (*signature.SignerInfo, error) {
-	return nil, fmt.Errorf("not implemented")
+	signInfo := signature.SignerInfo{}
+	if e.coseEnvelope == nil {
+		return nil, signature.NewMalformedSignatureError("missing Cose signature envelope")
+	}
+
+	// parse protected headers
+	err := parseProtectedHeaders(&e.coseEnvelope.Headers, &signInfo)
+	if err != nil {
+		return nil, err
+	}
+
+	// parse signature
+	sig := e.coseEnvelope.Signature
+	if len(sig) == 0 {
+		return nil, signature.NewMalformedSignatureError("cose envelope missing signature")
+	}
+	signInfo.Signature = sig
+
+	// parse unprotected headers
+	// x5chain
+	var certChain []*x509.Certificate
+	certs, ok := e.coseEnvelope.Headers.Unprotected[cosepkg.HeaderLabelX5Chain].([][]byte)
+	if !ok || len(certs) == 0 {
+		return nil, signature.NewMalformedSignatureError("missing certificate chain")
+	}
+	for _, certBytes := range certs {
+		cert, err := x509.ParseCertificate(certBytes)
+		if err != nil {
+			return nil, err
+		}
+		certChain = append(certChain, cert)
+	}
+	signInfo.CertificateChain = certChain
+	// signingAgent
+	signInfo.UnsignedAttributes.SigningAgent = e.coseEnvelope.Headers.Unprotected[headerKeySigningAgent].(string)
+	// timestampSignature
+	signInfo.TimestampSignature = e.coseEnvelope.Headers.Unprotected[headerKeyTimeStampSignature].([]byte)
+
+	return &signInfo, nil
 }
 
+// NewEnvelope initializes an empty Cose signature envelope
 func NewEnvelope() signature.Envelope {
 	return &base.Envelope{
-		Envelope: &envelope{},
+		Envelope: &envelope{coseEnvelope: &cosepkg.Sign1Message{}},
 	}
 }
 
+// ParseEnvelope parses envelopeBytes to a Cose signature envelope
 func ParseEnvelope(envelopeBytes []byte) (signature.Envelope, error) {
+	var coseEnvelope cosepkg.Sign1Message
+	err := coseEnvelope.UnmarshalCBOR(envelopeBytes)
+	if err != nil {
+		return nil, err
+	}
 	return &base.Envelope{
-		Envelope: &envelope{},
+		Envelope: &envelope{coseEnvelope: &coseEnvelope},
 		Raw:      envelopeBytes,
 	}, nil
 }
@@ -262,8 +356,29 @@ func generateCoseProtectedHeaders(req *signature.SignRequest, protected cosepkg.
 	return nil
 }
 
-func signLocal(req *signature.SignRequest, localSigner signature.LocalSigner, msgToSign *cosepkg.Sign1Message, alg cosepkg.Algorithm) ([]byte, []*x509.Certificate, error) {
-	certs, err := localSigner.CertificateChain()
+func sign(req *signature.SignRequest, signer signature.Signer, msgToSign *cosepkg.Sign1Message, alg cosepkg.Algorithm) ([]byte, []*x509.Certificate, error) {
+	var coseSigner cosepkg.Signer
+	var err error
+	if localSigner, ok := signer.(signature.LocalSigner); ok {
+		switch key := localSigner.PrivateKey().(type) {
+		case *rsa.PrivateKey, *ecdsa.PrivateKey:
+			// Use go-cose's signer
+			coseSigner, err = cosepkg.NewSigner(alg, key.(crypto.Signer))
+			if err != nil {
+				return nil, nil, err
+			}
+		default:
+			return nil, nil, errors.New("unsupported key type")
+		}
+	} else {
+		// Use External plugin's signer
+		coseSigner = pluginSigner{signer: signer}
+	}
+	err = msgToSign.Sign(rand.Reader, nil, coseSigner)
+	if err != nil {
+		return nil, nil, err
+	}
+	certs, err := signer.CertificateChain()
 	if err != nil {
 		return nil, nil, err
 	}
@@ -272,22 +387,111 @@ func signLocal(req *signature.SignRequest, localSigner signature.LocalSigner, ms
 		certChain[i] = c.Raw
 	}
 	msgToSign.Headers.Unprotected[cosepkg.HeaderLabelX5Chain] = certChain
-	switch key := localSigner.PrivateKey().(type) {
-	case *rsa.PrivateKey, *ecdsa.PrivateKey:
-		coseSigner, err := cosepkg.NewSigner(alg, key.(crypto.Signer))
-		if err != nil {
-			return nil, nil, err
-		}
-		err = msgToSign.Sign(rand.Reader, nil, coseSigner)
-		if err != nil {
-			return nil, nil, err
-		}
-	}
-
 	sig, err := msgToSign.MarshalCBOR()
 	if err != nil {
 		return nil, nil, err
 	}
 
 	return sig, certs, nil
+
+}
+
+func parseProtectedHeaders(headers *cosepkg.Headers, signInfo *signature.SignerInfo) error {
+	if len(headers.RawProtected) == 0 {
+		return signature.NewMalformedSignatureError("missing cose envelope protected header")
+	}
+	protected := headers.Protected
+	// crit
+	err := validateCritHeaders(protected)
+	if err != nil {
+		return err
+	}
+
+	// alg
+	alg, err := protected.Algorithm()
+	if err != nil {
+		return err
+	}
+	sigAlg, ok := coseAlgSignatureAlgMap[alg]
+	if !ok {
+		return signature.NewMalformedSignatureError("signature algorithm not supported: " + strconv.Itoa(int(alg)))
+	}
+	signInfo.SignatureAlgorithm = sigAlg
+
+	// content type
+	cty, ok := protected[cosepkg.HeaderLabelContentType].(string)
+	if !ok {
+		return signature.NewMalformedSignatureError("malformed content type")
+	}
+	if cty != signature.MediaTypePayloadV1 {
+		return signature.NewMalformedSignatureError("content type requires application/vnd.cncf.notary.payload.v1+json, but got " + cty)
+	}
+
+	// signingTime, signingScheme
+	signScheme, ok := protected[headerKeySigningScheme].(string)
+	if !ok {
+		return signature.NewMalformedSignatureError("malformed signScheme")
+	}
+	switch signature.SigningScheme(signScheme) {
+	case signature.SigningSchemeX509:
+		signTime, ok := protected[headerKeySigningTime].(uint)
+		if !ok {
+			return signature.NewMalformedSignatureError("malformed signingTime under notary.x509")
+		}
+		signInfo.SignedAttributes.SigningTime = time.Unix(int64(signTime), 0)
+	case signature.SigningSchemeX509SigningAuthority:
+		signTime, ok := protected[headerKeyAuthenticSigningTime].(uint)
+		if !ok {
+			return signature.NewMalformedSignatureError("malformed authenticSigningTime under notary.x509.signingAuthority")
+		}
+		signInfo.SignedAttributes.SigningTime = time.Unix(int64(signTime), 0)
+	default:
+		return signature.NewMalformedSignatureError("unsupported signingScheme: " + signScheme)
+	}
+	signInfo.SigningScheme = signature.SigningScheme(signScheme)
+
+	// expiry
+	if exp, ok := protected[headerKeyExpiry].(uint); ok {
+		signInfo.SignedAttributes.Expiry = time.Unix(int64(exp), 0)
+	}
+	return nil
+}
+
+// validateCritHeaders does a two-way check, namely:
+// 1. validate that all critical headers are present in the protected bucket
+// 2. validate that all required headers(as per spec) are marked critical
+func validateCritHeaders(protected cosepkg.ProtectedHeader) error {
+	// This ensures all critical headers are present in the protected bucket.
+	labels, err := protected.Critical()
+	if err != nil {
+		return err
+	}
+	// set of headers that must be marked as crit
+	mustMarkedCrit := make(map[interface{}]struct{})
+	mustMarkedCrit[headerKeySigningScheme] = struct{}{}
+	signScheme, ok := protected[headerKeySigningScheme].(string)
+	if !ok {
+		return signature.NewMalformedSignatureError("Signature missing io.cncf.notary.signingScheme")
+	}
+	if signature.SigningScheme(signScheme) == signature.SigningSchemeX509SigningAuthority {
+		mustMarkedCrit[headerKeyAuthenticSigningTime] = struct{}{}
+	}
+
+	if _, ok := protected[headerKeyExpiry].(uint); ok {
+		mustMarkedCrit[headerKeyExpiry] = struct{}{}
+	}
+
+	for _, label := range labels {
+		delete(mustMarkedCrit, label)
+	}
+
+	// validate that all required headers(as per spec) are marked as critical
+	if len(mustMarkedCrit) != 0 {
+		headers := make([]interface{}, 0, len(mustMarkedCrit))
+		for k := range mustMarkedCrit {
+			headers = append(headers, k)
+		}
+		return signature.NewMalformedSignatureError(fmt.Sprintf("these required headers are not marked as critical: %v", headers))
+	}
+	return nil
 }

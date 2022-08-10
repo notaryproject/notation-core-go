@@ -46,6 +46,7 @@ type SignerInfo struct {
 	SignatureAlgorithm Algorithm
 	CertificateChain   []*x509.Certificate
 	Signature          []byte
+	SigningScheme      SigningScheme
 	TimestampSignature []byte
 }
 

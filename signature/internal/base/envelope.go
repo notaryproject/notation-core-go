@@ -44,7 +44,7 @@ func (e *Envelope) Verify() (*signature.Payload, *signature.SignerInfo, error) {
 	if _, _, err := e.Envelope.Verify(); err != nil {
 		return nil, nil, err
 	}
-	signerInfo, err := e.Envelope.SignerInfo()
+	signerInfo, err := e.SignerInfo()
 	if err != nil {
 		return nil, nil, err
 	}
