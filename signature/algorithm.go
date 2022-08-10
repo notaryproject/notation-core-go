@@ -39,47 +39,27 @@ type KeySpec struct {
 func ExtractKeySpec(signingCert *x509.Certificate) (KeySpec, error) {
 	switch key := signingCert.PublicKey.(type) {
 	case *rsa.PublicKey:
-		switch key.Size() {
-		case 256:
+		switch bitSize := key.Size(); bitSize {
+		case 256, 384, 512:
 			return KeySpec{
 				Type: KeyTypeRSA,
-				Size: 2048,
-			}, nil
-		case 384:
-			return KeySpec{
-				Type: KeyTypeRSA,
-				Size: 3072,
-			}, nil
-		case 512:
-			return KeySpec{
-				Type: KeyTypeRSA,
-				Size: 4096,
+				Size: bitSize << 3,
 			}, nil
 		default:
-			return KeySpec{}, UnsupportedSigningKeyError{
-				fmt.Sprintf("rsa algorithm of size %d is not supported", key.Size()),
+			return KeySpec{}, &UnsupportedSigningKeyError{
+				fmt.Sprintf("rsa algorithm of size %d is not supported", bitSize),
 			}
 		}
 	case *ecdsa.PublicKey:
-		switch key.Curve.Params().BitSize {
-		case 256:
+		switch bitSize := key.Curve.Params().BitSize; bitSize {
+		case 256, 384, 521:
 			return KeySpec{
 				Type: KeyTypeEC,
-				Size: 256,
-			}, nil
-		case 384:
-			return KeySpec{
-				Type: KeyTypeEC,
-				Size: 384,
-			}, nil
-		case 521:
-			return KeySpec{
-				Type: KeyTypeEC,
-				Size: 521,
+				Size: bitSize,
 			}, nil
 		default:
-			return KeySpec{}, UnsupportedSigningKeyError{
-				fmt.Sprintf("ecdsa algorithm of size %d is not supported", key.Curve.Params().BitSize),
+			return KeySpec{}, &UnsupportedSigningKeyError{
+				fmt.Sprintf("ecdsa algorithm of size %d is not supported", bitSize),
 			}
 		}
 	}

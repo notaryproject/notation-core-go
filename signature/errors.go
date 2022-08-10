@@ -21,7 +21,7 @@ type UnsupportedSigningKeyError struct {
 }
 
 // Error returns the error message.
-func (e UnsupportedSigningKeyError) Error() string {
+func (e *UnsupportedSigningKeyError) Error() string {
 	if e.Msg != "" {
 		return e.Msg
 	}
@@ -34,19 +34,15 @@ type MalformedArgumentError struct {
 	Err   error
 }
 
-// NewMalformedArgumentError creates a new MalformedArgumentError with malformed
-// paramaters and the actual error
-func NewMalformedArgumentError(param string, err error) *MalformedArgumentError {
-	return &MalformedArgumentError{
-		Param: param,
-		Err: err,
-	}
-}
-
 // Error returns the error message.
-func (e MalformedArgumentError) Error() string {
+func (e *MalformedArgumentError) Error() string {
 	if e.Err != nil {
 		return fmt.Sprintf("%q param is malformed. Error: %s", e.Param, e.Err.Error())
 	}
 	return fmt.Sprintf("%q param is malformed", e.Param)
+}
+
+// Unwrap returns the unwrapped error
+func (e *MalformedArgumentError) Unwrap() error {
+	return e.Err
 }
