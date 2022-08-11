@@ -68,3 +68,25 @@ func (s *signer) KeySpec() (KeySpec, error) {
 func (s *signer) PrivateKey() crypto.PrivateKey {
 	return s.key
 }
+
+// VerifyAuthenticity verifies the certificate chain in the given SignerInfo
+// with one of the trusted certificates and returns a certificate that matches
+// with one of the certificates in the SignerInfo.
+func VerifyAuthenticity(signerInfo *SignerInfo, trustedCerts []*x509.Certificate) (*x509.Certificate, error) {
+	if len(trustedCerts) == 0 {
+		return nil, &MalformedArgumentError{Param: "trustedCerts"}
+	}
+
+	if signerInfo == nil {
+		return nil, &MalformedArgumentError{Param: "signerInfo"}
+	}
+
+	for _, trust := range trustedCerts {
+		for _, sig := range signerInfo.CertificateChain {
+			if trust.Equal(sig) {
+				return trust, nil
+			}
+		}
+	}
+	return nil, &SignatureAuthenticityError{}
+}
