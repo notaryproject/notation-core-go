@@ -37,17 +37,7 @@ func (e *Envelope) Verify() (*signature.Payload, *signature.SignerInfo, error) {
 		return nil, nil, &signature.MalformedSignatureError{}
 	}
 
-	payload, _, err := e.Envelope.Verify()
-	if err != nil {
-		return nil, nil, err
-	}
-
-	signerInfo, err := e.SignerInfo()
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return payload, signerInfo, nil
+	return e.Envelope.Verify()
 }
 
 // Payload returns the payload to be signed.
