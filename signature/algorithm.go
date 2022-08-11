@@ -83,9 +83,9 @@ func (k KeySpec) SignatureAlgorithm() Algorithm {
 		case 2048:
 			return AlgorithmPS256
 		case 3072:
-			return AlgorithmES384
+			return AlgorithmPS384
 		case 4096:
-			return AlgorithmES512
+			return AlgorithmPS512
 		}
 	}
 	return 0

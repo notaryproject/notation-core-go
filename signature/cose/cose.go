@@ -250,8 +250,9 @@ func (e *envelope) SignerInfo() (*signature.SignerInfo, error) {
 
 // NewEnvelope initializes an empty Cose signature envelope
 func NewEnvelope() signature.Envelope {
+	var sign1Msg cose.Sign1Message
 	return &base.Envelope{
-		Envelope: &envelope{base: &cose.Sign1Message{}},
+		Envelope: &envelope{base: &sign1Msg},
 	}
 }
 
@@ -336,7 +337,6 @@ func generateCoseProtectedHeaders(req *signature.SignRequest, protected cose.Pro
 		protected[headerKeyExpiry] = req.Expiry.Unix()
 	}
 	protected[headerKeySigningTime] = req.SigningTime.Unix()
-	protected[cose.HeaderLabelCritical] = crit
 
 	// content type
 	protected[cose.HeaderLabelContentType] = req.Payload.ContentType
@@ -348,6 +348,7 @@ func generateCoseProtectedHeaders(req *signature.SignRequest, protected cose.Pro
 		}
 		protected[elm.Key] = elm.Value
 	}
+	protected[cose.HeaderLabelCritical] = crit
 
 	return nil
 }
@@ -401,7 +402,7 @@ func parseProtectedHeaders(headers *cose.Headers, signInfo *signature.SignerInfo
 	protected := headers.Protected
 
 	// crit
-	err := validateCritHeaders(protected)
+	labels, err := validateCritHeaders(protected)
 	if err != nil {
 		return err
 	}
@@ -438,19 +439,22 @@ func parseProtectedHeaders(headers *cose.Headers, signInfo *signature.SignerInfo
 	}
 
 	// extended attributes
-	extendedAttributes := headers.Protected
-	signInfo.SignedAttributes.ExtendedAttributes, err = getExtendedAttributes(protected, extendedAttributes)
+	extendedAttributes := make(cose.ProtectedHeader)
+	for k, v := range headers.Protected {
+		extendedAttributes[k] = v
+	}
+	signInfo.SignedAttributes.ExtendedAttributes, err = getExtendedAttributes(labels, extendedAttributes)
 	return err
 }
 
 // validateCritHeaders does a two-way check, namely:
 // 1. validate that all critical headers are present in the protected bucket
 // 2. validate that all required headers(as per spec) are marked critical
-func validateCritHeaders(protected cose.ProtectedHeader) error {
+func validateCritHeaders(protected cose.ProtectedHeader) ([]interface{}, error) {
 	// This ensures all critical headers are present in the protected bucket.
 	labels, err := protected.Critical()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	// set of headers that must be marked as crit
 	mustMarkedCrit := make(map[interface{}]struct{})
@@ -468,21 +472,17 @@ func validateCritHeaders(protected cose.ProtectedHeader) error {
 		for k := range mustMarkedCrit {
 			headers = append(headers, k)
 		}
-		return &signature.MalformedSignatureError{Msg: fmt.Sprintf("these required headers are not marked as critical: %v", headers)}
+		return nil, &signature.MalformedSignatureError{Msg: fmt.Sprintf("these required headers are not marked as critical: %v", headers)}
 	}
-	return nil
+	return labels, nil
 }
 
-func getExtendedAttributes(protected, extendedAttributes cose.ProtectedHeader) ([]signature.Attribute, error) {
+func getExtendedAttributes(labels []interface{}, extendedAttributes cose.ProtectedHeader) ([]signature.Attribute, error) {
 	delete(extendedAttributes, cose.HeaderLabelAlgorithm)
 	delete(extendedAttributes, cose.HeaderLabelContentType)
 	delete(extendedAttributes, cose.HeaderLabelCritical)
 	delete(extendedAttributes, headerKeySigningTime)
 	delete(extendedAttributes, headerKeyExpiry)
-	labels, err := protected.Critical()
-	if err != nil {
-		return nil, err
-	}
 	var extendedAttr []signature.Attribute
 	for k, v := range extendedAttributes {
 		key, ok := k.(string)

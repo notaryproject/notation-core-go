@@ -24,11 +24,13 @@ func getSignRequest() (*signature.SignRequest, error) {
 			ContentType: signature.MediaTypePayloadV1,
 			Content:     []byte(TestPayload),
 		},
-		Signer:                   signer,
-		SigningTime:              time.Now(),
-		Expiry:                   time.Now().AddDate(0, 0, 1),
-		ExtendedSignedAttributes: nil,
-		SigningAgent:             "NotationUnitTest/1.0.0",
+		Signer:      signer,
+		SigningTime: time.Now(),
+		Expiry:      time.Now().AddDate(0, 0, 1),
+		ExtendedSignedAttributes: []signature.Attribute{
+			{Key: "signedCritKey1", Value: "signedCritValue1", Critical: true},
+			{Key: "signedKey1", Value: "signedValue1", Critical: false}},
+		SigningAgent: "NotationUnitTest/1.0.0",
 	}, nil
 
 }
@@ -75,8 +77,24 @@ func TestVerifyError(t *testing.T) {
 		t.Errorf("parse envelope failed. Error = %s", err)
 	}
 	_, _, err = newEnv.Verify()
-	// should get an error
+	// expect to get an error
 	if err == nil {
 		t.Errorf("should failed verify")
+	}
+}
+
+func TestPayloadAndSignerInfo(t *testing.T) {
+	SignRequest, err := getSignRequest()
+	if err != nil {
+		t.Errorf("getSignRequest(). Error = %s", err)
+	}
+	env := NewEnvelope()
+	_, err = env.Sign(SignRequest)
+	if err != nil {
+		t.Errorf("sign failed. Error = %s", err)
+	}
+	_, err = env.SignerInfo()
+	if err != nil {
+		t.Errorf("payload and/or signerInfo failed. Error = %s", err)
 	}
 }
