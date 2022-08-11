@@ -89,3 +89,11 @@ type SignatureNotFoundError struct{}
 func (e *SignatureNotFoundError) Error() string {
 	return "signature envelope is not present"
 }
+
+// SignatureAuthenticityError is used when signature is not generated using
+// trusted certificates.
+type SignatureAuthenticityError struct{}
+
+func (e *SignatureAuthenticityError) Error() string {
+	return "signature is not produced by a trusted signer"
+}
