@@ -1,6 +1,8 @@
 package signature
 
-import "fmt"
+import (
+	"fmt"
+)
 
 // MalformedSignatureError is used when Signature envelope is malformed.
 type MalformedSignatureError struct {
@@ -45,4 +47,53 @@ func (e *MalformedArgumentError) Error() string {
 // Unwrap returns the unwrapped error
 func (e *MalformedArgumentError) Unwrap() error {
 	return e.Err
+}
+
+// MalformedSignRequestError is used when SignRequest is malformed.
+type MalformedSignRequestError struct {
+	Msg string
+}
+
+func (e *MalformedSignRequestError) Error() string {
+	if e.Msg != "" {
+		return e.Msg
+	}
+	return "SignRequest is malformed"
+}
+
+// SignatureAlgoNotSupportedError is used when signing algo is not supported.
+type SignatureAlgoNotSupportedError struct {
+	Alg string
+}
+
+func (e *SignatureAlgoNotSupportedError) Error() string {
+	return fmt.Sprintf("signature algorithm %q is not supported", e.Alg)
+}
+
+// SignatureIntegrityError is used when the Signature associated is no longer valid.
+type SignatureIntegrityError struct {
+	Err error
+}
+
+func (e *SignatureIntegrityError) Error() string {
+	return fmt.Sprintf("signature is invalid. Error: %s", e.Err.Error())
+}
+
+func (e *SignatureIntegrityError) Unwrap() error {
+	return e.Err
+}
+
+// SignatureNotFoundError is used when signature envelope is not present.
+type SignatureNotFoundError struct{}
+
+func (e *SignatureNotFoundError) Error() string {
+	return "signature envelope is not present"
+}
+
+// SignatureAuthenticityError is used when signature is not generated using
+// trusted certificates.
+type SignatureAuthenticityError struct{}
+
+func (e *SignatureAuthenticityError) Error() string {
+	return "signature is not produced by a trusted signer"
 }
