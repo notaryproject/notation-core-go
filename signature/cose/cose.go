@@ -43,7 +43,7 @@ const (
 // Map of signature.Algorithm to cose.Algorithm
 var signatureAlgCOSEAlgMap = map[signature.Algorithm]cose.Algorithm{
 	signature.AlgorithmPS256: cose.AlgorithmPS256,
-	signature.AlgorithmPS384: cose.AlgorithmES384,
+	signature.AlgorithmPS384: cose.AlgorithmPS384,
 	signature.AlgorithmPS512: cose.AlgorithmPS512,
 	signature.AlgorithmES256: cose.AlgorithmES256,
 	signature.AlgorithmES384: cose.AlgorithmES384,
@@ -143,10 +143,11 @@ func (e *envelope) Verify() (*signature.Payload, *signature.SignerInfo, error) {
 	if e.base == nil {
 		return nil, nil, &signature.MalformedSignatureError{Msg: "missing Cose signature envelope"}
 	}
-	certs, ok := e.base.Headers.Unprotected[cose.HeaderLabelX5Chain].([][]byte)
-	if !ok || len(certs) == 0 {
-		return nil, nil, &signature.MalformedSignatureError{Msg: "malformed certificate chain"}
+	var certs [][]byte
+	for _, cert := range e.base.Headers.Unprotected[cose.HeaderLabelX5Chain].([]interface{}) {
+		certs = append(certs, cert.([]byte))
 	}
+
 	cert, err := x509.ParseCertificate(certs[0])
 	if err != nil {
 		return nil, nil, err
@@ -224,8 +225,12 @@ func (e *envelope) SignerInfo() (*signature.SignerInfo, error) {
 
 	// parse unprotected headers
 	// x5chain
-	certs, ok := e.base.Headers.Unprotected[cose.HeaderLabelX5Chain].([][]byte)
-	if !ok || len(certs) == 0 {
+	var certs [][]byte
+	if _, ok := e.base.Headers.Unprotected[cose.HeaderLabelX5Chain]; ok {
+		for _, cert := range e.base.Headers.Unprotected[cose.HeaderLabelX5Chain].([]interface{}) {
+			certs = append(certs, cert.([]byte))
+		}
+	} else {
 		return nil, &signature.MalformedSignatureError{Msg: "cose envelope missing certificate chain"}
 	}
 	var certChain []*x509.Certificate
@@ -239,8 +244,6 @@ func (e *envelope) SignerInfo() (*signature.SignerInfo, error) {
 	signInfo.CertificateChain = certChain
 	// signingAgent
 	signInfo.UnsignedAttributes.SigningAgent = e.base.Headers.Unprotected[headerKeySigningAgent].(string)
-	// timestampSignature
-	signInfo.TimestampSignature = e.base.Headers.Unprotected[headerKeyTimeStampSignature].([]byte)
 
 	return &signInfo, nil
 }
@@ -330,9 +333,9 @@ func generateCoseProtectedHeaders(req *signature.SignRequest, protected cose.Pro
 
 	if !req.Expiry.IsZero() {
 		crit = append(crit, headerKeyExpiry)
-		protected[headerKeyExpiry] = uint(req.Expiry.Unix())
+		protected[headerKeyExpiry] = req.Expiry.Unix()
 	}
-	protected[headerKeySigningTime] = uint(req.SigningTime.Unix())
+	protected[headerKeySigningTime] = req.SigningTime.Unix()
 	protected[cose.HeaderLabelCritical] = crit
 
 	// content type
@@ -414,25 +417,24 @@ func parseProtectedHeaders(headers *cose.Headers, signInfo *signature.SignerInfo
 	}
 	signInfo.SignatureAlgorithm = sigAlg
 
-	// content type
-	cty, ok := protected[cose.HeaderLabelContentType].(string)
-	if !ok {
-		return &signature.MalformedSignatureError{Msg: "malformed content type"}
-	}
-	if cty != signature.MediaTypePayloadV1 {
-		return &signature.MalformedSignatureError{Msg: "content type requires application/vnd.cncf.notary.payload.v1+json, but got " + cty}
-	}
-
 	// signingTime
-	signTime, ok := protected[headerKeySigningTime].(uint)
-	if !ok {
-		return &signature.MalformedSignatureError{Msg: "malformed signingTime under notary.x509"}
+	if _, ok := protected[headerKeySigningTime]; ok {
+		signTime, ok := protected[headerKeySigningTime].(int64)
+		if !ok {
+			return &signature.MalformedSignatureError{Msg: "malformed signingTime under notary.x509"}
+		}
+		signInfo.SignedAttributes.SigningTime = time.Unix(signTime, 0)
+	} else {
+		return &signature.MalformedSignatureError{Msg: "missing signingTime under notary.x509"}
 	}
-	signInfo.SignedAttributes.SigningTime = time.Unix(int64(signTime), 0)
 
 	// expiry
-	if exp, ok := protected[headerKeyExpiry].(uint); ok {
-		signInfo.SignedAttributes.Expiry = time.Unix(int64(exp), 0)
+	if _, ok := protected[headerKeyExpiry]; ok {
+		exp, ok := protected[headerKeyExpiry].(int64)
+		if !ok {
+			return &signature.MalformedSignatureError{Msg: "malformed expiry"}
+		}
+		signInfo.SignedAttributes.Expiry = time.Unix(exp, 0)
 	}
 
 	// extended attributes
@@ -452,7 +454,7 @@ func validateCritHeaders(protected cose.ProtectedHeader) error {
 	}
 	// set of headers that must be marked as crit
 	mustMarkedCrit := make(map[interface{}]struct{})
-	if _, ok := protected[headerKeyExpiry].(uint); ok {
+	if _, ok := protected[headerKeyExpiry]; ok {
 		mustMarkedCrit[headerKeyExpiry] = struct{}{}
 	}
 
