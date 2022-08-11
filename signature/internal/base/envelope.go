@@ -18,6 +18,9 @@ type Envelope struct {
 
 // Sign generates signature using given SignRequest.
 func (e *Envelope) Sign(req *signature.SignRequest) ([]byte, error) {
+	// Sanitize request
+	req.SigningTime = req.SigningTime.Truncate(time.Second)
+	req.Expiry = req.Expiry.Truncate(time.Second)
 	err := validateSignRequest(req)
 	if err != nil {
 		return nil, err
