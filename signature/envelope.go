@@ -13,7 +13,7 @@ type Envelope interface {
 // NewEnvelopeFunc defines a function to create a new Envelope
 type NewEnvelopeFunc func() Envelope
 
-// ParseEnvelopeFunc defines a function to create a new Envelope with given 
+// ParseEnvelopeFunc defines a function to create a new Envelope with given
 // envelope bytes
 type ParseEnvelopeFunc func([]byte) (Envelope, error)
 
@@ -30,12 +30,23 @@ func RegisterEnvelopeType(mediaType string, newFunc NewEnvelopeFunc, parseFunc P
 	if newFunc == nil || parseFunc == nil {
 		return fmt.Errorf("required functions not provided")
 	}
-	
+
 	envelopeFuncs[mediaType] = envelopeFunc{
 		newFunc:   newFunc,
 		parseFunc: parseFunc,
 	}
 	return nil
+}
+
+// RegisteredEnvelopeTypes lists registered envelope media types.
+func RegisteredEnvelopeTypes() []string {
+	types := []string{}
+
+	for envelopeType := range envelopeFuncs {
+		types = append(types, envelopeType)
+	}
+
+	return types
 }
 
 // NewEnvelope returns an envelope of given media type

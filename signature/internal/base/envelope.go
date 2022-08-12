@@ -22,6 +22,7 @@ func (e *Envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	e.Raw, err = e.Envelope.Sign(req)
 	if err != nil {
 		return nil, err
@@ -33,8 +34,8 @@ func (e *Envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 // Returns the payload to be signed and SignerInfo object containing the information
 // about the signature.
 func (e *Envelope) Verify() (*signature.Payload, *signature.SignerInfo, error) {
-	if len(e.Raw) == 0 {
-		return nil, nil, &signature.MalformedSignatureError{}
+	if err := e.preVerifyValidation(); err != nil {
+		return nil, nil, err
 	}
 
 	return e.Envelope.Verify()
@@ -45,7 +46,15 @@ func (e *Envelope) Payload() (*signature.Payload, error) {
 	if len(e.Raw) == 0 {
 		return nil, &signature.MalformedSignatureError{Msg: "raw signature is empty"}
 	}
-	return e.Envelope.Payload()
+	payload, err := e.Envelope.Payload()
+	if err != nil {
+		return nil, err
+	}
+
+	if err = validatePayload(payload); err != nil {
+		return nil, err
+	}
+	return payload, nil
 }
 
 // SignerInfo returns information about the Signature envelope.
@@ -70,6 +79,15 @@ func (e *Envelope) SignerInfo() (*signature.SignerInfo, error) {
 	}
 
 	return signerInfo, nil
+}
+
+// preVerifyValidation performs validation before verification of internal envelope.
+func (e *Envelope) preVerifyValidation() error {
+	if len(e.Raw) == 0 {
+		return &signature.MalformedSignatureError{}
+	}
+
+	return e.validatePayload()
 }
 
 // validatePayload performs validation of the payload.
@@ -100,7 +118,17 @@ func validateSignRequest(req *signature.SignRequest) error {
 		return &signature.MalformedSignatureError{Msg: "signer is nil"}
 	}
 
-	return nil
+	certs, err := req.Signer.CertificateChain()
+	if err != nil {
+		return err
+	}
+
+	keySpec, err := req.Signer.KeySpec()
+	if err != nil {
+		return err
+	}
+
+	return validateCertificateChain(certs, req.SigningTime, keySpec.SignatureAlgorithm())
 }
 
 // validateSignerInfo performs basic set of validations on SignerInfo struct.
@@ -140,14 +168,14 @@ func validateSigningTime(signingTime, expireTime time.Time) error {
 
 // validatePayload performs validation of the payload.
 func validatePayload(payload *signature.Payload) error {
-	if len(payload.Content) == 0 {
-		return &signature.MalformedSignatureError{Msg: "content not present"}
-	}
-
 	if payload.ContentType != signature.MediaTypePayloadV1 {
 		return &signature.MalformedSignatureError{
 			Msg: fmt.Sprintf("payload content type: {%s} not supported", payload.ContentType),
 		}
+	}
+
+	if len(payload.Content) == 0 {
+		return &signature.MalformedSignatureError{Msg: "content not present"}
 	}
 
 	return nil
