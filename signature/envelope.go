@@ -4,16 +4,26 @@ import "fmt"
 
 // Envelope provides functions to basic functions to manipulate signatures
 type Envelope interface {
+	// Sign generates and sign the envelope according to the sign request.
 	Sign(req *SignRequest) ([]byte, error)
+
+	// Verify verifies the envelope and returns its enclosed payload and signer
+	// info.
 	Verify() (*Payload, *SignerInfo, error)
+
+	// Payload returns the payload of the envelope.
+	// Payload is trusted only after the successful call to `Verify()`.
 	Payload() (*Payload, error)
+
+	// SignerInfo returns the signer information of the envelope.
+	// SignerInfo is trusted only after the successful call to `Verify()`.
 	SignerInfo() (*SignerInfo, error)
 }
 
 // NewEnvelopeFunc defines a function to create a new Envelope
 type NewEnvelopeFunc func() Envelope
 
-// ParseEnvelopeFunc defines a function to create a new Envelope with given 
+// ParseEnvelopeFunc defines a function to create a new Envelope with given
 // envelope bytes
 type ParseEnvelopeFunc func([]byte) (Envelope, error)
 
@@ -30,7 +40,7 @@ func RegisterEnvelopeType(mediaType string, newFunc NewEnvelopeFunc, parseFunc P
 	if newFunc == nil || parseFunc == nil {
 		return fmt.Errorf("required functions not provided")
 	}
-	
+
 	envelopeFuncs[mediaType] = envelopeFunc{
 		newFunc:   newFunc,
 		parseFunc: parseFunc,

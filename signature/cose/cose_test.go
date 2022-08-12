@@ -30,7 +30,8 @@ func getSignRequest() (*signature.SignRequest, error) {
 		ExtendedSignedAttributes: []signature.Attribute{
 			{Key: "signedCritKey1", Value: "signedCritValue1", Critical: true},
 			{Key: "signedKey1", Value: "signedValue1", Critical: false}},
-		SigningAgent: "NotationUnitTest/1.0.0",
+		SigningAgent:  "NotationUnitTest/1.0.0",
+		SigningScheme: signature.SigningSchemeX509SigningAuthority,
 	}, nil
 
 }
