@@ -313,8 +313,7 @@ func getSignatureAlgorithmFromKeySpec(keySpec signature.KeySpec) (cose.Algorithm
 
 func generateProtectedHeaders(req *signature.SignRequest, protected cose.ProtectedHeader) error {
 	// crit, signingScheme, expiry, signingTime, authenticSigningTime
-	var crit []interface{}
-	crit = append(crit, headerLabelSigningScheme)
+	crit := []interface{}{headerLabelSigningScheme}
 	protected[headerLabelSigningScheme] = string(req.SigningScheme)
 	switch req.SigningScheme {
 	case signature.SigningSchemeX509:
