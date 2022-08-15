@@ -16,7 +16,9 @@ type Envelope struct {
 	Raw                []byte // raw signature
 }
 
-// Sign generates signature using given SignRequest.
+// Sign generates signature in terms of given SignRequest.
+//
+// Reference: https://github.com/notaryproject/notaryproject/blob/main/signing-and-verification-workflow.md#signing-steps
 func (e *Envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 	// Sanitize request
 	req.SigningTime = req.SigningTime.Truncate(time.Second)
@@ -33,10 +35,14 @@ func (e *Envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 	return e.Raw, nil
 }
 
-// Verify performs integrity and other signature specification related validations.
-// Returns the payload to be signed and SignerInfo object containing the information
-// about the signature.
+// Verify performs integrity and other signature specification related
+// validations.
+// It returns the payload to be signed and SignerInfo object containing the
+// information about the signature.
+//
+// Reference: https://github.com/notaryproject/notaryproject/blob/main/trust-store-trust-policy-specification.md#steps
 func (e *Envelope) Verify() (*signature.Payload, *signature.SignerInfo, error) {
+	// validation before the core verify process
 	if len(e.Raw) == 0 {
 		return nil, nil, &signature.MalformedSignatureError{}
 	}
@@ -45,11 +51,13 @@ func (e *Envelope) Verify() (*signature.Payload, *signature.SignerInfo, error) {
 		return nil, nil, err
 	}
 
+	// core verify process
 	payload, signerInfo, err := e.Envelope.Verify()
 	if err != nil {
 		return nil, nil, err
 	}
 
+	// validation after the core verify process
 	if err = validatePayload(payload); err != nil {
 		return nil, nil, err
 	}
@@ -61,7 +69,7 @@ func (e *Envelope) Verify() (*signature.Payload, *signature.SignerInfo, error) {
 	return payload, signerInfo, nil
 }
 
-// Payload returns the payload to be signed.
+// Payload returns the validated payload to be signed.
 func (e *Envelope) Payload() (*signature.Payload, error) {
 	if len(e.Raw) == 0 {
 		return nil, &signature.MalformedSignatureError{Msg: "raw signature is empty"}
@@ -77,7 +85,7 @@ func (e *Envelope) Payload() (*signature.Payload, error) {
 	return payload, nil
 }
 
-// SignerInfo returns information about the Signature envelope.
+// SignerInfo returns validated information about the signature envelope.
 func (e *Envelope) SignerInfo() (*signature.SignerInfo, error) {
 	if len(e.Raw) == 0 {
 		return nil, &signature.MalformedSignatureError{Msg: "raw signature is empty"}
@@ -211,7 +219,8 @@ func validateCertificateChain(certChain []*x509.Certificate, signTime time.Time,
 	return nil
 }
 
-// getSignatureAlgorithm picks up a recommended signing algorithm for given certificate.
+// getSignatureAlgorithm picks up a recommended signing algorithm for given
+// certificate.
 func getSignatureAlgorithm(signingCert *x509.Certificate) (signature.Algorithm, error) {
 	keySpec, err := signature.ExtractKeySpec(signingCert)
 	if err != nil {
