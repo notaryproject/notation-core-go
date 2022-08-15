@@ -34,11 +34,28 @@ func (e *Envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 // Returns the payload to be signed and SignerInfo object containing the information
 // about the signature.
 func (e *Envelope) Verify() (*signature.Payload, *signature.SignerInfo, error) {
-	if err := e.preVerifyValidation(); err != nil {
+	if len(e.Raw) == 0 {
+		return nil, nil, &signature.MalformedSignatureError{}
+	}
+
+	if err := e.validatePayload(); err != nil {
 		return nil, nil, err
 	}
 
-	return e.Envelope.Verify()
+	payload, signerInfo, err := e.Envelope.Verify()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if err = validatePayload(payload); err != nil {
+		return nil, nil, err
+	}
+
+	if err = validateSignerInfo(signerInfo); err != nil {
+		return nil, nil, err
+	}
+
+	return payload, signerInfo, nil
 }
 
 // Payload returns the payload to be signed.
@@ -74,20 +91,7 @@ func (e *Envelope) SignerInfo() (*signature.SignerInfo, error) {
 		return nil, err
 	}
 
-	if err := e.validatePayload(); err != nil {
-		return nil, err
-	}
-
 	return signerInfo, nil
-}
-
-// preVerifyValidation performs validation before verification of internal envelope.
-func (e *Envelope) preVerifyValidation() error {
-	if len(e.Raw) == 0 {
-		return &signature.MalformedSignatureError{}
-	}
-
-	return e.validatePayload()
 }
 
 // validatePayload performs validation of the payload.
@@ -108,10 +112,6 @@ func validateSignRequest(req *signature.SignRequest) error {
 
 	if err := validateSigningTime(req.SigningTime, req.Expiry); err != nil {
 		return err
-	}
-
-	if len(req.Payload.Content) == 0 {
-		return &signature.MalformedSignatureError{Msg: "payload not present"}
 	}
 
 	if req.Signer == nil {
@@ -168,14 +168,15 @@ func validateSigningTime(signingTime, expireTime time.Time) error {
 
 // validatePayload performs validation of the payload.
 func validatePayload(payload *signature.Payload) error {
-	if payload.ContentType != signature.MediaTypePayloadV1 {
+	switch payload.ContentType {
+	case signature.MediaTypePayloadV1:
+		if len(payload.Content) == 0 {
+			return &signature.MalformedSignatureError{Msg: "content not present"}
+		}
+	default:
 		return &signature.MalformedSignatureError{
 			Msg: fmt.Sprintf("payload content type: {%s} not supported", payload.ContentType),
 		}
-	}
-
-	if len(payload.Content) == 0 {
-		return &signature.MalformedSignatureError{Msg: "content not present"}
 	}
 
 	return nil
