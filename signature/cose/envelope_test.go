@@ -31,9 +31,8 @@ func getSignRequest() (*signature.SignRequest, error) {
 			{Key: "signedCritKey1", Value: "signedCritValue1", Critical: true},
 			{Key: "signedKey1", Value: "signedValue1", Critical: false}},
 		SigningAgent:  "NotationUnitTest/1.0.0",
-		SigningScheme: signature.SigningSchemeX509SigningAuthority,
+		SigningScheme: "notary.x509.signingAuthority",
 	}, nil
-
 }
 
 func getSigningCerts() []*x509.Certificate {
@@ -41,61 +40,64 @@ func getSigningCerts() []*x509.Certificate {
 }
 
 func TestSignAndVerify(t *testing.T) {
-	SignRequest, err := getSignRequest()
+	signRequest, err := getSignRequest()
 	if err != nil {
-		t.Errorf("getSignRequest(). Error = %s", err)
+		t.Fatalf("getSignRequest(). Error = %s", err)
 	}
 	env := NewEnvelope()
-	_, err = env.Sign(SignRequest)
+	encoded, err := env.Sign(signRequest)
 	if err != nil {
-		t.Errorf("sign failed. Error = %s", err)
+		t.Fatalf("sign failed. Error = %s", err)
+	}
+	env, err = ParseEnvelope(encoded)
+	if err != nil {
+		t.Fatalf("parse envelope failed. Error = %s", err)
 	}
 	_, _, err = env.Verify()
 	if err != nil {
-		t.Errorf("verify failed. Error = %s", err)
+		t.Fatalf("verify failed. Error = %s", err)
 	}
 }
 
 func TestVerifyError(t *testing.T) {
 	SignRequest, err := getSignRequest()
 	if err != nil {
-		t.Errorf("getSignRequest(). Error = %s", err)
+		t.Fatalf("getSignRequest(). Error = %s", err)
 	}
 	env := NewEnvelope()
-	sign1Msg, err := env.Sign(SignRequest)
+	encoded, err := env.Sign(SignRequest)
 	if err != nil {
-		t.Errorf("sign failed. Error = %s", err)
+		t.Fatalf("sign failed. Error = %s", err)
 	}
 	// tamper the signature envelope
-	if sign1Msg[len(sign1Msg)-10] == 'C' {
-		sign1Msg[len(sign1Msg)-10] = 'A'
-	} else {
-		sign1Msg[len(sign1Msg)-10] = 'C'
-	}
-
-	newEnv, err := ParseEnvelope(sign1Msg)
+	encoded[len(encoded)-10] += 'A'
+	newEnv, err := ParseEnvelope(encoded)
 	if err != nil {
-		t.Errorf("parse envelope failed. Error = %s", err)
+		t.Fatalf("parse envelope failed. Error = %s", err)
 	}
 	_, _, err = newEnv.Verify()
 	// expect to get an error
 	if err == nil {
-		t.Errorf("should failed verify")
+		t.Fatalf("should failed verify")
 	}
 }
 
 func TestPayloadAndSignerInfo(t *testing.T) {
 	SignRequest, err := getSignRequest()
 	if err != nil {
-		t.Errorf("getSignRequest(). Error = %s", err)
+		t.Fatalf("getSignRequest(). Error = %s", err)
 	}
 	env := NewEnvelope()
-	_, err = env.Sign(SignRequest)
+	encoded, err := env.Sign(SignRequest)
 	if err != nil {
-		t.Errorf("sign failed. Error = %s", err)
+		t.Fatalf("sign failed. Error = %s", err)
+	}
+	env, err = ParseEnvelope(encoded)
+	if err != nil {
+		t.Fatalf("parse envelope failed. Error = %s", err)
 	}
 	_, err = env.SignerInfo()
 	if err != nil {
-		t.Errorf("payload and/or signerInfo failed. Error = %s", err)
+		t.Fatalf("payload and/or signerInfo failed. Error = %s", err)
 	}
 }
