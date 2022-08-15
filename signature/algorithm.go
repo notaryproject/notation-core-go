@@ -1,6 +1,7 @@
 package signature
 
 import (
+	"crypto"
 	"crypto/ecdsa"
 	"crypto/rsa"
 	"crypto/x509"
@@ -33,6 +34,19 @@ const (
 type KeySpec struct {
 	Type KeyType
 	Size int
+}
+
+// Hash returns the hash function of the algorithm
+func (alg Algorithm) Hash() crypto.Hash {
+	switch alg {
+	case AlgorithmPS256, AlgorithmES256:
+		return crypto.SHA256
+	case AlgorithmPS384, AlgorithmES384:
+		return crypto.SHA384
+	case AlgorithmPS512, AlgorithmES512:
+		return crypto.SHA512
+	}
+	return 0
 }
 
 // ExtractKeySpec extracts keySpec from the signing certificate

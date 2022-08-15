@@ -19,7 +19,7 @@ func (s *JwsSigner) Sign(digest []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	hasher := hash(keySpec.SignatureAlgorithm())
+	hasher := keySpec.SignatureAlgorithm().Hash()
 	h := hasher.New()
 	h.Write(digest)
 	hash := h.Sum(nil)

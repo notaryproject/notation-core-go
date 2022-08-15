@@ -112,19 +112,6 @@ func mergeMaps(maps ...map[string]interface{}) map[string]interface{} {
 	return result
 }
 
-func hash(algorithm signature.Algorithm) crypto.Hash {
-	var hash crypto.Hash
-	switch algorithm {
-	case signature.AlgorithmPS256, signature.AlgorithmES256:
-		hash = crypto.SHA256
-	case signature.AlgorithmPS384, signature.AlgorithmES384:
-		hash = crypto.SHA384
-	case signature.AlgorithmPS512, signature.AlgorithmES512:
-		hash = crypto.SHA512
-	}
-	return hash
-}
-
 // getSigningMethod picks up a recommended algorithm for given public keys.
 func getSigningMethod(key crypto.PublicKey) (jwt.SigningMethod, error) {
 	switch key := key.(type) {

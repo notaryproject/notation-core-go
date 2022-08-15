@@ -48,6 +48,17 @@ func RegisterEnvelopeType(mediaType string, newFunc NewEnvelopeFunc, parseFunc P
 	return nil
 }
 
+// RegisteredEnvelopeTypes lists registered envelope media types.
+func RegisteredEnvelopeTypes() []string {
+	types := []string{}
+
+	for envelopeType := range envelopeFuncs {
+		types = append(types, envelopeType)
+	}
+
+	return types
+}
+
 // NewEnvelope returns an envelope of given media type
 func NewEnvelope(mediaType string) (Envelope, error) {
 	envelopeFunc, ok := envelopeFuncs[mediaType]
