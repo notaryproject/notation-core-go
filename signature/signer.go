@@ -40,16 +40,19 @@ func NewLocalSigner(certs []*x509.Certificate, key crypto.PrivateKey) (LocalSign
 			Err:   errors.New("empty certs"),
 		}
 	}
-	if !keysMatch(key, certs[0].PublicKey) {
+
+	keySpec, err := ExtractKeySpec(certs[0])
+	if err != nil {
+		return nil, err
+	}
+
+	if !isKeyPair(key, certs[0].PublicKey, keySpec) {
 		return nil, &MalformedArgumentError{
 			Param: "key and certs",
 			Err:   errors.New("key not matches certificate"),
 		}
 	}
-	keySpec, err := ExtractKeySpec(certs[0])
-	if err != nil {
-		return nil, err
-	}
+
 	return &signer{
 		keySpec: keySpec,
 		key:     key,
@@ -57,24 +60,24 @@ func NewLocalSigner(certs []*x509.Certificate, key crypto.PrivateKey) (LocalSign
 	}, nil
 }
 
-// keysMatch checks if the private key matches the provided public key.
-func keysMatch(priv crypto.PrivateKey, publicKey interface{}) bool {
-	type privateKey interface {
-		Equal(crypto.PublicKey) bool
-	}
-
-	privSigner, ok := priv.(crypto.Signer)
-	if !ok {
+// isKeyPair checks if the private key matches the provided public key.
+func isKeyPair(priv crypto.PrivateKey, pub crypto.PublicKey, keySpec KeySpec) bool {
+	switch keySpec.Type {
+	case KeyTypeRSA:
+		privateKey, ok := priv.(*rsa.PrivateKey)
+		if !ok {
+			return false
+		}
+		return privateKey.PublicKey.Equal(pub)
+	case KeyTypeEC:
+		privateKey, ok := priv.(*ecdsa.PrivateKey)
+		if !ok {
+			return false
+		}
+		return privateKey.PublicKey.Equal(pub)
+	default:
 		return false
 	}
-
-	if privPub, ok := privSigner.Public().(privateKey); !ok {
-		return false
-	} else if publicKey != nil && !privPub.Equal(publicKey) {
-		return false
-	}
-
-	return true
 }
 
 // Sign signs the digest and returns the raw signature
