@@ -102,7 +102,7 @@ func NewEnvelope() signature.Envelope {
 func ParseEnvelope(envelopeBytes []byte) (signature.Envelope, error) {
 	var msg cose.Sign1Message
 	if err := msg.UnmarshalCBOR(envelopeBytes); err != nil {
-		return nil, err
+		return nil, &signature.MalformedSignatureError{Msg: err.Error()}
 	}
 	return &base.Envelope{
 		Envelope: &envelope{
@@ -118,7 +118,7 @@ func (e *envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 	// get built-in signer from go-cose or remote signer based on req.Signer
 	signer, err := getSigner(req.Signer)
 	if err != nil {
-		return nil, err
+		return nil, &signature.MalformedSignRequestError{Msg: err.Error()}
 	}
 
 	// prepare COSE_Sign1 message
@@ -127,13 +127,13 @@ func (e *envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 	// generate protected headers of COSE envelope
 	msg.Headers.Protected.SetAlgorithm(signer.Algorithm())
 	if err := generateProtectedHeaders(req, msg.Headers.Protected); err != nil {
-		return nil, err
+		return nil, &signature.MalformedSignatureError{Msg: err.Error()}
 	}
 
 	// generate unprotected headers of COSE envelope
 	err = generateUnprotectedHeaders(req, msg.Headers.Unprotected)
 	if err != nil {
-		return nil, err
+		return nil, &signature.MalformedSignatureError{Msg: err.Error()}
 	}
 
 	// generate payload of COSE envelope
@@ -143,7 +143,7 @@ func (e *envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 	// core sign process, generate signature of COSE envelope
 	err = msg.Sign(rand.Reader, nil, signer)
 	if err != nil {
-		return nil, err
+		return nil, &signature.MalformedSignatureError{Msg: err.Error()}
 	}
 
 	// TODO: needs to add headerKeyTimeStampSignature here, which requires
@@ -152,7 +152,7 @@ func (e *envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 	// encode Sign1Message into COSE_Sign1_Tagged object
 	encoded, err := msg.MarshalCBOR()
 	if err != nil {
-		return nil, err
+		return nil, &signature.MalformedSignatureError{Msg: err.Error()}
 	}
 	e.base = msg
 	return encoded, nil
@@ -176,21 +176,21 @@ func (e *envelope) Verify() (*signature.Payload, *signature.SignerInfo, error) {
 	}
 	cert, err := x509.ParseCertificate(certRaw)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, &signature.MalformedSignatureError{Msg: err.Error()}
 	}
 
 	// core verify process, verify integrity of COSE envelope
 	publicKeyAlg, err := getSignatureAlgorithm(cert)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, &signature.MalformedSignatureError{Msg: err.Error()}
 	}
 	verifier, err := cose.NewVerifier(publicKeyAlg, cert.PublicKey)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, &signature.MalformedSignatureError{Msg: err.Error()}
 	}
 	err = e.base.Verify(nil, verifier)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, &signature.SignatureIntegrityError{Err: err}
 	}
 
 	// extract payload and signer info
@@ -239,7 +239,7 @@ func (e *envelope) SignerInfo() (*signature.SignerInfo, error) {
 	// signerInfo fields
 	err := parseProtectedHeaders(e.base.Headers.Protected, &signerInfo)
 	if err != nil {
-		return nil, err
+		return nil, &signature.MalformedSignatureError{Msg: err.Error()}
 	}
 
 	// parse unprotected headers of COSE envelope
@@ -255,7 +255,7 @@ func (e *envelope) SignerInfo() (*signature.SignerInfo, error) {
 		}
 		cert, err := x509.ParseCertificate(certRaw)
 		if err != nil {
-			return nil, err
+			return nil, &signature.MalformedSignatureError{Msg: err.Error()}
 		}
 		certChain = append(certChain, cert)
 	}
