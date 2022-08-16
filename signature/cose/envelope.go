@@ -4,7 +4,6 @@ import (
 	"crypto"
 	"crypto/rand"
 	"crypto/x509"
-	"errors"
 	"fmt"
 	"io"
 	"strconv"
@@ -169,11 +168,11 @@ func (e *envelope) Verify() (*signature.Payload, *signature.SignerInfo, error) {
 
 	certs, ok := e.base.Headers.Unprotected[cose.HeaderLabelX5Chain].([]interface{})
 	if !ok || len(certs) == 0 {
-		return nil, nil, errors.New("COSE envelope malformed certificate chain")
+		return nil, nil, &signature.MalformedSignatureError{Msg: "COSE envelope malformed certificate chain"}
 	}
 	certRaw, ok := certs[0].([]byte)
 	if !ok {
-		return nil, nil, errors.New("COSE envelope malformed leaf certificate")
+		return nil, nil, &signature.MalformedSignatureError{Msg: "COSE envelope malformed leaf certificate"}
 	}
 	cert, err := x509.ParseCertificate(certRaw)
 	if err != nil {
@@ -246,13 +245,13 @@ func (e *envelope) SignerInfo() (*signature.SignerInfo, error) {
 	// parse unprotected headers of COSE envelope
 	certs, ok := e.base.Headers.Unprotected[cose.HeaderLabelX5Chain].([]interface{})
 	if !ok || len(certs) == 0 {
-		return nil, errors.New("COSE envelope malformed certificate chain")
+		return nil, &signature.MalformedSignatureError{Msg: "COSE envelope malformed certificate chain"}
 	}
 	var certChain []*x509.Certificate
 	for _, c := range certs {
 		certRaw, ok := c.([]byte)
 		if !ok {
-			return nil, errors.New("COSE envelope malformed certificate chain")
+			return nil, &signature.MalformedSignatureError{Msg: "COSE envelope malformed certificate chain"}
 		}
 		cert, err := x509.ParseCertificate(certRaw)
 		if err != nil {
@@ -293,7 +292,7 @@ func getSignatureAlgorithmFromKeySpec(keySpec signature.KeySpec) (cose.Algorithm
 		case 4096:
 			return cose.AlgorithmPS512, nil
 		default:
-			return 0, errors.New("RSA: key size not supported")
+			return 0, &signature.UnsupportedSigningKeyError{Msg: "RSA: key size not supported"}
 		}
 	case signature.KeyTypeEC:
 		switch keySpec.Size {
@@ -304,10 +303,10 @@ func getSignatureAlgorithmFromKeySpec(keySpec signature.KeySpec) (cose.Algorithm
 		case 521:
 			return cose.AlgorithmES512, nil
 		default:
-			return 0, errors.New("EC: key size not supported")
+			return 0, &signature.UnsupportedSigningKeyError{Msg: "EC: key size not supported"}
 		}
 	default:
-		return 0, errors.New("key type not supported")
+		return 0, &signature.UnsupportedSigningKeyError{Msg: "key type not supported"}
 	}
 }
 
@@ -327,7 +326,7 @@ func getSigner(signer signature.Signer) (cose.Signer, error) {
 			}
 			return cose.NewSigner(alg, cryptoSigner)
 		}
-		return nil, errors.New("unsupported signing key")
+		return nil, &signature.UnsupportedSigningKeyError{}
 	}
 	return newRemoteSigner(signer)
 }
@@ -342,7 +341,7 @@ func generateProtectedHeaders(req *signature.SignRequest, protected cose.Protect
 	// signingTime/authenticSigningTime
 	signingTimeLabel, ok := signingSchemeTimeLabelMap[req.SigningScheme]
 	if !ok {
-		return errors.New("signing scheme: require notary.x509 or notary.x509.signingAuthority")
+		return &signature.MalformedSignatureError{Msg: "signing scheme: require notary.x509 or notary.x509.signingAuthority"}
 	}
 	protected[signingTimeLabel] = req.SigningTime.Unix()
 	if signingTimeLabel == headerLabelAuthenticSigningTime {
@@ -489,7 +488,7 @@ func validateCritHeaders(protected cose.ProtectedHeader) ([]string, error) {
 		}
 		label, ok := label.(string)
 		if !ok {
-			return nil, errors.New("extendedAttributes key requires string type")
+			return nil, &signature.MalformedSignatureError{Msg: "extendedAttributes key requires string type"}
 		}
 		extendedAttributeKeys = append(extendedAttributeKeys, label)
 	}
@@ -500,7 +499,7 @@ func validateCritHeaders(protected cose.ProtectedHeader) ([]string, error) {
 func generateExtendedAttributes(extendedAttributeKeys []string, protected cose.ProtectedHeader) ([]signature.Attribute, error) {
 	criticalHeaders, ok := protected[cose.HeaderLabelCritical].([]interface{})
 	if !ok {
-		return nil, errors.New("malformed critical headers")
+		return nil, &signature.MalformedSignatureError{Msg: "malformed critical headers"}
 	}
 	var extendedAttr []signature.Attribute
 	for _, key := range extendedAttributeKeys {
