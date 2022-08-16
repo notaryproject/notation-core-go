@@ -1,6 +1,7 @@
 package jws
 
 import (
+	"crypto"
 	"crypto/x509"
 	"encoding/base64"
 	"fmt"
@@ -9,13 +10,36 @@ import (
 	"github.com/notaryproject/notation-core-go/signature"
 )
 
-// remoteSigningMethod wraps the remote signer to be a jwt.SigningMethod
-type remoteSigningMethod struct {
-	signer signature.Signer
+// signingMethod is the interface for jwt.SigingMethod with additional method to
+// access certificate chain after calling Sign()
+type signingMethod interface {
+	jwt.SigningMethod
+
+	// CertificateChain returns the certificate chain.
+	//
+	// should be called after calling Sign()
+	CertificateChain() ([]*x509.Certificate, error)
+
+	// PrivateKey returns the private key.
+	PrivateKey() crypto.PrivateKey
 }
 
-func newRemoteSigningMethod(signer signature.Signer) jwt.SigningMethod {
-	return &remoteSigningMethod{signer: signer}
+// remoteSigningMethod wraps the remote signer to be a SigningMethod
+type remoteSigningMethod struct {
+	signer    signature.Signer
+	certs     []*x509.Certificate
+	algorithm string
+}
+
+func newRemoteSigningMethod(signer signature.Signer) (signingMethod, error) {
+	algorithm, err := extractJwtAlgorithm(signer)
+	if err != nil {
+		return nil, err
+	}
+	return &remoteSigningMethod{
+		signer:    signer,
+		algorithm: algorithm,
+	}, nil
 }
 
 // Verify doesn't need to be implemented.
@@ -25,51 +49,66 @@ func (s *remoteSigningMethod) Verify(signingString, signature string, key interf
 
 // Sign hashes the signingString and call the remote signer to sign the digest.
 func (s *remoteSigningMethod) Sign(signingString string, key interface{}) (string, error) {
-	keySpec, err := s.signer.KeySpec()
-	if err != nil {
-		return "", err
-	}
-
-	// get hasher
-	hasher := keySpec.SignatureAlgorithm().Hash()
-	if !hasher.Available() {
-		return "", &signature.SignatureAlgoNotSupportedError{Alg: hasher.String()}
-	}
-
-	// calculate hash
-	h := hasher.New()
-	h.Write([]byte(signingString))
-	hash := h.Sum(nil)
-
 	// sign by external signer
-	sig, err := s.signer.Sign(hash)
+	sig, certs, err := s.signer.Sign([]byte(signingString))
 	if err != nil {
 		return "", err
 	}
+	s.certs = certs
 	return base64.RawURLEncoding.EncodeToString(sig), nil
 }
 
-// Alg doesn't need to be implemented.
+// Alg return the signing algorithm
 func (s *remoteSigningMethod) Alg() string {
-	alg, err := extractJwtAlgorithm(s.signer)
-	if err != nil {
-		panic(err)
+	return s.algorithm
+}
+
+// CertificateChain returns the certificate chain
+//
+// should be called after Sign()
+func (s *remoteSigningMethod) CertificateChain() ([]*x509.Certificate, error) {
+	if s.certs == nil {
+		return nil, &signature.RemoteSigningError{Msg: "certificate chain is not set"}
 	}
-	return alg
+	return s.certs, nil
+}
+
+// PrivateKey returns nil for remote signer
+func (s *remoteSigningMethod) PrivateKey() crypto.PrivateKey {
+	return nil
+}
+
+// localSigningMethod wraps the local signer to be a SigningMethod
+type localSigningMethod struct {
+	jwt.SigningMethod
+	signer signature.LocalSigner
+	certs  []*x509.Certificate
+}
+
+func newLocalSigningMethod(signer signature.LocalSigner) (signingMethod, error) {
+	alg, err := extractJwtAlgorithm(signer)
+	if err != nil {
+		return nil, err
+	}
+
+	return &localSigningMethod{
+		SigningMethod: jwt.GetSigningMethod(alg),
+		signer:        signer,
+	}, nil
+}
+
+// CertificateChain returns the certificate chain
+func (s *localSigningMethod) CertificateChain() ([]*x509.Certificate, error) {
+	return s.signer.CertificateChain()
+}
+
+// PrivateKey returns the private key
+func (s *localSigningMethod) PrivateKey() crypto.PrivateKey {
+	return s.signer.PrivateKey()
 }
 
 // verifyJWT verifies the JWT token against the specified verification key
-func verifyJWT(tokenString string, cert *x509.Certificate) error {
-	keySpec, err := signature.ExtractKeySpec(cert)
-	if err != nil {
-		return err
-	}
-	jwsAlg, err := convertAlgorithm(keySpec.SignatureAlgorithm())
-	if err != nil {
-		return err
-	}
-	signingMethod := jwt.GetSigningMethod(jwsAlg)
-
+func verifyJWT(tokenString string, publicKey interface{}) error {
 	parser := jwt.NewParser(
 		jwt.WithValidMethods(validMethods),
 		jwt.WithJSONNumber(),
@@ -77,14 +116,7 @@ func verifyJWT(tokenString string, cert *x509.Certificate) error {
 	)
 
 	if _, err := parser.ParseWithClaims(tokenString, &jwtPayload{}, func(t *jwt.Token) (interface{}, error) {
-		if t.Method.Alg() != signingMethod.Alg() {
-			return nil, &signature.MalformedSignatureError{
-				Msg: fmt.Sprintf("unexpected signing method: %v: require %v", t.Method.Alg(), signingMethod.Alg())}
-		}
-
-		// override default signing method with key-specific method
-		t.Method = signingMethod
-		return cert.PublicKey, nil
+		return publicKey, nil
 	}); err != nil {
 		return &signature.SignatureIntegrityError{Err: err}
 	}
@@ -92,16 +124,15 @@ func verifyJWT(tokenString string, cert *x509.Certificate) error {
 }
 
 func extractJwtAlgorithm(signer signature.Signer) (string, error) {
+	// extract algorithm from signer
 	keySpec, err := signer.KeySpec()
 	if err != nil {
 		return "", err
 	}
-	return convertAlgorithm(keySpec.SignatureAlgorithm())
-}
+	alg := keySpec.SignatureAlgorithm()
 
-// convertAlgorithm converts the signature.Algorithm to be jwt package defined
-// algorithm name.
-func convertAlgorithm(alg signature.Algorithm) (string, error) {
+	// converts the signature.Algorithm to be jwt package defined
+	// algorithm name.
 	jwsAlg, ok := signatureAlgJWSAlgMap[alg]
 	if !ok {
 		return "", &signature.SignatureAlgoNotSupportedError{
