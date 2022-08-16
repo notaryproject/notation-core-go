@@ -97,3 +97,13 @@ type SignatureAuthenticityError struct{}
 func (e *SignatureAuthenticityError) Error() string {
 	return "signature is not produced by a trusted signer"
 }
+
+// UnsupportedSignatureFormatError is used when Signature envelope is not supported.
+type UnsupportedSignatureFormatError struct {
+	MediaType string
+}
+
+// Error returns the formatted error message.
+func (e *UnsupportedSignatureFormatError) Error() string {
+	return fmt.Sprintf("signature envelope format with media type %q is not supported", e.MediaType)
+}

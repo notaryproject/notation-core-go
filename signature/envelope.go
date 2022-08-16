@@ -53,7 +53,7 @@ func RegisteredEnvelopeTypes() []string {
 func NewEnvelope(mediaType string) (Envelope, error) {
 	envelopeFunc, ok := envelopeFuncs[mediaType]
 	if !ok {
-		return nil, fmt.Errorf("envelope is not set for type: %s", mediaType)
+		return nil, &UnsupportedSignatureFormatError{MediaType: mediaType}
 	}
 	return envelopeFunc.newFunc(), nil
 }
@@ -62,7 +62,7 @@ func NewEnvelope(mediaType string) (Envelope, error) {
 func ParseEnvelope(mediaType string, envelopeBytes []byte) (Envelope, error) {
 	envelopeFunc, ok := envelopeFuncs[mediaType]
 	if !ok {
-		return nil, fmt.Errorf("envelope is not set for type: %s", mediaType)
+		return nil, &UnsupportedSignatureFormatError{MediaType: mediaType}
 	}
 	return envelopeFunc.parseFunc(envelopeBytes)
 }
