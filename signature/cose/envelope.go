@@ -357,7 +357,7 @@ func generateProtectedHeaders(req *signature.SignRequest, protected cose.Protect
 	// extended attributes
 	for _, elm := range req.ExtendedSignedAttributes {
 		if _, ok := protected[elm.Key]; ok {
-			return fmt.Errorf("%q already exists in the protected header", elm.Key)
+			return &signature.MalformedSignatureError{Msg: fmt.Sprintf("%q already exists in the protected header", elm.Key)}
 		}
 		if elm.Critical {
 			crit = append(crit, elm.Key)
