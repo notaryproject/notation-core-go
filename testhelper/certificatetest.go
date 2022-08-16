@@ -14,11 +14,12 @@ import (
 )
 
 var (
-	rsaRoot     RSACertTuple
-	rsaLeaf     RSACertTuple
-	ecdsaRoot   ECCertTuple
-	ecdsaLeaf   ECCertTuple
-	unsupported RSACertTuple
+	rsaRoot          RSACertTuple
+	rsaLeaf          RSACertTuple
+	ecdsaRoot        ECCertTuple
+	ecdsaLeaf        ECCertTuple
+	unsupportedEcdsaRoot ECCertTuple
+	unsupported      RSACertTuple
 )
 
 type RSACertTuple struct {
@@ -62,11 +63,24 @@ func GetUnsupportedCertificate() RSACertTuple {
 	return unsupported
 }
 
+// GetUnsupportedRSACert returns certificate signed using RSA algorithm with key
+// size of 1024 bits which is not supported by notary.
+func GetUnsupportedRSACert() RSACertTuple {
+	return unsupported
+}
+
+// GetUnsupportedECCert returns certificate signed using EC algorithm with P-224
+// curve which is not supported by notary.
+func GetUnsupportedECCert() ECCertTuple {
+	return unsupportedEcdsaRoot
+}
+
 func setupCertificates() {
 	rsaRoot = getCertTuple("Notation Test Root", nil)
 	rsaLeaf = getCertTuple("Notation Test Leaf Cert", &rsaRoot)
 	ecdsaRoot = getECCertTuple("Notation Test Root2", nil)
 	ecdsaLeaf = getECCertTuple("Notation Test Leaf Cert", &ecdsaRoot)
+	unsupportedEcdsaRoot = getECCertTupleWithCurve("Notation Test Invalid ECDSA Cert", nil, elliptic.P224())
 
 	// This will be flagged by the static code analyzer as 'Use of a weak cryptographic key' but its intentional
 	// and is used only for testing.
@@ -77,6 +91,11 @@ func setupCertificates() {
 func getCertTuple(cn string, issuer *RSACertTuple) RSACertTuple {
 	pk, _ := rsa.GenerateKey(rand.Reader, 3072)
 	return GetRSACertTupleWithPK(pk, cn, issuer)
+}
+
+func getECCertTupleWithCurve(cn string, issuer *ECCertTuple, curve elliptic.Curve) ECCertTuple {
+	k, _ := ecdsa.GenerateKey(curve, rand.Reader)
+	return GetECDSACertTupleWithPK(k, cn, issuer)
 }
 
 func getECCertTuple(cn string, issuer *ECCertTuple) ECCertTuple {
