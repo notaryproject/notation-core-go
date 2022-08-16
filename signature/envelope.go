@@ -4,9 +4,19 @@ import "fmt"
 
 // Envelope provides functions to basic functions to manipulate signatures
 type Envelope interface {
+	// Sign generates and sign the envelope according to the sign request.
 	Sign(req *SignRequest) ([]byte, error)
+
+	// Verify verifies the envelope and returns its enclosed payload and signer
+	// info.
 	Verify() (*Payload, *SignerInfo, error)
+
+	// Payload returns the payload of the envelope.
+	// Payload is trusted only after the successful call to `Verify()`.
 	Payload() (*Payload, error)
+
+	// SignerInfo returns the signer information of the envelope.
+	// SignerInfo is trusted only after the successful call to `Verify()`.
 	SignerInfo() (*SignerInfo, error)
 }
 
