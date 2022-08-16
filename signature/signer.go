@@ -2,6 +2,8 @@ package signature
 
 import (
 	"crypto"
+	"crypto/ecdsa"
+	"crypto/rsa"
 	"crypto/x509"
 	"errors"
 	"fmt"
@@ -35,18 +37,47 @@ func NewLocalSigner(certs []*x509.Certificate, key crypto.PrivateKey) (LocalSign
 	if len(certs) == 0 {
 		return nil, &MalformedArgumentError{
 			Param: "certs",
-			Err: errors.New("empty certs"),
+			Err:   errors.New("empty certs"),
 		}
 	}
+
 	keySpec, err := ExtractKeySpec(certs[0])
 	if err != nil {
 		return nil, err
 	}
+
+	if !isKeyPair(key, certs[0].PublicKey, keySpec) {
+		return nil, &MalformedArgumentError{
+			Param: "key and certs",
+			Err:   errors.New("key not matches certificate"),
+		}
+	}
+
 	return &signer{
 		keySpec: keySpec,
 		key:     key,
 		certs:   certs,
 	}, nil
+}
+
+// isKeyPair checks if the private key matches the provided public key.
+func isKeyPair(priv crypto.PrivateKey, pub crypto.PublicKey, keySpec KeySpec) bool {
+	switch keySpec.Type {
+	case KeyTypeRSA:
+		privateKey, ok := priv.(*rsa.PrivateKey)
+		if !ok {
+			return false
+		}
+		return privateKey.PublicKey.Equal(pub)
+	case KeyTypeEC:
+		privateKey, ok := priv.(*ecdsa.PrivateKey)
+		if !ok {
+			return false
+		}
+		return privateKey.PublicKey.Equal(pub)
+	default:
+		return false
+	}
 }
 
 // Sign signs the digest and returns the raw signature
