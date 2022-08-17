@@ -22,6 +22,19 @@ const (
 	AlgorithmES512                      // ECDSA on secp521r1 with SHA-512
 )
 
+// Hash returns the corresponding crypto hash algorithm.
+func (alg Algorithm) Hash() crypto.Hash {
+	switch alg {
+	case AlgorithmPS256, AlgorithmES256:
+		return crypto.SHA256
+	case AlgorithmPS384, AlgorithmES384:
+		return crypto.SHA384
+	case AlgorithmPS512, AlgorithmES512:
+		return crypto.SHA512
+	}
+	return 0
+}
+
 // KeyType defines the key type
 type KeyType int
 
@@ -34,19 +47,6 @@ const (
 type KeySpec struct {
 	Type KeyType
 	Size int
-}
-
-// Hash returns the hash function of the algorithm
-func (alg Algorithm) Hash() crypto.Hash {
-	switch alg {
-	case AlgorithmPS256, AlgorithmES256:
-		return crypto.SHA256
-	case AlgorithmPS384, AlgorithmES384:
-		return crypto.SHA384
-	case AlgorithmPS512, AlgorithmES512:
-		return crypto.SHA512
-	}
-	return 0
 }
 
 // ExtractKeySpec extracts keySpec from the signing certificate

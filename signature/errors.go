@@ -107,3 +107,13 @@ type UnsupportedSignatureFormatError struct {
 func (e *UnsupportedSignatureFormatError) Error() string {
 	return fmt.Sprintf("signature envelope format with media type %q is not supported", e.MediaType)
 }
+
+// EnvelopeKeyRepeatedError is used when repeated key name found in the envelope.
+type EnvelopeKeyRepeatedError struct {
+	Key string
+}
+
+// Error returns the formatted error message
+func (e *EnvelopeKeyRepeatedError) Error() string {
+	return fmt.Sprintf("repeated key: `%s` exists in the envelope.", e.Key)
+}

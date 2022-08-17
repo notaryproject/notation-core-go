@@ -5,8 +5,10 @@ import (
 	"time"
 )
 
-// MediaTypePayloadV1 is the supported content type for signature's payload
-const MediaTypePayloadV1 = "application/vnd.cncf.notary.payload.v1+json"
+const (
+	// MediaTypePayloadV1 is the supported content type for signature's payload
+	MediaTypePayloadV1 = "application/vnd.cncf.notary.payload.v1+json"
+)
 
 // SignedAttributes represents signed metadata in the Signature envelope
 type SignedAttributes struct {
