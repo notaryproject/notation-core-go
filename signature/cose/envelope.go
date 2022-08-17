@@ -433,7 +433,7 @@ func parseProtectedHeaders(protected cose.ProtectedHeader, signerInfo *signature
 	if exp, ok := protected[headerLabelExpiry]; ok {
 		expiry, ok := exp.(int64)
 		if !ok {
-			return &signature.MalformedSignatureError{Msg: "malformed expiry"}
+			return &signature.MalformedSignatureError{Msg: "expiry requires int64 type"}
 		}
 		signerInfo.SignedAttributes.Expiry = time.Unix(expiry, 0)
 	}
