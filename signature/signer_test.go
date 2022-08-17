@@ -53,7 +53,7 @@ func TestNewLocalSigner(t *testing.T) {
 			expectErr: true,
 		},
 		{
-			name: "keys match",
+			name: "RSA keys match",
 			certs: []*x509.Certificate{
 				testhelper.GetRSALeafCertificate().Cert,
 			},
@@ -66,6 +66,24 @@ func TestNewLocalSigner(t *testing.T) {
 				key: testhelper.GetRSALeafCertificate().PrivateKey,
 				certs: []*x509.Certificate{
 					testhelper.GetRSALeafCertificate().Cert,
+				},
+			},
+			expectErr: false,
+		},
+		{
+			name: "EC keys match",
+			certs: []*x509.Certificate{
+				testhelper.GetECLeafCertificate().Cert,
+			},
+			key: testhelper.GetECLeafCertificate().PrivateKey,
+			expect: &signer{
+				keySpec: KeySpec{
+					Type: KeyTypeEC,
+					Size: 384,
+				},
+				key: testhelper.GetECLeafCertificate().PrivateKey,
+				certs: []*x509.Certificate{
+					testhelper.GetECLeafCertificate().Cert,
 				},
 			},
 			expectErr: false,
@@ -182,7 +200,7 @@ func TestVerifyAuthenticity(t *testing.T) {
 			certs: []*x509.Certificate{
 				testhelper.GetECLeafCertificate().Cert,
 			},
-			expect: testhelper.GetECLeafCertificate().Cert,
+			expect:    testhelper.GetECLeafCertificate().Cert,
 			expectErr: false,
 		},
 	}

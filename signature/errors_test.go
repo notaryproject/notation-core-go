@@ -191,3 +191,12 @@ func TestUnsupportedSignatureFormatError(t *testing.T) {
 		t.Errorf("Expected %v but got %v", expectMsg, err.Error())
 	}
 }
+
+func TestEnvelopeKeyRepeatedError(t *testing.T) {
+	err := &EnvelopeKeyRepeatedError{Key: errMsg}
+	expectMsg := fmt.Sprintf("repeated key: %q exists in the envelope.", errMsg)
+
+	if err.Error() != expectMsg {
+		t.Errorf("Expected %v but got %v", expectMsg, err.Error())
+	}
+}

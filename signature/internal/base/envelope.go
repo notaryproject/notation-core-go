@@ -212,7 +212,7 @@ func validateCertificateChain(certChain []*x509.Certificate, signTime time.Time,
 	}
 	if signingAlg != expectedAlg {
 		return &signature.MalformedSignatureError{
-			Msg: "mismatch between signature algorithm derived from signing certificate and signing algorithm specified",
+			Msg: fmt.Sprintf("mismatch between signature algorithm derived from signing certificate (%v) and signing algorithm specified (%vs)", signingAlg, expectedAlg),
 		}
 	}
 
