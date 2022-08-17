@@ -34,7 +34,8 @@ func newSignRequest(signingScheme string) (*signature.SignRequest, error) {
 		Expiry:      time.Now().AddDate(0, 0, 1),
 		ExtendedSignedAttributes: []signature.Attribute{
 			{Key: "signedCritKey1", Value: "signedCritValue1", Critical: true},
-			{Key: "signedKey1", Value: "signedValue1", Critical: false}},
+			{Key: "signedKey1", Value: "signedValue1", Critical: false},
+		},
 		SigningAgent:  "NotationUnitTest/1.0.0",
 		SigningScheme: signature.SigningScheme(signingScheme),
 	}, nil
