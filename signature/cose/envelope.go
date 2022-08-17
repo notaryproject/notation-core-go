@@ -382,7 +382,7 @@ func generateUnprotectedHeaders(req *signature.SignRequest, unprotected cose.Unp
 	if err != nil {
 		return err
 	}
-	certChain := make([][]byte, len(certs))
+	certChain := make([]interface{}, len(certs))
 	for i, c := range certs {
 		certChain[i] = c.Raw
 	}

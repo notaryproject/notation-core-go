@@ -63,7 +63,6 @@ func TestNewEnvelope(t *testing.T) {
 	if !reflect.DeepEqual(wanted.Raw, b.Raw) {
 		t.Fatalf("NewEnvelope() failed. Wants: %v, Got: %v", wanted.Raw, b.Raw)
 	}
-
 }
 
 func TestParseEnvelopeError(t *testing.T) {
@@ -229,7 +228,7 @@ func TestSignErrors(t *testing.T) {
 	})
 }
 
-func TestSignAndVerify(t *testing.T) {
+func TestVerify(t *testing.T) {
 	for _, signingScheme := range signingSchemeString {
 		signRequest, err := newSignRequest(signingScheme)
 		if err != nil {
