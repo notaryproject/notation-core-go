@@ -89,7 +89,6 @@ func Test_envelope_Verify_failed(t *testing.T) {
 	if err != nil {
 		t.Fatal(t)
 	}
-
 	// manipulate envelope
 	encoded[len(encoded)-10] = 'C'
 

@@ -14,8 +14,8 @@ type remoteSigningMethod struct {
 	signer signature.Signer
 }
 
-func newRemoteSigningMethod(signer signature.Signer) (jwt.SigningMethod, error) {
-	return &remoteSigningMethod{signer: signer}, nil
+func newRemoteSigningMethod(signer signature.Signer) jwt.SigningMethod {
+	return &remoteSigningMethod{signer: signer}
 }
 
 // Verify doesn't need to be implemented.
@@ -71,7 +71,7 @@ func verifyJWT(tokenString string, cert *x509.Certificate) error {
 	signingMethod := jwt.GetSigningMethod(jwsAlg)
 
 	parser := jwt.NewParser(
-		jwt.WithValidMethods([]string{"PS256", "PS384", "PS512", "ES256", "ES384", "ES512"}),
+		jwt.WithValidMethods(validMethods),
 		jwt.WithJSONNumber(),
 		jwt.WithoutClaimsValidation(),
 	)

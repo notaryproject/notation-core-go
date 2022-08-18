@@ -3,6 +3,7 @@ package jws
 import (
 	"time"
 
+	"github.com/golang-jwt/jwt/v4"
 	"github.com/notaryproject/notation-core-go/signature"
 )
 
@@ -80,13 +81,24 @@ type jwsEnvelope struct {
 	Signature string `json:"signature"`
 }
 
+var (
+	ps256 = jwt.SigningMethodPS256.Name
+	ps384 = jwt.SigningMethodPS384.Name
+	ps512 = jwt.SigningMethodPS512.Name
+	es256 = jwt.SigningMethodES256.Name
+	es384 = jwt.SigningMethodES384.Name
+	es512 = jwt.SigningMethodES512.Name
+)
+
+var validMethods = []string{ps256, ps384, ps512, es256, es384, es512}
+
 var signatureAlgJWSAlgMap = map[signature.Algorithm]string{
-	signature.AlgorithmPS256: "PS256",
-	signature.AlgorithmPS384: "PS384",
-	signature.AlgorithmPS512: "PS512",
-	signature.AlgorithmES256: "ES256",
-	signature.AlgorithmES384: "ES384",
-	signature.AlgorithmES512: "ES512",
+	signature.AlgorithmPS256: ps256,
+	signature.AlgorithmPS384: ps384,
+	signature.AlgorithmPS512: ps512,
+	signature.AlgorithmES256: es256,
+	signature.AlgorithmES384: es384,
+	signature.AlgorithmES512: es512,
 }
 
 var jwsAlgSignatureAlgMap = reverseMap(signatureAlgJWSAlgMap)
