@@ -176,10 +176,12 @@ func generateJWS(compact string, req *signature.SignRequest, certs []*x509.Certi
 	}, nil
 }
 
-func getSignedAttrs(req *signature.SignRequest, sigAlg signature.Algorithm) (map[string]interface{}, error) {
+// getSignerAttrs merge extended signed attributes and protected header to be signed attributes
+func getSignedAttrs(req *signature.SignRequest) (map[string]interface{}, error) {
 	extAttrs := make(map[string]interface{})
 	crit := []string{headerKeySigningScheme}
 
+	// write extended signed attributes to the extAttrs map
 	for _, elm := range req.ExtendedSignedAttributes {
 		extAttrs[elm.Key] = elm.Value
 		if elm.Critical {
@@ -187,13 +189,14 @@ func getSignedAttrs(req *signature.SignRequest, sigAlg signature.Algorithm) (map
 		}
 	}
 
-	alg, err := convertAlgorithm(sigAlg)
+	// extract JWT algorithm name from signer
+	jwtAlgorithm, err := extractJwtAlgorithm(req.Signer)
 	if err != nil {
 		return nil, err
 	}
 
 	jwsProtectedHeader := jwsProtectedHeader{
-		Algorithm:     alg,
+		Algorithm:     jwtAlgorithm,
 		ContentType:   req.Payload.ContentType,
 		SigningScheme: req.SigningScheme,
 	}
