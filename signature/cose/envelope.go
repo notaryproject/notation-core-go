@@ -209,6 +209,11 @@ func (e *envelope) Verify() (*signature.Payload, *signature.SignerInfo, error) {
 // Payload implements signature.Envelope interface
 // Given a COSE envelope, extracts its signature.Payload
 func (e *envelope) Payload() (*signature.Payload, error) {
+	// sanity check
+	if e.base == nil {
+		return nil, &signature.MalformedSignatureError{Msg: "missing COSE signature envelope"}
+	}
+
 	cty, ok := e.base.Headers.Protected[cose.HeaderLabelContentType]
 	if !ok {
 		return nil, &signature.MalformedSignatureError{Msg: "missing content type"}
@@ -226,6 +231,10 @@ func (e *envelope) Payload() (*signature.Payload, error) {
 // SignerInfo implements signature.Envelope interface
 // Given a COSE envelope, extracts its signature.SignerInfo
 func (e *envelope) SignerInfo() (*signature.SignerInfo, error) {
+	// sanity check
+	if e.base == nil {
+		return nil, &signature.MalformedSignatureError{Msg: "missing COSE signature envelope"}
+	}
 	var signerInfo signature.SignerInfo
 
 	// parse signature of COSE envelope, populate signerInfo.Signature
@@ -458,7 +467,7 @@ func validateCritHeaders(protected cose.ProtectedHeader) ([]string, error) {
 	mustMarkedCrit[headerLabelSigningScheme] = struct{}{}
 	signingScheme, ok := protected[headerLabelSigningScheme].(string)
 	if !ok {
-		return nil, &signature.MalformedSignatureError{Msg: "malformed signing scheme"}
+		return nil, &signature.MalformedSignatureError{Msg: "malformed signingScheme"}
 	}
 	if signature.SigningScheme(signingScheme) == signature.SigningSchemeX509SigningAuthority {
 		mustMarkedCrit[headerLabelAuthenticSigningTime] = struct{}{}
