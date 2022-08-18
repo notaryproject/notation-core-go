@@ -83,7 +83,7 @@ func init() {
 	time08_03, _ = time.Parse(timeLayout, "2020-08-03")
 }
 
-// Mock an internal envelope
+// Mock an internal envelope that implements signature.Envelope.
 type mockEnvelope struct {
 	payload            *signature.Payload
 	verifiedPayload    *signature.Payload
@@ -92,6 +92,7 @@ type mockEnvelope struct {
 	failVerify         bool
 }
 
+// Sign implements Sign of signature.Envelope.
 func (e mockEnvelope) Sign(req *signature.SignRequest) ([]byte, error) {
 	switch req.SigningAgent {
 	case invalidSigningAgent:
@@ -102,6 +103,7 @@ func (e mockEnvelope) Sign(req *signature.SignRequest) ([]byte, error) {
 	return nil, nil
 }
 
+// Verify implements Verify of signature.Envelope.
 func (e mockEnvelope) Verify() (*signature.Payload, *signature.SignerInfo, error) {
 	if e.failVerify {
 		return nil, nil, errors.New(errMsg)
@@ -109,6 +111,7 @@ func (e mockEnvelope) Verify() (*signature.Payload, *signature.SignerInfo, error
 	return e.verifiedPayload, e.verifiedSignerInfo, nil
 }
 
+// Payload implements Payload of signature.Envelope.
 func (e mockEnvelope) Payload() (*signature.Payload, error) {
 	if e.payload == nil {
 		return nil, errors.New(errMsg)
@@ -116,6 +119,7 @@ func (e mockEnvelope) Payload() (*signature.Payload, error) {
 	return e.payload, nil
 }
 
+// SignerInfo implements SignerInfo of signature.Envelope.
 func (e mockEnvelope) SignerInfo() (*signature.SignerInfo, error) {
 	if e.signerInfo == nil {
 		return nil, errors.New(errMsg)
@@ -123,12 +127,13 @@ func (e mockEnvelope) SignerInfo() (*signature.SignerInfo, error) {
 	return e.signerInfo, nil
 }
 
-// Mock a signer within the internal envelope
+// Mock a signer implements signature.Signer.
 type mockSigner struct {
 	certs   []*x509.Certificate
 	keySpec signature.KeySpec
 }
 
+// CertificateChain implements CertificateChain of signature.Signer.
 func (s *mockSigner) CertificateChain() ([]*x509.Certificate, error) {
 	if len(s.certs) == 0 {
 		return nil, errors.New(errMsg)
@@ -136,10 +141,12 @@ func (s *mockSigner) CertificateChain() ([]*x509.Certificate, error) {
 	return s.certs, nil
 }
 
+// Sign implements Sign of signature.Signer.
 func (s *mockSigner) Sign(digest []byte) ([]byte, error) {
 	return nil, nil
 }
 
+// KeySpec implements KeySpec of signature.Signer.
 func (s *mockSigner) KeySpec() (signature.KeySpec, error) {
 	var emptyKeySpec signature.KeySpec
 	if s.keySpec == emptyKeySpec {

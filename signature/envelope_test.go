@@ -5,21 +5,26 @@ import (
 	"testing"
 )
 
+// mock an envelope that implements signature.Envelope.
 type testEnvelope struct {
 }
 
+// Sign implements Sign of signature.Envelope.
 func (e testEnvelope) Sign(req *SignRequest) ([]byte, error) {
 	return nil, nil
 }
 
+// Verify implements Verify of signature.Envelope.
 func (e testEnvelope) Verify() (*Payload, *SignerInfo, error) {
 	return nil, nil, nil
 }
 
+// Payload implements Payload of signature.Envelope.
 func (e testEnvelope) Payload() (*Payload, error) {
 	return nil, nil
 }
 
+// SignerInfo implements SignerInfo of signature.Envelope.
 func (e testEnvelope) SignerInfo() (*SignerInfo, error) {
 	return nil, nil
 }
