@@ -36,7 +36,7 @@ func ParseEnvelope(envelopeBytes []byte) (signature.Envelope, error) {
 	var e jwsEnvelope
 	err := json.Unmarshal(envelopeBytes, &e)
 	if err != nil {
-		return nil, err
+		return nil, &signature.MalformedSignatureError{Msg: err.Error()}
 	}
 	return &base.Envelope{
 		Envelope: &envelope{internalEnvelope: &e},
@@ -46,13 +46,8 @@ func ParseEnvelope(envelopeBytes []byte) (signature.Envelope, error) {
 
 // Sign signs the envelope and return the encoded message
 func (e *envelope) Sign(req *signature.SignRequest) ([]byte, error) {
-	ks, err := req.Signer.KeySpec()
-	if err != nil {
-		return nil, &signature.MalformedSignRequestError{Msg: err.Error()}
-	}
-	alg := ks.SignatureAlgorithm()
-
-	signedAttrs, err := getSignedAttrs(req, alg)
+	// get all attributes ready to be signed
+	signedAttrs, err := getSignedAttrs(req)
 	if err != nil {
 		return nil, err
 	}
@@ -70,12 +65,17 @@ func (e *envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 	}
 
 	// generate envelope
-	e.internalEnvelope, err = generateJWS(compact, req, certs)
+	env, err := generateJWS(compact, req, certs)
 	if err != nil {
 		return nil, err
 	}
 
-	return json.Marshal(e.internalEnvelope)
+	encoded, err := json.Marshal(env)
+	if err != nil {
+		return nil, &signature.MalformedSignatureError{Msg: err.Error()}
+	}
+	e.internalEnvelope = env
+	return encoded, nil
 }
 
 // compactJWS converts Flattened JWS JSON Serialization Syntax (section-7.2.2) to
@@ -129,12 +129,29 @@ func (e *envelope) Payload() (*signature.Payload, error) {
 	if e.internalEnvelope == nil {
 		return nil, &signature.MalformedSignatureError{Msg: "missing jws signature envelope"}
 	}
+	// parse protected header to get payload context type
 	protected, err := parseProtectedHeaders(e.internalEnvelope.Protected)
 	if err != nil {
 		return nil, err
 	}
+
+	// convert JWS to JWT
+	tokenString := compactJWS(e.internalEnvelope)
+
+	// parse JWT to get payload context
+	parser := jwt.NewParser(
+		jwt.WithValidMethods(validMethods),
+		jwt.WithJSONNumber(),
+		jwt.WithoutClaimsValidation(),
+	)
+	var claims jwtPayload
+	_, _, err = parser.ParseUnverified(tokenString, &claims)
+	if err != nil {
+		return nil, err
+	}
+
 	return &signature.Payload{
-		Content:     []byte(e.internalEnvelope.Payload),
+		Content:     claims,
 		ContentType: protected.ContentType,
 	}, nil
 }
@@ -197,11 +214,7 @@ func sign(payload jwtPayload, headers map[string]interface{}, signer signature.S
 		privateKey = localSigner.PrivateKey()
 	} else {
 		// remote signer
-		var err error
-		signingMethod, err = newRemoteSigningMethod(signer)
-		if err != nil {
-			return "", err
-		}
+		signingMethod = newRemoteSigningMethod(signer)
 	}
 	// generate token
 	token := jwt.NewWithClaims(signingMethod, payload)
