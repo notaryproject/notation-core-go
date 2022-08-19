@@ -8,11 +8,12 @@ import (
 	"fmt"
 )
 
-// Algorithm lists supported algorithms.
+// Algorithm defines the signature algorithm.
 type Algorithm int
 
-// One of following supported specs
-// https://github.com/notaryproject/notaryproject/blob/main/signature-specification.md#algorithm-selection
+// Signature algorithms supported by this library.
+//
+// Reference: https://github.com/notaryproject/notaryproject/blob/main/signature-specification.md#algorithm-selection
 const (
 	AlgorithmPS256 Algorithm = 1 + iota // RSASSA-PSS with SHA-256
 	AlgorithmPS384                      // RSASSA-PSS with SHA-384
@@ -22,20 +23,7 @@ const (
 	AlgorithmES512                      // ECDSA on secp521r1 with SHA-512
 )
 
-// Hash returns the corresponding crypto hash algorithm.
-func (alg Algorithm) Hash() crypto.Hash {
-	switch alg {
-	case AlgorithmPS256, AlgorithmES256:
-		return crypto.SHA256
-	case AlgorithmPS384, AlgorithmES384:
-		return crypto.SHA384
-	case AlgorithmPS512, AlgorithmES512:
-		return crypto.SHA512
-	}
-	return 0
-}
-
-// KeyType defines the key type
+// KeyType defines the key type.
 type KeyType int
 
 const (
@@ -49,7 +37,20 @@ type KeySpec struct {
 	Size int
 }
 
-// ExtractKeySpec extracts keySpec from the signing certificate
+// Hash returns the hash function of the algorithm.
+func (alg Algorithm) Hash() crypto.Hash {
+	switch alg {
+	case AlgorithmPS256, AlgorithmES256:
+		return crypto.SHA256
+	case AlgorithmPS384, AlgorithmES384:
+		return crypto.SHA384
+	case AlgorithmPS512, AlgorithmES512:
+		return crypto.SHA512
+	}
+	return 0
+}
+
+// ExtractKeySpec extracts KeySpec from the signing certificate.
 func ExtractKeySpec(signingCert *x509.Certificate) (KeySpec, error) {
 	switch key := signingCert.PublicKey.(type) {
 	case *rsa.PublicKey:
@@ -80,7 +81,7 @@ func ExtractKeySpec(signingCert *x509.Certificate) (KeySpec, error) {
 	return KeySpec{}, fmt.Errorf("invalid public key type")
 }
 
-// SignatureAlgorithm returns the signing algorithm associated with KeyType k.
+// SignatureAlgorithm returns the signing algorithm associated with the KeySpec.
 func (k KeySpec) SignatureAlgorithm() Algorithm {
 	switch k.Type {
 	case KeyTypeEC:
