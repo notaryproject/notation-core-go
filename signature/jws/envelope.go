@@ -193,7 +193,7 @@ func (e *envelope) SignerInfo() (*signature.SignerInfo, error) {
 	}
 	signInfo.CertificateChain = certs
 	signInfo.UnsignedAttributes.SigningAgent = e.internalEnvelope.Header.SigningAgent
-	signInfo.TimestampSignature = e.internalEnvelope.Header.TimestampSignature
+	signInfo.UnsignedAttributes.TimestampSignature = e.internalEnvelope.Header.TimestampSignature
 
 	return &signInfo, nil
 }

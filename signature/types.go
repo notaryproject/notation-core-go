@@ -25,6 +25,9 @@ const (
 // SignedAttributes represents signed metadata in the signature envelope.
 // Reference: https://github.com/notaryproject/notaryproject/blob/main/signature-specification.md#signed-attributes
 type SignedAttributes struct {
+	// SigningScheme defines the Notary v2 Signing Scheme used by the signature.
+	SigningScheme SigningScheme
+
 	// SigningTime indicates the time at which the signature was generated.
 	SigningTime time.Time
 
@@ -38,6 +41,9 @@ type SignedAttributes struct {
 // UnsignedAttributes represents unsigned metadata in the Signature envelope.
 // Reference: https://github.com/notaryproject/notaryproject/blob/main/signature-specification.md#unsigned-attributes
 type UnsignedAttributes struct {
+	// TimestampSignature is a counter signature providing authentic timestamp.
+	TimestampSignature []byte
+
 	// SigningAgent provides the identifier of the software (e.g. Notation) that
 	// produces the signature on behalf of the user.
 	SigningAgent string
@@ -75,20 +81,20 @@ type SignRequest struct {
 
 	// SigningAgent provides the identifier of the software (e.g. Notation)
 	// that produced the signature on behalf of the user.
-	SigningAgent             string
+	SigningAgent string
 
 	// SigningScheme defines the Notary v2 Signing Scheme used by the signature.
-	SigningScheme            SigningScheme
+	SigningScheme SigningScheme
 }
 
 // SignerInfo represents a parsed signature envelope that is agnostic to
 // signature envelope format.
 type SignerInfo struct {
-	// SignedAttributes are additional metadata required to support the 
+	// SignedAttributes are additional metadata required to support the
 	// signature verification process.
-	SignedAttributes   SignedAttributes
+	SignedAttributes SignedAttributes
 
-	// UnsignedAttributes are considered unsigned with respect to the signing 
+	// UnsignedAttributes are considered unsigned with respect to the signing
 	// key that generates the signature.
 	UnsignedAttributes UnsignedAttributes
 
@@ -98,17 +104,11 @@ type SignerInfo struct {
 	// CertificateChain is an ordered list of X.509 public certificates
 	// associated with the signing key used to generate the signature.
 	// The ordered list starts with the signing certificates, any intermediate
-	// certificates and ends with the root certificate. 
-	CertificateChain   []*x509.Certificate
+	// certificates and ends with the root certificate.
+	CertificateChain []*x509.Certificate
 
 	// Signature is the bytes generated from the signature.
-	Signature          []byte
-
-	// TimestampSignature is a counter signature providing authentic timestamp.
-	TimestampSignature []byte
-
-	// SigningScheme defines the Notary v2 Signing Scheme used by the signature.
-	SigningScheme      SigningScheme
+	Signature []byte
 }
 
 // Payload represents payload in bytes and its content type.
