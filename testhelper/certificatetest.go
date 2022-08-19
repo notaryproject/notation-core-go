@@ -11,6 +11,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"math/big"
+	"strconv"
 	"time"
 )
 
@@ -207,4 +208,29 @@ func getCertTemplate(isRoot bool, cn string) *x509.Certificate {
 	}
 
 	return template
+}
+
+func GetRSACertTuple(size int) RSACertTuple {
+	rsaRoot := GetRSARootCertificate()
+	priv, _ := rsa.GenerateKey(rand.Reader, size)
+
+	certTuple := GetRSACertTupleWithPK(
+		priv,
+		"Test RSA_"+strconv.Itoa(priv.Size()),
+		&rsaRoot,
+	)
+	return certTuple
+}
+
+func GetECCertTuple(curve elliptic.Curve) ECCertTuple {
+	ecdsaRoot := GetECRootCertificate()
+	priv, _ := ecdsa.GenerateKey(curve, rand.Reader)
+	bitSize := priv.Params().BitSize
+
+	certTuple := GetECDSACertTupleWithPK(
+		priv,
+		"Test EC_"+strconv.Itoa(bitSize),
+		&ecdsaRoot,
+	)
+	return certTuple
 }

@@ -2,13 +2,9 @@ package cose
 
 import (
 	"crypto"
-	"crypto/ecdsa"
 	"crypto/elliptic"
-	"crypto/rand"
-	"crypto/rsa"
 	"crypto/x509"
 	"fmt"
-	"strconv"
 	"testing"
 	"time"
 
@@ -55,8 +51,8 @@ func TestSign(t *testing.T) {
 					if err != nil {
 						t.Fatalf("newSignRequest() failed. Error = %s", err)
 					}
-					_, err = env.Sign(signRequest)
-					if err != nil {
+					encoded, err := env.Sign(signRequest)
+					if err != nil || len(encoded) == 0 {
 						t.Fatalf("Sign() failed. Error = %s", err)
 					}
 				})
@@ -75,8 +71,8 @@ func TestSign(t *testing.T) {
 						SigningTime:   time.Now(),
 						SigningScheme: signature.SigningScheme(signingScheme),
 					}
-					_, err = env.Sign(signRequest)
-					if err != nil {
+					encoded, err := env.Sign(signRequest)
+					if err != nil || len(encoded) == 0 {
 						t.Fatalf("Sign() failed. Error = %s", err)
 					}
 				})
@@ -87,8 +83,8 @@ func TestSign(t *testing.T) {
 						t.Fatalf("newSignRequest() failed. Error = %s", err)
 					}
 					signRequest.Expiry = time.Time{}
-					_, err = env.Sign(signRequest)
-					if err != nil {
+					encoded, err := env.Sign(signRequest)
+					if err != nil || len(encoded) == 0 {
 						t.Fatalf("Sign() failed. Error = %s", err)
 					}
 				})
@@ -99,8 +95,8 @@ func TestSign(t *testing.T) {
 						t.Fatalf("newSignRequest() failed. Error = %s", err)
 					}
 					signRequest.SigningAgent = ""
-					_, err = env.Sign(signRequest)
-					if err != nil {
+					encoded, err := env.Sign(signRequest)
+					if err != nil || len(encoded) == 0 {
 						t.Fatalf("Sign() failed. Error = %s", err)
 					}
 				})
@@ -111,8 +107,8 @@ func TestSign(t *testing.T) {
 						t.Fatalf("newSignRequest() failed. Error = %s", err)
 					}
 					signRequest.ExtendedSignedAttributes = nil
-					_, err = env.Sign(signRequest)
-					if err != nil {
+					encoded, err := env.Sign(signRequest)
+					if err != nil || len(encoded) == 0 {
 						t.Fatalf("Sign() failed. Error = %s", err)
 					}
 				})
@@ -705,15 +701,15 @@ func getTestSigner(keyType signature.KeyType, size int) (signature.Signer, error
 	case signature.KeyTypeEC:
 		switch size {
 		case 256:
-			leafCertTuple := getECCertTuple(elliptic.P256())
+			leafCertTuple := testhelper.GetECCertTuple(elliptic.P256())
 			certs := []*x509.Certificate{leafCertTuple.Cert, testhelper.GetECRootCertificate().Cert}
 			return signature.NewLocalSigner(certs, leafCertTuple.PrivateKey)
 		case 384:
-			leafCertTuple := getECCertTuple(elliptic.P384())
+			leafCertTuple := testhelper.GetECCertTuple(elliptic.P384())
 			certs := []*x509.Certificate{leafCertTuple.Cert, testhelper.GetECRootCertificate().Cert}
 			return signature.NewLocalSigner(certs, leafCertTuple.PrivateKey)
 		case 521:
-			leafCertTuple := getECCertTuple(elliptic.P521())
+			leafCertTuple := testhelper.GetECCertTuple(elliptic.P521())
 			certs := []*x509.Certificate{leafCertTuple.Cert, testhelper.GetECRootCertificate().Cert}
 			return signature.NewLocalSigner(certs, leafCertTuple.PrivateKey)
 		default:
@@ -722,15 +718,15 @@ func getTestSigner(keyType signature.KeyType, size int) (signature.Signer, error
 	case signature.KeyTypeRSA:
 		switch size {
 		case 2048:
-			leafCertTuple := getRSACertTuple(2048)
+			leafCertTuple := testhelper.GetRSACertTuple(2048)
 			certs := []*x509.Certificate{leafCertTuple.Cert, testhelper.GetRSARootCertificate().Cert}
 			return signature.NewLocalSigner(certs, leafCertTuple.PrivateKey)
 		case 3072:
-			leafCertTuple := getRSACertTuple(3072)
+			leafCertTuple := testhelper.GetRSACertTuple(3072)
 			certs := []*x509.Certificate{leafCertTuple.Cert, testhelper.GetRSARootCertificate().Cert}
 			return signature.NewLocalSigner(certs, leafCertTuple.PrivateKey)
 		case 4096:
-			leafCertTuple := getRSACertTuple(4096)
+			leafCertTuple := testhelper.GetRSACertTuple(4096)
 			certs := []*x509.Certificate{leafCertTuple.Cert, testhelper.GetRSARootCertificate().Cert}
 			return signature.NewLocalSigner(certs, leafCertTuple.PrivateKey)
 		default:
@@ -739,31 +735,6 @@ func getTestSigner(keyType signature.KeyType, size int) (signature.Signer, error
 	default:
 		return nil, fmt.Errorf("keyType not supported")
 	}
-}
-
-func getRSACertTuple(size int) testhelper.RSACertTuple {
-	rsaRoot := testhelper.GetRSARootCertificate()
-	priv, _ := rsa.GenerateKey(rand.Reader, size)
-
-	certTuple := testhelper.GetRSACertTupleWithPK(
-		priv,
-		"Test RSA_"+strconv.Itoa(priv.Size()),
-		&rsaRoot,
-	)
-	return certTuple
-}
-
-func getECCertTuple(curve elliptic.Curve) testhelper.ECCertTuple {
-	ecdsaRoot := testhelper.GetECRootCertificate()
-	priv, _ := ecdsa.GenerateKey(curve, rand.Reader)
-	bitSize := priv.Params().BitSize
-
-	certTuple := testhelper.GetECDSACertTupleWithPK(
-		priv,
-		"Test EC_"+strconv.Itoa(bitSize),
-		&ecdsaRoot,
-	)
-	return certTuple
 }
 
 func getSignRequest() (*signature.SignRequest, error) {
