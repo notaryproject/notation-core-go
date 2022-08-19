@@ -49,7 +49,7 @@ func populateProtectedHeaders(protectedHeader *jwsProtectedHeader, signInfo *sig
 	}
 
 	signInfo.SignedAttributes.ExtendedAttributes = getExtendedAttributes(protectedHeader.ExtendedAttributes, protectedHeader.Critical)
-	signInfo.SigningScheme = protectedHeader.SigningScheme
+	signInfo.SignedAttributes.SigningScheme = protectedHeader.SigningScheme
 	if protectedHeader.Expiry != nil {
 		signInfo.SignedAttributes.Expiry = *protectedHeader.Expiry
 	}

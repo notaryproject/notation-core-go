@@ -12,6 +12,7 @@ const (
 
 // SignedAttributes represents signed metadata in the Signature envelope
 type SignedAttributes struct {
+	SigningScheme      SigningScheme
 	SigningTime        time.Time
 	Expiry             time.Time
 	ExtendedAttributes []Attribute
@@ -19,7 +20,8 @@ type SignedAttributes struct {
 
 // UnsignedAttributes represents unsigned metadata in the Signature envelope
 type UnsignedAttributes struct {
-	SigningAgent string
+	TimestampSignature []byte
+	SigningAgent       string
 }
 
 // Attribute represents metadata in the Signature envelope
@@ -48,8 +50,6 @@ type SignerInfo struct {
 	SignatureAlgorithm Algorithm
 	CertificateChain   []*x509.Certificate
 	Signature          []byte
-	TimestampSignature []byte
-	SigningScheme      SigningScheme
 }
 
 // Payload represents payload in bytes and its content type

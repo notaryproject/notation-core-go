@@ -2,11 +2,13 @@ package cose
 
 import (
 	"crypto"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/rsa"
 	"crypto/x509"
-	"errors"
 	"fmt"
-	"reflect"
-	"sort"
+	"strconv"
 	"testing"
 	"time"
 
@@ -41,72 +43,80 @@ func TestSign(t *testing.T) {
 	env := envelope{}
 	for _, signingScheme := range signingSchemeString {
 		for _, keyType := range keyType {
-			t.Run(fmt.Sprintf("with %s scheme, %v keyType when all arguments are present", signingScheme, keyType), func(t *testing.T) {
-				signRequest, err := newSignRequest(signingScheme, keyType)
-				if err != nil {
-					t.Fatalf("newSignRequest() failed. Error = %s", err)
-				}
-				_, err = env.Sign(signRequest)
-				if err != nil {
-					t.Fatalf("Sign() failed. Error = %s", err)
-				}
-			})
+			var size []int
+			if keyType == signature.KeyTypeRSA {
+				size = []int{2048, 3072, 4096}
+			} else {
+				size = []int{256, 384, 521}
+			}
+			for _, size := range size {
+				t.Run(fmt.Sprintf("with %s scheme, %v keyType, %v keySize when all arguments are present", signingScheme, keyType, size), func(t *testing.T) {
+					signRequest, err := newSignRequest(signingScheme, keyType, size)
+					if err != nil {
+						t.Fatalf("newSignRequest() failed. Error = %s", err)
+					}
+					_, err = env.Sign(signRequest)
+					if err != nil {
+						t.Fatalf("Sign() failed. Error = %s", err)
+					}
+				})
 
-			t.Run(fmt.Sprintf("with %s scheme, %v keyType when minimal arguments are present", signingScheme, keyType), func(t *testing.T) {
-				signer, err := getTestSigner(keyType)
-				if err != nil {
-					t.Fatalf("Sign() failed. Error = %s", err)
-				}
-				signRequest := &signature.SignRequest{
-					Payload: signature.Payload{
-						ContentType: signature.MediaTypePayloadV1,
-						Content:     []byte(payloadString),
-					},
-					Signer:        signer,
-					SigningTime:   time.Now(),
-					SigningScheme: signature.SigningScheme(signingScheme),
-				}
-				_, err = env.Sign(signRequest)
-				if err != nil {
-					t.Fatalf("Sign() failed. Error = %s", err)
-				}
-			})
+				t.Run(fmt.Sprintf("with %s scheme, %v keyType, %v keySize when minimal arguments are present", signingScheme, keyType, size), func(t *testing.T) {
+					signer, err := getTestSigner(keyType, size)
+					if err != nil {
+						t.Fatalf("Sign() failed. Error = %s", err)
+					}
+					signRequest := &signature.SignRequest{
+						Payload: signature.Payload{
+							ContentType: signature.MediaTypePayloadV1,
+							Content:     []byte(payloadString),
+						},
+						Signer:        signer,
+						SigningTime:   time.Now(),
+						SigningScheme: signature.SigningScheme(signingScheme),
+					}
+					_, err = env.Sign(signRequest)
+					if err != nil {
+						t.Fatalf("Sign() failed. Error = %s", err)
+					}
+				})
 
-			t.Run(fmt.Sprintf("with %s scheme, %v keyType when expiry is not present", signingScheme, keyType), func(t *testing.T) {
-				signRequest, err := newSignRequest(signingScheme, keyType)
-				if err != nil {
-					t.Fatalf("newSignRequest() failed. Error = %s", err)
-				}
-				signRequest.Expiry = time.Time{}
-				_, err = env.Sign(signRequest)
-				if err != nil {
-					t.Fatalf("Sign() failed. Error = %s", err)
-				}
-			})
+				t.Run(fmt.Sprintf("with %s scheme, %v keyType, %v keySize when expiry is not present", signingScheme, keyType, size), func(t *testing.T) {
+					signRequest, err := newSignRequest(signingScheme, keyType, size)
+					if err != nil {
+						t.Fatalf("newSignRequest() failed. Error = %s", err)
+					}
+					signRequest.Expiry = time.Time{}
+					_, err = env.Sign(signRequest)
+					if err != nil {
+						t.Fatalf("Sign() failed. Error = %s", err)
+					}
+				})
 
-			t.Run(fmt.Sprintf("with %s scheme, %v keyType when signingAgent is not present", signingScheme, keyType), func(t *testing.T) {
-				signRequest, err := newSignRequest(signingScheme, keyType)
-				if err != nil {
-					t.Fatalf("newSignRequest() failed. Error = %s", err)
-				}
-				signRequest.SigningAgent = ""
-				_, err = env.Sign(signRequest)
-				if err != nil {
-					t.Fatalf("Sign() failed. Error = %s", err)
-				}
-			})
+				t.Run(fmt.Sprintf("with %s scheme, %v keyType, %v keySize when signingAgent is not present", signingScheme, keyType, size), func(t *testing.T) {
+					signRequest, err := newSignRequest(signingScheme, keyType, size)
+					if err != nil {
+						t.Fatalf("newSignRequest() failed. Error = %s", err)
+					}
+					signRequest.SigningAgent = ""
+					_, err = env.Sign(signRequest)
+					if err != nil {
+						t.Fatalf("Sign() failed. Error = %s", err)
+					}
+				})
 
-			t.Run(fmt.Sprintf("with %s scheme, %v keyType when extended signed attributes are not present", signingScheme, keyType), func(t *testing.T) {
-				signRequest, err := newSignRequest(signingScheme, keyType)
-				if err != nil {
-					t.Fatalf("newSignRequest() failed. Error = %s", err)
-				}
-				signRequest.ExtendedSignedAttributes = nil
-				_, err = env.Sign(signRequest)
-				if err != nil {
-					t.Fatalf("Sign() failed. Error = %s", err)
-				}
-			})
+				t.Run(fmt.Sprintf("with %s scheme, %v keyType, %v keySize when extended signed attributes are not present", signingScheme, keyType, size), func(t *testing.T) {
+					signRequest, err := newSignRequest(signingScheme, keyType, size)
+					if err != nil {
+						t.Fatalf("newSignRequest() failed. Error = %s", err)
+					}
+					signRequest.ExtendedSignedAttributes = nil
+					_, err = env.Sign(signRequest)
+					if err != nil {
+						t.Fatalf("Sign() failed. Error = %s", err)
+					}
+				})
+			}
 		}
 	}
 }
@@ -114,7 +124,7 @@ func TestSign(t *testing.T) {
 func TestSignErrors(t *testing.T) {
 	env := envelope{}
 	// Testing getSigner()
-	t.Run("when getSigner has privateKeyError", func(t *testing.T) {
+	t.Run("errorLocalSigner: when getSigner has privateKeyError", func(t *testing.T) {
 		signRequest, err := getSignRequest()
 		if err != nil {
 			t.Fatalf("getSignRequest() failed. Error = %v", err)
@@ -126,7 +136,7 @@ func TestSignErrors(t *testing.T) {
 		}
 	})
 
-	t.Run("when getSigner has keySpecError", func(t *testing.T) {
+	t.Run("errorLocalSigner: when getSigner has keySpecError", func(t *testing.T) {
 		signRequest, err := getSignRequest()
 		if err != nil {
 			t.Fatalf("getSignRequest() failed. Error = %v", err)
@@ -138,12 +148,60 @@ func TestSignErrors(t *testing.T) {
 		}
 	})
 
-	t.Run("when getSigner has algError", func(t *testing.T) {
+	t.Run("errorLocalSigner: when getSigner has algError", func(t *testing.T) {
 		signRequest, err := getSignRequest()
 		if err != nil {
 			t.Fatalf("getSignRequest() failed. Error = %v", err)
 		}
 		signRequest.Signer = &errorLocalSigner{algError: true}
+		_, err = env.Sign(signRequest)
+		if err == nil {
+			t.Fatalf("Sign() expects error, but got nil.")
+		}
+	})
+
+	t.Run("errorRemoteSigner: when getSigner has keySpecError", func(t *testing.T) {
+		signRequest, err := getSignRequest()
+		if err != nil {
+			t.Fatalf("getSignRequest() failed. Error = %v", err)
+		}
+		signRequest.Signer = &errorRemoteSigner{keySpecError: true}
+		_, err = env.Sign(signRequest)
+		if err == nil {
+			t.Fatalf("Sign() expects error, but got nil.")
+		}
+	})
+
+	t.Run("errorRemoteSigner: when getSigner has algError", func(t *testing.T) {
+		signRequest, err := getSignRequest()
+		if err != nil {
+			t.Fatalf("getSignRequest() failed. Error = %v", err)
+		}
+		signRequest.Signer = &errorRemoteSigner{algError: true}
+		_, err = env.Sign(signRequest)
+		if err == nil {
+			t.Fatalf("Sign() expects error, but got nil.")
+		}
+	})
+
+	t.Run("errorRemoteSigner: when getSigner has algError and wantEC", func(t *testing.T) {
+		signRequest, err := getSignRequest()
+		if err != nil {
+			t.Fatalf("getSignRequest() failed. Error = %v", err)
+		}
+		signRequest.Signer = &errorRemoteSigner{algError: true, wantEC: true}
+		_, err = env.Sign(signRequest)
+		if err == nil {
+			t.Fatalf("Sign() expects error, but got nil.")
+		}
+	})
+
+	t.Run("errorRemoteSigner: when getSigner has keyTypeError", func(t *testing.T) {
+		signRequest, err := getSignRequest()
+		if err != nil {
+			t.Fatalf("getSignRequest() failed. Error = %v", err)
+		}
+		signRequest.Signer = &errorRemoteSigner{keyTypeError: true}
 		_, err = env.Sign(signRequest)
 		if err == nil {
 			t.Fatalf("Sign() expects error, but got nil.")
@@ -178,12 +236,24 @@ func TestSignErrors(t *testing.T) {
 	})
 
 	// Testing generateUnprotectedHeaders
-	t.Run("when signer has certificateChainError", func(t *testing.T) {
+	t.Run("errorLocalSigner: when signer has certificateChainError", func(t *testing.T) {
 		signRequest, err := getSignRequest()
 		if err != nil {
 			t.Fatalf("getSignRequest() failed. Error = %v", err)
 		}
 		signRequest.Signer = &errorLocalSigner{certificateChainError: true}
+		_, err = env.Sign(signRequest)
+		if err == nil {
+			t.Fatalf("Sign() expects error, but got nil.")
+		}
+	})
+
+	t.Run("errorRemoteSigner: when signer has certificateChainError", func(t *testing.T) {
+		signRequest, err := getSignRequest()
+		if err != nil {
+			t.Fatalf("getSignRequest() failed. Error = %v", err)
+		}
+		signRequest.Signer = &errorRemoteSigner{certificateChainError: true}
 		_, err = env.Sign(signRequest)
 		if err == nil {
 			t.Fatalf("Sign() expects error, but got nil.")
@@ -196,7 +266,7 @@ func TestSignErrors(t *testing.T) {
 		if err != nil {
 			t.Fatalf("getSignRequest() failed. Error = %v", err)
 		}
-		signRequest.Payload.Content = nil
+		signRequest.Signer = &errorRemoteSigner{}
 		_, err = env.Sign(signRequest)
 		if err == nil {
 			t.Fatalf("Sign() expects error, but got nil.")
@@ -216,7 +286,7 @@ func TestVerifyErrors(t *testing.T) {
 	})
 
 	t.Run("when COSE envelope has malformed certificate chain", func(t *testing.T) {
-		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA)
+		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
 		if err != nil {
 			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
 		}
@@ -228,7 +298,7 @@ func TestVerifyErrors(t *testing.T) {
 	})
 
 	t.Run("when COSE envelope leaf certificate has wrong type", func(t *testing.T) {
-		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA)
+		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
 		if err != nil {
 			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
 		}
@@ -240,7 +310,7 @@ func TestVerifyErrors(t *testing.T) {
 	})
 
 	t.Run("when COSE envelope has malformed leaf certificate", func(t *testing.T) {
-		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA)
+		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
 		if err != nil {
 			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
 		}
@@ -263,7 +333,7 @@ func TestVerifyErrors(t *testing.T) {
 	})
 
 	t.Run("when getSignatureAlgorithm fails due to invalid public key type", func(t *testing.T) {
-		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA)
+		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
 		if err != nil {
 			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
 		}
@@ -302,7 +372,7 @@ func TestVerifyErrors(t *testing.T) {
 	})
 
 	t.Run("when get payload fails", func(t *testing.T) {
-		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA)
+		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
 		if err != nil {
 			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
 		}
@@ -314,11 +384,11 @@ func TestVerifyErrors(t *testing.T) {
 	})
 
 	t.Run("when get signerInfo fails", func(t *testing.T) {
-		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA)
+		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
 		if err != nil {
 			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
 		}
-		env.base.Signature = []byte{}
+		env.base.Headers.Protected[cose.HeaderLabelCritical] = []interface{}{}
 		_, _, err = env.Verify()
 		if err == nil {
 			t.Fatalf("Verify() expects error, but got nil.")
@@ -328,7 +398,7 @@ func TestVerifyErrors(t *testing.T) {
 
 func TestPayloadErrors(t *testing.T) {
 	t.Run("when env.base is nil", func(t *testing.T) {
-		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA)
+		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
 		if err != nil {
 			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
 		}
@@ -340,7 +410,7 @@ func TestPayloadErrors(t *testing.T) {
 	})
 
 	t.Run("when missing content type", func(t *testing.T) {
-		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA)
+		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
 		if err != nil {
 			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
 		}
@@ -352,7 +422,7 @@ func TestPayloadErrors(t *testing.T) {
 	})
 
 	t.Run("when content type has wrong type", func(t *testing.T) {
-		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA)
+		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
 		if err != nil {
 			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
 		}
@@ -366,7 +436,7 @@ func TestPayloadErrors(t *testing.T) {
 
 func TestSignerInfoErrors(t *testing.T) {
 	t.Run("when env.base is nil", func(t *testing.T) {
-		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA)
+		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
 		if err != nil {
 			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
 		}
@@ -378,7 +448,7 @@ func TestSignerInfoErrors(t *testing.T) {
 	})
 
 	t.Run("when COSE envelope missing signature", func(t *testing.T) {
-		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA)
+		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
 		if err != nil {
 			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
 		}
@@ -391,7 +461,7 @@ func TestSignerInfoErrors(t *testing.T) {
 
 	// Testing parseProtectedHeaders
 	t.Run("when COSE envelope protected header has empty crit", func(t *testing.T) {
-		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA)
+		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
 		if err != nil {
 			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
 		}
@@ -403,7 +473,7 @@ func TestSignerInfoErrors(t *testing.T) {
 	})
 
 	t.Run("when COSE envelope protected header signingScheme has wrong type", func(t *testing.T) {
-		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA)
+		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
 		if err != nil {
 			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
 		}
@@ -415,7 +485,7 @@ func TestSignerInfoErrors(t *testing.T) {
 	})
 
 	t.Run("when COSE envelope has required headers that are not marked as critical", func(t *testing.T) {
-		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA)
+		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
 		if err != nil {
 			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
 		}
@@ -426,8 +496,20 @@ func TestSignerInfoErrors(t *testing.T) {
 		}
 	})
 
+	t.Run("when COSE envelope has customized protected header key that is not of string type", func(t *testing.T) {
+		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
+		if err != nil {
+			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
+		}
+		env.base.Headers.Protected[0] = "unsupported"
+		_, err = env.SignerInfo()
+		if err == nil {
+			t.Fatalf("SignerInfo() expects error, but got nil.")
+		}
+	})
+
 	t.Run("when COSE envelope protected header missing algorithm", func(t *testing.T) {
-		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA)
+		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
 		if err != nil {
 			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
 		}
@@ -439,7 +521,7 @@ func TestSignerInfoErrors(t *testing.T) {
 	})
 
 	t.Run("when COSE envelope protected header has unsupported algorithm", func(t *testing.T) {
-		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA)
+		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
 		if err != nil {
 			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
 		}
@@ -451,7 +533,7 @@ func TestSignerInfoErrors(t *testing.T) {
 	})
 
 	t.Run("when COSE envelope protected header has unsupported signingScheme", func(t *testing.T) {
-		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA)
+		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
 		if err != nil {
 			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
 		}
@@ -463,7 +545,7 @@ func TestSignerInfoErrors(t *testing.T) {
 	})
 
 	t.Run("when COSE envelope protected header has malformed signingTime", func(t *testing.T) {
-		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA)
+		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
 		if err != nil {
 			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
 		}
@@ -475,7 +557,7 @@ func TestSignerInfoErrors(t *testing.T) {
 	})
 
 	t.Run("when COSE envelope protected header has malformed expiry", func(t *testing.T) {
-		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA)
+		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
 		if err != nil {
 			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
 		}
@@ -488,7 +570,7 @@ func TestSignerInfoErrors(t *testing.T) {
 
 	// Testing unprotected headers
 	t.Run("when COSE envelope has malformed certificate chain", func(t *testing.T) {
-		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA)
+		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
 		if err != nil {
 			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
 		}
@@ -500,7 +582,7 @@ func TestSignerInfoErrors(t *testing.T) {
 	})
 
 	t.Run("when COSE envelope leaf certificate has wrong type", func(t *testing.T) {
-		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA)
+		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
 		if err != nil {
 			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
 		}
@@ -512,7 +594,7 @@ func TestSignerInfoErrors(t *testing.T) {
 	})
 
 	t.Run("when COSE envelope has malformed leaf certificate", func(t *testing.T) {
-		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA)
+		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
 		if err != nil {
 			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
 		}
@@ -540,25 +622,31 @@ func TestSignAndVerify(t *testing.T) {
 	env := envelope{}
 	for _, signingScheme := range signingSchemeString {
 		for _, keyType := range keyType {
-			t.Run(fmt.Sprintf("with %s scheme, %v keyType", signingScheme, keyType), func(t *testing.T) {
-				// Sign
-				signRequest, err := newSignRequest(signingScheme, keyType)
-				if err != nil {
-					t.Fatalf("newSignRequest() failed. Error = %s", err)
-				}
-				encoded, err := env.Sign(signRequest)
-				if err != nil || len(encoded) == 0 {
-					t.Fatalf("Sign() faild. Error = %s", err)
-				}
+			var size []int
+			if keyType == signature.KeyTypeRSA {
+				size = []int{2048, 3072, 4096}
+			} else {
+				size = []int{256, 384, 521}
+			}
+			for _, size := range size {
+				t.Run(fmt.Sprintf("with %s scheme, %v keyType, %v keySize", signingScheme, keyType, size), func(t *testing.T) {
+					// Sign
+					signRequest, err := newSignRequest(signingScheme, keyType, size)
+					if err != nil {
+						t.Fatalf("newSignRequest() failed. Error = %s", err)
+					}
+					encoded, err := env.Sign(signRequest)
+					if err != nil || len(encoded) == 0 {
+						t.Fatalf("Sign() faild. Error = %s", err)
+					}
 
-				// Verify using the same envelope struct
-				payload, signerInfo, err := env.Verify()
-				if err != nil {
-					t.Fatalf("Verify() failed. Error = %s", err)
-				}
-				validatePayload(payload, signRequest, t)
-				validateSignerInfo(signerInfo, signRequest, t)
-			})
+					// Verify using the same envelope struct
+					_, _, err = env.Verify()
+					if err != nil {
+						t.Fatalf("Verify() failed. Error = %s", err)
+					}
+				})
+			}
 		}
 	}
 }
@@ -566,29 +654,32 @@ func TestSignAndVerify(t *testing.T) {
 func TestSignAndParseVerify(t *testing.T) {
 	for _, signingScheme := range signingSchemeString {
 		for _, keyType := range keyType {
-			t.Run(fmt.Sprintf("with %s scheme, %v keyType", signingScheme, keyType), func(t *testing.T) {
-				// Verify after UnmarshalCBOR
-				env, err := getVerifyCOSE(signingScheme, keyType)
-				if err != nil {
-					t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
-				}
-				payload, signerInfo, err := env.Verify()
-				if err != nil {
-					t.Fatalf("Verify() failed. Error = %s", err)
-				}
-				signRequest, err := newSignRequest(signingScheme, keyType)
-				if err != nil {
-					t.Fatalf("newSignRequest() faild. Error = %s", err)
-				}
-				validatePayload(payload, signRequest, t)
-				validateSignerInfo(signerInfo, signRequest, t)
-			})
+			var size []int
+			if keyType == signature.KeyTypeRSA {
+				size = []int{2048, 3072, 4096}
+			} else {
+				size = []int{256, 384, 521}
+			}
+			for _, size := range size {
+				t.Run(fmt.Sprintf("with %s scheme, %v keyType, %v keySize", signingScheme, keyType, size), func(t *testing.T) {
+					//Verify after UnmarshalCBOR
+					env, err := getVerifyCOSE(signingScheme, keyType, size)
+					if err != nil {
+						t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
+					}
+					_, _, err = env.Verify()
+					if err != nil {
+						t.Fatalf("Verify() failed. Error = %s", err)
+					}
+				})
+			}
+
 		}
 	}
 }
 
-func newSignRequest(signingScheme string, keyType signature.KeyType) (*signature.SignRequest, error) {
-	signer, err := getTestSigner(keyType)
+func newSignRequest(signingScheme string, keyType signature.KeyType, size int) (*signature.SignRequest, error) {
+	signer, err := getTestSigner(keyType, size)
 	if err != nil {
 		return nil, err
 	}
@@ -609,25 +700,78 @@ func newSignRequest(signingScheme string, keyType signature.KeyType) (*signature
 	}, nil
 }
 
-func getTestSigner(keyType signature.KeyType) (signature.Signer, error) {
+func getTestSigner(keyType signature.KeyType, size int) (signature.Signer, error) {
 	switch keyType {
 	case signature.KeyTypeEC:
-		certs := []*x509.Certificate{testhelper.GetECLeafCertificate().Cert, testhelper.GetECRootCertificate().Cert}
-		return signature.NewLocalSigner(certs, testhelper.GetECLeafCertificate().PrivateKey)
+		switch size {
+		case 256:
+			leafCertTuple := getECCertTuple(elliptic.P256())
+			certs := []*x509.Certificate{leafCertTuple.Cert, testhelper.GetECRootCertificate().Cert}
+			return signature.NewLocalSigner(certs, leafCertTuple.PrivateKey)
+		case 384:
+			leafCertTuple := getECCertTuple(elliptic.P384())
+			certs := []*x509.Certificate{leafCertTuple.Cert, testhelper.GetECRootCertificate().Cert}
+			return signature.NewLocalSigner(certs, leafCertTuple.PrivateKey)
+		case 521:
+			leafCertTuple := getECCertTuple(elliptic.P521())
+			certs := []*x509.Certificate{leafCertTuple.Cert, testhelper.GetECRootCertificate().Cert}
+			return signature.NewLocalSigner(certs, leafCertTuple.PrivateKey)
+		default:
+			return nil, fmt.Errorf("key size not supported")
+		}
 	case signature.KeyTypeRSA:
-		certs := []*x509.Certificate{testhelper.GetRSALeafCertificate().Cert, testhelper.GetRSARootCertificate().Cert}
-		return signature.NewLocalSigner(certs, testhelper.GetRSALeafCertificate().PrivateKey)
+		switch size {
+		case 2048:
+			leafCertTuple := getRSACertTuple(2048)
+			certs := []*x509.Certificate{leafCertTuple.Cert, testhelper.GetRSARootCertificate().Cert}
+			return signature.NewLocalSigner(certs, leafCertTuple.PrivateKey)
+		case 3072:
+			leafCertTuple := getRSACertTuple(3072)
+			certs := []*x509.Certificate{leafCertTuple.Cert, testhelper.GetRSARootCertificate().Cert}
+			return signature.NewLocalSigner(certs, leafCertTuple.PrivateKey)
+		case 4096:
+			leafCertTuple := getRSACertTuple(4096)
+			certs := []*x509.Certificate{leafCertTuple.Cert, testhelper.GetRSARootCertificate().Cert}
+			return signature.NewLocalSigner(certs, leafCertTuple.PrivateKey)
+		default:
+			return nil, fmt.Errorf("key size not supported")
+		}
 	default:
-		return nil, errors.New("keyType not supported")
+		return nil, fmt.Errorf("keyType not supported")
 	}
 }
 
-func getSignRequest() (*signature.SignRequest, error) {
-	return newSignRequest("notary.x509", signature.KeyTypeRSA)
+func getRSACertTuple(size int) testhelper.RSACertTuple {
+	rsaRoot := testhelper.GetRSARootCertificate()
+	priv, _ := rsa.GenerateKey(rand.Reader, size)
+
+	certTuple := testhelper.GetRSACertTupleWithPK(
+		priv,
+		"Test RSA_"+strconv.Itoa(priv.Size()),
+		&rsaRoot,
+	)
+	return certTuple
 }
 
-func getVerifyCOSE(signingScheme string, keyType signature.KeyType) (envelope, error) {
-	signRequest, err := newSignRequest(signingScheme, keyType)
+func getECCertTuple(curve elliptic.Curve) testhelper.ECCertTuple {
+	ecdsaRoot := testhelper.GetECRootCertificate()
+	priv, _ := ecdsa.GenerateKey(curve, rand.Reader)
+	bitSize := priv.Params().BitSize
+
+	certTuple := testhelper.GetECDSACertTupleWithPK(
+		priv,
+		"Test EC_"+strconv.Itoa(bitSize),
+		&ecdsaRoot,
+	)
+	return certTuple
+}
+
+func getSignRequest() (*signature.SignRequest, error) {
+	return newSignRequest("notary.x509", signature.KeyTypeRSA, 3072)
+}
+
+func getVerifyCOSE(signingScheme string, keyType signature.KeyType, size int) (envelope, error) {
+	signRequest, err := newSignRequest(signingScheme, keyType, size)
 	if err != nil {
 		return envelope{}, err
 	}
@@ -644,63 +788,6 @@ func getVerifyCOSE(signingScheme string, keyType signature.KeyType) (envelope, e
 		base: &msg,
 	}
 	return newEnv, nil
-}
-
-func validatePayload(payload *signature.Payload, request *signature.SignRequest, t *testing.T) {
-	if request.Payload.ContentType != payload.ContentType {
-		t.Fatalf("PayloadContentType: expected value %q but found %q", request.Payload.ContentType, payload.ContentType)
-	}
-
-	if !reflect.DeepEqual(request.Payload.Content, payload.Content) {
-		t.Fatalf("Mistmatch between expected and actual Payload Content")
-	}
-}
-
-func validateSignerInfo(signInfo *signature.SignerInfo, request *signature.SignRequest, t *testing.T) {
-	if request.SigningTime.Format(time.RFC3339) != signInfo.SignedAttributes.SigningTime.Format(time.RFC3339) {
-		t.Fatalf("SigningTime: expected value %q but found %q", request.SigningTime, signInfo.SignedAttributes.SigningTime)
-	}
-
-	if request.Expiry.Format(time.RFC3339) != signInfo.SignedAttributes.Expiry.Format(time.RFC3339) {
-		t.Fatalf("Expiry: expected value %q but found %q", request.Expiry, signInfo.SignedAttributes.Expiry)
-	}
-
-	if !areAttrEqual(request.ExtendedSignedAttributes, signInfo.SignedAttributes.ExtendedAttributes) {
-		if !(len(request.ExtendedSignedAttributes) == 0 && len(signInfo.SignedAttributes.ExtendedAttributes) == 0) {
-			t.Fatalf("Mistmatch between expected and actual ExtendedAttributes")
-		}
-	}
-
-	if request.SigningAgent != signInfo.UnsignedAttributes.SigningAgent {
-		t.Fatalf("SigningAgent: expected value %q but found %q", request.SigningAgent, signInfo.UnsignedAttributes.SigningAgent)
-	}
-
-	reqKeySpec, err := request.Signer.KeySpec()
-	if err != nil {
-		t.Fatalf("request.Signer.KeySpec() failed.")
-	}
-	if reqKeySpec.SignatureAlgorithm() != signInfo.SignatureAlgorithm {
-		t.Fatalf("SignatureAlgorithm: expected value %q but found %q", reqKeySpec.SignatureAlgorithm(), signInfo.SignatureAlgorithm)
-	}
-
-	if request.SigningScheme != signInfo.SigningScheme {
-		t.Fatalf("SigningScheme: expected value %q but found %q", request.SigningScheme, signInfo.SigningScheme)
-	}
-
-	certs, err := request.Signer.CertificateChain()
-	if err != nil || !reflect.DeepEqual(certs, signInfo.CertificateChain) {
-		t.Fatalf("Mistmatch between expected and actual CertificateChain")
-	}
-}
-
-func areAttrEqual(u []signature.Attribute, v []signature.Attribute) bool {
-	sort.Slice(u, func(p, q int) bool {
-		return u[p].Key < u[q].Key
-	})
-	sort.Slice(v, func(p, q int) bool {
-		return v[p].Key < v[q].Key
-	})
-	return reflect.DeepEqual(u, v)
 }
 
 // errorLocalSigner implements signature.LocalSigner interface.
@@ -748,4 +835,64 @@ func (s *errorLocalSigner) PrivateKey() crypto.PrivateKey {
 		return fmt.Errorf("intended PrivateKey() Error")
 	}
 	return testhelper.GetRSALeafCertificate().PrivateKey
+}
+
+// errorRemoteSigner implements signature.Signer interface.
+type errorRemoteSigner struct {
+	keySpecError          bool
+	algError              bool
+	certificateChainError bool
+	wantEC                bool
+	keyTypeError          bool
+}
+
+// Sign signs the digest and returns the raw signature
+func (s *errorRemoteSigner) Sign(digest []byte) ([]byte, error) {
+	return nil, fmt.Errorf("intended Sign() Error")
+}
+
+// CertificateChain returns the certificate chain
+func (s *errorRemoteSigner) CertificateChain() ([]*x509.Certificate, error) {
+	if s.certificateChainError || s.keyTypeError {
+		return nil, fmt.Errorf("intended CertificateChain() error")
+	}
+	if s.wantEC {
+		return []*x509.Certificate{testhelper.GetECLeafCertificate().Cert, testhelper.GetECRootCertificate().Cert}, nil
+	}
+	return []*x509.Certificate{testhelper.GetRSALeafCertificate().Cert, testhelper.GetRSARootCertificate().Cert}, nil
+}
+
+// KeySpec returns the key specification
+func (s *errorRemoteSigner) KeySpec() (signature.KeySpec, error) {
+	if s.keySpecError {
+		return signature.KeySpec{}, fmt.Errorf("intended KeySpec() error")
+	}
+	if s.algError {
+		if s.wantEC {
+			return signature.KeySpec{
+				Type: signature.KeyTypeEC,
+				Size: 0,
+			}, nil
+		}
+		return signature.KeySpec{
+			Type: signature.KeyTypeRSA,
+			Size: 0,
+		}, nil
+	}
+	if s.keyTypeError {
+		return signature.KeySpec{
+			Type: 3,
+			Size: 3072,
+		}, nil
+	}
+	if s.wantEC {
+		return signature.KeySpec{
+			Type: signature.KeyTypeEC,
+			Size: 384,
+		}, nil
+	}
+	return signature.KeySpec{
+		Type: signature.KeyTypeRSA,
+		Size: 3072,
+	}, nil
 }

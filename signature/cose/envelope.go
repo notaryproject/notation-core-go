@@ -419,13 +419,13 @@ func parseProtectedHeaders(protected cose.ProtectedHeader, signerInfo *signature
 	}
 	signerInfo.SignatureAlgorithm = sigAlg
 
-	// populate signerInfo.SigningScheme
+	// populate signerInfo.SignedAttributes.SigningScheme
 	signingSchemeString, ok := protected[headerLabelSigningScheme].(string)
 	if !ok {
 		return &signature.MalformedSignatureError{Msg: "malformed signingScheme"}
 	}
 	signingScheme := signature.SigningScheme(signingSchemeString)
-	signerInfo.SigningScheme = signingScheme
+	signerInfo.SignedAttributes.SigningScheme = signingScheme
 
 	// populate signerInfo.SignedAttributes.SigningTime
 	signingTimeLabel, ok := signingSchemeTimeLabelMap[signingScheme]
