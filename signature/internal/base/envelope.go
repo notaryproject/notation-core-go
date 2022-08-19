@@ -42,7 +42,7 @@ func (e *Envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 //
 // Reference: https://github.com/notaryproject/notaryproject/blob/main/trust-store-trust-policy-specification.md#steps
 func (e *Envelope) Verify() (*signature.Payload, *signature.SignerInfo, error) {
-	// validation before the core verify process
+	// validation before the core verify process.
 	if len(e.Raw) == 0 {
 		return nil, nil, &signature.MalformedSignatureError{}
 	}
@@ -51,13 +51,13 @@ func (e *Envelope) Verify() (*signature.Payload, *signature.SignerInfo, error) {
 		return nil, nil, err
 	}
 
-	// core verify process
+	// core verify process.
 	payload, signerInfo, err := e.Envelope.Verify()
 	if err != nil {
 		return nil, nil, err
 	}
 
-	// validation after the core verify process
+	// validation after the core verify process.
 	if err = validatePayload(payload); err != nil {
 		return nil, nil, err
 	}

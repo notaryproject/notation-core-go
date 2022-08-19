@@ -23,17 +23,18 @@ type Envelope interface {
 // NewEnvelopeFunc defines a function to create a new Envelope.
 type NewEnvelopeFunc func() Envelope
 
-// ParseEnvelopeFunc defines a function to create a new Envelope by given
-// envelope bytes.
+// ParseEnvelopeFunc defines a function that takes envelope bytes to create
+// an Envelope.
 type ParseEnvelopeFunc func([]byte) (Envelope, error)
 
-// envelopeFunc wraps functions to create new envelopes
+// envelopeFunc wraps functions to create and parsenew envelopes.
 type envelopeFunc struct {
 	newFunc   NewEnvelopeFunc
 	parseFunc ParseEnvelopeFunc
 }
 
-// envelopeFuncs maps envelope media type to corresponding constructors
+// envelopeFuncs maps envelope media type to corresponding constructors and 
+// parsers.
 var envelopeFuncs = make(map[string]envelopeFunc)
 
 // RegisterEnvelopeType registers newFunc and parseFunc for the given mediaType.

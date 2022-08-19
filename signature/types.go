@@ -39,7 +39,7 @@ type SignedAttributes struct {
 // Reference: https://github.com/notaryproject/notaryproject/blob/main/signature-specification.md#unsigned-attributes
 type UnsignedAttributes struct {
 	// SigningAgent provides the identifier of the software (e.g. Notation) that
-	// produced the signature on behalf of the user.
+	// produces the signature on behalf of the user.
 	SigningAgent string
 }
 
