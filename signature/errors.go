@@ -9,7 +9,7 @@ type MalformedSignatureError struct {
 	Msg string
 }
 
-// Error returns the error message.
+// Error returns the error message or the default message if not provided.
 func (e *MalformedSignatureError) Error() string {
 	if e.Msg != "" {
 		return e.Msg
@@ -22,7 +22,7 @@ type UnsupportedSigningKeyError struct {
 	Msg string
 }
 
-// Error returns the error message.
+// Error returns the error message or the default message if not provided.
 func (e *UnsupportedSigningKeyError) Error() string {
 	if e.Msg != "" {
 		return e.Msg
@@ -54,6 +54,7 @@ type MalformedSignRequestError struct {
 	Msg string
 }
 
+// Error returns the error message or the default message if not provided.
 func (e *MalformedSignRequestError) Error() string {
 	if e.Msg != "" {
 		return e.Msg
@@ -66,19 +67,23 @@ type SignatureAlgoNotSupportedError struct {
 	Alg string
 }
 
+// Error returns the formatted error message.
 func (e *SignatureAlgoNotSupportedError) Error() string {
 	return fmt.Sprintf("signature algorithm %q is not supported", e.Alg)
 }
 
-// SignatureIntegrityError is used when the Signature associated is no longer valid.
+// SignatureIntegrityError is used when the signature associated is no longer
+// valid.
 type SignatureIntegrityError struct {
 	Err error
 }
 
+// Error returns the formatted error message.
 func (e *SignatureIntegrityError) Error() string {
 	return fmt.Sprintf("signature is invalid. Error: %s", e.Err.Error())
 }
 
+// Unwrap unwraps the internal error.
 func (e *SignatureIntegrityError) Unwrap() error {
 	return e.Err
 }
@@ -86,6 +91,7 @@ func (e *SignatureIntegrityError) Unwrap() error {
 // SignatureNotFoundError is used when signature envelope is not present.
 type SignatureNotFoundError struct{}
 
+// Error returns the default error message.
 func (e *SignatureNotFoundError) Error() string {
 	return "signature envelope is not present"
 }
@@ -94,6 +100,7 @@ func (e *SignatureNotFoundError) Error() string {
 // trusted certificates.
 type SignatureAuthenticityError struct{}
 
+// Error returns the default error message.
 func (e *SignatureAuthenticityError) Error() string {
 	return "signature is not produced by a trusted signer"
 }
@@ -113,7 +120,7 @@ type EnvelopeKeyRepeatedError struct {
 	Key string
 }
 
-// Error returns the formatted error message
+// Error returns the formatted error message.
 func (e *EnvelopeKeyRepeatedError) Error() string {
-	return fmt.Sprintf("repeated key: `%s` exists in the envelope.", e.Key)
+	return fmt.Sprintf("repeated key: %q exists in the envelope.", e.Key)
 }
