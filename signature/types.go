@@ -2,6 +2,7 @@ package signature
 
 import (
 	"crypto/x509"
+	"errors"
 	"time"
 )
 
@@ -118,4 +119,15 @@ type Payload struct {
 
 	// Content contains the raw bytes of the payload.
 	Content []byte
+}
+
+// ExtendedAttribute fetches the specified Attribute with provided key from
+// signerInfo.SignedAttributes.ExtendedAttributes
+func (signerInfo *SignerInfo) ExtendedAttribute(key string) (Attribute, error) {
+	for _, attr := range signerInfo.SignedAttributes.ExtendedAttributes {
+		if attr.Key == key {
+			return attr, nil
+		}
+	}
+	return Attribute{}, errors.New("key not in ExtendedAttributes")
 }
