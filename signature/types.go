@@ -123,7 +123,7 @@ type Payload struct {
 
 // ExtendedAttribute fetches the specified Attribute with provided key from
 // signerInfo.SignedAttributes.ExtendedAttributes
-func ExtendedAttribute(signerInfo SignerInfo, key string) (Attribute, error) {
+func (signerInfo *SignerInfo) ExtendedAttribute(key string) (Attribute, error) {
 	for _, attr := range signerInfo.SignedAttributes.ExtendedAttributes {
 		if attr.Key == key {
 			return attr, nil
