@@ -28,10 +28,17 @@ func (e *Envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 		return nil, err
 	}
 
-	e.Raw, err = e.Envelope.Sign(req)
+	raw, err := e.Envelope.Sign(req)
 	if err != nil {
 		return nil, err
 	}
+
+	// validate certificate chain
+	if _, err := e.SignerInfo(); err != nil {
+		return nil, err
+	}
+
+	e.Raw = raw
 	return e.Raw, nil
 }
 
@@ -129,17 +136,8 @@ func validateSignRequest(req *signature.SignRequest) error {
 		return &signature.MalformedSignatureError{Msg: "signer is nil"}
 	}
 
-	certs, err := req.Signer.CertificateChain()
-	if err != nil {
-		return err
-	}
-
-	keySpec, err := req.Signer.KeySpec()
-	if err != nil {
-		return err
-	}
-
-	return validateCertificateChain(certs, req.SigningTime, keySpec.SignatureAlgorithm())
+	_, err := req.Signer.KeySpec()
+	return err
 }
 
 // validateSignerInfo performs basic set of validations on SignerInfo struct.

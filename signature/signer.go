@@ -11,11 +11,8 @@ import (
 
 // Signer is used to sign bytes generated after signature envelope created.
 type Signer interface {
-	// Sign signs the digest and returns the raw signature.
-	Sign(digest []byte) ([]byte, error)
-
-	// CertificateChain returns the certificate chain.
-	CertificateChain() ([]*x509.Certificate, error)
+	// Sign signs the payload and returns the raw signature and certificates.
+	Sign(payload []byte) ([]byte, []*x509.Certificate, error)
 
 	// KeySpec returns the key specification.
 	KeySpec() (KeySpec, error)
@@ -24,6 +21,9 @@ type Signer interface {
 // LocalSigner is used by built-in signers to sign only.
 type LocalSigner interface {
 	Signer
+
+	// CertificateChain returns the certificate chain.
+	CertificateChain() ([]*x509.Certificate, error)
 
 	// PrivateKey returns the private key.
 	PrivateKey() crypto.PrivateKey
@@ -84,20 +84,20 @@ func isKeyPair(priv crypto.PrivateKey, pub crypto.PublicKey, keySpec KeySpec) bo
 	}
 }
 
-// Sign signs the digest and returns the raw signature.
+// Sign signs the digest and returns the raw signature and certificates.
 // This implementation should never be used by built-in signers.
-func (s *signer) Sign(digest []byte) ([]byte, error) {
-	return nil, fmt.Errorf("local signer doesn't support sign with digest")
-}
-
-// CertificateChain returns the certificate chain.
-func (s *signer) CertificateChain() ([]*x509.Certificate, error) {
-	return s.certs, nil
+func (s *signer) Sign(digest []byte) ([]byte, []*x509.Certificate, error) {
+	return nil, nil, fmt.Errorf("local signer doesn't support sign with digest")
 }
 
 // KeySpec returns the key specification.
 func (s *signer) KeySpec() (KeySpec, error) {
 	return s.keySpec, nil
+}
+
+// CertificateChain returns the certificate chain.
+func (s *signer) CertificateChain() ([]*x509.Certificate, error) {
+	return s.certs, nil
 }
 
 // PrivateKey returns the private key.

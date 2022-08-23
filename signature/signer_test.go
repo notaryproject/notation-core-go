@@ -107,25 +107,15 @@ func TestNewLocalSigner(t *testing.T) {
 func TestSign(t *testing.T) {
 	signer := &signer{}
 
-	_, err := signer.Sign(make([]byte, 0))
+	raw, certs, err := signer.Sign(make([]byte, 0))
 	if err == nil {
 		t.Errorf("expect error but got nil")
 	}
-}
-
-func TestCertificateChain(t *testing.T) {
-	expectCerts := []*x509.Certificate{
-		testhelper.GetRSALeafCertificate().Cert,
+	if raw != nil {
+		t.Errorf("expect nil raw signature but got %v", raw)
 	}
-	signer := &signer{certs: expectCerts}
-
-	certs, err := signer.CertificateChain()
-
-	if err != nil {
-		t.Errorf("expect no error but got %v", err)
-	}
-	if !reflect.DeepEqual(certs, expectCerts) {
-		t.Errorf("expect certs %+v, got %+v", expectCerts, certs)
+	if certs != nil {
+		t.Errorf("expect nil certs but got %v", certs)
 	}
 }
 
