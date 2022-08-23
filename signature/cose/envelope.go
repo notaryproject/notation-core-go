@@ -4,7 +4,6 @@ import (
 	"crypto"
 	"crypto/rand"
 	"crypto/x509"
-	"errors"
 	"fmt"
 	"io"
 	"strconv"
@@ -435,8 +434,6 @@ func generateUnprotectedHeaders(req *signature.SignRequest, signer cose.Signer, 
 		certs = s.certs
 	case *localSigner:
 		certs = s.certs
-	default:
-		return errors.New("Unsupported signer type")
 	}
 	certChain := make([]interface{}, len(certs))
 	for i, c := range certs {
