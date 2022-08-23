@@ -136,6 +136,22 @@ func TestKeySpec(t *testing.T) {
 	}
 }
 
+func TestCertificateChain(t *testing.T) {
+	expectCerts := []*x509.Certificate{
+		testhelper.GetRSALeafCertificate().Cert,
+	}
+	signer := &signer{certs: expectCerts}
+
+	certs, err := signer.CertificateChain()
+
+	if err != nil {
+		t.Errorf("expect no error but got %v", err)
+	}
+	if !reflect.DeepEqual(certs, expectCerts) {
+		t.Errorf("expect certs %+v, got %+v", expectCerts, certs)
+	}
+}
+
 func TestPrivateKey(t *testing.T) {
 	expectKey := testhelper.GetRSALeafCertificate().PrivateKey
 	signer := &signer{key: expectKey}
