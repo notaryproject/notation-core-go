@@ -142,8 +142,8 @@ func (s *mockSigner) CertificateChain() ([]*x509.Certificate, error) {
 }
 
 // Sign implements Sign of signature.Signer.
-func (s *mockSigner) Sign(digest []byte) ([]byte, error) {
-	return nil, nil
+func (s *mockSigner) Sign(payload []byte) ([]byte, []*x509.Certificate, error) {
+	return nil, nil, nil
 }
 
 // KeySpec implements KeySpec of signature.Signer.
@@ -187,13 +187,25 @@ func TestSign(t *testing.T) {
 			expectErr: true,
 		},
 		{
-			name: "sign successfully",
+			name: "invalid certificate chain",
 			req:  validReq,
 			env: &Envelope{
 				Raw:      nil,
 				Envelope: mockEnvelope{},
 			},
-			expect:    validBytes,
+			expect:    nil,
+			expectErr: true,
+		},
+		{
+			name: "successfully signed",
+			req: validReq,
+			env: &Envelope{
+				Raw: validBytes,
+				Envelope: &mockEnvelope{
+					signerInfo: validSignerInfo,
+				},
+			},
+			expect: validBytes,
 			expectErr: false,
 		},
 	}
