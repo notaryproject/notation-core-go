@@ -177,8 +177,18 @@ func TestSign(t *testing.T) {
 			expectErr: true,
 		},
 		{
-			name: "err returned by internal envelope",
+			name: "internal envelope fails to sign",
 			req:  signReq1,
+			env: &Envelope{
+				Raw:      nil,
+				Envelope: mockEnvelope{},
+			},
+			expect:    nil,
+			expectErr: true,
+		},
+		{
+			name: "internal envelope fails to get signerInfo",
+			req:  validReq,
 			env: &Envelope{
 				Raw:      nil,
 				Envelope: mockEnvelope{},
@@ -190,22 +200,24 @@ func TestSign(t *testing.T) {
 			name: "invalid certificate chain",
 			req:  validReq,
 			env: &Envelope{
-				Raw:      nil,
-				Envelope: mockEnvelope{},
+				Raw: nil,
+				Envelope: mockEnvelope{
+					signerInfo: &signature.SignerInfo{},
+				},
 			},
 			expect:    nil,
 			expectErr: true,
 		},
 		{
 			name: "successfully signed",
-			req: validReq,
+			req:  validReq,
 			env: &Envelope{
 				Raw: validBytes,
 				Envelope: &mockEnvelope{
 					signerInfo: validSignerInfo,
 				},
 			},
-			expect: validBytes,
+			expect:    validBytes,
 			expectErr: false,
 		},
 	}

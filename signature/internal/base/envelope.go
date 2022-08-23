@@ -34,7 +34,16 @@ func (e *Envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 	}
 
 	// validate certificate chain
-	if _, err := e.SignerInfo(); err != nil {
+	signerInfo, err := e.Envelope.SignerInfo()
+	if err != nil {
+		return nil, err
+	}
+
+	if err := validateCertificateChain(
+		signerInfo.CertificateChain,
+		signerInfo.SignedAttributes.SigningTime,
+		signerInfo.SignatureAlgorithm,
+	); err != nil {
 		return nil, err
 	}
 
