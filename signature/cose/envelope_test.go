@@ -241,6 +241,33 @@ func TestSignErrors(t *testing.T) {
 		}
 	})
 
+	// Testing core sign process
+	t.Run("when signer has signError", func(t *testing.T) {
+		signRequest, err := getSignRequest()
+		if err != nil {
+			t.Fatalf("getSignRequest() failed. Error = %v", err)
+		}
+		signRequest.Signer = &errorRemoteSigner{signError: true}
+		_, err = env.Sign(signRequest)
+		expected := errors.New("intended Sign() Error")
+		if !isErrEqual(expected, err) {
+			t.Fatalf("Sign() expects error: %v, but got: %v.", expected, err)
+		}
+	})
+
+	t.Run("when signer returns empty signature", func(t *testing.T) {
+		signRequest, err := getSignRequest()
+		if err != nil {
+			t.Fatalf("getSignRequest() failed. Error = %v", err)
+		}
+		signRequest.Signer = &errorRemoteSigner{}
+		_, err = env.Sign(signRequest)
+		expected := errors.New("empty signature")
+		if !isErrEqual(expected, err) {
+			t.Fatalf("Sign() expects error: %v, but got: %v.", expected, err)
+		}
+	})
+
 	// Testing generateUnprotectedHeaders
 	t.Run("errorLocalSigner: when signer has certificateChainError", func(t *testing.T) {
 		signRequest, err := getSignRequest()
@@ -250,20 +277,6 @@ func TestSignErrors(t *testing.T) {
 		signRequest.Signer = &errorLocalSigner{certificateChainError: true}
 		_, err = env.Sign(signRequest)
 		expected := errors.New("intended CertificateChain() error")
-		if !isErrEqual(expected, err) {
-			t.Fatalf("Sign() expects error: %v, but got: %v.", expected, err)
-		}
-	})
-
-	// Testing core sign process
-	t.Run("when cose.Sign has error", func(t *testing.T) {
-		signRequest, err := getSignRequest()
-		if err != nil {
-			t.Fatalf("getSignRequest() failed. Error = %v", err)
-		}
-		signRequest.Signer = &errorRemoteSigner{}
-		_, err = env.Sign(signRequest)
-		expected := errors.New("intended Sign() Error")
 		if !isErrEqual(expected, err) {
 			t.Fatalf("Sign() expects error: %v, but got: %v.", expected, err)
 		}
@@ -834,6 +847,7 @@ func (s *errorLocalSigner) PrivateKey() crypto.PrivateKey {
 
 // errorRemoteSigner implements signature.Signer interface.
 type errorRemoteSigner struct {
+	signError    bool
 	keySpecError bool
 	algError     bool
 	wantEC       bool
@@ -842,7 +856,10 @@ type errorRemoteSigner struct {
 
 // Sign signs the digest and returns the raw signature
 func (s *errorRemoteSigner) Sign(payload []byte) ([]byte, []*x509.Certificate, error) {
-	return nil, nil, fmt.Errorf("intended Sign() Error")
+	if s.signError {
+		return nil, nil, fmt.Errorf("intended Sign() Error")
+	}
+	return nil, nil, nil
 }
 
 // KeySpec returns the key specification

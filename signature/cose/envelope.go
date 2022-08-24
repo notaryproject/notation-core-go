@@ -195,10 +195,8 @@ func (e *envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 	}
 
 	// generate unprotected headers of COSE envelope
-	err = generateUnprotectedHeaders(req, signer, msg.Headers.Unprotected)
-	if err != nil {
-		return nil, &signature.MalformedSignatureError{Msg: err.Error()}
-	}
+	generateUnprotectedHeaders(req, signer, msg.Headers.Unprotected)
+
 	// TODO: needs to add headerKeyTimeStampSignature here, which requires
 	// updates of SignRequest
 
@@ -423,7 +421,7 @@ func generateProtectedHeaders(req *signature.SignRequest, protected cose.Protect
 
 // generateUnprotectedHeaders creates Unprotected Headers of the COSE envelope
 // during Sign process.
-func generateUnprotectedHeaders(req *signature.SignRequest, signer cose.Signer, unprotected cose.UnprotectedHeader) error {
+func generateUnprotectedHeaders(req *signature.SignRequest, signer cose.Signer, unprotected cose.UnprotectedHeader) {
 	// signing agent
 	unprotected[headerLabelSigningAgent] = req.SigningAgent
 
@@ -440,8 +438,6 @@ func generateUnprotectedHeaders(req *signature.SignRequest, signer cose.Signer, 
 		certChain[i] = c.Raw
 	}
 	unprotected[cose.HeaderLabelX5Chain] = certChain
-
-	return nil
 }
 
 // parseProtectedHeaders parses COSE envelope's protected headers and populates signature.SignerInfo
