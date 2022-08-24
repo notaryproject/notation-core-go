@@ -58,8 +58,9 @@ var signingSchemeTimeLabelMap = map[signature.SigningScheme]string{
 // remoteSigner implements cose.Signer interface.
 // It is used in Sign process when base's Sign implementation is desired.
 type remoteSigner struct {
-	base signature.Signer
-	alg  cose.Algorithm
+	base  signature.Signer
+	alg   cose.Algorithm
+	certs []*x509.Certificate
 }
 
 func newRemoteSigner(base signature.Signer) (*remoteSigner, error) {
@@ -78,13 +79,66 @@ func newRemoteSigner(base signature.Signer) (*remoteSigner, error) {
 }
 
 // Algorithm implements cose.Signer interface
-func (signer remoteSigner) Algorithm() cose.Algorithm {
+func (signer *remoteSigner) Algorithm() cose.Algorithm {
 	return signer.alg
 }
 
 // Sign implements cose.Signer interface
-func (signer remoteSigner) Sign(rand io.Reader, digest []byte) ([]byte, error) {
-	return signer.base.Sign(digest)
+func (signer *remoteSigner) Sign(rand io.Reader, payload []byte) ([]byte, error) {
+	signature, certs, err := signer.base.Sign(payload)
+	if err != nil {
+		return nil, err
+	}
+	signer.certs = certs
+	return signature, nil
+}
+
+// localSigner implements cose.Signer interface.
+// It is used in Sign process when go-cose's built-in signer is desired.
+type localSigner struct {
+	base         signature.LocalSigner
+	alg          cose.Algorithm
+	cryptoSigner crypto.Signer
+	certs        []*x509.Certificate
+}
+
+func newLocalSigner(base signature.LocalSigner) (*localSigner, error) {
+	key := base.PrivateKey()
+	if cryptoSigner, ok := key.(crypto.Signer); ok {
+		keySpec, err := base.KeySpec()
+		if err != nil {
+			return nil, err
+		}
+		alg, err := getSignatureAlgorithmFromKeySpec(keySpec)
+		if err != nil {
+			return nil, err
+		}
+		certs, err := base.CertificateChain()
+		if err != nil {
+			return nil, err
+		}
+		return &localSigner{
+			base:         base,
+			alg:          alg,
+			cryptoSigner: cryptoSigner,
+			certs:        certs,
+		}, nil
+	}
+	return nil, &signature.UnsupportedSigningKeyError{}
+}
+
+// Algorithm implements cose.Signer interface
+func (signer *localSigner) Algorithm() cose.Algorithm {
+	return signer.alg
+}
+
+// Sign implements cose.Signer interface
+func (signer *localSigner) Sign(rand io.Reader, payload []byte) ([]byte, error) {
+	coseSigner, err := cose.NewSigner(signer.alg, signer.cryptoSigner)
+	if err != nil {
+		return nil, err
+	}
+	return coseSigner.Sign(rand, payload)
 }
 
 type envelope struct {
@@ -130,12 +184,6 @@ func (e *envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 		return nil, &signature.MalformedSignatureError{Msg: err.Error()}
 	}
 
-	// generate unprotected headers of COSE envelope
-	err = generateUnprotectedHeaders(req, msg.Headers.Unprotected)
-	if err != nil {
-		return nil, &signature.MalformedSignatureError{Msg: err.Error()}
-	}
-
 	// generate payload of COSE envelope
 	msg.Headers.Protected[cose.HeaderLabelContentType] = req.Payload.ContentType
 	msg.Payload = req.Payload.Content
@@ -145,6 +193,9 @@ func (e *envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 	if err != nil {
 		return nil, &signature.MalformedSignatureError{Msg: err.Error()}
 	}
+
+	// generate unprotected headers of COSE envelope
+	generateUnprotectedHeaders(req, signer, msg.Headers.Unprotected)
 
 	// TODO: needs to add headerKeyTimeStampSignature here, which requires
 	// updates of SignRequest
@@ -323,19 +374,7 @@ func getSignatureAlgorithmFromKeySpec(keySpec signature.KeySpec) (cose.Algorithm
 // or a remote signer implementation of cose.Signer
 func getSigner(signer signature.Signer) (cose.Signer, error) {
 	if localSigner, ok := signer.(signature.LocalSigner); ok {
-		key := localSigner.PrivateKey()
-		if cryptoSigner, ok := key.(crypto.Signer); ok {
-			keySpec, err := localSigner.KeySpec()
-			if err != nil {
-				return nil, err
-			}
-			alg, err := getSignatureAlgorithmFromKeySpec(keySpec)
-			if err != nil {
-				return nil, err
-			}
-			return cose.NewSigner(alg, cryptoSigner)
-		}
-		return nil, &signature.UnsupportedSigningKeyError{}
+		return newLocalSigner(localSigner)
 	}
 	return newRemoteSigner(signer)
 }
@@ -382,22 +421,23 @@ func generateProtectedHeaders(req *signature.SignRequest, protected cose.Protect
 
 // generateUnprotectedHeaders creates Unprotected Headers of the COSE envelope
 // during Sign process.
-func generateUnprotectedHeaders(req *signature.SignRequest, unprotected cose.UnprotectedHeader) error {
+func generateUnprotectedHeaders(req *signature.SignRequest, signer cose.Signer, unprotected cose.UnprotectedHeader) {
 	// signing agent
 	unprotected[headerLabelSigningAgent] = req.SigningAgent
 
 	// certChain
-	certs, err := req.Signer.CertificateChain()
-	if err != nil {
-		return err
+	var certs []*x509.Certificate
+	switch s := signer.(type) {
+	case *remoteSigner:
+		certs = s.certs
+	case *localSigner:
+		certs = s.certs
 	}
 	certChain := make([]interface{}, len(certs))
 	for i, c := range certs {
 		certChain[i] = c.Raw
 	}
 	unprotected[cose.HeaderLabelX5Chain] = certChain
-
-	return nil
 }
 
 // parseProtectedHeaders parses COSE envelope's protected headers and populates signature.SignerInfo
