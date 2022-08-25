@@ -3,7 +3,7 @@
 //
 // An Envelope is a structure that creates and verifies a signature using the
 // specified signing algorithm with required validation. To register a new
-// envelope, call RegisterEnvelopeType first during the inialization.
+// envelope, call RegisterEnvelopeType first during the initialization.
 //
 // A Signer is a structure used to sign payload generated after signature
 // envelope created. The underlying signing logic is provided by the underlying
