@@ -55,7 +55,13 @@ var signingSchemeTimeLabelMap = map[signature.SigningScheme]string{
 	signature.SigningSchemeX509SigningAuthority: headerLabelAuthenticSigningTime,
 }
 
-// remoteSigner implements cose.Signer interface.
+// signer interface is a cose.Signer with certificate chain fetcher.
+type signer interface {
+	cose.Signer
+	CertificateChain() []*x509.Certificate
+}
+
+// remoteSigner implements signer interface.
 // It is used in Sign process when base's Sign implementation is desired.
 type remoteSigner struct {
 	base  signature.Signer
@@ -93,7 +99,12 @@ func (signer *remoteSigner) Sign(rand io.Reader, payload []byte) ([]byte, error)
 	return signature, nil
 }
 
-// localSigner implements cose.Signer interface.
+// CertificateChain implements signer interface
+func (signer *remoteSigner) CertificateChain() []*x509.Certificate {
+	return signer.certs
+}
+
+// localSigner implements signer interface.
 // It is used in Sign process when go-cose's built-in signer is desired.
 type localSigner struct {
 	base         signature.LocalSigner
@@ -139,6 +150,11 @@ func (signer *localSigner) Sign(rand io.Reader, payload []byte) ([]byte, error) 
 		return nil, err
 	}
 	return coseSigner.Sign(rand, payload)
+}
+
+// CertificateChain implements signer interface
+func (signer *localSigner) CertificateChain() []*x509.Certificate {
+	return signer.certs
 }
 
 type envelope struct {
@@ -372,7 +388,7 @@ func getSignatureAlgorithmFromKeySpec(keySpec signature.KeySpec) (cose.Algorithm
 
 // getSigner returns the built-in implementation of cose.Signer from go-cose
 // or a remote signer implementation of cose.Signer
-func getSigner(signer signature.Signer) (cose.Signer, error) {
+func getSigner(signer signature.Signer) (signer, error) {
 	if localSigner, ok := signer.(signature.LocalSigner); ok {
 		return newLocalSigner(localSigner)
 	}
@@ -421,18 +437,12 @@ func generateProtectedHeaders(req *signature.SignRequest, protected cose.Protect
 
 // generateUnprotectedHeaders creates Unprotected Headers of the COSE envelope
 // during Sign process.
-func generateUnprotectedHeaders(req *signature.SignRequest, signer cose.Signer, unprotected cose.UnprotectedHeader) {
+func generateUnprotectedHeaders(req *signature.SignRequest, signer signer, unprotected cose.UnprotectedHeader) {
 	// signing agent
 	unprotected[headerLabelSigningAgent] = req.SigningAgent
 
 	// certChain
-	var certs []*x509.Certificate
-	switch s := signer.(type) {
-	case *remoteSigner:
-		certs = s.certs
-	case *localSigner:
-		certs = s.certs
-	}
+	certs := signer.CertificateChain()
 	certChain := make([]interface{}, len(certs))
 	for i, c := range certs {
 		certChain[i] = c.Raw

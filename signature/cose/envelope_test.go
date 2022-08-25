@@ -722,8 +722,8 @@ func newSignRequest(signingScheme string, keyType signature.KeyType, size int) (
 			Content:     []byte(payloadString),
 		},
 		Signer:      signer,
-		SigningTime: time.Now(),
-		Expiry:      time.Now().AddDate(0, 0, 1),
+		SigningTime: time.Now().Truncate(time.Second),
+		Expiry:      time.Now().AddDate(0, 0, 1).Truncate(time.Second),
 		ExtendedSignedAttributes: []signature.Attribute{
 			{Key: "signedCritKey1", Value: "signedCritValue1", Critical: true},
 			{Key: "signedKey1", Value: "signedValue1", Critical: false},
