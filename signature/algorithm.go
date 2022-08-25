@@ -62,7 +62,7 @@ func ExtractKeySpec(signingCert *x509.Certificate) (KeySpec, error) {
 			}, nil
 		default:
 			return KeySpec{}, &UnsupportedSigningKeyError{
-				fmt.Sprintf("rsa key size %d is not supported", bitSize),
+				Msg: fmt.Sprintf("rsa key size %d is not supported", bitSize),
 			}
 		}
 	case *ecdsa.PublicKey:
@@ -74,11 +74,13 @@ func ExtractKeySpec(signingCert *x509.Certificate) (KeySpec, error) {
 			}, nil
 		default:
 			return KeySpec{}, &UnsupportedSigningKeyError{
-				fmt.Sprintf("ecdsa key size %d is not supported", bitSize),
+				Msg: fmt.Sprintf("ecdsa key size %d is not supported", bitSize),
 			}
 		}
 	}
-	return KeySpec{}, fmt.Errorf("invalid public key type")
+	return KeySpec{}, &UnsupportedSigningKeyError{
+		Msg: "invalid public key type",
+	}
 }
 
 // SignatureAlgorithm returns the signing algorithm associated with the KeySpec.

@@ -16,7 +16,7 @@ type SigningScheme string
 
 // SigningSchemes supported by notation.
 const (
-	// notary.x509 sigining scheme.
+	// notary.x509 signing scheme.
 	SigningSchemeX509 SigningScheme = "notary.x509"
 
 	// notary.x509.signingAuthority schema.
