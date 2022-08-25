@@ -58,7 +58,7 @@ func TestNewLocalSigner(t *testing.T) {
 				testhelper.GetRSALeafCertificate().Cert,
 			},
 			key: testhelper.GetRSALeafCertificate().PrivateKey,
-			expect: &signer{
+			expect: &localSigner{
 				keySpec: KeySpec{
 					Type: KeyTypeRSA,
 					Size: 3072,
@@ -76,7 +76,7 @@ func TestNewLocalSigner(t *testing.T) {
 				testhelper.GetECLeafCertificate().Cert,
 			},
 			key: testhelper.GetECLeafCertificate().PrivateKey,
-			expect: &signer{
+			expect: &localSigner{
 				keySpec: KeySpec{
 					Type: KeyTypeEC,
 					Size: 384,
@@ -105,7 +105,7 @@ func TestNewLocalSigner(t *testing.T) {
 }
 
 func TestSign(t *testing.T) {
-	signer := &signer{}
+	signer := &localSigner{}
 
 	raw, certs, err := signer.Sign(make([]byte, 0))
 	if err == nil {
@@ -124,7 +124,7 @@ func TestKeySpec(t *testing.T) {
 		Type: KeyTypeRSA,
 		Size: 256,
 	}
-	signer := &signer{keySpec: expectKeySpec}
+	signer := &localSigner{keySpec: expectKeySpec}
 
 	keySpec, err := signer.KeySpec()
 
@@ -140,7 +140,7 @@ func TestCertificateChain(t *testing.T) {
 	expectCerts := []*x509.Certificate{
 		testhelper.GetRSALeafCertificate().Cert,
 	}
-	signer := &signer{certs: expectCerts}
+	signer := &localSigner{certs: expectCerts}
 
 	certs, err := signer.CertificateChain()
 
@@ -154,7 +154,7 @@ func TestCertificateChain(t *testing.T) {
 
 func TestPrivateKey(t *testing.T) {
 	expectKey := testhelper.GetRSALeafCertificate().PrivateKey
-	signer := &signer{key: expectKey}
+	signer := &localSigner{key: expectKey}
 
 	key := signer.PrivateKey()
 

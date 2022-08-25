@@ -252,26 +252,6 @@ func TestVerify(t *testing.T) {
 			expectErr:        true,
 		},
 		{
-			name: "invalid payload",
-			env: &Envelope{
-				Raw:      validBytes,
-				Envelope: &mockEnvelope{},
-			},
-			expectPayload:    nil,
-			expectSignerInfo: nil,
-			expectErr:        true,
-		},
-		{
-			name: "invalid payload",
-			env: &Envelope{
-				Raw:      validBytes,
-				Envelope: &mockEnvelope{},
-			},
-			expectPayload:    nil,
-			expectSignerInfo: nil,
-			expectErr:        true,
-		},
-		{
 			name: "err returned by internal envelope",
 			env: &Envelope{
 				Raw: validBytes,
@@ -732,16 +712,6 @@ func TestValidateCertificateChain(t *testing.T) {
 				testhelper.GetECLeafCertificate().Cert,
 			},
 			signTime:  time.Now(),
-			alg:       signature.AlgorithmES256,
-			expectErr: true,
-		},
-		{
-			name: "unsupported algorithm",
-			certs: []*x509.Certificate{
-				testhelper.GetED25519LeafCertificate().Cert,
-				testhelper.GetED25519RootCertificate().Cert,
-			},
-			signTime:  testhelper.GetED25519LeafCertificate().Cert.NotBefore,
 			alg:       signature.AlgorithmES256,
 			expectErr: true,
 		},
