@@ -61,7 +61,7 @@ func testSign(t *testing.T, sign1 *sign1) {
 		t.Fatalf("MarshalCBOR() faild. Error = %s", err)
 	}
 
-	// sign1.Output.CBORHex is a manually created CBOR hex used as ground
+	// sign1.Output.CBORHex is a manually computed CBOR hex used as ground
 	// truth in the conformance test.
 	want := hexToBytes(sign1.Output.CBORHex)
 	if !bytes.Equal(want, got) {
@@ -89,7 +89,7 @@ func testVerify(t *testing.T, sign1 *sign1) {
 	}
 	//Verify after UnmarshalCBOR
 	var msg cose.Sign1Message
-	// sign1.Output.CBORHex is a manually created CBOR hex used as ground
+	// sign1.Output.CBORHex is a manually computed CBOR hex used as ground
 	// truth in the conformance test.
 	if err := msg.UnmarshalCBOR(hexToBytes(sign1.Output.CBORHex)); err != nil {
 		t.Fatalf("msg.UnmarshalCBOR() failed. Error = %s", err)
