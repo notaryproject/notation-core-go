@@ -171,7 +171,7 @@ func validateSignerInfo(info *signature.SignerInfo) error {
 	)
 }
 
-// validateSigningTime checks that sigining time is within the valid range of
+// validateSigningTime checks that signing time is within the valid range of
 // time duration.
 func validateSigningTime(signingTime, expireTime time.Time) error {
 	if signingTime.IsZero() {

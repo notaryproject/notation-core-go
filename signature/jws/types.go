@@ -67,6 +67,7 @@ type jwsUnprotectedHeader struct {
 	SigningAgent string `json:"io.cncf.notary.signingAgent,omitempty"`
 }
 
+// jwsEnvelope is the final Signature envelope.
 type jwsEnvelope struct {
 	// JWSPayload Base64URL-encoded.
 	Payload string `json:"payload"`

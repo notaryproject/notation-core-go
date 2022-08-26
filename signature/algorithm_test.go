@@ -229,3 +229,28 @@ func TestSignatureAlgorithm(t *testing.T) {
 		})
 	}
 }
+
+func TestKeyTypeStringer(t *testing.T) {
+	testCase := []struct {
+		keyType KeyType
+		str     string
+	}{
+		{
+			keyType: KeyTypeEC,
+			str:     "ECDSA",
+		},
+		{
+			keyType: KeyTypeRSA,
+			str:     "RSA",
+		},
+		{
+			keyType: 10,
+			str:     "unknown key type: 10",
+		},
+	}
+	for _, tt := range testCase {
+		if tt.keyType.String() != tt.str {
+			t.Fatalf("keyType: %s stringer test failed", tt.keyType)
+		}
+	}
+}

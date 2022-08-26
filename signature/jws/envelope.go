@@ -4,7 +4,6 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
-	"strings"
 
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/notaryproject/notation-core-go/signature"
@@ -46,22 +45,32 @@ func ParseEnvelope(envelopeBytes []byte) (signature.Envelope, error) {
 
 // Sign signs the envelope and return the encoded message
 func (e *envelope) Sign(req *signature.SignRequest) ([]byte, error) {
-	// get all attributes ready to be signed
-	signedAttrs, err := getSignedAttrs(req)
-	if err != nil {
-		return nil, err
+	// check signer type
+	var (
+		method signingMethod
+		err    error
+	)
+	if localSigner, ok := req.Signer.(signature.LocalSigner); ok {
+		// for local signer
+		method, err = newLocalSigningMethod(localSigner)
+	} else {
+		// for remote signer
+		method, err = newRemoteSigningMethod(req.Signer)
 	}
-
-	// JWT sign
-	compact, err := sign(req.Payload.Content, signedAttrs, req.Signer)
 	if err != nil {
 		return nil, &signature.MalformedSignRequestError{Msg: err.Error()}
 	}
 
-	// get certificate chain
-	certs, err := req.Signer.CertificateChain()
+	// get all attributes ready to be signed
+	signedAttrs, err := getSignedAttrs(req, method.Alg())
 	if err != nil {
 		return nil, err
+	}
+
+	// JWT sign and get certificate chain
+	compact, certs, err := sign(req.Payload.Content, signedAttrs, method)
+	if err != nil {
+		return nil, &signature.MalformedSignRequestError{Msg: err.Error()}
 	}
 
 	// generate envelope
@@ -78,17 +87,6 @@ func (e *envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 	return encoded, nil
 }
 
-// compactJWS converts Flattened JWS JSON Serialization Syntax (section-7.2.2) to
-// JWS Compact Serialization (section-7.1)
-//
-// [RFC 7515]: https://www.rfc-editor.org/rfc/rfc7515.html
-func compactJWS(envelope *jwsEnvelope) string {
-	return strings.Join([]string{
-		envelope.Protected,
-		envelope.Payload,
-		envelope.Signature}, ".")
-}
-
 // Verify checks the validity of the envelope and returns the payload and signerInfo
 func (e *envelope) Verify() (*signature.Payload, *signature.SignerInfo, error) {
 	if e.internalEnvelope == nil {
@@ -96,7 +94,7 @@ func (e *envelope) Verify() (*signature.Payload, *signature.SignerInfo, error) {
 	}
 
 	if len(e.internalEnvelope.Header.CertChain) == 0 {
-		return nil, nil, &signature.MalformedSignatureError{Msg: "malformed leaf certificate"}
+		return nil, nil, &signature.MalformedSignatureError{Msg: "certificate chain is not set"}
 	}
 
 	cert, err := x509.ParseCertificate(e.internalEnvelope.Header.CertChain[0])
@@ -106,7 +104,7 @@ func (e *envelope) Verify() (*signature.Payload, *signature.SignerInfo, error) {
 
 	// verify JWT
 	compact := compactJWS(e.internalEnvelope)
-	if err = verifyJWT(compact, cert); err != nil {
+	if err = verifyJWT(compact, cert.PublicKey); err != nil {
 		return nil, nil, err
 	}
 
@@ -127,7 +125,7 @@ func (e *envelope) Verify() (*signature.Payload, *signature.SignerInfo, error) {
 // Payload returns the payload of JWS envelope
 func (e *envelope) Payload() (*signature.Payload, error) {
 	if e.internalEnvelope == nil {
-		return nil, &signature.MalformedSignatureError{Msg: "missing jws signature envelope"}
+		return nil, &signature.SignatureNotFoundError{}
 	}
 	// parse protected header to get payload context type
 	protected, err := parseProtectedHeaders(e.internalEnvelope.Protected)
@@ -147,7 +145,7 @@ func (e *envelope) Payload() (*signature.Payload, error) {
 	var claims jwtPayload
 	_, _, err = parser.ParseUnverified(tokenString, &claims)
 	if err != nil {
-		return nil, err
+		return nil, &signature.MalformedSignatureError{Msg: err.Error()}
 	}
 
 	return &signature.Payload{
@@ -161,14 +159,14 @@ func (e *envelope) SignerInfo() (*signature.SignerInfo, error) {
 	if e.internalEnvelope == nil {
 		return nil, &signature.SignatureNotFoundError{}
 	}
-	var signInfo signature.SignerInfo
+	var signerInfo signature.SignerInfo
 
 	// parse protected headers
 	protected, err := parseProtectedHeaders(e.internalEnvelope.Protected)
 	if err != nil {
 		return nil, err
 	}
-	if err := populateProtectedHeaders(protected, &signInfo); err != nil {
+	if err := populateProtectedHeaders(protected, &signerInfo); err != nil {
 		return nil, err
 	}
 
@@ -180,7 +178,7 @@ func (e *envelope) SignerInfo() (*signature.SignerInfo, error) {
 	if len(sig) == 0 {
 		return nil, &signature.MalformedSignatureError{Msg: "cose envelope missing signature"}
 	}
-	signInfo.Signature = sig
+	signerInfo.Signature = sig
 
 	// parse headers
 	var certs []*x509.Certificate
@@ -191,34 +189,28 @@ func (e *envelope) SignerInfo() (*signature.SignerInfo, error) {
 		}
 		certs = append(certs, cert)
 	}
-	signInfo.CertificateChain = certs
-	signInfo.UnsignedAttributes.SigningAgent = e.internalEnvelope.Header.SigningAgent
-	signInfo.UnsignedAttributes.TimestampSignature = e.internalEnvelope.Header.TimestampSignature
-
-	return &signInfo, nil
+	signerInfo.CertificateChain = certs
+	signerInfo.UnsignedAttributes.SigningAgent = e.internalEnvelope.Header.SigningAgent
+	signerInfo.UnsignedAttributes.TimestampSignature = e.internalEnvelope.Header.TimestampSignature
+	return &signerInfo, nil
 }
 
-// sign the given payload and headers using the given signing method and signature provider
-func sign(payload jwtPayload, headers map[string]interface{}, signer signature.Signer) (string, error) {
-	var privateKey interface{}
-	var signingMethod jwt.SigningMethod
-	if localSigner, ok := signer.(signature.LocalSigner); ok {
-		// local signer
-		alg, err := extractJwtAlgorithm(localSigner)
-		if err != nil {
-			return "", err
-		}
-		signingMethod = jwt.GetSigningMethod(alg)
-
-		// sign with private key
-		privateKey = localSigner.PrivateKey()
-	} else {
-		// remote signer
-		signingMethod = newRemoteSigningMethod(signer)
-	}
+// sign the given payload and headers using the given signature provider
+func sign(payload jwtPayload, headers map[string]interface{}, method signingMethod) (string, []*x509.Certificate, error) {
 	// generate token
-	token := jwt.NewWithClaims(signingMethod, payload)
+	token := jwt.NewWithClaims(method, payload)
 	token.Header = headers
 
-	return token.SignedString(privateKey)
+	// sign and return compact JWS
+	compact, err := token.SignedString(method.PrivateKey())
+	if err != nil {
+		return "", nil, err
+	}
+
+	// access certificate chain after sign
+	certs, err := method.CertificateChain()
+	if err != nil {
+		return "", nil, err
+	}
+	return compact, certs, nil
 }

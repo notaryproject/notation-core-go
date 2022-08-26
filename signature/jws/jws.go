@@ -38,29 +38,29 @@ func parseProtectedHeaders(encoded string) (*jwsProtectedHeader, error) {
 	return &protected, nil
 }
 
-func populateProtectedHeaders(protectedHeader *jwsProtectedHeader, signInfo *signature.SignerInfo) error {
+func populateProtectedHeaders(protectedHeader *jwsProtectedHeader, signerInfo *signature.SignerInfo) error {
 	err := validateProtectedHeaders(protectedHeader)
 	if err != nil {
 		return err
 	}
 
-	if signInfo.SignatureAlgorithm, err = getSignatureAlgorithm(protectedHeader.Algorithm); err != nil {
+	if signerInfo.SignatureAlgorithm, err = getSignatureAlgorithm(protectedHeader.Algorithm); err != nil {
 		return err
 	}
 
-	signInfo.SignedAttributes.ExtendedAttributes = getExtendedAttributes(protectedHeader.ExtendedAttributes, protectedHeader.Critical)
-	signInfo.SignedAttributes.SigningScheme = protectedHeader.SigningScheme
+	signerInfo.SignedAttributes.ExtendedAttributes = getExtendedAttributes(protectedHeader.ExtendedAttributes, protectedHeader.Critical)
+	signerInfo.SignedAttributes.SigningScheme = protectedHeader.SigningScheme
 	if protectedHeader.Expiry != nil {
-		signInfo.SignedAttributes.Expiry = *protectedHeader.Expiry
+		signerInfo.SignedAttributes.Expiry = *protectedHeader.Expiry
 	}
 	switch protectedHeader.SigningScheme {
 	case signature.SigningSchemeX509:
 		if protectedHeader.SigningTime != nil {
-			signInfo.SignedAttributes.SigningTime = *protectedHeader.SigningTime
+			signerInfo.SignedAttributes.SigningTime = *protectedHeader.SigningTime
 		}
 	case signature.SigningSchemeX509SigningAuthority:
 		if protectedHeader.AuthenticSigningTime != nil {
-			signInfo.SignedAttributes.SigningTime = *protectedHeader.AuthenticSigningTime
+			signerInfo.SignedAttributes.SigningTime = *protectedHeader.AuthenticSigningTime
 		}
 	}
 	return nil
@@ -87,7 +87,7 @@ func validateProtectedHeaders(protectedHeader *jwsProtectedHeader) error {
 
 func validateCriticalHeaders(protectedHeader *jwsProtectedHeader) error {
 	if len(protectedHeader.Critical) == 0 {
-		return &signature.MalformedSignatureError{Msg: "missing `crit` header"}
+		return &signature.MalformedSignatureError{Msg: `missing "crit" header`}
 	}
 
 	mustMarkedCrit := map[string]bool{headerKeySigningScheme: true}
@@ -177,7 +177,7 @@ func generateJWS(compact string, req *signature.SignRequest, certs []*x509.Certi
 }
 
 // getSignerAttrs merge extended signed attributes and protected header to be signed attributes
-func getSignedAttrs(req *signature.SignRequest) (map[string]interface{}, error) {
+func getSignedAttrs(req *signature.SignRequest, algorithm string) (map[string]interface{}, error) {
 	extAttrs := make(map[string]interface{})
 	crit := []string{headerKeySigningScheme}
 
@@ -189,14 +189,8 @@ func getSignedAttrs(req *signature.SignRequest) (map[string]interface{}, error) 
 		}
 	}
 
-	// extract JWT algorithm name from signer
-	jwtAlgorithm, err := extractJwtAlgorithm(req.Signer)
-	if err != nil {
-		return nil, err
-	}
-
 	jwsProtectedHeader := jwsProtectedHeader{
-		Algorithm:     jwtAlgorithm,
+		Algorithm:     algorithm,
 		ContentType:   req.Payload.ContentType,
 		SigningScheme: req.SigningScheme,
 	}
@@ -245,4 +239,15 @@ func mergeMaps(maps ...map[string]interface{}) (map[string]interface{}, error) {
 		}
 	}
 	return result, nil
+}
+
+// compactJWS converts Flattened JWS JSON Serialization Syntax (section-7.2.2) to
+// JWS Compact Serialization (section-7.1)
+//
+// [RFC 7515]: https://www.rfc-editor.org/rfc/rfc7515.html
+func compactJWS(envelope *jwsEnvelope) string {
+	return strings.Join([]string{
+		envelope.Protected,
+		envelope.Payload,
+		envelope.Signature}, ".")
 }
