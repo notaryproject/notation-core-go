@@ -36,7 +36,7 @@ func TestParseEnvelopeError(t *testing.T) {
 }
 
 func TestSign(t *testing.T) {
-	env := envelope{}
+	env := createNewEnv(nil)
 	for _, signingScheme := range signingSchemeString {
 		for _, keyType := range signaturetest.KeyTypes {
 			for _, size := range signaturetest.GetKeySizes(keyType) {
@@ -112,7 +112,7 @@ func TestSign(t *testing.T) {
 }
 
 func TestSignErrors(t *testing.T) {
-	env := envelope{}
+	env := createNewEnv(nil)
 	// Testing getSigner()
 	t.Run("errorLocalSigner: when getSigner has privateKeyError", func(t *testing.T) {
 		signRequest, err := getSignRequest()
@@ -278,9 +278,7 @@ func TestSignErrors(t *testing.T) {
 
 func TestVerifyErrors(t *testing.T) {
 	t.Run("when missing COSE signature envelope", func(t *testing.T) {
-		env := envelope{
-			base: nil,
-		}
+		env := createNewEnv(nil)
 		_, _, err := env.Verify()
 		expected := errors.New("missing COSE signature envelope")
 		if !isErrEqual(expected, err) {
@@ -645,7 +643,7 @@ func TestSignerInfoErrors(t *testing.T) {
 }
 
 func TestSignAndVerify(t *testing.T) {
-	env := envelope{}
+	env := createNewEnv(nil)
 	for _, signingScheme := range signingSchemeString {
 		for _, keyType := range signaturetest.KeyTypes {
 			for _, size := range signaturetest.GetKeySizes(keyType) {
@@ -723,20 +721,18 @@ func getSignRequest() (*signature.SignRequest, error) {
 func getVerifyCOSE(signingScheme string, keyType signature.KeyType, size int) (envelope, error) {
 	signRequest, err := newSignRequest(signingScheme, keyType, size)
 	if err != nil {
-		return envelope{}, err
+		return createNewEnv(nil), err
 	}
 	env := NewEnvelope()
 	encoded, err := env.Sign(signRequest)
 	if err != nil {
-		return envelope{}, err
+		return createNewEnv(nil), err
 	}
 	var msg cose.Sign1Message
 	if err := msg.UnmarshalCBOR(encoded); err != nil {
-		return envelope{}, err
+		return createNewEnv(nil), err
 	}
-	newEnv := envelope{
-		base: &msg,
-	}
+	newEnv := createNewEnv(&msg)
 	return newEnv, nil
 }
 
@@ -847,4 +843,10 @@ func isErrEqual(wanted, got error) bool {
 		return wanted.Error() == got.Error()
 	}
 	return false
+}
+
+func createNewEnv(msg *cose.Sign1Message) envelope {
+	return envelope{
+		base: msg,
+	}
 }

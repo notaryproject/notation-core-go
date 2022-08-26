@@ -50,7 +50,7 @@ func testSign(t *testing.T, sign1 *sign1) {
 	if err != nil {
 		t.Fatalf("getSignReq() failed. Error = %s", err)
 	}
-	env := envelope{}
+	env := createNewEnv(nil)
 	encoded, err := env.Sign(signRequest)
 	if err != nil || len(encoded) == 0 {
 		t.Fatalf("Sign() faild. Error = %s", err)
@@ -83,7 +83,7 @@ func testVerify(t *testing.T, sign1 *sign1) {
 	if err != nil {
 		t.Fatalf("getSignReq() failed. Error = %s", err)
 	}
-	env := envelope{}
+	env := createNewEnv(nil)
 	encoded, err := env.Sign(signRequest)
 	if err != nil || len(encoded) == 0 {
 		t.Fatalf("Sign() faild. Error = %s", err)
@@ -109,9 +109,7 @@ func testVerify(t *testing.T, sign1 *sign1) {
 	msg.Headers.Unprotected[cose.HeaderLabelX5Chain] = certChain
 	msg.Signature = env.base.Signature
 
-	newEnv := envelope{
-		base: &msg,
-	}
+	newEnv := createNewEnv(&msg)
 	payload, signerInfo, err := newEnv.Verify()
 	if err != nil {
 		t.Fatalf("Verify() failed. Error = %s", err)
