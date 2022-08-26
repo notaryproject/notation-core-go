@@ -194,7 +194,16 @@ func TestUnsupportedSignatureFormatError(t *testing.T) {
 
 func TestEnvelopeKeyRepeatedError(t *testing.T) {
 	err := &EnvelopeKeyRepeatedError{Key: errMsg}
-	expectMsg := fmt.Sprintf("repeated key: %q exists in the envelope.", errMsg)
+	expectMsg := fmt.Sprintf(`repeated key: "%s" exists in the both protected header and extended signed attributes.`, errMsg)
+
+	if err.Error() != expectMsg {
+		t.Errorf("Expected %v but got %v", expectMsg, err.Error())
+	}
+}
+
+func TestRemoteSigningError(t *testing.T) {
+	err := &RemoteSigningError{Msg: errMsg}
+	expectMsg := fmt.Sprintf("remote signing error. Error: %s", errMsg)
 
 	if err.Error() != expectMsg {
 		t.Errorf("Expected %v but got %v", expectMsg, err.Error())
