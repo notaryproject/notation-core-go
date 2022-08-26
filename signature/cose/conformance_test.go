@@ -69,6 +69,7 @@ func testSign(t *testing.T, sign1 *sign1) {
 	}
 
 	// Verify using the same envelope struct
+	// (Verify with UnmarshalCBOR is covered in the testVerify() part)
 	_, _, err = env.Verify()
 	if err != nil {
 		t.Fatalf("Verify() failed. Error = %s", err)
