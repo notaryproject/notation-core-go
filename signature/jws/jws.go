@@ -176,8 +176,8 @@ func generateJWS(compact string, req *signature.SignRequest, certs []*x509.Certi
 	}, nil
 }
 
-// getSignerAttrs merge extended signed attributes and protected header to be signed attributes
-func getSignedAttrs(req *signature.SignRequest, algorithm string) (map[string]interface{}, error) {
+// getSignerAttributes merge extended signed attributes and protected header to be signed attributes
+func getSignedAttributes(req *signature.SignRequest, algorithm string) (map[string]interface{}, error) {
 	extAttrs := make(map[string]interface{})
 	crit := []string{headerKeySigningScheme}
 
