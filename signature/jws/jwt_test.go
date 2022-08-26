@@ -52,12 +52,12 @@ func Test_remoteSigningMethod_Verify(t *testing.T) {
 func Test_newLocalSigningMethod(t *testing.T) {
 	signer := errorLocalSigner{}
 	_, err := newLocalSigningMethod(&signer)
-	cmpError(t, err.Error(), `signature algorithm "#0" is not supported`)
+	checkErrorEqual(t, `signature algorithm "#0" is not supported`, err.Error())
 }
 
 func Test_newRemoteSigningMethod(t *testing.T) {
 	_, err := newRemoteSigningMethod(&errorLocalSigner{})
-	cmpError(t, err.Error(), `signature algorithm "#0" is not supported`)
+	checkErrorEqual(t, `signature algorithm "#0" is not supported`, err.Error())
 }
 
 func Test_remoteSigningMethod_CertificateChain(t *testing.T) {
@@ -70,7 +70,7 @@ func Test_remoteSigningMethod_CertificateChain(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err = signingScheme.CertificateChain()
-	cmpError(t, err.Error(), "remote signing error. Error: certificate chain is not set")
+	checkErrorEqual(t, "remote signing error. Error: certificate chain is not set", err.Error())
 }
 
 func Test_remoteSigningMethod_Sign(t *testing.T) {
@@ -84,16 +84,16 @@ func Test_remoteSigningMethod_Sign(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err = signingScheme.Sign("", nil)
-	cmpError(t, err.Error(), "sign error")
+	checkErrorEqual(t, "sign error", err.Error())
 }
 func Test_extractJwtAlgorithm(t *testing.T) {
 	_, err := extractJwtAlgorithm(&errorLocalSigner{})
-	cmpError(t, err.Error(), `signature algorithm "#0" is not supported`)
+	checkErrorEqual(t, `signature algorithm "#0" is not supported`, err.Error())
 
 	_, err = extractJwtAlgorithm(&errorLocalSigner{
 		keySpecError: errors.New("get key spec error"),
 	})
-	cmpError(t, err.Error(), `get key spec error`)
+	checkErrorEqual(t, `get key spec error`, err.Error())
 }
 
 func Test_verifyJWT(t *testing.T) {

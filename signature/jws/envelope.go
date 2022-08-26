@@ -46,8 +46,10 @@ func ParseEnvelope(envelopeBytes []byte) (signature.Envelope, error) {
 // Sign signs the envelope and return the encoded message
 func (e *envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 	// check signer type
-	var method signingMethod
-	var err error
+	var (
+		method signingMethod
+		err    error
+	)
 	if localSigner, ok := req.Signer.(signature.LocalSigner); ok {
 		// for local signer
 		method, err = newLocalSigningMethod(localSigner)

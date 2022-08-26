@@ -2,7 +2,6 @@ package cose
 
 import (
 	"crypto"
-	"crypto/elliptic"
 	"crypto/x509"
 	"errors"
 	"fmt"
@@ -10,6 +9,7 @@ import (
 	"time"
 
 	"github.com/notaryproject/notation-core-go/signature"
+	"github.com/notaryproject/notation-core-go/signature/signaturetest"
 	"github.com/notaryproject/notation-core-go/testhelper"
 	"github.com/veraison/go-cose"
 )
@@ -20,7 +20,6 @@ const (
 
 var (
 	signingSchemeString = []string{"notary.x509", "notary.x509.signingAuthority"}
-	keyType             = []signature.KeyType{signature.KeyTypeRSA, signature.KeyTypeEC}
 )
 
 func TestParseEnvelopeError(t *testing.T) {
@@ -39,14 +38,8 @@ func TestParseEnvelopeError(t *testing.T) {
 func TestSign(t *testing.T) {
 	env := envelope{}
 	for _, signingScheme := range signingSchemeString {
-		for _, keyType := range keyType {
-			var size []int
-			if keyType == signature.KeyTypeRSA {
-				size = []int{2048, 3072, 4096}
-			} else {
-				size = []int{256, 384, 521}
-			}
-			for _, size := range size {
+		for _, keyType := range signaturetest.KeyTypes {
+			for _, size := range signaturetest.GetKeySizes(keyType) {
 				t.Run(fmt.Sprintf("with %s scheme, %v keyType, %v keySize when all arguments are present", signingScheme, keyType, size), func(t *testing.T) {
 					signRequest, err := newSignRequest(signingScheme, keyType, size)
 					if err != nil {
@@ -59,7 +52,7 @@ func TestSign(t *testing.T) {
 				})
 
 				t.Run(fmt.Sprintf("with %s scheme, %v keyType, %v keySize when minimal arguments are present", signingScheme, keyType, size), func(t *testing.T) {
-					signer, err := getTestSigner(keyType, size)
+					signer, err := signaturetest.GetTestLocalSigner(keyType, size)
 					if err != nil {
 						t.Fatalf("Sign() failed. Error = %s", err)
 					}
@@ -654,14 +647,8 @@ func TestSignerInfoErrors(t *testing.T) {
 func TestSignAndVerify(t *testing.T) {
 	env := envelope{}
 	for _, signingScheme := range signingSchemeString {
-		for _, keyType := range keyType {
-			var size []int
-			if keyType == signature.KeyTypeRSA {
-				size = []int{2048, 3072, 4096}
-			} else {
-				size = []int{256, 384, 521}
-			}
-			for _, size := range size {
+		for _, keyType := range signaturetest.KeyTypes {
+			for _, size := range signaturetest.GetKeySizes(keyType) {
 				t.Run(fmt.Sprintf("with %s scheme, %v keyType, %v keySize", signingScheme, keyType, size), func(t *testing.T) {
 					// Sign
 					signRequest, err := newSignRequest(signingScheme, keyType, size)
@@ -686,14 +673,8 @@ func TestSignAndVerify(t *testing.T) {
 
 func TestSignAndParseVerify(t *testing.T) {
 	for _, signingScheme := range signingSchemeString {
-		for _, keyType := range keyType {
-			var size []int
-			if keyType == signature.KeyTypeRSA {
-				size = []int{2048, 3072, 4096}
-			} else {
-				size = []int{256, 384, 521}
-			}
-			for _, size := range size {
+		for _, keyType := range signaturetest.KeyTypes {
+			for _, size := range signaturetest.GetKeySizes(keyType) {
 				t.Run(fmt.Sprintf("with %s scheme, %v keyType, %v keySize", signingScheme, keyType, size), func(t *testing.T) {
 					//Verify after UnmarshalCBOR
 					env, err := getVerifyCOSE(signingScheme, keyType, size)
@@ -712,7 +693,7 @@ func TestSignAndParseVerify(t *testing.T) {
 }
 
 func newSignRequest(signingScheme string, keyType signature.KeyType, size int) (*signature.SignRequest, error) {
-	signer, err := getTestSigner(keyType, size)
+	signer, err := signaturetest.GetTestLocalSigner(keyType, size)
 	if err != nil {
 		return nil, err
 	}
@@ -731,47 +712,6 @@ func newSignRequest(signingScheme string, keyType signature.KeyType, size int) (
 		SigningAgent:  "NotationUnitTest/1.0.0",
 		SigningScheme: signature.SigningScheme(signingScheme),
 	}, nil
-}
-
-func getTestSigner(keyType signature.KeyType, size int) (signature.Signer, error) {
-	switch keyType {
-	case signature.KeyTypeEC:
-		switch size {
-		case 256:
-			leafCertTuple := testhelper.GetECCertTuple(elliptic.P256())
-			certs := []*x509.Certificate{leafCertTuple.Cert, testhelper.GetECRootCertificate().Cert}
-			return signature.NewLocalSigner(certs, leafCertTuple.PrivateKey)
-		case 384:
-			leafCertTuple := testhelper.GetECCertTuple(elliptic.P384())
-			certs := []*x509.Certificate{leafCertTuple.Cert, testhelper.GetECRootCertificate().Cert}
-			return signature.NewLocalSigner(certs, leafCertTuple.PrivateKey)
-		case 521:
-			leafCertTuple := testhelper.GetECCertTuple(elliptic.P521())
-			certs := []*x509.Certificate{leafCertTuple.Cert, testhelper.GetECRootCertificate().Cert}
-			return signature.NewLocalSigner(certs, leafCertTuple.PrivateKey)
-		default:
-			return nil, fmt.Errorf("key size not supported")
-		}
-	case signature.KeyTypeRSA:
-		switch size {
-		case 2048:
-			leafCertTuple := testhelper.GetRSACertTuple(2048)
-			certs := []*x509.Certificate{leafCertTuple.Cert, testhelper.GetRSARootCertificate().Cert}
-			return signature.NewLocalSigner(certs, leafCertTuple.PrivateKey)
-		case 3072:
-			leafCertTuple := testhelper.GetRSACertTuple(3072)
-			certs := []*x509.Certificate{leafCertTuple.Cert, testhelper.GetRSARootCertificate().Cert}
-			return signature.NewLocalSigner(certs, leafCertTuple.PrivateKey)
-		case 4096:
-			leafCertTuple := testhelper.GetRSACertTuple(4096)
-			certs := []*x509.Certificate{leafCertTuple.Cert, testhelper.GetRSARootCertificate().Cert}
-			return signature.NewLocalSigner(certs, leafCertTuple.PrivateKey)
-		default:
-			return nil, fmt.Errorf("key size not supported")
-		}
-	default:
-		return nil, fmt.Errorf("keyType not supported")
-	}
 }
 
 func getSignRequest() (*signature.SignRequest, error) {

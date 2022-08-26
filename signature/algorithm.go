@@ -31,6 +31,18 @@ const (
 	KeyTypeEC                     // KeyType EC
 )
 
+// String is the stringer function for KeyType
+func (keyType KeyType) String() string {
+	switch keyType {
+	case KeyTypeRSA:
+		return "RSA"
+	case KeyTypeEC:
+		return "ECDSA"
+	default:
+		return fmt.Sprintf("unknown key type: %d", keyType)
+	}
+}
+
 // KeySpec defines a key type and size.
 type KeySpec struct {
 	Type KeyType
