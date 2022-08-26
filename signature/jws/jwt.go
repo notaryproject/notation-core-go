@@ -107,6 +107,16 @@ func (s *localSigningMethod) PrivateKey() crypto.PrivateKey {
 	return s.signer.PrivateKey()
 }
 
+// getSigningMethod return signingMethod for the given signer
+func getSigningMethod(signer signature.Signer) (signingMethod, error) {
+	if localSigner, ok := signer.(signature.LocalSigner); ok {
+		// for local signer
+		return newLocalSigningMethod(localSigner)
+	}
+	// for remote signer
+	return newRemoteSigningMethod(signer)
+}
+
 // verifyJWT verifies the JWT token against the specified verification key
 func verifyJWT(tokenString string, publicKey interface{}) error {
 	parser := jwt.NewParser(
