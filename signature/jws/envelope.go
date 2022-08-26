@@ -45,24 +45,14 @@ func ParseEnvelope(envelopeBytes []byte) (signature.Envelope, error) {
 
 // Sign signs the envelope and return the encoded message
 func (e *envelope) Sign(req *signature.SignRequest) ([]byte, error) {
-	// check signer type
-	var (
-		method signingMethod
-		err    error
-	)
-	if localSigner, ok := req.Signer.(signature.LocalSigner); ok {
-		// for local signer
-		method, err = newLocalSigningMethod(localSigner)
-	} else {
-		// for remote signer
-		method, err = newRemoteSigningMethod(req.Signer)
-	}
+	// get signingMethod for JWT package
+	method, err := getSigningMethod(req.Signer)
 	if err != nil {
 		return nil, &signature.MalformedSignRequestError{Msg: err.Error()}
 	}
 
 	// get all attributes ready to be signed
-	signedAttrs, err := getSignedAttrs(req, method.Alg())
+	signedAttrs, err := getSignedAttributes(req, method.Alg())
 	if err != nil {
 		return nil, err
 	}
