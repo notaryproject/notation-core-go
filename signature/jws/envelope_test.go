@@ -569,7 +569,7 @@ func TestPayload(t *testing.T) {
 }
 
 func TestEmptyEnvelope(t *testing.T) {
-	wantErr := &signature.SignatureNotFoundError{}
+	wantErr := &signature.SignatureEnvelopeNotFoundError{}
 	env := envelope{}
 
 	t.Run("Verify()_with_empty_envelope", func(t *testing.T) {

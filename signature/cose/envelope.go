@@ -199,7 +199,7 @@ func (e *envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 	// generate protected headers of COSE envelope
 	msg.Headers.Protected.SetAlgorithm(signer.Algorithm())
 	if err := generateProtectedHeaders(req, msg.Headers.Protected); err != nil {
-		return nil, &signature.MalformedSignatureError{Msg: err.Error()}
+		return nil, &signature.MalformedSignRequestError{Msg: err.Error()}
 	}
 
 	// generate payload of COSE envelope
@@ -407,7 +407,7 @@ func generateProtectedHeaders(req *signature.SignRequest, protected cose.Protect
 	// signingTime/authenticSigningTime
 	signingTimeLabel, ok := signingSchemeTimeLabelMap[req.SigningScheme]
 	if !ok {
-		return &signature.MalformedSignatureError{Msg: "signing scheme: require notary.x509 or notary.x509.signingAuthority"}
+		return &signature.MalformedSignRequestError{Msg: "signing scheme: require notary.x509 or notary.x509.signingAuthority"}
 	}
 	protected[signingTimeLabel] = req.SigningTime.Unix()
 	if signingTimeLabel == headerLabelAuthenticSigningTime {
@@ -423,7 +423,7 @@ func generateProtectedHeaders(req *signature.SignRequest, protected cose.Protect
 	// extended attributes
 	for _, elm := range req.ExtendedSignedAttributes {
 		if _, ok := protected[elm.Key]; ok {
-			return &signature.MalformedSignatureError{Msg: fmt.Sprintf("%q already exists in the protected header", elm.Key)}
+			return &signature.MalformedSignRequestError{Msg: fmt.Sprintf("%q already exists in the protected header", elm.Key)}
 		}
 		if elm.Critical {
 			crit = append(crit, elm.Key)
