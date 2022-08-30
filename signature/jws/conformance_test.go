@@ -39,7 +39,7 @@ var (
 	// payload to be signed
 	payload = signature.Payload{
 		ContentType: "application/vnd.cncf.notary.payload.v1+json",
-		Content:     []byte("hello JWS"),
+		Content:     []byte(`{"key":"hello JWS"}`),
 	}
 	// certificate chain for signer
 	leafCertTuple = testhelper.GetECCertTuple(elliptic.P256())
@@ -127,8 +127,11 @@ func TestVerifyConformance(t *testing.T) {
 	encoded, err := env.Sign(signReq)
 	checkNoError(t, err)
 
-	newEnv, err := ParseEnvelope(encoded)
+	// parse envelope
+	var e jwsEnvelope
+	err = json.Unmarshal(encoded, &e)
 	checkNoError(t, err)
+	newEnv := envelope{internalEnvelope: &e}
 
 	// verify validity
 	payload, signerInfo, err := newEnv.Verify()

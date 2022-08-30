@@ -77,7 +77,7 @@ func (signer *remoteMockSigner) KeySpec() (signature.KeySpec, error) {
 
 func checkNoError(t *testing.T, err error) {
 	if err != nil {
-		t.Fatal(t)
+		t.Fatal(err)
 	}
 }
 
@@ -130,8 +130,7 @@ func getSignReq(signingScheme signature.SigningScheme, signer signature.Signer, 
         "io.wabbit-networks.buildId": "123"
     }
   }
-}
-	`)
+}`)
 	return &signature.SignRequest{
 		Payload: signature.Payload{
 			ContentType: signature.MediaTypePayloadV1,
@@ -195,7 +194,6 @@ func getSignedEnvelope(signingScheme signature.SigningScheme, isLocal bool, exte
 	if err != nil {
 		return nil, err
 	}
-	//
 	var env jwsEnvelope
 	err = json.Unmarshal(encoded, &env)
 	if err != nil {
@@ -232,7 +230,7 @@ func TestNewEnvelope(t *testing.T) {
 func TestSignFailed(t *testing.T) {
 	t.Run("extended attribute conflict with protected header keys", func(t *testing.T) {
 		_, err := getEncodedMessage(signature.SigningSchemeX509, true, extSignedAttrRepeated)
-		checkErrorEqual(t, `repeated key: "cty" exists in the both protected header and extended signed attributes.`, err.Error())
+		checkErrorEqual(t, `repeated key: "cty" exists in the envelope.`, err.Error())
 	})
 
 	t.Run("extended attribute error value", func(t *testing.T) {
@@ -245,11 +243,12 @@ func TestSignFailed(t *testing.T) {
 			algType: signature.KeyTypeRSA,
 			size:    222,
 		}
-		_, err := getEncodedMessage(signature.SigningSchemeX509, true, extSignedAttrRepeated)
+		_, err := getEncodedMessage(signature.SigningSchemeX509, true, nil)
+		checkNoError(t, err)
+
 		signReq, err := getSignReq(signature.SigningSchemeX509, &signer, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
+		checkNoError(t, err)
+
 		e := envelope{}
 		_, err = e.Sign(signReq)
 		checkErrorEqual(t, `signature algorithm "#0" is not supported`, err.Error())
@@ -290,6 +289,7 @@ func TestSignVerify(t *testing.T) {
 
 				e := envelope{}
 				encoded, err := e.Sign(signReq)
+				checkNoError(t, err)
 
 				_, _, err = verifyCore(encoded)
 				checkNoError(t, err)
@@ -563,7 +563,7 @@ func TestPayload(t *testing.T) {
 		checkNoError(t, err)
 
 		_, err = newEnv.Payload()
-		checkErrorEqual(t, "illegal base64 data at input byte 476", err.Error())
+		checkErrorEqual(t, "payload error: illegal base64 data at input byte 288", err.Error())
 
 	})
 }

@@ -64,13 +64,15 @@ func Test_remoteSigningMethod_CertificateChain(t *testing.T) {
 	certs := []*x509.Certificate{
 		testhelper.GetRSALeafCertificate().Cert,
 	}
+
 	signer, err := getSigner(false, certs, testhelper.GetRSALeafCertificate().PrivateKey)
+	checkNoError(t, err)
+
 	signingScheme, err := newRemoteSigningMethod(signer)
-	if err != nil {
-		t.Fatal(err)
-	}
+	checkNoError(t, err)
+
 	_, err = signingScheme.CertificateChain()
-	checkErrorEqual(t, "remote signing error. Error: certificate chain is not set", err.Error())
+	checkErrorEqual(t, "certificate chain is not set", err.Error())
 }
 
 func Test_remoteSigningMethod_Sign(t *testing.T) {
@@ -80,9 +82,8 @@ func Test_remoteSigningMethod_Sign(t *testing.T) {
 		keySpecError: nil,
 	}
 	signingScheme, err := newRemoteSigningMethod(&signer)
-	if err != nil {
-		t.Fatal(err)
-	}
+	checkNoError(t, err)
+
 	_, err = signingScheme.Sign("", nil)
 	checkErrorEqual(t, "sign error", err.Error())
 }
