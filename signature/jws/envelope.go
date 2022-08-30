@@ -80,7 +80,7 @@ func (e *envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 // Verify checks the validity of the envelope and returns the payload and signerInfo
 func (e *envelope) Verify() (*signature.Payload, *signature.SignerInfo, error) {
 	if e.internalEnvelope == nil {
-		return nil, nil, &signature.SignatureNotFoundError{}
+		return nil, nil, &signature.SignatureEnvelopeNotFoundError{}
 	}
 
 	if len(e.internalEnvelope.Header.CertChain) == 0 {
@@ -115,7 +115,7 @@ func (e *envelope) Verify() (*signature.Payload, *signature.SignerInfo, error) {
 // Payload returns the payload of JWS envelope
 func (e *envelope) Payload() (*signature.Payload, error) {
 	if e.internalEnvelope == nil {
-		return nil, &signature.SignatureNotFoundError{}
+		return nil, &signature.SignatureEnvelopeNotFoundError{}
 	}
 	// parse protected header to get payload context type
 	protected, err := parseProtectedHeaders(e.internalEnvelope.Protected)
@@ -147,7 +147,7 @@ func (e *envelope) Payload() (*signature.Payload, error) {
 // SignerInfo returns the SignerInfo of JWS envelope
 func (e *envelope) SignerInfo() (*signature.SignerInfo, error) {
 	if e.internalEnvelope == nil {
-		return nil, &signature.SignatureNotFoundError{}
+		return nil, &signature.SignatureEnvelopeNotFoundError{}
 	}
 	var signerInfo signature.SignerInfo
 

@@ -88,11 +88,11 @@ func (e *SignatureIntegrityError) Unwrap() error {
 	return e.Err
 }
 
-// SignatureNotFoundError is used when signature envelope is not present.
-type SignatureNotFoundError struct{}
+// SignatureEnvelopeNotFoundError is used when signature envelope is not present.
+type SignatureEnvelopeNotFoundError struct{}
 
 // Error returns the default error message.
-func (e *SignatureNotFoundError) Error() string {
+func (e *SignatureEnvelopeNotFoundError) Error() string {
 	return "signature envelope is not present"
 }
 
@@ -122,15 +122,5 @@ type EnvelopeKeyRepeatedError struct {
 
 // Error returns the formatted error message.
 func (e *EnvelopeKeyRepeatedError) Error() string {
-	return fmt.Sprintf(`repeated key: "%s" exists in the both protected header and extended signed attributes.`, e.Key)
-}
-
-// RemoteSigningError is used when remote signer causes the error.
-type RemoteSigningError struct {
-	Msg string
-}
-
-// Error returns formated remote signing error
-func (e *RemoteSigningError) Error() string {
-	return fmt.Sprintf("remote signing error. Error: %s", e.Msg)
+	return fmt.Sprintf("repeated key: %q exists in the envelope.", e.Key)
 }
