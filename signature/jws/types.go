@@ -69,7 +69,7 @@ type jwsUnprotectedHeader struct {
 
 // jwsEnvelope is the final Signature envelope.
 type jwsEnvelope struct {
-	// JWSPayload Base64URL-encoded.
+	// JWSPayload Base64URL-encoded. Raw data should be JSON format.
 	Payload string `json:"payload"`
 
 	// jwsProtectedHeader Base64URL-encoded.
@@ -110,10 +110,4 @@ func reverseMap(m map[signature.Algorithm]string) map[string]signature.Algorithm
 		n[v] = k
 	}
 	return n
-}
-
-type jwtPayload []byte
-
-func (jwtPayload) Valid() error {
-	return nil
 }
