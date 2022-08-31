@@ -20,7 +20,7 @@ var (
 	ecdsaRoot            ECCertTuple
 	ecdsaLeaf            ECCertTuple
 	unsupportedECDSARoot ECCertTuple
-	unsupported          RSACertTuple
+	unsupportedRSARoot   RSACertTuple
 )
 
 type RSACertTuple struct {
@@ -58,16 +58,10 @@ func GetECLeafCertificate() ECCertTuple {
 	return ecdsaLeaf
 }
 
-// GetUnsupportedCertificate returns certificate signed using RSA algorithm with key size of 1024 bits
-// which is not supported by notary.
-func GetUnsupportedCertificate() RSACertTuple {
-	return unsupported
-}
-
 // GetUnsupportedRSACert returns certificate signed using RSA algorithm with key
 // size of 1024 bits which is not supported by notary.
 func GetUnsupportedRSACert() RSACertTuple {
-	return unsupported
+	return unsupportedRSARoot
 }
 
 // GetUnsupportedECCert returns certificate signed using EC algorithm with P-224
@@ -86,7 +80,7 @@ func setupCertificates() {
 	// This will be flagged by the static code analyzer as 'Use of a weak cryptographic key' but its intentional
 	// and is used only for testing.
 	k, _ := rsa.GenerateKey(rand.Reader, 1024)
-	unsupported = GetRSACertTupleWithPK(k, "Notation Unsupported Root", nil)
+	unsupportedRSARoot = GetRSACertTupleWithPK(k, "Notation Unsupported Root", nil)
 }
 
 func getCertTuple(cn string, issuer *RSACertTuple) RSACertTuple {

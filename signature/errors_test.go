@@ -165,8 +165,8 @@ func TestSignatureIntegrityError(t *testing.T) {
 	}
 }
 
-func TestSignatureNotFoundError(t *testing.T) {
-	err := &SignatureNotFoundError{}
+func TestSignatureEnvelopeNotFoundError(t *testing.T) {
+	err := &SignatureEnvelopeNotFoundError{}
 	expectMsg := "signature envelope is not present"
 
 	if err.Error() != expectMsg {

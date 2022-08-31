@@ -20,7 +20,7 @@ func TestNewLocalSigner(t *testing.T) {
 	}{
 		{
 			name:      "empty certs",
-			certs:     make([]*x509.Certificate, 0),
+			certs:     []*x509.Certificate{},
 			key:       nil,
 			expect:    nil,
 			expectErr: true,
@@ -107,7 +107,7 @@ func TestNewLocalSigner(t *testing.T) {
 func TestSign(t *testing.T) {
 	signer := &localSigner{}
 
-	raw, certs, err := signer.Sign(make([]byte, 0))
+	raw, certs, err := signer.Sign([]byte{})
 	if err == nil {
 		t.Errorf("expect error but got nil")
 	}

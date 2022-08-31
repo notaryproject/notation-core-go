@@ -716,7 +716,7 @@ func TestValidateCertificateChain(t *testing.T) {
 			expectErr: true,
 		},
 		{
-			name: "unmacthed signing algorithm",
+			name: "unmatched signing algorithm",
 			certs: []*x509.Certificate{
 				testhelper.GetRSALeafCertificate().Cert,
 				testhelper.GetRSARootCertificate().Cert,
@@ -742,9 +742,7 @@ func TestValidateCertificateChain(t *testing.T) {
 			err := validateCertificateChain(tt.certs, tt.signTime, tt.alg)
 
 			if (err != nil) != tt.expectErr {
-				if (err != nil) != tt.expectErr {
-					t.Errorf("error = %v, expectErr = %v", err, tt.expectErr)
-				}
+				t.Errorf("error = %v, expectErr = %v", err, tt.expectErr)
 			}
 		})
 	}
@@ -759,7 +757,7 @@ func TestGetSignatureAlgorithm(t *testing.T) {
 	}{
 		{
 			name:      "unsupported cert",
-			cert:      testhelper.GetUnsupportedCertificate().Cert,
+			cert:      testhelper.GetUnsupportedRSACert().Cert,
 			expect:    0,
 			expectErr: true,
 		},
