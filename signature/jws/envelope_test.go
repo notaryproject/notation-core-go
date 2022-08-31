@@ -82,8 +82,8 @@ func checkNoError(t *testing.T, err error) {
 }
 
 func checkErrorEqual(t *testing.T, want, got string) {
-	if got != want {
-		t.Fatalf("want: %v, got: %v\n", want, got)
+	if !strings.Contains(got, want) {
+		t.Fatalf("want: %v got: %v\n", want, got)
 	}
 }
 
@@ -563,7 +563,7 @@ func TestPayload(t *testing.T) {
 		checkNoError(t, err)
 
 		_, err = newEnv.Payload()
-		checkErrorEqual(t, "payload error: illegal base64 data at input byte 288", err.Error())
+		checkErrorEqual(t, "payload error: illegal base64 data at input byte", err.Error())
 
 	})
 }

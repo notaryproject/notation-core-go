@@ -59,9 +59,9 @@ func (e *envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 	}
 
 	// parse payload as jwt.MapClaims
+	// [jwt-go]: https://pkg.go.dev/github.com/dgrijalva/jwt-go#MapClaims
 	var payload jwt.MapClaims
-	err = json.Unmarshal(req.Payload.Content, &payload)
-	if err != nil {
+	if err = json.Unmarshal(req.Payload.Content, &payload); err != nil {
 		return nil, &signature.MalformedSignRequestError{
 			Msg: fmt.Sprintf("payload format error: %v", err.Error())}
 	}
