@@ -68,7 +68,7 @@ func (s *remoteSigningMethod) Alg() string {
 // should be called after Sign()
 func (s *remoteSigningMethod) CertificateChain() ([]*x509.Certificate, error) {
 	if s.certs == nil {
-		return nil, &signature.RemoteSigningError{Msg: "certificate chain is not set"}
+		return nil, &signature.MalformedSignatureError{Msg: "certificate chain is not set"}
 	}
 	return s.certs, nil
 }
@@ -82,7 +82,6 @@ func (s *remoteSigningMethod) PrivateKey() crypto.PrivateKey {
 type localSigningMethod struct {
 	jwt.SigningMethod
 	signer signature.LocalSigner
-	certs  []*x509.Certificate
 }
 
 func newLocalSigningMethod(signer signature.LocalSigner) (signingMethod, error) {
