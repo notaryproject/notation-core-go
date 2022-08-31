@@ -88,11 +88,11 @@ func (e *SignatureIntegrityError) Unwrap() error {
 	return e.Err
 }
 
-// SignatureNotFoundError is used when signature envelope is not present.
-type SignatureNotFoundError struct{}
+// SignatureEnvelopeNotFoundError is used when signature envelope is not present.
+type SignatureEnvelopeNotFoundError struct{}
 
 // Error returns the default error message.
-func (e *SignatureNotFoundError) Error() string {
+func (e *SignatureEnvelopeNotFoundError) Error() string {
 	return "signature envelope is not present"
 }
 
