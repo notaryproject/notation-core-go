@@ -4,6 +4,7 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/notaryproject/notation-core-go/signature"
@@ -57,8 +58,16 @@ func (e *envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 		return nil, err
 	}
 
+	// parse payload as jwt.MapClaims
+	// [jwt-go]: https://pkg.go.dev/github.com/dgrijalva/jwt-go#MapClaims
+	var payload jwt.MapClaims
+	if err = json.Unmarshal(req.Payload.Content, &payload); err != nil {
+		return nil, &signature.MalformedSignRequestError{
+			Msg: fmt.Sprintf("payload format error: %v", err.Error())}
+	}
+
 	// JWT sign and get certificate chain
-	compact, certs, err := sign(req.Payload.Content, signedAttrs, method)
+	compact, certs, err := sign(payload, signedAttrs, method)
 	if err != nil {
 		return nil, &signature.MalformedSignRequestError{Msg: err.Error()}
 	}
@@ -123,23 +132,14 @@ func (e *envelope) Payload() (*signature.Payload, error) {
 		return nil, err
 	}
 
-	// convert JWS to JWT
-	tokenString := compactJWS(e.internalEnvelope)
-
-	// parse JWT to get payload context
-	parser := jwt.NewParser(
-		jwt.WithValidMethods(validMethods),
-		jwt.WithJSONNumber(),
-		jwt.WithoutClaimsValidation(),
-	)
-	var claims jwtPayload
-	_, _, err = parser.ParseUnverified(tokenString, &claims)
+	payload, err := base64.RawURLEncoding.DecodeString(e.internalEnvelope.Payload)
 	if err != nil {
-		return nil, &signature.MalformedSignatureError{Msg: err.Error()}
+		return nil, &signature.MalformedSignatureError{
+			Msg: fmt.Sprintf("payload error: %v", err)}
 	}
 
 	return &signature.Payload{
-		Content:     claims,
+		Content:     payload,
 		ContentType: protected.ContentType,
 	}, nil
 }
@@ -186,7 +186,7 @@ func (e *envelope) SignerInfo() (*signature.SignerInfo, error) {
 }
 
 // sign the given payload and headers using the given signature provider
-func sign(payload jwtPayload, headers map[string]interface{}, method signingMethod) (string, []*x509.Certificate, error) {
+func sign(payload jwt.MapClaims, headers map[string]interface{}, method signingMethod) (string, []*x509.Certificate, error) {
 	// generate token
 	token := jwt.NewWithClaims(method, payload)
 	token.Header = headers

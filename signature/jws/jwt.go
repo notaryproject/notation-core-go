@@ -124,7 +124,7 @@ func verifyJWT(tokenString string, publicKey interface{}) error {
 		jwt.WithoutClaimsValidation(),
 	)
 
-	if _, err := parser.ParseWithClaims(tokenString, &jwtPayload{}, func(t *jwt.Token) (interface{}, error) {
+	if _, err := parser.Parse(tokenString, func(t *jwt.Token) (interface{}, error) {
 		return publicKey, nil
 	}); err != nil {
 		return &signature.SignatureIntegrityError{Err: err}
