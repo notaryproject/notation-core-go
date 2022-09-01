@@ -26,12 +26,10 @@ func init() {
 // Protected Headers
 // https://github.com/notaryproject/notaryproject/blob/cose-envelope/signature-envelope-cose.md
 const (
-	headerLabelExpiry                     = "io.cncf.notary.expiry"
-	headerLabelSigningScheme              = "io.cncf.notary.signingScheme"
-	headerLabelSigningTime                = "io.cncf.notary.signingTime"
-	headerLabelAuthenticSigningTime       = "io.cncf.notary.authenticSigningTime"
-	headerKeyVerificationPlugin           = "io.cncf.notary.verificationPlugin"
-	headerKeyVerificationPluginMinVersion = "io.cncf.notary.verificationPluginMinVersion"
+	headerLabelExpiry               = "io.cncf.notary.expiry"
+	headerLabelSigningScheme        = "io.cncf.notary.signingScheme"
+	headerLabelSigningTime          = "io.cncf.notary.signingTime"
+	headerLabelAuthenticSigningTime = "io.cncf.notary.authenticSigningTime"
 )
 
 // Unprotected Headers
@@ -528,6 +526,18 @@ func validateCritHeaders(protected cose.ProtectedHeader) ([]string, error) {
 		mustMarkedCrit[headerLabelExpiry] = struct{}{}
 	}
 
+	// validate that all required headers(as per spec) are marked as critical
+	for _, label := range labels {
+		delete(mustMarkedCrit, label)
+	}
+	if len(mustMarkedCrit) != 0 {
+		headers := make([]interface{}, 0, len(mustMarkedCrit))
+		for k := range mustMarkedCrit {
+			headers = append(headers, k)
+		}
+		return nil, &signature.MalformedSignatureError{Msg: fmt.Sprintf("these required headers are not marked as critical: %v", headers)}
+	}
+
 	// fetch all the extended signed attributes
 	systemHeaders := []interface{}{cose.HeaderLabelAlgorithm, cose.HeaderLabelCritical, cose.HeaderLabelContentType,
 		headerLabelExpiry, headerLabelSigningScheme, headerLabelSigningTime, headerLabelAuthenticSigningTime}
@@ -541,21 +551,6 @@ func validateCritHeaders(protected cose.ProtectedHeader) ([]string, error) {
 			return nil, &signature.MalformedSignatureError{Msg: "extendedAttributes key requires string type"}
 		}
 		extendedAttributeKeys = append(extendedAttributeKeys, label)
-		if label == headerKeyVerificationPlugin || label == headerKeyVerificationPluginMinVersion {
-			mustMarkedCrit[label] = struct{}{}
-		}
-	}
-
-	// validate that all required headers(as per spec) are marked as critical
-	for _, label := range labels {
-		delete(mustMarkedCrit, label)
-	}
-	if len(mustMarkedCrit) != 0 {
-		headers := make([]interface{}, 0, len(mustMarkedCrit))
-		for k := range mustMarkedCrit {
-			headers = append(headers, k)
-		}
-		return nil, &signature.MalformedSignatureError{Msg: fmt.Sprintf("these required headers are not marked as critical: %v", headers)}
 	}
 
 	return extendedAttributeKeys, nil
