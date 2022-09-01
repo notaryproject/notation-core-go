@@ -124,8 +124,8 @@ func VerifyAuthenticity(signerInfo *SignerInfo, trustedCerts []*x509.Certificate
 	}
 
 	for _, trust := range trustedCerts {
-		for _, sig := range signerInfo.CertificateChain {
-			if trust.Equal(sig) {
+		for _, cert := range signerInfo.CertificateChain {
+			if trust.Equal(cert) {
 				return trust, nil
 			}
 		}

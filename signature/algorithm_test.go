@@ -1,6 +1,7 @@
 package signature
 
 import (
+	"crypto"
 	"crypto/ecdsa"
 	"crypto/ed25519"
 	"crypto/elliptic"
@@ -13,6 +14,59 @@ import (
 
 	"github.com/notaryproject/notation-core-go/testhelper"
 )
+
+func TestHash(t *testing.T) {
+	tests := []struct {
+		name   string
+		alg    Algorithm
+		expect crypto.Hash
+	}{
+		{
+			name:   "PS256",
+			alg:    AlgorithmPS256,
+			expect: crypto.SHA256,
+		},
+		{
+			name:   "ES256",
+			alg:    AlgorithmES256,
+			expect: crypto.SHA256,
+		},
+		{
+			name:   "PS384",
+			alg:    AlgorithmPS384,
+			expect: crypto.SHA384,
+		},
+		{
+			name:   "ES384",
+			alg:    AlgorithmES384,
+			expect: crypto.SHA384,
+		},
+		{
+			name:   "PS512",
+			alg:    AlgorithmPS512,
+			expect: crypto.SHA512,
+		},
+		{
+			name:   "ES512",
+			alg:    AlgorithmES512,
+			expect: crypto.SHA512,
+		},
+		{
+			name:   "UnsupportedAlgorithm",
+			alg:    0,
+			expect: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			hash := tt.alg.Hash()
+			if hash != tt.expect {
+				t.Fatalf("Expected %v, got %v", tt.expect, hash)
+			}
+		})
+	}
+}
 
 func TestExtractKeySpec(t *testing.T) {
 	type testCase struct {
