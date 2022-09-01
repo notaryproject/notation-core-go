@@ -504,9 +504,9 @@ func TestSignerInfoErrors(t *testing.T) {
 		if err != nil {
 			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
 		}
-		env.base.Headers.Protected[cose.HeaderLabelCritical] = []interface{}{"io.cncf.notary.expiry", "io.cncf.notary.signingScheme"}
+		env.base.Headers.Protected[cose.HeaderLabelCritical] = []interface{}{"io.cncf.notary.expiry"}
 		_, err = env.SignerInfo()
-		expected := errors.New("these required headers are not marked as critical: [io.cncf.notary.verificationPlugin]")
+		expected := errors.New("these required headers are not marked as critical: [io.cncf.notary.signingScheme]")
 		if !isErrEqual(expected, err) {
 			t.Fatalf("SignerInfo() expects error: %v, but got: %v.", expected, err)
 		}
@@ -708,7 +708,6 @@ func newSignRequest(signingScheme string, keyType signature.KeyType, size int) (
 		ExtendedSignedAttributes: []signature.Attribute{
 			{Key: "signedCritKey1", Value: "signedCritValue1", Critical: true},
 			{Key: "signedKey1", Value: "signedValue1", Critical: false},
-			{Key: "io.cncf.notary.verificationPlugin", Value: "testPlugin", Critical: true},
 		},
 		SigningAgent:  "NotationUnitTest/1.0.0",
 		SigningScheme: signature.SigningScheme(signingScheme),
