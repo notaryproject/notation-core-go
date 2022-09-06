@@ -4,7 +4,6 @@ package testhelper
 
 import (
 	"crypto/ecdsa"
-	"crypto/ed25519"
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
@@ -32,11 +31,6 @@ type RSACertTuple struct {
 type ECCertTuple struct {
 	Cert       *x509.Certificate
 	PrivateKey *ecdsa.PrivateKey
-}
-
-type ED25519CertTuple struct {
-	Cert       *x509.Certificate
-	PrivateKey *ed25519.PrivateKey
 }
 
 // init runs before any other part of this package.
@@ -76,18 +70,6 @@ func GetUnsupportedECCert() ECCertTuple {
 	return unsupportedECDSARoot
 }
 
-// GetUnsupportedRSACert returns certificate signed using RSA algorithm with key
-// size of 1024 bits which is not supported by notary.
-func GetUnsupportedRSACert() RSACertTuple {
-	return unsupported
-}
-
-// GetUnsupportedECCert returns certificate signed using EC algorithm with P-224
-// curve which is not supported by notary.
-func GetUnsupportedECCert() ECCertTuple {
-	return unsupportedEcdsaRoot
-}
-
 func setupCertificates() {
 	rsaRoot = getCertTuple("Notation Test Root", nil)
 	rsaLeaf = getCertTuple("Notation Test Leaf Cert", &rsaRoot)
@@ -114,11 +96,6 @@ func getECCertTupleWithCurve(cn string, issuer *ECCertTuple, curve elliptic.Curv
 func getECCertTuple(cn string, issuer *ECCertTuple) ECCertTuple {
 	k, _ := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
 	return GetECDSACertTupleWithPK(k, cn, issuer)
-}
-
-func getED25519CertTutple(cn string, issuer *ED25519CertTuple) ED25519CertTuple {
-	_, priv, _ := ed25519.GenerateKey(rand.Reader)
-	return GetED25519CertTupleWithPK(&priv, cn, issuer)
 }
 
 func GetRSACertTupleWithPK(privKey *rsa.PrivateKey, cn string, issuer *RSACertTuple) RSACertTuple {
@@ -150,23 +127,6 @@ func GetECDSACertTupleWithPK(privKey *ecdsa.PrivateKey, cn string, issuer *ECCer
 
 	cert, _ := x509.ParseCertificate(certBytes)
 	return ECCertTuple{
-		Cert:       cert,
-		PrivateKey: privKey,
-	}
-}
-
-func GetED25519CertTupleWithPK(privKey *ed25519.PrivateKey, cn string, issuer *ED25519CertTuple) ED25519CertTuple {
-	template := getCertTemplate(issuer == nil, cn)
-
-	var certBytes []byte
-	if issuer != nil {
-		certBytes, _ = x509.CreateCertificate(rand.Reader, template, issuer.Cert, privKey.Public(), issuer.PrivateKey)
-	} else {
-		certBytes, _ = x509.CreateCertificate(rand.Reader, template, template, privKey.Public(), privKey)
-	}
-
-	cert, _ := x509.ParseCertificate(certBytes)
-	return ED25519CertTuple{
 		Cert:       cert,
 		PrivateKey: privKey,
 	}
