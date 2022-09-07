@@ -1,3 +1,13 @@
+// Package signature provides operations for types that implement
+// signature.Envelope or signature.Signer.
+//
+// An Envelope is a structure that creates and verifies a signature using the
+// specified signing algorithm with required validation. To register a new
+// envelope, call RegisterEnvelopeType first during the initialization.
+//
+// A Signer is a structure used to sign payload generated after signature
+// envelope created. The underlying signing logic is provided by the underlying
+// local crypto library or the external signing plugin.
 package signature
 
 import "fmt"
@@ -33,9 +43,9 @@ type envelopeFunc struct {
 	parseFunc ParseEnvelopeFunc
 }
 
-// envelopeFuncs maps envelope media type to corresponding constructors and 
+// envelopeFuncs maps envelope media type to corresponding constructors and
 // parsers.
-var envelopeFuncs = make(map[string]envelopeFunc)
+var envelopeFuncs map[string]envelopeFunc
 
 // RegisterEnvelopeType registers newFunc and parseFunc for the given mediaType.
 // Those functions are intended to be called when creating a new envelope.
@@ -43,6 +53,9 @@ var envelopeFuncs = make(map[string]envelopeFunc)
 func RegisterEnvelopeType(mediaType string, newFunc NewEnvelopeFunc, parseFunc ParseEnvelopeFunc) error {
 	if newFunc == nil || parseFunc == nil {
 		return fmt.Errorf("required functions not provided")
+	}
+	if envelopeFuncs == nil {
+		envelopeFuncs = make(map[string]envelopeFunc)
 	}
 
 	envelopeFuncs[mediaType] = envelopeFunc{
@@ -54,7 +67,7 @@ func RegisterEnvelopeType(mediaType string, newFunc NewEnvelopeFunc, parseFunc P
 
 // RegisteredEnvelopeTypes lists registered envelope media types.
 func RegisteredEnvelopeTypes() []string {
-	types := []string{}
+	var types []string
 
 	for envelopeType := range envelopeFuncs {
 		types = append(types, envelopeType)
@@ -72,7 +85,7 @@ func NewEnvelope(mediaType string) (Envelope, error) {
 	return envelopeFunc.newFunc(), nil
 }
 
-// NewEnvelope generates an envelope by given envelope bytes with specified
+// ParseEnvelope generates an envelope by given envelope bytes with specified
 // media type.
 func ParseEnvelope(mediaType string, envelopeBytes []byte) (Envelope, error) {
 	envelopeFunc, ok := envelopeFuncs[mediaType]

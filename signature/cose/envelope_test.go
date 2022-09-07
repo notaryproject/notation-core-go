@@ -336,19 +336,19 @@ func TestVerifyErrors(t *testing.T) {
 		}
 	})
 
-	t.Run("when getSignatureAlgorithm fails due to invalid public key type", func(t *testing.T) {
+	t.Run("when getSignatureAlgorithm fails due to unsupported public key", func(t *testing.T) {
 		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
 		if err != nil {
 			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
 		}
-		certs := []*x509.Certificate{testhelper.GetED25519LeafCertificate().Cert, testhelper.GetED25519RootCertificate().Cert}
+		certs := []*x509.Certificate{testhelper.GetUnsupportedRSACert().Cert}
 		certChain := make([]interface{}, len(certs))
 		for i, c := range certs {
 			certChain[i] = c.Raw
 		}
 		env.base.Headers.Unprotected[cose.HeaderLabelX5Chain] = certChain
 		_, _, err = env.Verify()
-		expected := errors.New("invalid public key type")
+		expected := errors.New("rsa key size 1024 is not supported")
 		if !isErrEqual(expected, err) {
 			t.Fatalf("Verify() expects error: %v, but got: %v.", expected, err)
 		}

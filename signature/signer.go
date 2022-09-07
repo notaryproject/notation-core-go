@@ -29,8 +29,12 @@ type LocalSigner interface {
 	PrivateKey() crypto.PrivateKey
 }
 
-// signer is a LocalSigner implementation.
-type signer struct {
+// localSigner implements LocalSigner interface.
+//
+// Note that localSigner only holds the signing key, keySpec and certificate
+// chain. The underlying signing implementation is provided by the underlying
+// crypto library for the specific signature format like go-jwt or go-cose.
+type localSigner struct {
 	keySpec KeySpec
 	key     crypto.PrivateKey
 	certs   []*x509.Certificate
@@ -57,7 +61,7 @@ func NewLocalSigner(certs []*x509.Certificate, key crypto.PrivateKey) (LocalSign
 		}
 	}
 
-	return &signer{
+	return &localSigner{
 		keySpec: keySpec,
 		key:     key,
 		certs:   certs,
@@ -84,24 +88,24 @@ func isKeyPair(priv crypto.PrivateKey, pub crypto.PublicKey, keySpec KeySpec) bo
 	}
 }
 
-// Sign signs the digest and returns the raw signature and certificates.
+// Sign signs the content and returns the raw signature and certificates.
 // This implementation should never be used by built-in signers.
-func (s *signer) Sign(digest []byte) ([]byte, []*x509.Certificate, error) {
-	return nil, nil, fmt.Errorf("local signer doesn't support sign with digest")
+func (s *localSigner) Sign(content []byte) ([]byte, []*x509.Certificate, error) {
+	return nil, nil, fmt.Errorf("local signer doesn't support sign")
 }
 
 // KeySpec returns the key specification.
-func (s *signer) KeySpec() (KeySpec, error) {
+func (s *localSigner) KeySpec() (KeySpec, error) {
 	return s.keySpec, nil
 }
 
 // CertificateChain returns the certificate chain.
-func (s *signer) CertificateChain() ([]*x509.Certificate, error) {
+func (s *localSigner) CertificateChain() ([]*x509.Certificate, error) {
 	return s.certs, nil
 }
 
 // PrivateKey returns the private key.
-func (s *signer) PrivateKey() crypto.PrivateKey {
+func (s *localSigner) PrivateKey() crypto.PrivateKey {
 	return s.key
 }
 
@@ -120,8 +124,8 @@ func VerifyAuthenticity(signerInfo *SignerInfo, trustedCerts []*x509.Certificate
 	}
 
 	for _, trust := range trustedCerts {
-		for _, sig := range signerInfo.CertificateChain {
-			if trust.Equal(sig) {
+		for _, cert := range signerInfo.CertificateChain {
+			if trust.Equal(cert) {
 				return trust, nil
 			}
 		}

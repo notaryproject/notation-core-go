@@ -11,8 +11,9 @@ import (
 
 // Envelope represents a general envelope wrapping a raw signature and envelope
 // in specific format.
+// Envelope manipulates the common validation shared by internal envelopes.
 type Envelope struct {
-	signature.Envelope        // internal envelope in a specific format(COSE/JWS)
+	signature.Envelope        // internal envelope in a specific format(e.g. Cose, JWS)
 	Raw                []byte // raw signature
 }
 
@@ -20,7 +21,7 @@ type Envelope struct {
 //
 // Reference: https://github.com/notaryproject/notaryproject/blob/main/signing-and-verification-workflow.md#signing-steps
 func (e *Envelope) Sign(req *signature.SignRequest) ([]byte, error) {
-	// Sanitize request
+	// Canonicalize request.
 	req.SigningTime = req.SigningTime.Truncate(time.Second)
 	req.Expiry = req.Expiry.Truncate(time.Second)
 	err := validateSignRequest(req)
@@ -61,10 +62,6 @@ func (e *Envelope) Verify() (*signature.Payload, *signature.SignerInfo, error) {
 	// validation before the core verify process.
 	if len(e.Raw) == 0 {
 		return nil, nil, &signature.MalformedSignatureError{}
-	}
-
-	if err := e.validatePayload(); err != nil {
-		return nil, nil, err
 	}
 
 	// core verify process.

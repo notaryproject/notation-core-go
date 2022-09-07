@@ -89,7 +89,7 @@ func TestRegisteredEnvelopeTypes(t *testing.T) {
 		{
 			name:          "empty map",
 			envelopeFuncs: make(map[string]envelopeFunc),
-			expect:        []string{},
+			expect:        nil,
 		},
 		{
 			name: "nonempty map",
@@ -106,7 +106,7 @@ func TestRegisteredEnvelopeTypes(t *testing.T) {
 			types := RegisteredEnvelopeTypes()
 
 			if !reflect.DeepEqual(types, tt.expect) {
-				t.Errorf("got types: %v, expect types; %v", types, tt.expect)
+				t.Errorf("got types: %v, expect types: %v", types, tt.expect)
 			}
 		})
 	}

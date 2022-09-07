@@ -16,7 +16,7 @@ type SigningScheme string
 
 // SigningSchemes supported by notation.
 const (
-	// notary.x509 sigining scheme.
+	// notary.x509 signing scheme.
 	SigningSchemeX509 SigningScheme = "notary.x509"
 
 	// notary.x509.signingAuthority schema.
@@ -122,7 +122,7 @@ type Payload struct {
 }
 
 // ExtendedAttribute fetches the specified Attribute with provided key from
-// signerInfo.SignedAttributes.ExtendedAttributes
+// signerInfo.SignedAttributes.ExtendedAttributes.
 func (signerInfo *SignerInfo) ExtendedAttribute(key string) (Attribute, error) {
 	for _, attr := range signerInfo.SignedAttributes.ExtendedAttributes {
 		if attr.Key == key {

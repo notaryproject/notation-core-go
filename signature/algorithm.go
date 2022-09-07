@@ -31,18 +31,6 @@ const (
 	KeyTypeEC                     // KeyType EC
 )
 
-// String is the stringer function for KeyType
-func (keyType KeyType) String() string {
-	switch keyType {
-	case KeyTypeRSA:
-		return "RSA"
-	case KeyTypeEC:
-		return "ECDSA"
-	default:
-		return fmt.Sprintf("unknown key type: %d", keyType)
-	}
-}
-
 // KeySpec defines a key type and size.
 type KeySpec struct {
 	Type KeyType
@@ -74,7 +62,7 @@ func ExtractKeySpec(signingCert *x509.Certificate) (KeySpec, error) {
 			}, nil
 		default:
 			return KeySpec{}, &UnsupportedSigningKeyError{
-				fmt.Sprintf("rsa key size %d is not supported", bitSize),
+				Msg: fmt.Sprintf("rsa key size %d is not supported", bitSize),
 			}
 		}
 	case *ecdsa.PublicKey:
@@ -86,11 +74,13 @@ func ExtractKeySpec(signingCert *x509.Certificate) (KeySpec, error) {
 			}, nil
 		default:
 			return KeySpec{}, &UnsupportedSigningKeyError{
-				fmt.Sprintf("ecdsa key size %d is not supported", bitSize),
+				Msg: fmt.Sprintf("ecdsa key size %d is not supported", bitSize),
 			}
 		}
 	}
-	return KeySpec{}, fmt.Errorf("invalid public key type")
+	return KeySpec{}, &UnsupportedSigningKeyError{
+		Msg: "invalid public key type",
+	}
 }
 
 // SignatureAlgorithm returns the signing algorithm associated with the KeySpec.

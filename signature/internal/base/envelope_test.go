@@ -252,26 +252,6 @@ func TestVerify(t *testing.T) {
 			expectErr:        true,
 		},
 		{
-			name: "invalid payload",
-			env: &Envelope{
-				Raw:      validBytes,
-				Envelope: &mockEnvelope{},
-			},
-			expectPayload:    nil,
-			expectSignerInfo: nil,
-			expectErr:        true,
-		},
-		{
-			name: "invalid payload",
-			env: &Envelope{
-				Raw:      validBytes,
-				Envelope: &mockEnvelope{},
-			},
-			expectPayload:    nil,
-			expectSignerInfo: nil,
-			expectErr:        true,
-		},
-		{
 			name: "err returned by internal envelope",
 			env: &Envelope{
 				Raw: validBytes,
@@ -736,17 +716,7 @@ func TestValidateCertificateChain(t *testing.T) {
 			expectErr: true,
 		},
 		{
-			name: "unsupported algorithm",
-			certs: []*x509.Certificate{
-				testhelper.GetED25519LeafCertificate().Cert,
-				testhelper.GetED25519RootCertificate().Cert,
-			},
-			signTime:  testhelper.GetED25519LeafCertificate().Cert.NotBefore,
-			alg:       signature.AlgorithmES256,
-			expectErr: true,
-		},
-		{
-			name: "unmacthed signing algorithm",
+			name: "unmatched signing algorithm",
 			certs: []*x509.Certificate{
 				testhelper.GetRSALeafCertificate().Cert,
 				testhelper.GetRSARootCertificate().Cert,
@@ -772,9 +742,7 @@ func TestValidateCertificateChain(t *testing.T) {
 			err := validateCertificateChain(tt.certs, tt.signTime, tt.alg)
 
 			if (err != nil) != tt.expectErr {
-				if (err != nil) != tt.expectErr {
-					t.Errorf("error = %v, expectErr = %v", err, tt.expectErr)
-				}
+				t.Errorf("error = %v, expectErr = %v", err, tt.expectErr)
 			}
 		})
 	}
@@ -789,7 +757,7 @@ func TestGetSignatureAlgorithm(t *testing.T) {
 	}{
 		{
 			name:      "unsupported cert",
-			cert:      testhelper.GetUnsupportedCertificate().Cert,
+			cert:      testhelper.GetUnsupportedRSACert().Cert,
 			expect:    0,
 			expectErr: true,
 		},
