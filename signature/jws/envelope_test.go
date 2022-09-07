@@ -279,8 +279,12 @@ func TestSigningScheme(t *testing.T) {
 
 func TestSignVerify(t *testing.T) {
 	for _, keyType := range signaturetest.KeyTypes {
+		keyName := map[signature.KeyType]string{
+			signature.KeyTypeEC:  "ECDSA",
+			signature.KeyTypeRSA: "RSA",
+		}[keyType]
 		for _, size := range signaturetest.GetKeySizes(keyType) {
-			t.Run(fmt.Sprintf("%s %d", keyType, size), func(t *testing.T) {
+			t.Run(fmt.Sprintf("%s %d", keyName, size), func(t *testing.T) {
 				signer, err := signaturetest.GetTestLocalSigner(keyType, size)
 				checkNoError(t, err)
 
@@ -354,7 +358,7 @@ func TestVerify(t *testing.T) {
 		env.Protected = "$" + env.Protected
 
 		err = verifyEnvelope(env)
-		checkErrorEqual(t, "jws envelope protected header can't be decoded: illegal base64 data at input byte 0", err.Error())
+		checkErrorEqual(t, "signature is invalid. Error: illegal base64 data at input byte 0", err.Error())
 	})
 	t.Run("malformed protected header raw", func(t *testing.T) {
 		// get envelope
@@ -369,7 +373,7 @@ func TestVerify(t *testing.T) {
 		env.Protected = base64.RawURLEncoding.EncodeToString(rawProtected)
 
 		err = verifyEnvelope(env)
-		checkErrorEqual(t, "jws envelope protected header can't be decoded: invalid character '}' looking for beginning of value", err.Error())
+		checkErrorEqual(t, "signature is invalid. Error: invalid character '}' looking for beginning of value", err.Error())
 	})
 }
 
