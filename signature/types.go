@@ -23,9 +23,6 @@ const (
 	SigningSchemeX509SigningAuthority SigningScheme = "notary.x509.signingAuthority"
 )
 
-// MediaTypePayloadV1 is the supported content type for signature's payload.
-const MediaTypePayloadV1 = "application/vnd.cncf.notary.payload.v1+json"
-
 // SignedAttributes represents signed metadata in the signature envelope.
 // Reference: https://github.com/notaryproject/notaryproject/blob/main/signature-specification.md#signed-attributes
 type SignedAttributes struct {
@@ -123,9 +120,6 @@ type SignerInfo struct {
 
 	// Signature is the bytes generated from the signature.
 	Signature []byte
-
-	// Payload represents payload in bytes and its content type.
-	Payload Payload
 }
 
 // Payload represents payload in bytes and its content type.

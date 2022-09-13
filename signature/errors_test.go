@@ -28,21 +28,21 @@ func TestSignatureIntegrityError(t *testing.T) {
 	}
 }
 
-func TestMalformedSignatureError(t *testing.T) {
+func TestInvalidSignatureError(t *testing.T) {
 	tests := []struct {
 		name   string
-		err    *MalformedSignatureError
+		err    *InvalidSignatureError
 		expect string
 	}{
 		{
 			name:   "err msg set",
-			err:    &MalformedSignatureError{Msg: errMsg},
+			err:    &InvalidSignatureError{Msg: errMsg},
 			expect: errMsg,
 		},
 		{
 			name:   "err msg not set",
-			err:    &MalformedSignatureError{},
-			expect: "signature envelope format is malformed",
+			err:    &InvalidSignatureError{},
+			expect: "signature envelope format is invalid",
 		},
 	}
 
@@ -93,16 +93,16 @@ func TestUnsupportedSigningKeyError(t *testing.T) {
 	}
 }
 
-func TestMalformedArgumentError(t *testing.T) {
-	expectedMsg := "\"hola\" param is malformed"
-	validateErrorMsg(&MalformedArgumentError{Param: "hola"}, expectedMsg, t)
+func TestInvalidArgumentError(t *testing.T) {
+	expectedMsg := "\"hola\" param is invalid"
+	validateErrorMsg(&InvalidArgumentError{Param: "hola"}, expectedMsg, t)
 
-	expectedMsg = "\"hola\" param is malformed. Error: se produjo un error"
-	validateErrorMsg(&MalformedArgumentError{Param: "hola", Err: fmt.Errorf("se produjo un error")}, expectedMsg, t)
+	expectedMsg = "\"hola\" param is invalid. Error: se produjo un error"
+	validateErrorMsg(&InvalidArgumentError{Param: "hola", Err: fmt.Errorf("se produjo un error")}, expectedMsg, t)
 }
 
-func TestSignatureAlgoNotSupportedError(t *testing.T) {
-	err := &SignatureAlgoNotSupportedError{
+func TestUnsupportedSignatureAlgoError(t *testing.T) {
+	err := &UnsupportedSignatureAlgoError{
 		Alg: testAlg,
 	}
 
@@ -112,12 +112,12 @@ func TestSignatureAlgoNotSupportedError(t *testing.T) {
 	}
 }
 
-func TestMalformedSignRequestError(t *testing.T) {
-	expectedMsg := "SignRequest is malformed"
-	validateErrorMsg(&MalformedSignRequestError{}, expectedMsg, t)
+func TestInvalidSignRequestError(t *testing.T) {
+	expectedMsg := "SignRequest is invalid"
+	validateErrorMsg(&InvalidSignRequestError{}, expectedMsg, t)
 
 	expectedMsg = "Se produjo un error"
-	validateErrorMsg(&MalformedSignRequestError{Msg: expectedMsg}, expectedMsg, t)
+	validateErrorMsg(&InvalidSignRequestError{Msg: expectedMsg}, expectedMsg, t)
 }
 
 func validateErrorMsg(err error, expectedMsg string, t *testing.T) {
@@ -127,8 +127,8 @@ func validateErrorMsg(err error, expectedMsg string, t *testing.T) {
 	}
 }
 
-func TestMalformedArgumentError_Unwrap(t *testing.T) {
-	err := &MalformedArgumentError{
+func TestInvalidArgumentError_Unwrap(t *testing.T) {
+	err := &InvalidArgumentError{
 		Param: testParam,
 		Err:   errors.New(errMsg),
 	}
@@ -157,8 +157,8 @@ func TestSignatureAuthenticityError(t *testing.T) {
 }
 
 func TestEnvelopeKeyRepeatedError(t *testing.T) {
-	err := &EnvelopeKeyRepeatedError{Key: errMsg}
-	expectMsg := fmt.Sprintf("repeated key: %q exists in the envelope.", errMsg)
+	err := &DuplicateKeyError{Key: errMsg}
+	expectMsg := fmt.Sprintf("repeated key: %q exists.", errMsg)
 
 	if err.Error() != expectMsg {
 		t.Errorf("Expected %v but got %v", expectMsg, err.Error())

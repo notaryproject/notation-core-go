@@ -11,7 +11,7 @@ import (
 // NewLocalSignatureProvider returns the LocalSignatureProvider created using given certificates and private key.
 func NewLocalSignatureProvider(certs []*x509.Certificate, pk crypto.PrivateKey) (*LocalSignatureProvider, error) {
 	if len(certs) == 0 {
-		return nil, &MalformedArgumentError{Param: "certs"}
+		return nil, &InvalidArgumentError{Param: "certs"}
 	}
 
 	ks, err := ExtractKeySpec(certs[0])

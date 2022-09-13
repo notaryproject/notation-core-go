@@ -2,8 +2,21 @@ package signature
 
 import (
 	"reflect"
+	"sync"
 	"testing"
 )
+
+var (
+	emptyFuncs sync.Map
+	validFuncs sync.Map
+)
+
+func init() {
+	validFuncs.Store(testMediaType, envelopeFunc{
+		newFunc: testNewFunc,
+		parseFunc: testParseFunc,
+	})
+}
 
 // mock an envelope that implements signature.Envelope.
 type testEnvelope struct {
@@ -78,19 +91,17 @@ func TestRegisterEnvelopeType(t *testing.T) {
 func TestRegisteredEnvelopeTypes(t *testing.T) {
 	tests := []struct {
 		name          string
-		envelopeFuncs map[string]envelopeFunc
+		envelopeFuncs sync.Map
 		expect        []string
 	}{
 		{
 			name:          "empty map",
-			envelopeFuncs: make(map[string]envelopeFunc),
+			envelopeFuncs: emptyFuncs,
 			expect:        nil,
 		},
 		{
 			name: "nonempty map",
-			envelopeFuncs: map[string]envelopeFunc{
-				testMediaType: {},
-			},
+			envelopeFuncs: validFuncs,
 			expect: []string{testMediaType},
 		},
 	}
@@ -111,25 +122,21 @@ func TestNewEnvelope(t *testing.T) {
 	tests := []struct {
 		name          string
 		mediaType     string
-		envelopeFuncs map[string]envelopeFunc
+		envelopeFuncs sync.Map
 		expect        Envelope
 		expectErr     bool
 	}{
 		{
 			name:          "unsupported media type",
 			mediaType:     testMediaType,
-			envelopeFuncs: make(map[string]envelopeFunc),
+			envelopeFuncs: emptyFuncs,
 			expect:        nil,
 			expectErr:     true,
 		},
 		{
 			name:      "valid media type",
 			mediaType: testMediaType,
-			envelopeFuncs: map[string]envelopeFunc{
-				testMediaType: {
-					newFunc: testNewFunc,
-				},
-			},
+			envelopeFuncs: validFuncs,
 			expect:    testEnvelope{},
 			expectErr: false,
 		},
@@ -154,25 +161,21 @@ func TestParseEnvelope(t *testing.T) {
 	tests := []struct {
 		name          string
 		mediaType     string
-		envelopeFuncs map[string]envelopeFunc
+		envelopeFuncs sync.Map
 		expect        Envelope
 		expectErr     bool
 	}{
 		{
 			name:          "unsupported media type",
 			mediaType:     testMediaType,
-			envelopeFuncs: make(map[string]envelopeFunc),
+			envelopeFuncs: emptyFuncs,
 			expect:        nil,
 			expectErr:     true,
 		},
 		{
 			name:      "valid media type",
 			mediaType: testMediaType,
-			envelopeFuncs: map[string]envelopeFunc{
-				testMediaType: {
-					parseFunc: testParseFunc,
-				},
-			},
+			envelopeFuncs: validFuncs,
 			expect:    testEnvelope{},
 			expectErr: false,
 		},

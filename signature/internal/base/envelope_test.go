@@ -22,12 +22,14 @@ var (
 	time08_02           time.Time
 	time08_03           time.Time
 	timeLayout          = "2006-01-02"
+	signiningSchema = signature.SigningScheme("notary.x509")
 	validSignerInfo     = &signature.SignerInfo{
 		Signature:          validBytes,
 		SignatureAlgorithm: signature.AlgorithmPS384,
 		SignedAttributes: signature.SignedAttributes{
 			SigningTime: testhelper.GetRSALeafCertificate().Cert.NotBefore,
 			Expiry:      testhelper.GetECLeafCertificate().Cert.NotAfter,
+			SigningScheme: signiningSchema,
 		},
 		CertificateChain: []*x509.Certificate{
 			testhelper.GetRSALeafCertificate().Cert,
@@ -40,7 +42,7 @@ var (
 	}
 	validEnvelopeContent = &signature.EnvelopeContent{
 		SignerInfo: *validSignerInfo,
-		Payload: *validPayload,
+		Payload:    *validPayload,
 	}
 	validReq = &signature.SignRequest{
 		Payload: signature.Payload{
@@ -49,6 +51,7 @@ var (
 		},
 		SigningTime: testhelper.GetRSALeafCertificate().Cert.NotBefore,
 		Expiry:      testhelper.GetRSALeafCertificate().Cert.NotAfter,
+		SigningScheme: signiningSchema,
 		Signer: &mockSigner{
 			keySpec: signature.KeySpec{
 				Type: signature.KeyTypeRSA,
@@ -68,6 +71,7 @@ var (
 		},
 		SigningTime: testhelper.GetRSALeafCertificate().Cert.NotBefore,
 		Expiry:      testhelper.GetRSALeafCertificate().Cert.NotAfter,
+		SigningScheme: signiningSchema,
 		Signer: &mockSigner{
 			keySpec: signature.KeySpec{
 				Type: signature.KeyTypeRSA,
@@ -89,10 +93,10 @@ func init() {
 
 // Mock an internal envelope that implements signature.Envelope.
 type mockEnvelope struct {
-	payload            *signature.Payload
-	signerInfo         *signature.SignerInfo
-	content            *signature.EnvelopeContent
-	failVerify         bool
+	payload    *signature.Payload
+	signerInfo *signature.SignerInfo
+	content    *signature.EnvelopeContent
+	failVerify bool
 }
 
 // Sign implements Sign of signature.Envelope.
@@ -279,7 +283,7 @@ func TestVerify(t *testing.T) {
 				Raw: validBytes,
 				Envelope: &mockEnvelope{
 					content: &signature.EnvelopeContent{
-						Payload: *validPayload,
+						Payload:    *validPayload,
 						SignerInfo: signature.SignerInfo{},
 					},
 				},
@@ -293,7 +297,7 @@ func TestVerify(t *testing.T) {
 				Raw: validBytes,
 				Envelope: &mockEnvelope{
 					content: &signature.EnvelopeContent{
-						Payload: *validPayload,
+						Payload:    *validPayload,
 						SignerInfo: *validSignerInfo,
 					},
 				},
@@ -348,13 +352,11 @@ func TestContent(t *testing.T) {
 				Raw: validBytes,
 				Envelope: &mockEnvelope{
 					content: &signature.EnvelopeContent{
-						Payload: signature.Payload{
-							ContentType: invalidContentType,
-						},
+						Payload: signature.Payload{},
 					},
 				},
 			},
-			expect: nil,
+			expect:    nil,
 			expectErr: true,
 		},
 		{
@@ -368,7 +370,7 @@ func TestContent(t *testing.T) {
 					signerInfo: &signature.SignerInfo{},
 				},
 			},
-			expect: nil,
+			expect:    nil,
 			expectErr: true,
 		},
 		{
@@ -377,12 +379,12 @@ func TestContent(t *testing.T) {
 				Raw: validBytes,
 				Envelope: &mockEnvelope{
 					content: &signature.EnvelopeContent{
-						Payload: *validPayload,
+						Payload:    *validPayload,
 						SignerInfo: *validSignerInfo,
 					},
 				},
 			},
-			expect: validEnvelopeContent,
+			expect:    validEnvelopeContent,
 			expectErr: false,
 		},
 	}
@@ -435,19 +437,6 @@ func TestValidateSignRequest(t *testing.T) {
 			expectErr: true,
 		},
 		{
-			name: "empty certificates",
-			req: &signature.SignRequest{
-				Payload: signature.Payload{
-					ContentType: validContentType,
-					Content:     validBytes,
-				},
-				SigningTime: time08_02,
-				Expiry:      time08_03,
-				Signer:      &mockSigner{},
-			},
-			expectErr: true,
-		},
-		{
 			name: "keySpec is empty",
 			req: &signature.SignRequest{
 				Payload: signature.Payload{
@@ -456,12 +445,35 @@ func TestValidateSignRequest(t *testing.T) {
 				},
 				SigningTime: time08_02,
 				Expiry:      time08_03,
+				SigningScheme: signiningSchema,
 				Signer: &mockSigner{
 					certs: []*x509.Certificate{
 						testhelper.GetRSALeafCertificate().Cert,
 						testhelper.GetRSARootCertificate().Cert,
 					},
 					keySpec: signature.KeySpec{},
+				},
+			},
+			expectErr: true,
+		},
+		{
+			name: "invalid signing schema",
+			req: &signature.SignRequest{
+				Payload: signature.Payload{
+					ContentType: validContentType,
+					Content:     validBytes,
+				},
+				SigningTime: time08_02,
+				Expiry:      time08_03,
+				Signer: &mockSigner{
+					keySpec: signature.KeySpec{
+						Type: signature.KeyTypeRSA,
+						Size: 3072,
+					},
+					certs: []*x509.Certificate{
+						testhelper.GetRSALeafCertificate().Cert,
+						testhelper.GetRSARootCertificate().Cert,
+					},
 				},
 			},
 			expectErr: true,
@@ -507,6 +519,18 @@ func TestValidateSignerInfo(t *testing.T) {
 			info: &signature.SignerInfo{
 				Signature:          validBytes,
 				SignatureAlgorithm: signature.AlgorithmPS256,
+			},
+			expectErr: true,
+		},
+		{
+			name: "invalid signing schema",
+			info: &signature.SignerInfo{
+				Signature:          validBytes,
+				SignatureAlgorithm: signature.AlgorithmPS384,
+				SignedAttributes: signature.SignedAttributes{
+					SigningTime: testhelper.GetRSALeafCertificate().Cert.NotBefore,
+					Expiry:      testhelper.GetECLeafCertificate().Cert.NotAfter,
+				},
 			},
 			expectErr: true,
 		},
@@ -557,7 +581,7 @@ func TestValidateSigningTime(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateSigningTime(tt.signingTime, tt.expireTime)
+			err := validateSigningAndExpiryTime(tt.signingTime, tt.expireTime)
 
 			if (err != nil) != tt.expectErr {
 				t.Errorf("error = %v, expectErr = %v", err, tt.expectErr)

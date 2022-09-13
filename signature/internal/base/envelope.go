@@ -62,7 +62,7 @@ func (e *Envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 func (e *Envelope) Verify() (*signature.EnvelopeContent, error) {
 	// validation before the core verify process.
 	if len(e.Raw) == 0 {
-		return nil, &signature.MalformedSignatureError{}
+		return nil, &signature.SignatureNotFoundError{}
 	}
 
 	// core verify process.
@@ -82,7 +82,7 @@ func (e *Envelope) Verify() (*signature.EnvelopeContent, error) {
 // Content returns the validated signature information and payload.
 func (e *Envelope) Content() (*signature.EnvelopeContent, error) {
 	if len(e.Raw) == 0 {
-		return nil, &signature.MalformedSignatureError{Msg: "raw signature is empty"}
+		return nil, &signature.SignatureNotFoundError{}
 	}
 
 	content, err := e.Envelope.Content()
@@ -103,16 +103,27 @@ func validateSignRequest(req *signature.SignRequest) error {
 		return err
 	}
 
-	if err := validateSigningTime(req.SigningTime, req.Expiry); err != nil {
+	if err := validateSigningAndExpiryTime(req.SigningTime, req.Expiry); err != nil {
 		return err
 	}
 
 	if req.Signer == nil {
-		return &signature.MalformedSignatureError{Msg: "signer is nil"}
+		return &signature.InvalidSignRequestError{Msg: "signer is nil"}
 	}
 
-	_, err := req.Signer.KeySpec()
-	return err
+	if _, err := req.Signer.KeySpec(); err != nil {
+		return err
+	}
+	
+	return validateSigningSchema(req.SigningScheme)
+}
+
+// validateSigningSchema validates the schema.
+func validateSigningSchema(schema signature.SigningScheme) error {
+	if schema == "" {
+		return &signature.InvalidSignRequestError{Msg: "SigningScheme not present"}
+	}
+	return nil
 }
 
 // validateEnvelopeContent validates the content which includes signerInfo and
@@ -127,15 +138,19 @@ func validateEnvelopeContent(content *signature.EnvelopeContent) error {
 // validateSignerInfo performs basic set of validations on SignerInfo struct.
 func validateSignerInfo(info *signature.SignerInfo) error {
 	if len(info.Signature) == 0 {
-		return &signature.MalformedSignatureError{Msg: "signature not present or is empty"}
+		return &signature.InvalidSignatureError{Msg: "signature not present or is empty"}
 	}
 
 	if info.SignatureAlgorithm == 0 {
-		return &signature.MalformedSignatureError{Msg: "SignatureAlgorithm is not present"}
+		return &signature.InvalidSignatureError{Msg: "SignatureAlgorithm is not present"}
 	}
 
 	signingTime := info.SignedAttributes.SigningTime
-	if err := validateSigningTime(signingTime, info.SignedAttributes.Expiry); err != nil {
+	if err := validateSigningAndExpiryTime(signingTime, info.SignedAttributes.Expiry); err != nil {
+		return err
+	}
+
+	if err := validateSigningSchema(info.SignedAttributes.SigningScheme); err != nil {
 		return err
 	}
 
@@ -146,30 +161,23 @@ func validateSignerInfo(info *signature.SignerInfo) error {
 	)
 }
 
-// validateSigningTime checks that signing time is within the valid range of
-// time duration.
-func validateSigningTime(signingTime, expireTime time.Time) error {
+// validateSigningAndExpiryTime checks that signing time is within the valid
+// range of time duration and expire time is valid.
+func validateSigningAndExpiryTime(signingTime, expireTime time.Time) error {
 	if signingTime.IsZero() {
-		return &signature.MalformedSignatureError{Msg: "signing-time not present"}
+		return &signature.InvalidSignatureError{Msg: "signing-time not present"}
 	}
 
 	if !expireTime.IsZero() && (expireTime.Before(signingTime) || expireTime.Equal(signingTime)) {
-		return &signature.MalformedSignatureError{Msg: "expiry cannot be equal or before the signing time"}
+		return &signature.InvalidSignatureError{Msg: "expiry cannot be equal or before the signing time"}
 	}
 	return nil
 }
 
 // validatePayload performs validation of the payload.
 func validatePayload(payload *signature.Payload) error {
-	switch payload.ContentType {
-	case signature.MediaTypePayloadV1:
-		if len(payload.Content) == 0 {
-			return &signature.MalformedSignatureError{Msg: "content not present"}
-		}
-	default:
-		return &signature.MalformedSignatureError{
-			Msg: fmt.Sprintf("payload content type: {%s} not supported", payload.ContentType),
-		}
+	if len(payload.Content) == 0 {
+		return &signature.InvalidSignatureError{Msg: "content not present"}
 	}
 
 	return nil
@@ -178,22 +186,22 @@ func validatePayload(payload *signature.Payload) error {
 // validateCertificateChain performs the validation of the certificate chain.
 func validateCertificateChain(certChain []*x509.Certificate, signTime time.Time, expectedAlg signature.Algorithm) error {
 	if len(certChain) == 0 {
-		return &signature.MalformedSignatureError{Msg: "certificate-chain not present or is empty"}
+		return &signature.InvalidSignatureError{Msg: "certificate-chain not present or is empty"}
 	}
 
 	err := nx509.ValidateCodeSigningCertChain(certChain, signTime)
 	if err != nil {
-		return &signature.MalformedSignatureError{
+		return &signature.InvalidSignatureError{
 			Msg: fmt.Sprintf("certificate-chain is invalid, %s", err),
 		}
 	}
 
 	signingAlg, err := getSignatureAlgorithm(certChain[0])
 	if err != nil {
-		return &signature.MalformedSignatureError{Msg: err.Error()}
+		return &signature.InvalidSignatureError{Msg: err.Error()}
 	}
 	if signingAlg != expectedAlg {
-		return &signature.MalformedSignatureError{
+		return &signature.InvalidSignatureError{
 			Msg: fmt.Sprintf("mismatch between signature algorithm derived from signing certificate (%v) and signing algorithm specified (%vs)", signingAlg, expectedAlg),
 		}
 	}

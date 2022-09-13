@@ -25,7 +25,7 @@ func verifyJWT(tokenString string, key crypto.PublicKey) error {
 
 	if _, err := parser.Parse(tokenString, func(t *jwt.Token) (interface{}, error) {
 		if t.Method.Alg() != signingMethod.Alg() {
-			return nil, MalformedSignatureError{Msg: fmt.Sprintf("unexpected signing method: %v: require %v", t.Method.Alg(), signingMethod.Alg())}
+			return nil, InvalidSignatureError{Msg: fmt.Sprintf("unexpected signing method: %v: require %v", t.Method.Alg(), signingMethod.Alg())}
 		}
 
 		// override default signing method with key-specific method
