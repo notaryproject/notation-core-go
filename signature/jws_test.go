@@ -50,14 +50,14 @@ func TestValidateIntegrity(t *testing.T) {
 	t.Run("with invalid base64 bytes sig envelope returns error", func(t *testing.T) {
 		env, _ := newJWSEnvelopeFromBytes([]byte("{\"Payload\":\"Hi!\",\"Protected\":\"Hi\",\"Header\":{},\"Signature\":\"Hi!\"}"))
 		err := env.validateIntegrity()
-		if !(err != nil && errors.As(err, new(MalformedSignatureError))) {
+		if !(err != nil && errors.As(err, new(InvalidSignatureError))) {
 			t.Errorf("Expected MalformedSignatureError but found %q", reflect.TypeOf(err))
 		}
 	})
 
 	t.Run("with incomplete sig envelope returns error", func(t *testing.T) {
 		env, _ := newJWSEnvelopeFromBytes([]byte("{\"Payload\":\"eyJhbGciOiJIUzI1NiJ9\",\"Protected\":\"eyJhbGciOiJQUzI1NiIsImNyaXQiOlsiaW8uY25jZi5ub3Rhcnkuc2lnbmluZ1RpbWUiXSwiaW8uY25jZi5ub3Rhcnkuc2luaW5nVGltZSI6IjIwMDYtMDEtMDJUMTU6MDQ6MDVaIn0\",\"Header\":{},\"Signature\":\"YjGj\"}"))
-		if err := env.validateIntegrity(); !(err != nil && errors.As(err, new(MalformedSignatureError))) {
+		if err := env.validateIntegrity(); !(err != nil && errors.As(err, new(InvalidSignatureError))) {
 			t.Errorf("Expected MalformedSignatureError but found %q", reflect.TypeOf(err))
 		}
 	})
@@ -84,7 +84,7 @@ func TestValidateIntegrity(t *testing.T) {
 		malformedSig := "{\"payload\":\"eyJ0YXJnZXRBcnRpZmFjdCI6eyJtZWRpYVR5cGUiOiJhcHBsaWNhdGlvbi92bmQub2NpLmltYWdlLm1hbmlmZXN0LnYxK2pzb24iLCJkaWdlc3QiOiJzaGEyNTY6NzNjODAzOTMwZWEzYmExZTU0YmMyNWMyYmRjNTNlZGQwMjg0YzYyZWQ2NTFmZTdiMDAzNjlkYTUxOWEzYzMzMyIsInNpemUiOjE2NzI0LCJhbm5vdGF0aW9ucyI6eyJpby53YWJiaXQtbmV0d29ya3MuYnVpbGRJZCI6IjEyMyJ9fX0\",\"protected\":\"eyJhbGciOiJQUzM4NCIsImNyaXQiOlsiaW8uY25jZi5ub3Rhcnkuc2lnbmluZ1NjaGVtZSIsInNpZ25lZENyaXRLZXkxIiwiaW8uY25jZi5ub3RhcnkuZXhwaXJ5IiwiaW8uY25jZi5ub3RhcnkudmVyaWZpY2F0aW9uUGx1Z2luIiwiaW8uY25jZi5ub3RhcnkudmVyaWZpY2F0aW9uUGx1Z2luTWluVmVyc2lvbiJdLCJjdHkiOiJhcHBsaWNhdGlvbi92bmQuY25jZi5ub3RhcnkucGF5bG9hZC52MStqc29uIiwiaW8uY25jZi5ub3RhcnkuZXhwaXJ5IjoiMjAyMi0wOC0wNlQxMDowNTowNy0wNzowMCIsImlvLmNuY2Yubm90YXJ5LnNpZ25pbmdTY2hlbWUiOiJub3RhcnkueDUwOS5zaWduaW5nQXV0aG9yaXR5IiwiaW8uY25jZi5ub3Rhcnkuc2lnbmluZ1RpbWUiOiIyMDIyLTA4LTA1VDEwOjA1OjA3LTA3OjAwIiwiaW8uY25jZi5ub3RhcnkudmVyaWZpY2F0aW9uUGx1Z2luIjoiSG9sYSBQbHVnaW4iLCJpby5jbmNmLm5vdGFyeS52ZXJpZmljYXRpb25QbHVnaW5NaW5WZXJzaW9uIjoiMS4xLjEiLCJzaWduZWRDcml0S2V5MSI6InNpZ25lZFZhbHVlMSIsInNpZ25lZEtleTEiOiJzaWduZWRLZXkyIn0\",\"header\":{\"x5c\":[\"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\"],\"io.cncf.notary.SigningAgent\":\"NotationUnitTest/1.0.0\"},\"signature\":\"K5r5b2bJF15kV2Qe5NXf42SCI5_V9K0sCuHSd1bg2OFIOp3FcupjYT4yb26jsV2aE9lrsn8FNxoP-PqkV385klZ_xnTzhRO0T3S7bCL_wu2ZtzuRKp43yOjPc7TPdbd2Q1BKd5rIS05RtxfZTYF1gGIWyRMMc8pos-EgBGhlEXNK78IsH7Eh__bk6pFlY0y5TsKDx8-9h85OKL910CKtCyjP3JgLmB_STxc6iz7iSC8lBmiq_fra3lhfwgDTwTWL2I82-SNFGf3baANppjLP-W1f6ckV9PaFmbPz8hMZ_kYXMRk100IkeSz5inK8rfbCFPHeA6evjydPNO35noIY1ETy7AppB8HlctY903u_iRGh4ur4mKf4snduQbpDr9EARG0c_6styaiwhxkshkrHLKov0C_ZZPNqAZ5ItN2QuBShyNtaKzWPCPjF4EPANVnFjdEH8Up4WpShMX3-N1wQb3IQmNf9kU04YFwkTJn8HECFseGRmZAvG8x0W5PcQik5\"}"
 
 		env, _ := newJWSEnvelopeFromBytes([]byte(malformedSig))
-		if err := env.validateIntegrity(); !(err != nil && errors.As(err, new(MalformedSignatureError))) {
+		if err := env.validateIntegrity(); !(err != nil && errors.As(err, new(InvalidSignatureError))) {
 			t.Errorf("validateIntegrity(). Expected SignatureIntegrityError but found %q", reflect.TypeOf(err))
 		}
 	})
@@ -99,7 +99,7 @@ func TestValidateIntegrity(t *testing.T) {
 				t.Errorf("validateIntegrity(). Error = %s", err)
 			}
 
-			if _, err := env.getSignerInfo(); !(err != nil && errors.As(err, new(MalformedSignatureError))) {
+			if _, err := env.getSignerInfo(); !(err != nil && errors.As(err, new(InvalidSignatureError))) {
 				t.Errorf("getSignerInfo. Expected MalformedSignatureError but found %q", reflect.TypeOf(err))
 			}
 		}
@@ -143,7 +143,7 @@ func TestGetSignerInfo(t *testing.T) {
 	t.Run("with invalid singing time returns error", func(t *testing.T) {
 		env, _ := newJWSEnvelopeFromBytes([]byte("{\"Payload\":\"eyJhbGciOiJIUzI1NiJ9\",\"Protected\":\"eyJhbGciOiJQUzI1NiIsImNyaXQiOlsiaW8uY25jZi5ub3Rhcnkuc2lnbmluZ1RpbWUiXSwiaW8uY25jZi5ub3Rhcnkuc2lnbmluZ1RpbWUiOiIyMDA2LS0wMlQxNTowNDowNVoifQ\"" +
 			",\"Header\":{},\"Signature\":\"YjGj\"}"))
-		if _, err := env.getSignerInfo(); !(err != nil && errors.As(err, new(MalformedSignatureError))) {
+		if _, err := env.getSignerInfo(); !(err != nil && errors.As(err, new(InvalidSignatureError))) {
 			t.Errorf("Expected MalformedSignatureError but found %q", reflect.TypeOf(err))
 		}
 	})
@@ -161,7 +161,7 @@ func TestGetSignerInfo(t *testing.T) {
 			t.Errorf("validateIntegrity(). Error: %s", err.Error())
 		}
 
-		if _, err := env.getSignerInfo(); !(err != nil && errors.As(err, new(MalformedSignatureError))) {
+		if _, err := env.getSignerInfo(); !(err != nil && errors.As(err, new(InvalidSignatureError))) {
 			t.Errorf("Expected MalformedSignatureError but found %q", reflect.TypeOf(err))
 		}
 	})
@@ -169,7 +169,7 @@ func TestGetSignerInfo(t *testing.T) {
 	t.Run("with malformed alg header returns error", func(t *testing.T) {
 		env, _ := newJWSEnvelopeFromBytes([]byte("{\"Payload\":\"eyJhbGciOiJIUzI1NiJ9\",\"Protected\":\"eyJhbGciOjEzLCJjcml0IjpbImlvLmNuY2Yubm90YXJ5LnNpZ25pbmdUaW1lIl0sImlvLmNuY2Yubm90YXJ5LnNpbmluZ1RpbWUiOiIyMDA2LTAxLTAyVDE1OjA0OjA1WiJ9\"" +
 			",\"Header\":{},\"Signature\":\"YjGj\"}"))
-		if _, err := env.getSignerInfo(); !(err != nil && errors.As(err, new(MalformedSignatureError))) {
+		if _, err := env.getSignerInfo(); !(err != nil && errors.As(err, new(InvalidSignatureError))) {
 			t.Errorf("Expected MalformedSignatureError but found %q", reflect.TypeOf(err))
 		}
 	})
@@ -177,7 +177,7 @@ func TestGetSignerInfo(t *testing.T) {
 	t.Run("with malformed cty header returns error", func(t *testing.T) {
 		env, _ := newJWSEnvelopeFromBytes([]byte("{\"Payload\":\"eyJhbGciOiJIUzI1NiJ9\",\"Protected\":\"eyJhbGciOiJQUzUxMiIsImN0eSI6MTIzLCJjcml0IjpbImlvLmNuY2Yubm90YXJ5LnNpZ25pbmdUaW1lIl0sImlvLmNuY2Yubm90YXJ5LnNpbmluZ1RpbWUiOiIyMDA2LTAxLTAyVDE1OjA0OjA1WiJ9\"" +
 			",\"Header\":{},\"Signature\":\"YjGj\"}"))
-		if _, err := env.getSignerInfo(); !(err != nil && errors.As(err, new(MalformedSignatureError))) {
+		if _, err := env.getSignerInfo(); !(err != nil && errors.As(err, new(InvalidSignatureError))) {
 			t.Errorf("Expected MalformedSignatureError but found %q", reflect.TypeOf(err))
 		}
 	})
@@ -210,28 +210,28 @@ func TestSignPayloadError(t *testing.T) {
 	req := getSignRequest()
 	t.Run("when SignatureProvider'KeySpec returns error", func(t *testing.T) {
 		req.SignatureProvider = ErrorSignatureProvider{KeySpecError: true}
-		if _, err := env.signPayload(req); !(err != nil && errors.As(err, new(MalformedSignRequestError))) {
+		if _, err := env.signPayload(req); !(err != nil && errors.As(err, new(InvalidSignRequestError))) {
 			t.Errorf("signPayload(). Expected MalformedSignatureError but found %q", reflect.TypeOf(err))
 		}
 	})
 
 	t.Run("when SignatureProvider'SignError returns error", func(t *testing.T) {
 		req.SignatureProvider = ErrorSignatureProvider{SignError: true}
-		if _, err := env.signPayload(req); !(err != nil && errors.As(err, new(MalformedSignRequestError))) {
+		if _, err := env.signPayload(req); !(err != nil && errors.As(err, new(InvalidSignRequestError))) {
 			t.Errorf("signPayload(). Expected MalformedSignatureError but found %q", reflect.TypeOf(err))
 		}
 	})
 
 	t.Run("when SignatureProvider'Sign returns invalid certificate chain", func(t *testing.T) {
 		req.SignatureProvider = ErrorSignatureProvider{InvalidCertChain: true}
-		if _, err := env.signPayload(req); !(err != nil && errors.As(err, new(MalformedSignRequestError))) {
+		if _, err := env.signPayload(req); !(err != nil && errors.As(err, new(InvalidSignRequestError))) {
 			t.Errorf("signPayload(). Expected MalformedSignatureError but found %q", reflect.TypeOf(err))
 		}
 	})
 
 	t.Run("when SignatureProvider'KeySpec returns invalid value", func(t *testing.T) {
 		req.SignatureProvider = ErrorSignatureProvider{InvalidKeySpec: true}
-		if _, err := env.signPayload(req); !(err != nil && errors.As(err, new(SignatureAlgoNotSupportedError))) {
+		if _, err := env.signPayload(req); !(err != nil && errors.As(err, new(UnsupportedSignatureAlgoError))) {
 			t.Errorf("signPayload(). Expected MalformedSignatureError but found %q", reflect.TypeOf(err))
 		}
 	})
