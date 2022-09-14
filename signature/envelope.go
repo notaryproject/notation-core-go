@@ -44,7 +44,7 @@ type envelopeFunc struct {
 
 // envelopeFuncs maps envelope media type to corresponding constructors and
 // parsers.
-var envelopeFuncs sync.Map
+var envelopeFuncs sync.Map // map[string]envelopeFunc
 
 // RegisterEnvelopeType registers newFunc and parseFunc for the given mediaType.
 // Those functions are intended to be called when creating a new envelope.

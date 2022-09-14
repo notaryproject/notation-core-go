@@ -13,7 +13,7 @@ import (
 // in specific format.
 // Envelope manipulates the common validation shared by internal envelopes.
 type Envelope struct {
-	signature.Envelope        // internal envelope in a specific format(e.g. Cose, JWS)
+	signature.Envelope        // internal envelope in a specific format (e.g. COSE, JWS)
 	Raw                []byte // raw signature
 }
 
@@ -39,12 +39,11 @@ func (e *Envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	signerInfo := content.SignerInfo
 
 	if err := validateCertificateChain(
-		signerInfo.CertificateChain,
-		signerInfo.SignedAttributes.SigningTime,
-		signerInfo.SignatureAlgorithm,
+		content.SignerInfo.CertificateChain,
+		content.SignerInfo.SignedAttributes.SigningTime,
+		content.SignerInfo.SignatureAlgorithm,
 	); err != nil {
 		return nil, err
 	}
@@ -100,7 +99,7 @@ func (e *Envelope) Content() (*signature.EnvelopeContent, error) {
 // validateSignRequest performs basic set of validations on SignRequest struct.
 func validateSignRequest(req *signature.SignRequest) error {
 	if err := validatePayload(&req.Payload); err != nil {
-		return err
+		return &signature.InvalidSignRequestError{Msg: err.Error()}
 	}
 
 	if err := validateSigningAndExpiryTime(req.SigningTime, req.Expiry); err != nil {

@@ -29,7 +29,6 @@ func (e InvalidSignatureError) Error() string {
 		return e.Msg
 	}
 	return "signature envelope format is invalid"
-
 }
 
 // UnsupportedSignatureFormatError is used when Signature envelope is not supported.
