@@ -6,8 +6,8 @@ import (
 	"time"
 )
 
-// MediaTypePayloadV1 is the supported content type for signature's payload.
-const MediaTypePayloadV1 = "application/vnd.cncf.notary.payload.v1+json"
+// SignatureMediaType list the supported media-type for signatures.
+type SignatureMediaType string
 
 // SigningScheme formalizes the feature set (guarantees) provided by
 // the signature.
@@ -86,6 +86,16 @@ type SignRequest struct {
 
 	// SigningScheme defines the Notary v2 Signing Scheme used by the signature.
 	SigningScheme SigningScheme
+}
+
+// EnvelopeContent represents a combination of payload to be signed and a parsed
+// signature envelope.
+type EnvelopeContent struct {
+	// SignerInfo is a parsed signature envelope.
+	SignerInfo SignerInfo
+
+	// Payload is payload to be signed.
+	Payload Payload
 }
 
 // SignerInfo represents a parsed signature envelope that is agnostic to
