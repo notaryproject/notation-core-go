@@ -2,6 +2,7 @@ package base
 
 import (
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"time"
 
@@ -129,7 +130,7 @@ func validateSigningSchema(schema signature.SigningScheme) error {
 // payload.
 func validateEnvelopeContent(content *signature.EnvelopeContent) error {
 	if err := validatePayload(&content.Payload); err != nil {
-		return err
+		return &signature.InvalidSignatureError{Msg: err.Error()}
 	}
 	return validateSignerInfo(&content.SignerInfo)
 }
@@ -176,7 +177,7 @@ func validateSigningAndExpiryTime(signingTime, expireTime time.Time) error {
 // validatePayload performs validation of the payload.
 func validatePayload(payload *signature.Payload) error {
 	if len(payload.Content) == 0 {
-		return &signature.InvalidSignatureError{Msg: "content not present"}
+		return errors.New("content not present")
 	}
 
 	return nil
