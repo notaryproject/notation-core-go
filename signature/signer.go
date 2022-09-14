@@ -18,7 +18,7 @@ type Signer interface {
 	KeySpec() (KeySpec, error)
 }
 
-// LocalSigner is used by built-in signers to sign only.
+// LocalSigner is only used by built-in signers to sign.
 type LocalSigner interface {
 	Signer
 
@@ -43,7 +43,7 @@ type localSigner struct {
 // NewLocalSigner returns a new signer with given certificates and private key.
 func NewLocalSigner(certs []*x509.Certificate, key crypto.PrivateKey) (LocalSigner, error) {
 	if len(certs) == 0 {
-		return nil, &MalformedArgumentError{
+		return nil, &InvalidArgumentError{
 			Param: "certs",
 			Err:   errors.New("empty certs"),
 		}
@@ -55,7 +55,7 @@ func NewLocalSigner(certs []*x509.Certificate, key crypto.PrivateKey) (LocalSign
 	}
 
 	if !isKeyPair(key, certs[0].PublicKey, keySpec) {
-		return nil, &MalformedArgumentError{
+		return nil, &InvalidArgumentError{
 			Param: "key and certs",
 			Err:   errors.New("key not matches certificate"),
 		}
@@ -116,11 +116,11 @@ func (s *localSigner) PrivateKey() crypto.PrivateKey {
 // Reference: https://github.com/notaryproject/notaryproject/blob/main/trust-store-trust-policy-specification.md#steps
 func VerifyAuthenticity(signerInfo *SignerInfo, trustedCerts []*x509.Certificate) (*x509.Certificate, error) {
 	if len(trustedCerts) == 0 {
-		return nil, &MalformedArgumentError{Param: "trustedCerts"}
+		return nil, &InvalidArgumentError{Param: "trustedCerts"}
 	}
 
 	if signerInfo == nil {
-		return nil, &MalformedArgumentError{Param: "signerInfo"}
+		return nil, &InvalidArgumentError{Param: "signerInfo"}
 	}
 
 	for _, trust := range trustedCerts {

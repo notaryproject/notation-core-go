@@ -33,7 +33,10 @@ const (
 
 // KeySpec defines a key type and size.
 type KeySpec struct {
+	// KeyType is the type of the key.
 	Type KeyType
+
+	// KeySize is the size of the key in bits.
 	Size int
 }
 
@@ -62,7 +65,7 @@ func ExtractKeySpec(signingCert *x509.Certificate) (KeySpec, error) {
 			}, nil
 		default:
 			return KeySpec{}, &UnsupportedSigningKeyError{
-				Msg: fmt.Sprintf("rsa key size %d is not supported", bitSize),
+				Msg: fmt.Sprintf("rsa key size %d bits is not supported", bitSize),
 			}
 		}
 	case *ecdsa.PublicKey:
@@ -74,12 +77,12 @@ func ExtractKeySpec(signingCert *x509.Certificate) (KeySpec, error) {
 			}, nil
 		default:
 			return KeySpec{}, &UnsupportedSigningKeyError{
-				Msg: fmt.Sprintf("ecdsa key size %d is not supported", bitSize),
+				Msg: fmt.Sprintf("ecdsa key size %d bits is not supported", bitSize),
 			}
 		}
 	}
 	return KeySpec{}, &UnsupportedSigningKeyError{
-		Msg: "invalid public key type",
+		Msg: "unsupported public key type",
 	}
 }
 
