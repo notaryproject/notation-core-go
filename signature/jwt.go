@@ -25,14 +25,14 @@ func verifyJWT(tokenString string, key crypto.PublicKey) error {
 
 	if _, err := parser.Parse(tokenString, func(t *jwt.Token) (interface{}, error) {
 		if t.Method.Alg() != signingMethod.Alg() {
-			return nil, MalformedSignatureError{msg: fmt.Sprintf("unexpected signing method: %v: require %v", t.Method.Alg(), signingMethod.Alg())}
+			return nil, InvalidSignatureError{Msg: fmt.Sprintf("unexpected signing method: %v: require %v", t.Method.Alg(), signingMethod.Alg())}
 		}
 
 		// override default signing method with key-specific method
 		t.Method = signingMethod
 		return key, nil
 	}); err != nil {
-		return SignatureIntegrityError{err: err}
+		return &SignatureIntegrityError{Err: err}
 	}
 	return nil
 }
@@ -49,10 +49,12 @@ func getSigningMethod(key crypto.PublicKey) (jwt.SigningMethod, error) {
 		case 512:
 			return jwt.SigningMethodPS512, nil
 		default:
-			return nil, UnsupportedSigningKeyError{keyType: "rsa", keyLength: key.Size()}
+			return nil, UnsupportedSigningKeyError{
+				Msg: fmt.Sprintf("rsa key size %d is not supported", key.Size()),
+			}
 		}
 	case *ecdsa.PublicKey:
-		switch key.Curve.Params().BitSize {
+		switch bitSize := key.Curve.Params().BitSize; bitSize {
 		case jwt.SigningMethodES256.CurveBits:
 			return jwt.SigningMethodES256, nil
 		case jwt.SigningMethodES384.CurveBits:
@@ -60,7 +62,9 @@ func getSigningMethod(key crypto.PublicKey) (jwt.SigningMethod, error) {
 		case jwt.SigningMethodES512.CurveBits:
 			return jwt.SigningMethodES512, nil
 		default:
-			return nil, UnsupportedSigningKeyError{keyType: "ecdsa", keyLength: key.Curve.Params().BitSize}
+			return nil, UnsupportedSigningKeyError{
+				Msg: fmt.Sprintf("ecdsa key size %d is not supported", bitSize),
+			}
 		}
 	}
 	return nil, UnsupportedSigningKeyError{}

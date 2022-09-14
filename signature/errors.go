@@ -2,35 +2,43 @@ package signature
 
 import "fmt"
 
-// SignatureIntegrityError is used when the Signature associated is no longer valid.
+// SignatureIntegrityError is used when the signature associated is no longer
+// valid.
 type SignatureIntegrityError struct {
-	err error
+	Err error
 }
 
-func (e SignatureIntegrityError) Error() string {
-	return fmt.Sprintf("signature is invalid. Error: %s", e.err.Error())
+// Error returns the formatted error message.
+func (e *SignatureIntegrityError) Error() string {
+	return fmt.Sprintf("signature is invalid. Error: %s", e.Err.Error())
 }
 
-// MalformedSignatureError is used when Signature envelope is malformed.
-type MalformedSignatureError struct {
-	msg string
+// Unwrap unwraps the internal error.
+func (e *SignatureIntegrityError) Unwrap() error {
+	return e.Err
 }
 
-func (e MalformedSignatureError) Error() string {
-	if e.msg != "" {
-		return e.msg
+// InvalidSignatureError is used when Signature envelope is invalid.
+type InvalidSignatureError struct {
+	Msg string
+}
+
+// Error returns the error message or the default message if not provided.
+func (e InvalidSignatureError) Error() string {
+	if e.Msg != "" {
+		return e.Msg
 	}
-	return "signature envelope format is malformed"
-
+	return "signature envelope format is invalid"
 }
 
 // UnsupportedSignatureFormatError is used when Signature envelope is not supported.
 type UnsupportedSignatureFormatError struct {
-	mediaType string
+	MediaType string
 }
 
-func (e UnsupportedSignatureFormatError) Error() string {
-	return fmt.Sprintf("signature envelope format with media type %q is not supported", e.mediaType)
+// Error returns the formatted error message.
+func (e *UnsupportedSignatureFormatError) Error() string {
+	return fmt.Sprintf("signature envelope format with media type %q is not supported", e.MediaType)
 }
 
 // SignatureNotFoundError is used when signature envelope is not present.
@@ -40,56 +48,84 @@ func (e SignatureNotFoundError) Error() string {
 	return "signature envelope is not present"
 }
 
-// SignatureAuthenticityError is used when signature is not generated using trusted certificates.
+// SignatureAuthenticityError is used when signature is not generated using
+// trusted certificates.
 type SignatureAuthenticityError struct{}
 
-func (e SignatureAuthenticityError) Error() string {
+// Error returns the default error message.
+func (e *SignatureAuthenticityError) Error() string {
 	return "signature is not produced by a trusted signer"
 }
 
-// UnsupportedSigningKeyError is used when a signing key is not supported
+// UnsupportedSigningKeyError is used when a signing key is not supported.
 type UnsupportedSigningKeyError struct {
-	keyType   string
-	keyLength int
+	Msg string
 }
 
+// Error returns the error message or the default message if not provided.
 func (e UnsupportedSigningKeyError) Error() string {
-	if e.keyType != "" && e.keyLength != 0 {
-		return fmt.Sprintf("%q signing key of size %d is not supported", e.keyType, e.keyLength)
+	if e.Msg != "" {
+		return e.Msg
 	}
 	return "signing key is not supported"
 }
 
-// MalformedArgumentError is used when an argument to a function is malformed.
-type MalformedArgumentError struct {
-	param string
-	err   error
+// InvalidArgumentError is used when an argument to a function is invalid.
+type InvalidArgumentError struct {
+	Param string
+	Err   error
 }
 
-func (e MalformedArgumentError) Error() string {
-	if e.err != nil {
-		return fmt.Sprintf("%q param is malformed. Error: %s", e.param, e.err.Error())
+// Error returns the error message.
+func (e *InvalidArgumentError) Error() string {
+	if e.Err != nil {
+		return fmt.Sprintf("%q param is invalid. Error: %s", e.Param, e.Err.Error())
 	}
-	return fmt.Sprintf("%q param is malformed", e.param)
+	return fmt.Sprintf("%q param is invalid", e.Param)
 }
 
-// MalformedSignRequestError is used when SignRequest is malformed.
-type MalformedSignRequestError struct {
-	msg string
+// Unwrap returns the unwrapped error
+func (e *InvalidArgumentError) Unwrap() error {
+	return e.Err
 }
 
-func (e MalformedSignRequestError) Error() string {
-	if e.msg != "" {
-		return e.msg
+// InvalidSignRequestError is used when SignRequest is invalid.
+type InvalidSignRequestError struct {
+	Msg string
+}
+
+// Error returns the error message or the default message if not provided.
+func (e *InvalidSignRequestError) Error() string {
+	if e.Msg != "" {
+		return e.Msg
 	}
-	return "SignRequest is malformed"
+	return "SignRequest is invalid"
 }
 
-// SignatureAlgoNotSupportedError is used when signing algo is not supported.
-type SignatureAlgoNotSupportedError struct {
-	alg string
+// UnsupportedSignatureAlgoError is used when signing algo is not supported.
+type UnsupportedSignatureAlgoError struct {
+	Alg string
 }
 
-func (e SignatureAlgoNotSupportedError) Error() string {
-	return fmt.Sprintf("signature algorithm %q is not supported", e.alg)
+// Error returns the formatted error message.
+func (e *UnsupportedSignatureAlgoError) Error() string {
+	return fmt.Sprintf("signature algorithm %q is not supported", e.Alg)
+}
+
+// SignatureEnvelopeNotFoundError is used when signature envelope is not present.
+type SignatureEnvelopeNotFoundError struct{}
+
+// Error returns the default error message.
+func (e *SignatureEnvelopeNotFoundError) Error() string {
+	return "signature envelope is not present"
+}
+
+// DuplicateKeyError is used when repeated key name found.
+type DuplicateKeyError struct {
+	Key string
+}
+
+// Error returns the formatted error message.
+func (e *DuplicateKeyError) Error() string {
+	return fmt.Sprintf("repeated key: %q exists.", e.Key)
 }

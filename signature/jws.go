@@ -57,12 +57,12 @@ func (jws *jwsEnvelope) validateIntegrity() error {
 	}
 
 	if len(jws.internalEnv.Header.CertChain) == 0 {
-		return MalformedSignatureError{msg: "malformed leaf certificate"}
+		return InvalidSignatureError{Msg: "malformed leaf certificate"}
 	}
 
 	cert, err := x509.ParseCertificate(jws.internalEnv.Header.CertChain[0])
 	if err != nil {
-		return MalformedSignatureError{msg: "malformed leaf certificate"}
+		return InvalidSignatureError{Msg: "malformed leaf certificate"}
 	}
 
 	// verify JWT
@@ -72,7 +72,7 @@ func (jws *jwsEnvelope) validateIntegrity() error {
 
 func (jws *jwsEnvelope) signPayload(req SignRequest) ([]byte, error) {
 	errorFunc := func(s string) error {
-		return MalformedSignRequestError{msg: s}
+		return InvalidSignRequestError{msg: s}
 	}
 
 	ks, err := req.SignatureProvider.KeySpec()
@@ -109,8 +109,8 @@ func (jws *jwsEnvelope) signPayload(req SignRequest) ([]byte, error) {
 	return b, nil
 }
 
-func (jws *jwsEnvelope) getSignerInfo() (*SignerInfo, error) {
-	signInfo := SignerInfo{}
+func (jws *jwsEnvelope) getSignerInfo() (*EnvelopeContent, error) {
+	signInfo := EnvelopeContent{}
 	if jws.internalEnv == nil {
 		return nil, SignatureNotFoundError{}
 	}
@@ -157,7 +157,7 @@ func (jws *jwsEnvelope) getSignerInfo() (*SignerInfo, error) {
 func parseProtectedHeaders(encoded string) (*jwsProtectedHeader, error) {
 	rawProtected, err := base64.RawURLEncoding.DecodeString(encoded)
 	if err != nil {
-		return nil, MalformedSignatureError{msg: fmt.Sprintf("jws envelope protected header can't be decoded: %s", err.Error())}
+		return nil, InvalidSignatureError{Msg: fmt.Sprintf("jws envelope protected header can't be decoded: %s", err.Error())}
 	}
 
 	// To Unmarshal JSON with some known(jwsProtectedHeader), and some unknown(jwsProtectedHeader.ExtendedAttributes) field names.
@@ -165,10 +165,10 @@ func parseProtectedHeaders(encoded string) (*jwsProtectedHeader, error) {
 	// and removing the keys are already been defined in jwsProtectedHeader.
 	var protected jwsProtectedHeader
 	if err = json.Unmarshal(rawProtected, &protected); err != nil {
-		return nil, MalformedSignatureError{msg: fmt.Sprintf("jws envelope protected header can't be decoded: %s", err.Error())}
+		return nil, InvalidSignatureError{Msg: fmt.Sprintf("jws envelope protected header can't be decoded: %s", err.Error())}
 	}
 	if err = json.Unmarshal(rawProtected, &protected.ExtendedAttributes); err != nil {
-		return nil, MalformedSignatureError{msg: fmt.Sprintf("jws envelope protected header can't be decoded: %s", err.Error())}
+		return nil, InvalidSignatureError{Msg: fmt.Sprintf("jws envelope protected header can't be decoded: %s", err.Error())}
 	}
 
 	// delete attributes that are already defined in jwsProtectedHeader.
@@ -185,7 +185,7 @@ func parseProtectedHeaders(encoded string) (*jwsProtectedHeader, error) {
 	return &protected, nil
 }
 
-func populateProtectedHeaders(protectedHdr *jwsProtectedHeader, signInfo *SignerInfo) error {
+func populateProtectedHeaders(protectedHdr *jwsProtectedHeader, signInfo *EnvelopeContent) error {
 	err := validateProtectedHeaders(protectedHdr)
 	if err != nil {
 		return err
@@ -233,14 +233,14 @@ func validateProtectedHeaders(protectedHdr *jwsProtectedHeader) error {
 	switch protectedHdr.SigningScheme {
 	case SigningSchemeX509:
 		if protectedHdr.AuthenticSigningTime != nil {
-			return MalformedSignatureError{msg: fmt.Sprintf("%q header must not be present for %s signing scheme", headerKeyAuthenticSigningTime, SigningSchemeX509)}
+			return InvalidSignatureError{Msg: fmt.Sprintf("%q header must not be present for %s signing scheme", headerKeyAuthenticSigningTime, SigningSchemeX509)}
 		}
 	case SigningSchemeX509SigningAuthority:
 		if protectedHdr.SigningTime != nil {
-			return MalformedSignatureError{msg: fmt.Sprintf("%q header must not be present for %s signing scheme", headerKeySigningTime, SigningSchemeX509SigningAuthority)}
+			return InvalidSignatureError{Msg: fmt.Sprintf("%q header must not be present for %s signing scheme", headerKeySigningTime, SigningSchemeX509SigningAuthority)}
 		}
 		if protectedHdr.AuthenticSigningTime == nil {
-			return MalformedSignatureError{msg: fmt.Sprintf("%q header must be present for %s signing scheme", headerKeyAuthenticSigningTime, SigningSchemeX509)}
+			return InvalidSignatureError{Msg: fmt.Sprintf("%q header must be present for %s signing scheme", headerKeyAuthenticSigningTime, SigningSchemeX509)}
 		}
 	}
 
@@ -250,7 +250,7 @@ func validateProtectedHeaders(protectedHdr *jwsProtectedHeader) error {
 // validateCriticalHeaders validates headers that should be present or marked critical as per singing scheme
 func validateCriticalHeaders(protectedHdr *jwsProtectedHeader) error {
 	if len(protectedHdr.Critical) == 0 {
-		return MalformedSignatureError{"missing `crit` header"}
+		return InvalidSignatureError{"missing `crit` header"}
 	}
 
 	mustMarkedCrit := map[string]bool{headerKeySigningScheme: true}
@@ -275,7 +275,7 @@ func validateCriticalHeaders(protectedHdr *jwsProtectedHeader) error {
 			delete(mustMarkedCrit, val)
 		} else {
 			if _, ok := protectedHdr.ExtendedAttributes[val]; !ok {
-				return MalformedSignatureError{msg: fmt.Sprintf("%q header is marked critical but not present", val)}
+				return InvalidSignatureError{Msg: fmt.Sprintf("%q header is marked critical but not present", val)}
 			}
 		}
 	}
@@ -287,7 +287,7 @@ func validateCriticalHeaders(protectedHdr *jwsProtectedHeader) error {
 		for k := range mustMarkedCrit {
 			keys = append(keys, k)
 		}
-		return MalformedSignatureError{fmt.Sprintf("these required headers are not marked as critical: %v", keys)}
+		return InvalidSignatureError{fmt.Sprintf("these required headers are not marked as critical: %v", keys)}
 	}
 
 	return nil
@@ -339,7 +339,7 @@ func getSignedAttrs(req SignRequest, sigAlg SignatureAlgorithm) (map[string]inte
 	jwsProtectedHdr.Critical = crit
 	m, err := convertToMap(jwsProtectedHdr)
 	if err != nil {
-		return nil, MalformedSignRequestError{msg: fmt.Sprintf("unexpected error occured while creating protected headers, Error: %s", err.Error())}
+		return nil, InvalidSignRequestError{msg: fmt.Sprintf("unexpected error occured while creating protected headers, Error: %s", err.Error())}
 	}
 
 	return mergeMaps(m, extAttrs), nil
@@ -370,7 +370,7 @@ type jwsProtectedHeader struct {
 	Algorithm string `json:"alg"`
 
 	// Media type of the secured content (the payload).
-	ContentType PayloadContentType `json:"cty"`
+	ContentType MediaTypePayloadV1 `json:"cty"`
 
 	// Lists the headers that implementation MUST understand and process.
 	Critical []string `json:"crit,omitempty"`
@@ -442,7 +442,7 @@ func generateJws(compact string, req SignRequest, certs []*x509.Certificate) (*j
 }
 
 // sign the given payload and headers using the given signing method and signature provider
-func sign(payload []byte, headers map[string]interface{}, sigPro SignatureProvider) (string, []*x509.Certificate, error) {
+func sign(payload []byte, headers map[string]interface{}, sigPro Signer) (string, []*x509.Certificate, error) {
 	jsonPHeaders, err := json.Marshal(headers)
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to encode protected headers: %v", err)
@@ -462,7 +462,7 @@ func sign(payload []byte, headers map[string]interface{}, sigPro SignatureProvid
 func getSignatureAlgo(alg string) (SignatureAlgorithm, error) {
 	signatureAlg, ok := jwsAlgSignatureAlgMap[alg]
 	if !ok {
-		return "", SignatureAlgoNotSupportedError{alg: alg}
+		return "", UnsupportedSignatureAlgoError{alg: alg}
 	}
 
 	return signatureAlg, nil
@@ -471,7 +471,7 @@ func getSignatureAlgo(alg string) (SignatureAlgorithm, error) {
 func getJWSAlgo(alg SignatureAlgorithm) (string, error) {
 	jwsAlg, ok := signatureAlgJWSAlgMap[alg]
 	if !ok {
-		return "", SignatureAlgoNotSupportedError{alg: string(alg)}
+		return "", UnsupportedSignatureAlgoError{alg: string(alg)}
 	}
 
 	return jwsAlg, nil

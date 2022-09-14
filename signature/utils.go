@@ -8,43 +8,13 @@ import (
 	"crypto/x509"
 )
 
-// GetKeySpec picks up a recommended signing algorithm for given certificate.
-func GetKeySpec(signingCert *x509.Certificate) (KeySpec, error) {
-	var keyspec KeySpec
-	switch key := signingCert.PublicKey.(type) {
-	case *rsa.PublicKey:
-		switch key.Size() {
-		case 256:
-			keyspec = RSA_2048
-		case 384:
-			keyspec = RSA_3072
-		case 512:
-			keyspec = RSA_4096
-		default:
-			return "", UnsupportedSigningKeyError{keyType: "rsa", keyLength: key.Size()}
-		}
-	case *ecdsa.PublicKey:
-		switch key.Curve.Params().BitSize {
-		case 256:
-			keyspec = EC_256
-		case 384:
-			keyspec = EC_384
-		case 521:
-			keyspec = EC_521
-		default:
-			return "", UnsupportedSigningKeyError{keyType: "ecdsa", keyLength: key.Curve.Params().BitSize}
-		}
-	}
-	return keyspec, nil
-}
-
 // NewLocalSignatureProvider returns the LocalSignatureProvider created using given certificates and private key.
 func NewLocalSignatureProvider(certs []*x509.Certificate, pk crypto.PrivateKey) (*LocalSignatureProvider, error) {
 	if len(certs) == 0 {
-		return nil, MalformedArgumentError{param: "certs"}
+		return nil, &InvalidArgumentError{Param: "certs"}
 	}
 
-	ks, err := GetKeySpec(certs[0])
+	ks, err := ExtractKeySpec(certs[0])
 	if err != nil {
 		return nil, err
 	}
@@ -104,10 +74,10 @@ func (l *LocalSignatureProvider) KeySpec() (KeySpec, error) {
 }
 
 // getSignatureAlgorithm picks up a recommended signing algorithm for given certificate.
-func getSignatureAlgorithm(signingCert *x509.Certificate) (SignatureAlgorithm, error) {
-	keySpec, err := GetKeySpec(signingCert)
+func getSignatureAlgorithm(signingCert *x509.Certificate) (Algorithm, error) {
+	keySpec, err := ExtractKeySpec(signingCert)
 	if err != nil {
-		return "", err
+		return 0, err
 	}
 
 	return keySpec.SignatureAlgorithm(), nil
