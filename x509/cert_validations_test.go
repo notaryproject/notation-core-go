@@ -4,6 +4,8 @@ import (
 	"crypto/x509"
 	"testing"
 	"time"
+
+	"github.com/notaryproject/notation-core-go/testhelper"
 )
 
 // ---------------- Chain Validations ----------------
@@ -158,6 +160,39 @@ var codeSigningLeafInvalidPathLenPem = "-----BEGIN CERTIFICATE-----\n" +
 	"L0Z9ZU3NwwFAh1wpSsoQR4pPN+ZkVj5Irr/KWFk=\n" +
 	"-----END CERTIFICATE-----"
 
+var openSSLMinimumPem = "-----BEGIN CERTIFICATE-----\n" +
+	"MIIFbTCCA1WgAwIBAgIJAMbezFlbmYcEMA0GCSqGSIb3DQEBCwUAMF8xCzAJBgNV\n" +
+	"BAYTAlVTMRMwEQYDVQQIDApXYXNoaW5ndG9uMRAwDgYDVQQHDAdTZWF0dGxlMRYw\n" +
+	"FAYDVQQKDA1Ob3RhdGlvbiBUZXN0MREwDwYDVQQLDAhUZXN0Q2VydDAgFw0yMjA5\n" +
+	"MTUwNjEzMTNaGA8yMTIyMDgyMjA2MTMxM1owXzELMAkGA1UEBhMCVVMxEzARBgNV\n" +
+	"BAgMCldhc2hpbmd0b24xEDAOBgNVBAcMB1NlYXR0bGUxFjAUBgNVBAoMDU5vdGF0\n" +
+	"aW9uIFRlc3QxETAPBgNVBAsMCFRlc3RDZXJ0MIICIjANBgkqhkiG9w0BAQEFAAOC\n" +
+	"Ag8AMIICCgKCAgEAwo9PS2/9TAEMGkgVfbVVyjkdSav8zDgQLRg6Vkf67r231qOm\n" +
+	"JAevz1x9n3wbEqsKNs6UbQYteL2Yayn9rWvSqpNR/nREgM7pc3Sg3vHsar9BNCGn\n" +
+	"bVMrLKg+eQrmKtdfp8HftMSSQXSBcxNtMTnCBle+UIlqt9LBVk7KEKuImPIMxecO\n" +
+	"XEGWyT0l17QiSJURgUA7clMeh9uUzWPe4hf7TEX3I8hvWQenRFemapa9Xb+i4+tg\n" +
+	"MPDJWNqfVUk8SxvOlK73s2JCevSWoS0+HVfHKlMRCVzlxb2s35Mk35mCx/MXkR/U\n" +
+	"HkRnu6PPeeTQWT1pbF852ddthSSHKvylWVBVQ8Nbi5fqT5QE39k2TuS1Zbv++UEY\n" +
+	"KHC5xmaARr9G3ERczh999Hsm6PLm9QMHWLO/5GcoPYSqW5EQXL6dDClUgDnJntL3\n" +
+	"bDUsxAtJB1qT34o2aGmGxHdfWwgBGpUPBGWnU93eV+L8v/NAQRow84g65XVTu3zJ\n" +
+	"7Lex5/LDJ/sL+59JuFPCW1GcDgfO/+tEbgx5/T9sl4zZbytF90SaBKci+bmT6Hr3\n" +
+	"xPB+mnrf0UEhMGMjaNxauZdIr7nTg9tR179FNmfxbWEqHcfN1oU5AmfTeruKiQiP\n" +
+	"/Zj3+Jr1X63DXpYf4XGaAusQ9kwaJk11kJgMedkkrcKMAP07DA27R42aBakCAwEA\n" +
+	"AaMqMCgwDgYDVR0PAQH/BAQDAgeAMBYGA1UdJQEB/wQMMAoGCCsGAQUFBwMDMA0G\n" +
+	"CSqGSIb3DQEBCwUAA4ICAQApBIbhVop3zsfKDL0H6CMl1LYq3rfoJ7/Tlj9tFZxM\n" +
+	"42hh1N2HMP7/WKO5csj+pJ1C27vYSWBmGj2XmkfAvTY3I65F2uhVScoBXSKhYZZz\n" +
+	"+iTgLvK5RtR3kGcR+8TH5nLEBI+ZomDUBUHF8p92caUDFJkMNLq3o7PQ8wOgXgRn\n" +
+	"wYZcwGz7eSjq8Fg4Up3oq06Ll0/NGwqQKf5C7KeMfTTiDIqs1xha3BSH4B67ZoAh\n" +
+	"bMuR4/XIP+T0pQAFtDMa8WFeAztvVDa8Vw173UJCqiWK5WOBNzv87H5oE5PtN7mG\n" +
+	"v0yIXQuJXq6BGcmkYKxYCgvnCHwHJ6zTfddRlq32YSAhqotzHP7XAUKyMvuOhnQl\n" +
+	"IG7Itzw+qYs4/AZhmeLhpxnwhv1zBHMO4k/K6AvZfudP7afN6PeObsVGU9ElK7HL\n" +
+	"MSrnYFWrez9kN18aVCPIi9dGHY73EPSg+l6j2AQCK7BZck2qO4BQAIWGAzOyrd6W\n" +
+	"TZeotWo0pt+UoN0Ihk9zbiQVmuSan3qaTNmYPZZeVB58hyjdL7xI6+180Qmtb3uk\n" +
+	"oUoLHLKXxN1t7BewUVRs9UA4uxjBK9kWuIROGwwFcdIm+JkZtd0AF/Sko2J9VxmM\n" +
+	"Colw5b7EymcXx6RTvoPNFTWO0TmCMc+HHRPue8fsu8GcQmzvMX0682qF8uT0ekQM\n" +
+	"Mw==\n" +
+	"-----END CERTIFICATE-----"
+
 var rootCert = parseCertificateFromString(rootCertPem)
 var intermediateCert1 = parseCertificateFromString(intermediateCertPem1)
 var intermediateCert2 = parseCertificateFromString(intermediateCertPem2)
@@ -166,14 +201,24 @@ var timeStampingCert = parseCertificateFromString(timeStampingLeafPem)
 var unrelatedCert = parseCertificateFromString(unrelatedCertPem)
 var intermediateCertInvalidPathLen = parseCertificateFromString(intermediateCertInvalidPathLenPem)
 var codeSigningLeafInvalidPathLen = parseCertificateFromString(codeSigningLeafInvalidPathLenPem)
+var openSSLMinimumCert = parseCertificateFromString(openSSLMinimumPem)
 
 var signingTime = time.Now()
 
 func TestValidCodeSigningChain(t *testing.T) {
 	certChain := []*x509.Certificate{codeSigningCert, intermediateCert2, intermediateCert1, rootCert}
-
 	if err := ValidateCodeSigningCertChain(certChain, signingTime); err != nil {
-		t.Fatal(err)
+		t.Error(err)
+	}
+
+	certChain = []*x509.Certificate{testhelper.GetRSASelfSignedSigningCertificate().Cert}
+	if err := ValidateCodeSigningCertChain(certChain, signingTime); err != nil {
+		t.Error(err)
+	}
+
+	certChain = []*x509.Certificate{openSSLMinimumCert}
+	if err := ValidateCodeSigningCertChain(certChain, signingTime); err != nil {
+		t.Error(err)
 	}
 }
 
@@ -186,10 +231,9 @@ func TestValidTimeStampingChain(t *testing.T) {
 }
 
 func TestFailEmptyChain(t *testing.T) {
-	certChain := []*x509.Certificate{codeSigningCert}
+	err := ValidateCodeSigningCertChain(nil, signingTime)
 
-	err := ValidateCodeSigningCertChain(certChain, signingTime)
-	assertErrorEqual("certificate chain must contain at least two certificates: a root and a leaf certificate", err, t)
+	assertErrorEqual("certificate chain must contain at least one certificates", err, t)
 }
 
 func TestFailInvalidSigningTime(t *testing.T) {
@@ -239,6 +283,12 @@ func TestRootCertIdentified(t *testing.T) {
 		isSelfSigned(intermediateCert2) || !isSelfSigned(rootCert) {
 		t.Fatal("Root cert was not correctly identified")
 	}
+}
+
+func TestInvalidSelfSignedSigningCertificate(t *testing.T) {
+	certChain := []*x509.Certificate{testhelper.GetRSARootCertificate().Cert}
+	err := ValidateCodeSigningCertChain(certChain, signingTime)
+	assertErrorEqual("certificate with subject \"CN=Notation Test Root,O=Notary,L=Seattle,ST=WA,C=US\": if the basic constraints extension is present, the ca field must be set to false", err, t)
 }
 
 // ---------------- CA Validations ----------------
@@ -631,7 +681,7 @@ func parseCertificateFromString(certPem string) *x509.Certificate {
 }
 
 func assertErrorEqual(expected string, err error, t *testing.T) {
-	if expected != err.Error() {
+	if err == nil || expected != err.Error() {
 		t.Fatalf("Expected error \"%v\" but was \"%v\"", expected, err)
 	}
 }
