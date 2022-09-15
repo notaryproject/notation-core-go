@@ -21,7 +21,7 @@ func init() {
 }
 
 type envelope struct {
-	internalEnvelope *jwsEnvelope
+	base *jwsEnvelope
 }
 
 // NewEnvelope generates an JWS envelope.
@@ -39,7 +39,7 @@ func ParseEnvelope(envelopeBytes []byte) (signature.Envelope, error) {
 		return nil, &signature.InvalidSignatureError{Msg: err.Error()}
 	}
 	return &base.Envelope{
-		Envelope: &envelope{internalEnvelope: &e},
+		Envelope: &envelope{base: &e},
 		Raw:      envelopeBytes,
 	}, nil
 }
@@ -55,7 +55,7 @@ func (e *envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 	// get all attributes ready to be signed
 	signedAttrs, err := getSignedAttributes(req, method.Alg())
 	if err != nil {
-		return nil, err
+		return nil, &signature.InvalidSignRequestError{Msg: err.Error()}
 	}
 
 	// parse payload as jwt.MapClaims
@@ -75,34 +75,34 @@ func (e *envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 	// generate envelope
 	env, err := generateJWS(compact, req, certs)
 	if err != nil {
-		return nil, err
+		return nil, &signature.InvalidSignatureError{Msg: err.Error()}
 	}
 
 	encoded, err := json.Marshal(env)
 	if err != nil {
 		return nil, &signature.InvalidSignatureError{Msg: err.Error()}
 	}
-	e.internalEnvelope = env
+	e.base = env
 	return encoded, nil
 }
 
 // Verify verifies the envelope and returns its enclosed payload and signer info.
 func (e *envelope) Verify() (*signature.EnvelopeContent, error) {
-	if e.internalEnvelope == nil {
+	if e.base == nil {
 		return nil, &signature.SignatureEnvelopeNotFoundError{}
 	}
 
-	if len(e.internalEnvelope.Header.CertChain) == 0 {
+	if len(e.base.Header.CertChain) == 0 {
 		return nil, &signature.InvalidSignatureError{Msg: "certificate chain is not set"}
 	}
 
-	cert, err := x509.ParseCertificate(e.internalEnvelope.Header.CertChain[0])
+	cert, err := x509.ParseCertificate(e.base.Header.CertChain[0])
 	if err != nil {
 		return nil, &signature.InvalidSignatureError{Msg: "malformed leaf certificate"}
 	}
 
 	// verify JWT
-	compact := compactJWS(e.internalEnvelope)
+	compact := compactJWS(e.base)
 	if err = verifyJWT(compact, cert.PublicKey); err != nil {
 		return nil, err
 	}
@@ -113,14 +113,24 @@ func (e *envelope) Verify() (*signature.EnvelopeContent, error) {
 // Content returns the payload and signer information of the envelope.
 // Content is trusted only after the successful call to `Verify()`.
 func (e *envelope) Content() (*signature.EnvelopeContent, error) {
+	if e.base == nil {
+		return nil, &signature.SignatureEnvelopeNotFoundError{}
+	}
+
+	// parse protected headers
+	protected, err := parseProtectedHeaders(e.base.Protected)
+	if err != nil {
+		return nil, err
+	}
+
 	// extract payload
-	payload, err := e.payload()
+	payload, err := e.payload(protected)
 	if err != nil {
 		return nil, err
 	}
 
 	// extract signer info
-	signerInfo, err := e.signerInfo()
+	signerInfo, err := e.signerInfo(protected)
 	if err != nil {
 		return nil, err
 	}
@@ -131,17 +141,8 @@ func (e *envelope) Content() (*signature.EnvelopeContent, error) {
 }
 
 // payload returns the payload of JWS envelope.
-func (e *envelope) payload() (*signature.Payload, error) {
-	if e.internalEnvelope == nil {
-		return nil, &signature.SignatureEnvelopeNotFoundError{}
-	}
-	// parse protected header to get payload context type
-	protected, err := parseProtectedHeaders(e.internalEnvelope.Protected)
-	if err != nil {
-		return nil, err
-	}
-
-	payload, err := base64.RawURLEncoding.DecodeString(e.internalEnvelope.Payload)
+func (e *envelope) payload(protected *jwsProtectedHeader) (*signature.Payload, error) {
+	payload, err := base64.RawURLEncoding.DecodeString(e.base.Payload)
 	if err != nil {
 		return nil, &signature.InvalidSignatureError{
 			Msg: fmt.Sprintf("payload error: %v", err)}
@@ -154,25 +155,18 @@ func (e *envelope) payload() (*signature.Payload, error) {
 }
 
 // signerInfo returns the SignerInfo of JWS envelope.
-func (e *envelope) signerInfo() (*signature.SignerInfo, error) {
-	if e.internalEnvelope == nil {
-		return nil, &signature.SignatureEnvelopeNotFoundError{}
-	}
+func (e *envelope) signerInfo(protected *jwsProtectedHeader) (*signature.SignerInfo, error) {
 	var signerInfo signature.SignerInfo
 
-	// parse protected headers
-	protected, err := parseProtectedHeaders(e.internalEnvelope.Protected)
-	if err != nil {
-		return nil, err
-	}
+	// populate protected header to signerInfo
 	if err := populateProtectedHeaders(protected, &signerInfo); err != nil {
 		return nil, err
 	}
 
 	// parse signature
-	sig, err := base64.RawURLEncoding.DecodeString(e.internalEnvelope.Signature)
+	sig, err := base64.RawURLEncoding.DecodeString(e.base.Signature)
 	if err != nil {
-		return nil, err
+		return nil, &signature.InvalidSignatureError{Msg: err.Error()}
 	}
 	if len(sig) == 0 {
 		return nil, &signature.InvalidSignatureError{Msg: "cose envelope missing signature"}
@@ -181,16 +175,16 @@ func (e *envelope) signerInfo() (*signature.SignerInfo, error) {
 
 	// parse headers
 	var certs []*x509.Certificate
-	for _, certBytes := range e.internalEnvelope.Header.CertChain {
+	for _, certBytes := range e.base.Header.CertChain {
 		cert, err := x509.ParseCertificate(certBytes)
 		if err != nil {
-			return nil, err
+			return nil, &signature.InvalidSignatureError{Msg: err.Error()}
 		}
 		certs = append(certs, cert)
 	}
 	signerInfo.CertificateChain = certs
-	signerInfo.UnsignedAttributes.SigningAgent = e.internalEnvelope.Header.SigningAgent
-	signerInfo.UnsignedAttributes.TimestampSignature = e.internalEnvelope.Header.TimestampSignature
+	signerInfo.UnsignedAttributes.SigningAgent = e.base.Header.SigningAgent
+	signerInfo.UnsignedAttributes.TimestampSignature = e.base.Header.TimestampSignature
 	return &signerInfo, nil
 }
 

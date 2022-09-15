@@ -131,7 +131,7 @@ func TestVerifyConformance(t *testing.T) {
 	var e jwsEnvelope
 	err = json.Unmarshal(encoded, &e)
 	checkNoError(t, err)
-	newEnv := envelope{internalEnvelope: &e}
+	newEnv := envelope{base: &e}
 
 	// verify validity
 	content, err := newEnv.Verify()

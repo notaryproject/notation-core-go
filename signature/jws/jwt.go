@@ -4,6 +4,7 @@ import (
 	"crypto"
 	"crypto/x509"
 	"encoding/base64"
+	"errors"
 	"fmt"
 
 	"github.com/golang-jwt/jwt/v4"
@@ -44,7 +45,7 @@ func newRemoteSigningMethod(signer signature.Signer) (signingMethod, error) {
 
 // Verify doesn't need to be implemented.
 func (s *remoteSigningMethod) Verify(signingString, signature string, key interface{}) error {
-	panic("not implemented")
+	return errors.New("not implemented")
 }
 
 // Sign hashes the signingString and call the remote signer to sign the digest.
@@ -58,7 +59,7 @@ func (s *remoteSigningMethod) Sign(signingString string, key interface{}) (strin
 	return base64.RawURLEncoding.EncodeToString(sig), nil
 }
 
-// Alg return the signing algorithm.
+// Alg implements jwt.SigningMethod interface.
 func (s *remoteSigningMethod) Alg() string {
 	return s.algorithm
 }
