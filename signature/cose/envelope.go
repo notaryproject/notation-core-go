@@ -237,7 +237,7 @@ func (e *envelope) Verify() (*signature.EnvelopeContent, error) {
 	}
 	certRaw, ok := certs[0].([]byte)
 	if !ok {
-		return nil, &signature.InvalidSignatureError{Msg: "COSE envelope invalid leaf certificate"}
+		return nil, &signature.InvalidSignatureError{Msg: "COSE envelope malformed leaf certificate"}
 	}
 	cert, err := x509.ParseCertificate(certRaw)
 	if err != nil {
@@ -259,12 +259,7 @@ func (e *envelope) Verify() (*signature.EnvelopeContent, error) {
 	}
 
 	// extract content
-	content, err := e.Content()
-	if err != nil {
-		return nil, err
-	}
-
-	return content, nil
+	return e.Content()
 }
 
 // Content implements signature.Envelope interface.

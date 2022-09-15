@@ -306,7 +306,7 @@ func TestVerifyErrors(t *testing.T) {
 		}
 		env.base.Headers.Unprotected[cose.HeaderLabelX5Chain] = []interface{}{0}
 		_, err = env.Verify()
-		expected := errors.New("COSE envelope invalid leaf certificate")
+		expected := errors.New("COSE envelope malformed leaf certificate")
 		if !isErrEqual(expected, err) {
 			t.Fatalf("Verify() expects error: %v, but got: %v.", expected, err)
 		}
