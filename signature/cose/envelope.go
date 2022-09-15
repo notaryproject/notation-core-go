@@ -263,7 +263,7 @@ func (e *envelope) Verify() (*signature.EnvelopeContent, error) {
 	// extract content
 	content, err := e.Content()
 	if err != nil {
-		return nil, &signature.InvalidSignatureError{Msg: err.Error()}
+		return nil, err
 	}
 
 	return content, nil
@@ -271,6 +271,11 @@ func (e *envelope) Verify() (*signature.EnvelopeContent, error) {
 
 // Content implements signature.Envelope interface
 func (e *envelope) Content() (*signature.EnvelopeContent, error) {
+	// sanity check
+	if e.base == nil {
+		return nil, &signature.InvalidSignatureError{Msg: "missing COSE signature envelope"}
+	}
+
 	payload, err := e.payload()
 	if err != nil {
 		return nil, err
@@ -287,11 +292,6 @@ func (e *envelope) Content() (*signature.EnvelopeContent, error) {
 
 // Given a COSE envelope, extracts its signature.Payload
 func (e *envelope) payload() (*signature.Payload, error) {
-	// sanity check
-	if e.base == nil {
-		return nil, &signature.InvalidSignatureError{Msg: "missing COSE signature envelope"}
-	}
-
 	cty, ok := e.base.Headers.Protected[cose.HeaderLabelContentType]
 	if !ok {
 		return nil, &signature.InvalidSignatureError{Msg: "missing content type"}
@@ -308,10 +308,6 @@ func (e *envelope) payload() (*signature.Payload, error) {
 
 // Given a COSE envelope, extracts its signature.SignerInfo
 func (e *envelope) signerInfo() (*signature.SignerInfo, error) {
-	// sanity check
-	if e.base == nil {
-		return nil, &signature.InvalidSignatureError{Msg: "missing COSE signature envelope"}
-	}
 	var signerInfo signature.SignerInfo
 
 	// parse signature of COSE envelope, populate signerInfo.Signature

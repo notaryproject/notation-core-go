@@ -446,19 +446,6 @@ func TestPayloadErrors(t *testing.T) {
 }
 
 func TestSignerInfoErrors(t *testing.T) {
-	t.Run("when env.base is nil", func(t *testing.T) {
-		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
-		if err != nil {
-			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
-		}
-		env.base = nil
-		_, err = env.Content()
-		expected := errors.New("missing COSE signature envelope")
-		if !isErrEqual(expected, err) {
-			t.Fatalf("Content() expects error: %v, but got: %v.", expected, err)
-		}
-	})
-
 	t.Run("when COSE envelope missing signature", func(t *testing.T) {
 		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
 		if err != nil {
