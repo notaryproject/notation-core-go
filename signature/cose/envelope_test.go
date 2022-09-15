@@ -26,12 +26,12 @@ func TestParseEnvelopeError(t *testing.T) {
 	var emptyCOSE []byte
 	_, err := ParseEnvelope(emptyCOSE)
 	if err == nil {
-		t.Fatalf("ParseEnvelope() expects signature.MalformedSignatureError, but got nil.")
+		t.Fatalf("ParseEnvelope() expects signature.InvalidSignatureError, but got nil.")
 	}
 
-	_, err = ParseEnvelope([]byte("Malformed"))
+	_, err = ParseEnvelope([]byte("invalid"))
 	if err == nil {
-		t.Fatalf("ParseEnvelope() expects signature.MalformedSignatureError, but got nil.")
+		t.Fatalf("ParseEnvelope() expects signature.InvalidSignatureError, but got nil.")
 	}
 }
 
@@ -147,7 +147,7 @@ func TestSignErrors(t *testing.T) {
 		}
 		signRequest.Signer = &errorLocalSigner{algError: true}
 		_, err = env.Sign(signRequest)
-		expected := errors.New("RSA: key size not supported")
+		expected := errors.New("RSA: key size 0 not supported")
 		if !isErrEqual(expected, err) {
 			t.Fatalf("Sign() expects error: %v, but got: %v.", expected, err)
 		}
@@ -173,7 +173,7 @@ func TestSignErrors(t *testing.T) {
 		}
 		signRequest.Signer = &errorRemoteSigner{algError: true}
 		_, err = env.Sign(signRequest)
-		expected := errors.New("RSA: key size not supported")
+		expected := errors.New("RSA: key size 0 not supported")
 		if !isErrEqual(expected, err) {
 			t.Fatalf("Sign() expects error: %v, but got: %v.", expected, err)
 		}
@@ -186,7 +186,7 @@ func TestSignErrors(t *testing.T) {
 		}
 		signRequest.Signer = &errorRemoteSigner{algError: true, wantEC: true}
 		_, err = env.Sign(signRequest)
-		expected := errors.New("EC: key size not supported")
+		expected := errors.New("EC: key size 0 not supported")
 		if !isErrEqual(expected, err) {
 			t.Fatalf("Sign() expects error: %v, but got: %v.", expected, err)
 		}
@@ -286,14 +286,14 @@ func TestVerifyErrors(t *testing.T) {
 		}
 	})
 
-	t.Run("when COSE envelope has malformed certificate chain", func(t *testing.T) {
+	t.Run("when COSE envelope has invalid certificate chain", func(t *testing.T) {
 		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
 		if err != nil {
 			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
 		}
 		env.base.Headers.Unprotected[cose.HeaderLabelX5Chain] = []interface{}{}
 		_, err = env.Verify()
-		expected := errors.New("COSE envelope malformed certificate chain")
+		expected := errors.New("COSE envelope invalid certificate chain")
 		if !isErrEqual(expected, err) {
 			t.Fatalf("Verify() expects error: %v, but got: %v.", expected, err)
 		}
@@ -306,7 +306,7 @@ func TestVerifyErrors(t *testing.T) {
 		}
 		env.base.Headers.Unprotected[cose.HeaderLabelX5Chain] = []interface{}{0}
 		_, err = env.Verify()
-		expected := errors.New("COSE envelope malformed leaf certificate")
+		expected := errors.New("COSE envelope invalid leaf certificate")
 		if !isErrEqual(expected, err) {
 			t.Fatalf("Verify() expects error: %v, but got: %v.", expected, err)
 		}
@@ -319,7 +319,7 @@ func TestVerifyErrors(t *testing.T) {
 		}
 		certs, ok := env.base.Headers.Unprotected[cose.HeaderLabelX5Chain].([]interface{})
 		if !ok || len(certs) == 0 {
-			t.Fatalf("COSE envelope malformed certificate chain")
+			t.Fatalf("COSE envelope invalid certificate chain")
 		}
 		certRaw, ok := certs[0].([]byte)
 		if !ok {
@@ -446,19 +446,6 @@ func TestPayloadErrors(t *testing.T) {
 }
 
 func TestSignerInfoErrors(t *testing.T) {
-	t.Run("when env.base is nil", func(t *testing.T) {
-		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
-		if err != nil {
-			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
-		}
-		env.base = nil
-		_, err = env.Content()
-		expected := errors.New("missing COSE signature envelope")
-		if !isErrEqual(expected, err) {
-			t.Fatalf("Content() expects error: %v, but got: %v.", expected, err)
-		}
-	})
-
 	t.Run("when COSE envelope missing signature", func(t *testing.T) {
 		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
 		if err != nil {
@@ -493,7 +480,7 @@ func TestSignerInfoErrors(t *testing.T) {
 		}
 		env.base.Headers.Protected[headerLabelSigningScheme] = 0
 		_, err = env.Content()
-		expected := errors.New("malformed signingScheme")
+		expected := errors.New("invalid signingScheme")
 		if !isErrEqual(expected, err) {
 			t.Fatalf("Content() expects error: %v, but got: %v.", expected, err)
 		}
@@ -564,25 +551,25 @@ func TestSignerInfoErrors(t *testing.T) {
 		}
 	})
 
-	t.Run("when COSE envelope protected header has malformed signingTime", func(t *testing.T) {
+	t.Run("when COSE envelope protected header has invalid signingTime", func(t *testing.T) {
 		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
 		if err != nil {
 			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
 		}
-		env.base.Headers.Protected[headerLabelSigningTime] = "malformed"
+		env.base.Headers.Protected[headerLabelSigningTime] = "invalid"
 		_, err = env.Content()
-		expected := errors.New("malformed signingTime under signing scheme: notary.x509")
+		expected := errors.New("invalid signingTime under signing scheme: notary.x509")
 		if !isErrEqual(expected, err) {
 			t.Fatalf("Content() expects error: %v, but got: %v.", expected, err)
 		}
 	})
 
-	t.Run("when COSE envelope protected header has malformed expiry", func(t *testing.T) {
+	t.Run("when COSE envelope protected header has invalid expiry", func(t *testing.T) {
 		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
 		if err != nil {
 			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
 		}
-		env.base.Headers.Protected[headerLabelExpiry] = "malformed"
+		env.base.Headers.Protected[headerLabelExpiry] = "invalid"
 		_, err = env.Content()
 		expected := errors.New("expiry requires int64 type")
 		if !isErrEqual(expected, err) {
@@ -591,14 +578,14 @@ func TestSignerInfoErrors(t *testing.T) {
 	})
 
 	// Testing unprotected headers
-	t.Run("when COSE envelope has malformed certificate chain", func(t *testing.T) {
+	t.Run("when COSE envelope has invalid certificate chain", func(t *testing.T) {
 		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
 		if err != nil {
 			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
 		}
 		delete(env.base.Headers.Unprotected, cose.HeaderLabelX5Chain)
 		_, err = env.Content()
-		expected := errors.New("COSE envelope malformed certificate chain")
+		expected := errors.New("COSE envelope invalid certificate chain")
 		if !isErrEqual(expected, err) {
 			t.Fatalf("Content() expects error: %v, but got: %v.", expected, err)
 		}
@@ -611,7 +598,7 @@ func TestSignerInfoErrors(t *testing.T) {
 		}
 		env.base.Headers.Unprotected[cose.HeaderLabelX5Chain] = []interface{}{0}
 		_, err = env.Content()
-		expected := errors.New("COSE envelope malformed certificate chain")
+		expected := errors.New("COSE envelope invalid certificate chain")
 		if !isErrEqual(expected, err) {
 			t.Fatalf("Content() expects error: %v, but got: %v.", expected, err)
 		}
@@ -624,7 +611,7 @@ func TestSignerInfoErrors(t *testing.T) {
 		}
 		certs, ok := env.base.Headers.Unprotected[cose.HeaderLabelX5Chain].([]interface{})
 		if !ok || len(certs) == 0 {
-			t.Fatalf("COSE envelope malformed certificate chain")
+			t.Fatalf("COSE envelope invalid certificate chain")
 		}
 		certRaw, ok := certs[0].([]byte)
 		if !ok {
