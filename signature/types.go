@@ -66,7 +66,7 @@ type Attribute struct {
 type SignRequest struct {
 	// Payload is the payload to be signed.
 	//
-	// For JWS envelop, Payload.Content is limited to be JSON format.
+	// For JWS envelope, Payload.Content is limited to be JSON format.
 	Payload Payload
 
 	// Signer is the signer used to sign the digest.
@@ -131,7 +131,7 @@ type Payload struct {
 
 	// Content contains the raw bytes of the payload.
 	//
-	// For JWS envelop, Content is limited to be JSON format.
+	// For JWS envelope, Content is limited to be JSON format.
 	Content []byte
 }
 
