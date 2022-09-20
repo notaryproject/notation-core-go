@@ -31,7 +31,7 @@ func parseProtectedHeaders(encoded string) (*jwsProtectedHeader, error) {
 	}
 
 	// delete attributes that are already defined in jwsProtectedHeader.
-	for _, headerKey := range headerKeys {
+	for _, headerKey := range knownHeaderKeys {
 		delete(protected.ExtendedAttributes, headerKey)
 	}
 	return &protected, nil

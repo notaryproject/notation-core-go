@@ -17,7 +17,7 @@ const (
 	headerKeyAuthenticSigningTime = "io.cncf.notary.authenticSigningTime"
 )
 
-var headerKeys = []string{
+var knownHeaderKeys = []string{
 	headerKeyAlg,
 	headerKeyCty,
 	headerKeyCrit,
