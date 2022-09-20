@@ -233,7 +233,7 @@ func TestValidTimeStampingChain(t *testing.T) {
 func TestFailEmptyChain(t *testing.T) {
 	err := ValidateCodeSigningCertChain(nil, signingTime)
 
-	assertErrorEqual("certificate chain must contain at least one certificates", err, t)
+	assertErrorEqual("certificate chain must contain at least one certificate", err, t)
 }
 
 func TestFailInvalidSigningTime(t *testing.T) {

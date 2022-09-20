@@ -26,12 +26,16 @@ func ValidateTimeStampingCertChain(certChain []*x509.Certificate, signingTime ti
 
 func validateCertChain(certChain []*x509.Certificate, expectedLeafEku x509.ExtKeyUsage, signingTime time.Time) error {
 	if len(certChain) < 1 {
-		return errors.New("certificate chain must contain at least one certificates")
+		return errors.New("certificate chain must contain at least one certificate")
 	}
 
 	// For self-signed signing certificate (not a CA)
 	if len(certChain) == 1 {
 		cert := certChain[0]
+		if signingTime.Before(cert.NotBefore) || signingTime.After(cert.NotAfter) {
+			return fmt.Errorf("certificate with subject %q was not valid at signing time of %s", cert.Subject, signingTime.UTC())
+		}
+
 		if err := cert.CheckSignature(cert.SignatureAlgorithm, cert.RawTBSCertificate, cert.Signature); err != nil {
 			return err
 		}
