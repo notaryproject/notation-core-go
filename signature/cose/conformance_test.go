@@ -70,11 +70,7 @@ func testSign(t *testing.T, sign1 *sign1) {
 
 	// Verify using the same envelope struct
 	// (Verify with UnmarshalCBOR is covered in the testVerify() part)
-<<<<<<< HEAD
 	_, err = env.Verify()
-=======
-	_, _, err = env.Verify()
->>>>>>> upstream/cose
 	if err != nil {
 		t.Fatalf("Verify() failed. Error = %s", err)
 	}
@@ -114,21 +110,12 @@ func testVerify(t *testing.T, sign1 *sign1) {
 	msg.Signature = env.base.Signature
 
 	newEnv := createNewEnv(&msg)
-<<<<<<< HEAD
 	content, err := newEnv.Verify()
 	if err != nil {
 		t.Fatalf("Verify() failed. Error = %s", err)
 	}
 	verifyPayload(&content.Payload, signRequest, t)
 	verifySignerInfo(&content.SignerInfo, signRequest, t)
-=======
-	payload, signerInfo, err := newEnv.Verify()
-	if err != nil {
-		t.Fatalf("Verify() failed. Error = %s", err)
-	}
-	verifyPayload(payload, signRequest, t)
-	verifySignerInfo(signerInfo, signRequest, t)
->>>>>>> upstream/cose
 }
 
 func getSignReq(sign1 *sign1) (*signature.SignRequest, error) {
@@ -139,11 +126,7 @@ func getSignReq(sign1 *sign1) (*signature.SignRequest, error) {
 	}
 	signRequest := &signature.SignRequest{
 		Payload: signature.Payload{
-<<<<<<< HEAD
 			ContentType: "application/vnd.cncf.notary.payload.v1+json",
-=======
-			ContentType: signature.MediaTypePayloadV1,
->>>>>>> upstream/cose
 			Content:     []byte("hello COSE"),
 		},
 		Signer:      signer,
