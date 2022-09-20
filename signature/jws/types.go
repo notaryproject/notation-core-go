@@ -17,7 +17,9 @@ const (
 	headerKeyAuthenticSigningTime = "io.cncf.notary.authenticSigningTime"
 )
 
-var knownHeaderKeys = []string{
+// headerKeys includes all system aware keys for JWS protected header
+// [JWS envelope]: https://github.com/notaryproject/notaryproject/blob/main/signature-envelope-jws.md#protected-headers
+var headerKeys = []string{
 	headerKeyAlg,
 	headerKeyCty,
 	headerKeyCrit,
