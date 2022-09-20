@@ -72,8 +72,7 @@ func GetUnsupportedECCert() ECCertTuple {
 	return unsupportedECDSARoot
 }
 
-// GetRSASelfSignedSigningCertificate returns a self-signed certificate created which can be used for signing.
-// which is not supported by notary.
+// GetRSASelfSignedSigningCertificate returns a self-signed certificate created which can be used for signing
 func GetRSASelfSignedSigningCertificate() RSACertTuple {
 	return rsaSelfSignedSigningCert
 }
