@@ -114,7 +114,7 @@ func validateSignRequest(req *signature.SignRequest) error {
 	if _, err := req.Signer.KeySpec(); err != nil {
 		return err
 	}
-	
+
 	return validateSigningSchema(req.SigningScheme)
 }
 
