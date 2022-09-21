@@ -25,7 +25,7 @@ type signingMethod interface {
 	PrivateKey() crypto.PrivateKey
 }
 
-// remoteSigningMethod wraps the remote signer to be a SigningMethod
+// remoteSigningMethod wraps the remote signer to be a SigningMethod.
 type remoteSigningMethod struct {
 	signer    signature.Signer
 	certs     []*x509.Certificate
