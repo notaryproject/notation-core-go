@@ -84,7 +84,7 @@ func (e *InvalidArgumentError) Error() string {
 	return fmt.Sprintf("%q param is invalid", e.Param)
 }
 
-// Unwrap returns the unwrapped error
+// Unwrap returns the unwrapped error.
 func (e *InvalidArgumentError) Unwrap() error {
 	return e.Err
 }
