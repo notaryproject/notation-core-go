@@ -10,17 +10,19 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"math/big"
+	mrand "math/rand"
 	"strconv"
 	"time"
 )
 
 var (
-	rsaRoot              RSACertTuple
-	rsaLeaf              RSACertTuple
-	ecdsaRoot            ECCertTuple
-	ecdsaLeaf            ECCertTuple
-	unsupportedECDSARoot ECCertTuple
-	unsupportedRSARoot   RSACertTuple
+	rsaRoot                  RSACertTuple
+	rsaLeaf                  RSACertTuple
+	ecdsaRoot                ECCertTuple
+	ecdsaLeaf                ECCertTuple
+	unsupportedECDSARoot     ECCertTuple
+	unsupportedRSARoot       RSACertTuple
+	rsaSelfSignedSigningCert RSACertTuple
 )
 
 type RSACertTuple struct {
@@ -70,6 +72,11 @@ func GetUnsupportedECCert() ECCertTuple {
 	return unsupportedECDSARoot
 }
 
+// GetRSASelfSignedSigningCertificate returns a self-signed certificate created which can be used for signing
+func GetRSASelfSignedSigningCertificate() RSACertTuple {
+	return rsaSelfSignedSigningCert
+}
+
 func setupCertificates() {
 	rsaRoot = getCertTuple("Notation Test Root", nil)
 	rsaLeaf = getCertTuple("Notation Test Leaf Cert", &rsaRoot)
@@ -81,6 +88,7 @@ func setupCertificates() {
 	// and is used only for testing.
 	k, _ := rsa.GenerateKey(rand.Reader, 1024)
 	unsupportedRSARoot = GetRSACertTupleWithPK(k, "Notation Unsupported Root", nil)
+	rsaSelfSignedSigningCert = GetRSASelfSignedSigningCertTuple("Notation Signing Test Root")
 }
 
 func getCertTuple(cn string, issuer *RSACertTuple) RSACertTuple {
@@ -98,9 +106,20 @@ func getECCertTuple(cn string, issuer *ECCertTuple) ECCertTuple {
 	return GetECDSACertTupleWithPK(k, cn, issuer)
 }
 
+func GetRSASelfSignedSigningCertTuple(cn string) RSACertTuple {
+	// Even though we are creating self-signed root, we are using false for 'isRoot' to not
+	// add root CA's basic constraint, KU and EKU.
+	template := getCertTemplate(false, cn)
+	privKey, _ := rsa.GenerateKey(rand.Reader, 3072)
+	return getRSACertTupleWithTemplate(template, privKey, nil)
+}
+
 func GetRSACertTupleWithPK(privKey *rsa.PrivateKey, cn string, issuer *RSACertTuple) RSACertTuple {
 	template := getCertTemplate(issuer == nil, cn)
+	return getRSACertTupleWithTemplate(template, privKey, issuer)
+}
 
+func getRSACertTupleWithTemplate(template *x509.Certificate, privKey *rsa.PrivateKey, issuer *RSACertTuple) RSACertTuple {
 	var certBytes []byte
 	if issuer != nil {
 		certBytes, _ = x509.CreateCertificate(rand.Reader, template, issuer.Cert, &privKey.PublicKey, issuer.PrivateKey)
@@ -153,10 +172,8 @@ func getCertTemplate(isRoot bool, cn string) *x509.Certificate {
 		template.MaxPathLen = 1
 		template.IsCA = true
 	} else {
-		template.SerialNumber = big.NewInt(2)
+		template.SerialNumber = big.NewInt(int64(mrand.Intn(200)))
 		template.NotAfter = time.Now().AddDate(0, 0, 1)
-		template.KeyUsage = x509.KeyUsageDigitalSignature
-		template.ExtKeyUsage = []x509.ExtKeyUsage{x509.ExtKeyUsageCodeSigning}
 	}
 
 	return template
