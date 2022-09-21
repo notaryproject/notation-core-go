@@ -93,7 +93,7 @@ func (e *envelope) Verify() (*signature.EnvelopeContent, error) {
 	}
 
 	if len(e.base.Header.CertChain) == 0 {
-		return nil, &signature.InvalidSignatureError{Msg: "certificate chain is not set"}
+		return nil, &signature.InvalidSignatureError{Msg: "certificate chain is not present"}
 	}
 
 	cert, err := x509.ParseCertificate(e.base.Header.CertChain[0])
@@ -169,7 +169,7 @@ func (e *envelope) signerInfo(protected *jwsProtectedHeader) (*signature.SignerI
 		return nil, &signature.InvalidSignatureError{Msg: err.Error()}
 	}
 	if len(sig) == 0 {
-		return nil, &signature.InvalidSignatureError{Msg: "cose envelope missing signature"}
+		return nil, &signature.InvalidSignatureError{Msg: "signature missing in jws-json envelope"}
 	}
 	signerInfo.Signature = sig
 

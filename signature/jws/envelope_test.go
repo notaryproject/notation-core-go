@@ -334,7 +334,7 @@ func TestVerify(t *testing.T) {
 		env.Header.CertChain = [][]byte{}
 
 		err = verifyEnvelope(env)
-		checkErrorEqual(t, "certificate chain is not set", err.Error())
+		checkErrorEqual(t, "certificate chain is not present", err.Error())
 	})
 
 	t.Run("tamper certificate", func(t *testing.T) {
@@ -540,7 +540,7 @@ func TestSignerInfo(t *testing.T) {
 		env.Signature = ""
 
 		_, err := getSignerInfo(env, header)
-		checkErrorEqual(t, `cose envelope missing signature`, err.Error())
+		checkErrorEqual(t, `signature missing in jws-json envelope`, err.Error())
 	})
 	t.Run("tamper cert chain", func(t *testing.T) {
 		env, header := getEnvelopeAndHeader(signature.SigningSchemeX509)

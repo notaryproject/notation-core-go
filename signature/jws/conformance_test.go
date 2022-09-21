@@ -22,8 +22,8 @@ var (
 	// signedAttributes for signing request
 	signedAttributes = signature.SignedAttributes{
 		SigningScheme: "notary.x509",
-		SigningTime:   signingTime.Truncate(time.Second),
-		Expiry:        expiry.Truncate(time.Second).Add(time.Hour * 24),
+		SigningTime:   signingTime,
+		Expiry:        expiry.Add(time.Hour * 24),
 		ExtendedAttributes: sortAttributes([]signature.Attribute{
 			{Key: "signedCritKey1", Value: "signedCritValue1", Critical: true},
 			{Key: "signedKey1", Value: "signedValue1", Critical: false},
