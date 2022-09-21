@@ -130,8 +130,8 @@ func getSignReq(sign1 *sign1) (*signature.SignRequest, error) {
 			Content:     []byte("hello COSE"),
 		},
 		Signer:      signer,
-		SigningTime: time.Unix(sign1.SigningTime, 0).Truncate(time.Second),
-		Expiry:      time.Unix(sign1.Expiry, 0).Truncate(time.Second),
+		SigningTime: time.Unix(sign1.SigningTime, 0),
+		Expiry:      time.Unix(sign1.Expiry, 0),
 		ExtendedSignedAttributes: []signature.Attribute{
 			{Key: "signedCritKey1", Value: "signedCritValue1", Critical: true},
 			{Key: "signedKey1", Value: "signedValue1", Critical: false},
