@@ -46,10 +46,12 @@ type jwsProtectedHeader struct {
 	// Specifies the Notary v2 Signing Scheme used by the signature.
 	SigningScheme signature.SigningScheme `json:"io.cncf.notary.signingScheme"`
 
-	// The time at which the signature was generated. only valid when signing scheme is `notary.x509`
+	// The time at which the signature was generated. only valid when signing
+	// scheme is `notary.x509`.
 	SigningTime *time.Time `json:"io.cncf.notary.signingTime,omitempty"`
 
-	// The time at which the signature was generated. only valid when signing scheme is `notary.x509.signingAuthority`
+	// The time at which the signature was generated. only valid when signing
+	// scheme is `notary.x509.signingAuthority`.
 	AuthenticSigningTime *time.Time `json:"io.cncf.notary.authenticSigningTime,omitempty"`
 
 	// The user defined attributes.
@@ -65,7 +67,7 @@ type jwsUnprotectedHeader struct {
 	// as defined at https://datatracker.ietf.org/doc/html/rfc7515#section-4.1.6.
 	CertChain [][]byte `json:"x5c"`
 
-	// SigningAgent used for signing
+	// SigningAgent used for signing.
 	SigningAgent string `json:"io.cncf.notary.signingAgent,omitempty"`
 }
 
