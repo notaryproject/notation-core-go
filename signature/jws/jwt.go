@@ -4,10 +4,7 @@ import (
 	"crypto"
 	"crypto/x509"
 	"encoding/base64"
-<<<<<<< HEAD
-=======
 	"errors"
->>>>>>> stage
 	"fmt"
 
 	"github.com/golang-jwt/jwt/v4"
@@ -15,21 +12,13 @@ import (
 )
 
 // signingMethod is the interface for jwt.SigingMethod with additional method to
-<<<<<<< HEAD
-// access certificate chain after calling Sign()
-=======
 // access certificate chain after calling Sign().
->>>>>>> stage
 type signingMethod interface {
 	jwt.SigningMethod
 
 	// CertificateChain returns the certificate chain.
 	//
-<<<<<<< HEAD
-	// should be called after calling Sign()
-=======
 	// It should be called after calling Sign().
->>>>>>> stage
 	CertificateChain() ([]*x509.Certificate, error)
 
 	// PrivateKey returns the private key.
