@@ -4,6 +4,10 @@ import (
 	"crypto"
 	"crypto/x509"
 	"encoding/base64"
+<<<<<<< HEAD
+=======
+	"errors"
+>>>>>>> stage
 	"fmt"
 
 	"github.com/golang-jwt/jwt/v4"
@@ -11,20 +15,28 @@ import (
 )
 
 // signingMethod is the interface for jwt.SigingMethod with additional method to
+<<<<<<< HEAD
 // access certificate chain after calling Sign()
+=======
+// access certificate chain after calling Sign().
+>>>>>>> stage
 type signingMethod interface {
 	jwt.SigningMethod
 
 	// CertificateChain returns the certificate chain.
 	//
+<<<<<<< HEAD
 	// should be called after calling Sign()
+=======
+	// It should be called after calling Sign().
+>>>>>>> stage
 	CertificateChain() ([]*x509.Certificate, error)
 
 	// PrivateKey returns the private key.
 	PrivateKey() crypto.PrivateKey
 }
 
-// remoteSigningMethod wraps the remote signer to be a SigningMethod
+// remoteSigningMethod wraps the remote signer to be a SigningMethod.
 type remoteSigningMethod struct {
 	signer    signature.Signer
 	certs     []*x509.Certificate
@@ -44,7 +56,7 @@ func newRemoteSigningMethod(signer signature.Signer) (signingMethod, error) {
 
 // Verify doesn't need to be implemented.
 func (s *remoteSigningMethod) Verify(signingString, signature string, key interface{}) error {
-	panic("not implemented")
+	return errors.New("not implemented")
 }
 
 // Sign hashes the signingString and call the remote signer to sign the digest.
@@ -58,27 +70,27 @@ func (s *remoteSigningMethod) Sign(signingString string, key interface{}) (strin
 	return base64.RawURLEncoding.EncodeToString(sig), nil
 }
 
-// Alg return the signing algorithm
+// Alg implements jwt.SigningMethod interface.
 func (s *remoteSigningMethod) Alg() string {
 	return s.algorithm
 }
 
-// CertificateChain returns the certificate chain
+// CertificateChain returns the certificate chain.
 //
-// should be called after Sign()
+// It should be called after Sign().
 func (s *remoteSigningMethod) CertificateChain() ([]*x509.Certificate, error) {
 	if s.certs == nil {
-		return nil, &signature.MalformedSignatureError{Msg: "certificate chain is not set"}
+		return nil, &signature.InvalidSignRequestError{Msg: "certificate chain is not set"}
 	}
 	return s.certs, nil
 }
 
-// PrivateKey returns nil for remote signer
+// PrivateKey returns nil for remote signer.
 func (s *remoteSigningMethod) PrivateKey() crypto.PrivateKey {
 	return nil
 }
 
-// localSigningMethod wraps the local signer to be a SigningMethod
+// localSigningMethod wraps the local signer to be a SigningMethod.
 type localSigningMethod struct {
 	jwt.SigningMethod
 	signer signature.LocalSigner
@@ -96,17 +108,17 @@ func newLocalSigningMethod(signer signature.LocalSigner) (signingMethod, error) 
 	}, nil
 }
 
-// CertificateChain returns the certificate chain
+// CertificateChain returns the certificate chain.
 func (s *localSigningMethod) CertificateChain() ([]*x509.Certificate, error) {
 	return s.signer.CertificateChain()
 }
 
-// PrivateKey returns the private key
+// PrivateKey returns the private key.
 func (s *localSigningMethod) PrivateKey() crypto.PrivateKey {
 	return s.signer.PrivateKey()
 }
 
-// getSigningMethod return signingMethod for the given signer
+// getSigningMethod return signingMethod for the given signer.
 func getSigningMethod(signer signature.Signer) (signingMethod, error) {
 	if localSigner, ok := signer.(signature.LocalSigner); ok {
 		// for local signer
@@ -116,7 +128,7 @@ func getSigningMethod(signer signature.Signer) (signingMethod, error) {
 	return newRemoteSigningMethod(signer)
 }
 
-// verifyJWT verifies the JWT token against the specified verification key
+// verifyJWT verifies the JWT token against the specified verification key.
 func verifyJWT(tokenString string, publicKey interface{}) error {
 	parser := jwt.NewParser(
 		jwt.WithValidMethods(validMethods),
@@ -144,7 +156,7 @@ func extractJwtAlgorithm(signer signature.Signer) (string, error) {
 	// algorithm name.
 	jwsAlg, ok := signatureAlgJWSAlgMap[alg]
 	if !ok {
-		return "", &signature.SignatureAlgoNotSupportedError{
+		return "", &signature.UnsupportedSignatureAlgoError{
 			Alg: fmt.Sprintf("#%d", alg)}
 	}
 	return jwsAlg, nil

@@ -133,7 +133,7 @@ func getSignReq(signingScheme signature.SigningScheme, signer signature.Signer, 
 }`)
 	return &signature.SignRequest{
 		Payload: signature.Payload{
-			ContentType: signature.MediaTypePayloadV1,
+			ContentType: "application/vnd.cncf.notary.payload.v1+json",
 			Content:     payloadBytes,
 		},
 		Signer:                   signer,
@@ -207,14 +207,14 @@ func verifyEnvelope(env *jwsEnvelope) error {
 	if err != nil {
 		return err
 	}
-	_, _, err = verifyCore(newEncoded)
+	_, err = verifyCore(newEncoded)
 	return err
 }
 
-func verifyCore(encoded []byte) (*signature.Payload, *signature.SignerInfo, error) {
+func verifyCore(encoded []byte) (*signature.EnvelopeContent, error) {
 	env, err := ParseEnvelope(encoded)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	return env.Verify()
 }
@@ -230,7 +230,7 @@ func TestNewEnvelope(t *testing.T) {
 func TestSignFailed(t *testing.T) {
 	t.Run("extended attribute conflict with protected header keys", func(t *testing.T) {
 		_, err := getEncodedMessage(signature.SigningSchemeX509, true, extSignedAttrRepeated)
-		checkErrorEqual(t, `repeated key: "cty" exists in the envelope.`, err.Error())
+		checkErrorEqual(t, "attribute key:cty repeated", err.Error())
 	})
 
 	t.Run("extended attribute error value", func(t *testing.T) {
@@ -271,7 +271,7 @@ func TestSigningScheme(t *testing.T) {
 			encoded, err := getEncodedMessage(tt.signingScheme, tt.isLocal, extSignedAttr)
 			checkNoError(t, err)
 
-			_, _, err = verifyCore(encoded)
+			_, err = verifyCore(encoded)
 			checkNoError(t, err)
 		})
 	}
@@ -295,7 +295,7 @@ func TestSignVerify(t *testing.T) {
 				encoded, err := e.Sign(signReq)
 				checkNoError(t, err)
 
-				_, _, err = verifyCore(encoded)
+				_, err = verifyCore(encoded)
 				checkNoError(t, err)
 			})
 		}
@@ -309,7 +309,7 @@ func TestVerify(t *testing.T) {
 
 		encoded[0] = '}'
 
-		_, _, err = verifyCore(encoded)
+		_, err = verifyCore(encoded)
 		checkErrorEqual(t, "invalid character '}' looking for beginning of value", err.Error())
 	})
 
@@ -334,7 +334,7 @@ func TestVerify(t *testing.T) {
 		env.Header.CertChain = [][]byte{}
 
 		err = verifyEnvelope(env)
-		checkErrorEqual(t, "certificate chain is not set", err.Error())
+		checkErrorEqual(t, "certificate chain is not present", err.Error())
 	})
 
 	t.Run("tamper certificate", func(t *testing.T) {
@@ -423,7 +423,11 @@ func TestSignerInfo(t *testing.T) {
 		newEnv, err := ParseEnvelope(newEncoded)
 		checkNoError(t, err)
 
-		return newEnv.SignerInfo()
+		content, err := newEnv.Content()
+		if err != nil {
+			return nil, err
+		}
+		return &content.SignerInfo, nil
 	}
 
 	t.Run("tamper protected header signing scheme X509", func(t *testing.T) {
@@ -434,7 +438,7 @@ func TestSignerInfo(t *testing.T) {
 		header.AuthenticSigningTime = &signingTime
 
 		_, err := getSignerInfo(env, header)
-		checkErrorEqual(t, `signature envelope format is malformed. error: "io.cncf.notary.authenticSigningTime" header must not be present for notary.x509 signing scheme`, err.Error())
+		checkErrorEqual(t, `"io.cncf.notary.authenticSigningTime" header must not be present for notary.x509 signing scheme`, err.Error())
 	})
 
 	t.Run("tamper protected header signing scheme X509 Signing Authority", func(t *testing.T) {
@@ -445,7 +449,7 @@ func TestSignerInfo(t *testing.T) {
 		header.SigningTime = &signingTime
 
 		_, err := getSignerInfo(env, header)
-		checkErrorEqual(t, `signature envelope format is malformed. error: "io.cncf.notary.signingTime" header must not be present for notary.x509.signingAuthority signing scheme`, err.Error())
+		checkErrorEqual(t, `"io.cncf.notary.signingTime" header must not be present for notary.x509.signingAuthority signing scheme`, err.Error())
 	})
 
 	t.Run("tamper protected header signing scheme X509 Signing Authority 2", func(t *testing.T) {
@@ -455,7 +459,7 @@ func TestSignerInfo(t *testing.T) {
 		header.AuthenticSigningTime = nil
 
 		_, err := getSignerInfo(env, header)
-		checkErrorEqual(t, `signature envelope format is malformed. error: "io.cncf.notary.authenticSigningTime" header must be present for notary.x509 signing scheme`, err.Error())
+		checkErrorEqual(t, `"io.cncf.notary.authenticSigningTime" header must be present for notary.x509 signing scheme`, err.Error())
 	})
 
 	t.Run("tamper protected header extended attributes", func(t *testing.T) {
@@ -465,7 +469,7 @@ func TestSignerInfo(t *testing.T) {
 		header.ExtendedAttributes = make(map[string]interface{})
 
 		_, err := getSignerInfo(env, header)
-		checkErrorEqual(t, `signature envelope format is malformed. error: "testKey" header is marked critical but not present`, err.Error())
+		checkErrorEqual(t, `"testKey" header is marked critical but not present`, err.Error())
 	})
 
 	t.Run("add protected header critical key", func(t *testing.T) {
@@ -475,7 +479,7 @@ func TestSignerInfo(t *testing.T) {
 		header.Critical = header.Critical[:len(header.Critical)-2]
 
 		_, err := getSignerInfo(env, header)
-		checkErrorEqual(t, `signature envelope format is malformed. error: these required headers are not marked as critical: [io.cncf.notary.expiry]`, err.Error())
+		checkErrorEqual(t, `these required headers are not marked as critical: [io.cncf.notary.expiry]`, err.Error())
 	})
 
 	t.Run("empty critical section", func(t *testing.T) {
@@ -485,7 +489,7 @@ func TestSignerInfo(t *testing.T) {
 		header.Critical = []string{}
 
 		_, err := getSignerInfo(env, header)
-		checkErrorEqual(t, `signature envelope format is malformed. error: missing "crit" header`, err.Error())
+		checkErrorEqual(t, `missing "crit" header`, err.Error())
 	})
 
 	t.Run("unsupported algorithm", func(t *testing.T) {
@@ -495,7 +499,7 @@ func TestSignerInfo(t *testing.T) {
 		header.Algorithm = "ES222"
 
 		_, err := getSignerInfo(env, header)
-		checkErrorEqual(t, `signature envelope format is malformed. error: signature algorithm "ES222" is not supported`, err.Error())
+		checkErrorEqual(t, `signature algorithm "ES222" is not supported`, err.Error())
 	})
 
 	t.Run("tamper raw protected header json format", func(t *testing.T) {
@@ -517,8 +521,8 @@ func TestSignerInfo(t *testing.T) {
 		newEnv, err := ParseEnvelope(newEncoded)
 		checkNoError(t, err)
 
-		_, err = newEnv.SignerInfo()
-		checkErrorEqual(t, "signature envelope format is malformed. error: jws envelope protected header can't be decoded: invalid character '}' looking for beginning of value", err.Error())
+		_, err = newEnv.Content()
+		checkErrorEqual(t, "jws envelope protected header can't be decoded: invalid character '}' looking for beginning of value", err.Error())
 	})
 	t.Run("tamper signature base64 encoding", func(t *testing.T) {
 		env, header := getEnvelopeAndHeader(signature.SigningSchemeX509)
@@ -527,7 +531,7 @@ func TestSignerInfo(t *testing.T) {
 		env.Signature = "{" + env.Signature
 
 		_, err := getSignerInfo(env, header)
-		checkErrorEqual(t, `signature envelope format is malformed. error: illegal base64 data at input byte 0`, err.Error())
+		checkErrorEqual(t, `illegal base64 data at input byte 0`, err.Error())
 	})
 	t.Run("tamper empty signature", func(t *testing.T) {
 		env, header := getEnvelopeAndHeader(signature.SigningSchemeX509)
@@ -536,7 +540,7 @@ func TestSignerInfo(t *testing.T) {
 		env.Signature = ""
 
 		_, err := getSignerInfo(env, header)
-		checkErrorEqual(t, `signature envelope format is malformed. error: cose envelope missing signature`, err.Error())
+		checkErrorEqual(t, `signature missing in jws-json envelope`, err.Error())
 	})
 	t.Run("tamper cert chain", func(t *testing.T) {
 		env, header := getEnvelopeAndHeader(signature.SigningSchemeX509)
@@ -545,7 +549,7 @@ func TestSignerInfo(t *testing.T) {
 		env.Header.CertChain[0] = append(env.Header.CertChain[0], 'v')
 
 		_, err := getSignerInfo(env, header)
-		checkErrorEqual(t, `signature envelope format is malformed. error: x509: trailing data`, err.Error())
+		checkErrorEqual(t, `x509: trailing data`, err.Error())
 	})
 }
 
@@ -566,7 +570,7 @@ func TestPayload(t *testing.T) {
 		newEnv, err := ParseEnvelope(newEncoded)
 		checkNoError(t, err)
 
-		_, err = newEnv.Payload()
+		_, err = newEnv.Content()
 		checkErrorEqual(t, "payload error: illegal base64 data at input byte", err.Error())
 
 	})
@@ -577,21 +581,21 @@ func TestEmptyEnvelope(t *testing.T) {
 	env := envelope{}
 
 	t.Run("Verify()_with_empty_envelope", func(t *testing.T) {
-		_, _, err := env.Verify()
+		_, err := env.Verify()
 		if !errors.Is(err, wantErr) {
 			t.Fatalf("want: %v, got: %v", wantErr, err)
 		}
 	})
 
 	t.Run("Payload()_with_empty_envelope", func(t *testing.T) {
-		_, err := env.Payload()
+		_, err := env.Content()
 		if !errors.Is(err, wantErr) {
 			t.Fatalf("want: %v, got: %v", wantErr, err)
 		}
 	})
 
 	t.Run("SignerInfo()_with_empty_envelope", func(t *testing.T) {
-		_, err := env.SignerInfo()
+		_, err := env.Content()
 		if !errors.Is(err, wantErr) {
 			t.Fatalf("want: %v, got: %v", wantErr, err)
 		}

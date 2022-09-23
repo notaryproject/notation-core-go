@@ -4,7 +4,6 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 
@@ -14,7 +13,7 @@ import (
 func parseProtectedHeaders(encoded string) (*jwsProtectedHeader, error) {
 	rawProtected, err := base64.RawURLEncoding.DecodeString(encoded)
 	if err != nil {
-		return nil, &signature.MalformedSignatureError{
+		return nil, &signature.InvalidSignatureError{
 			Msg: fmt.Sprintf("jws envelope protected header can't be decoded: %s", err.Error())}
 	}
 
@@ -23,11 +22,11 @@ func parseProtectedHeaders(encoded string) (*jwsProtectedHeader, error) {
 	// and removing the keys are already been defined in jwsProtectedHeader.
 	var protected jwsProtectedHeader
 	if err = json.Unmarshal(rawProtected, &protected); err != nil {
-		return nil, &signature.MalformedSignatureError{
+		return nil, &signature.InvalidSignatureError{
 			Msg: fmt.Sprintf("jws envelope protected header can't be decoded: %s", err.Error())}
 	}
 	if err = json.Unmarshal(rawProtected, &protected.ExtendedAttributes); err != nil {
-		return nil, &signature.MalformedSignatureError{
+		return nil, &signature.InvalidSignatureError{
 			Msg: fmt.Sprintf("jws envelope protected header can't be decoded: %s", err.Error())}
 	}
 
@@ -62,6 +61,10 @@ func populateProtectedHeaders(protectedHeader *jwsProtectedHeader, signerInfo *s
 		if protectedHeader.AuthenticSigningTime != nil {
 			signerInfo.SignedAttributes.SigningTime = *protectedHeader.AuthenticSigningTime
 		}
+	default:
+		return &signature.InvalidSignatureError{
+			Msg: fmt.Sprintf("unsupported SigningScheme: `%v`", protectedHeader.SigningScheme),
+		}
 	}
 	return nil
 }
@@ -71,15 +74,17 @@ func validateProtectedHeaders(protectedHeader *jwsProtectedHeader) error {
 	switch protectedHeader.SigningScheme {
 	case signature.SigningSchemeX509:
 		if protectedHeader.AuthenticSigningTime != nil {
-			return &signature.MalformedSignatureError{Msg: fmt.Sprintf("%q header must not be present for %s signing scheme", headerKeyAuthenticSigningTime, signature.SigningSchemeX509)}
+			return &signature.InvalidSignatureError{Msg: fmt.Sprintf("%q header must not be present for %s signing scheme", headerKeyAuthenticSigningTime, signature.SigningSchemeX509)}
 		}
 	case signature.SigningSchemeX509SigningAuthority:
 		if protectedHeader.SigningTime != nil {
-			return &signature.MalformedSignatureError{Msg: fmt.Sprintf("%q header must not be present for %s signing scheme", headerKeySigningTime, signature.SigningSchemeX509SigningAuthority)}
+			return &signature.InvalidSignatureError{Msg: fmt.Sprintf("%q header must not be present for %s signing scheme", headerKeySigningTime, signature.SigningSchemeX509SigningAuthority)}
 		}
 		if protectedHeader.AuthenticSigningTime == nil {
-			return &signature.MalformedSignatureError{Msg: fmt.Sprintf("%q header must be present for %s signing scheme", headerKeyAuthenticSigningTime, signature.SigningSchemeX509)}
+			return &signature.InvalidSignatureError{Msg: fmt.Sprintf("%q header must be present for %s signing scheme", headerKeyAuthenticSigningTime, signature.SigningSchemeX509)}
 		}
+	default:
+		return &signature.InvalidSignatureError{Msg: fmt.Sprintf("unsupported SigningScheme: `%v`", protectedHeader.SigningScheme)}
 	}
 
 	return validateCriticalHeaders(protectedHeader)
@@ -87,7 +92,7 @@ func validateProtectedHeaders(protectedHeader *jwsProtectedHeader) error {
 
 func validateCriticalHeaders(protectedHeader *jwsProtectedHeader) error {
 	if len(protectedHeader.Critical) == 0 {
-		return &signature.MalformedSignatureError{Msg: `missing "crit" header`}
+		return &signature.InvalidSignatureError{Msg: `missing "crit" header`}
 	}
 
 	mustMarkedCrit := map[string]bool{headerKeySigningScheme: true}
@@ -104,20 +109,20 @@ func validateCriticalHeaders(protectedHeader *jwsProtectedHeader) error {
 			delete(mustMarkedCrit, val)
 		} else {
 			if _, ok := protectedHeader.ExtendedAttributes[val]; !ok {
-				return &signature.MalformedSignatureError{
+				return &signature.InvalidSignatureError{
 					Msg: fmt.Sprintf("%q header is marked critical but not present", val)}
 			}
 		}
 	}
 
-	// validate all required critical headers are present.
+	// validate all required critical headers headers(as per spec) are marked as critical.
 	if len(mustMarkedCrit) != 0 {
 		// This is not taken care by VerifySignerInfo method
 		keys := make([]string, 0, len(mustMarkedCrit))
 		for k := range mustMarkedCrit {
 			keys = append(keys, k)
 		}
-		return &signature.MalformedSignatureError{Msg: fmt.Sprintf("these required headers are not marked as critical: %v", keys)}
+		return &signature.InvalidSignatureError{Msg: fmt.Sprintf("these required headers are not marked as critical: %v", keys)}
 	}
 
 	return nil
@@ -126,7 +131,7 @@ func validateCriticalHeaders(protectedHeader *jwsProtectedHeader) error {
 func getSignatureAlgorithm(alg string) (signature.Algorithm, error) {
 	signatureAlg, ok := jwsAlgSignatureAlgMap[alg]
 	if !ok {
-		return 0, &signature.SignatureAlgoNotSupportedError{Alg: alg}
+		return 0, &signature.UnsupportedSignatureAlgoError{Alg: alg}
 	}
 
 	return signatureAlg, nil
@@ -157,7 +162,8 @@ func generateJWS(compact string, req *signature.SignRequest, certs []*x509.Certi
 	parts := strings.Split(compact, ".")
 	if len(parts) != 3 {
 		// this should never happen
-		return nil, errors.New("unexpected error occurred while generating a JWS-JSON serialization from compact serialization")
+		return nil, fmt.Errorf(
+			"unexpected error occurred while generating a JWS-JSON serialization from compact serialization. want: len(parts) == 3, got: len(parts) == %d", len(parts))
 	}
 
 	rawCerts := make([][]byte, len(certs))
@@ -176,7 +182,7 @@ func generateJWS(compact string, req *signature.SignRequest, certs []*x509.Certi
 	}, nil
 }
 
-// getSignerAttributes merge extended signed attributes and protected header to be signed attributes
+// getSignerAttributes merge extended signed attributes and protected header to be signed attributes.
 func getSignedAttributes(req *signature.SignRequest, algorithm string) (map[string]interface{}, error) {
 	extAttrs := make(map[string]interface{})
 	crit := []string{headerKeySigningScheme}
@@ -201,6 +207,8 @@ func getSignedAttributes(req *signature.SignRequest, algorithm string) (map[stri
 	case signature.SigningSchemeX509SigningAuthority:
 		crit = append(crit, headerKeyAuthenticSigningTime)
 		jwsProtectedHeader.AuthenticSigningTime = &req.SigningTime
+	default:
+		return nil, fmt.Errorf("unsupported SigningScheme: `%v`", req.SigningScheme)
 	}
 
 	if !req.Expiry.IsZero() {
@@ -211,7 +219,7 @@ func getSignedAttributes(req *signature.SignRequest, algorithm string) (map[stri
 	jwsProtectedHeader.Critical = crit
 	m, err := convertToMap(jwsProtectedHeader)
 	if err != nil {
-		return nil, &signature.MalformedSignRequestError{Msg: fmt.Sprintf("unexpected error occurred while creating protected headers, Error: %s", err.Error())}
+		return nil, fmt.Errorf("unexpected error occurred while creating protected headers, Error: %s", err.Error())
 	}
 
 	return mergeMaps(m, extAttrs)
@@ -233,7 +241,7 @@ func mergeMaps(maps ...map[string]interface{}) (map[string]interface{}, error) {
 	for _, m := range maps {
 		for k, v := range m {
 			if _, ok := result[k]; ok {
-				return nil, &signature.EnvelopeKeyRepeatedError{Key: k}
+				return nil, fmt.Errorf("attribute key:%s repeated", k)
 			}
 			result[k] = v
 		}

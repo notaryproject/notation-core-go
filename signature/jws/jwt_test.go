@@ -40,13 +40,11 @@ func (s *errorLocalSigner) CertificateChain() ([]*x509.Certificate, error) {
 }
 
 func Test_remoteSigningMethod_Verify(t *testing.T) {
-	defer func() {
-		if d := recover(); d == nil {
-			t.Fatal("should panic")
-		}
-	}()
 	s := &remoteSigningMethod{} // Sign signs the payload and returns the raw signature and certificates.
-	s.Verify("", "", nil)
+	err := s.Verify("", "", nil)
+	if err == nil {
+		t.Fatalf("should panic")
+	}
 }
 
 func Test_newLocalSigningMethod(t *testing.T) {

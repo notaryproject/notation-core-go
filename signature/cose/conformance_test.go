@@ -96,11 +96,6 @@ func testVerify(t *testing.T, sign1 *sign1) {
 		t.Fatalf("msg.UnmarshalCBOR() failed. Error = %s", err)
 	}
 
-	// Not doing conformance check on CertChain and signature fields,
-	// becase every time we run this test, a new certChain and signer would be
-	// generated, and hence, a new signature would be generated after Sign().
-	// Instead, CertChain is verified in verifySignerInfo(), and signature is
-	// verified by go-cose's Verify() later on.
 	certs := []*x509.Certificate{testhelper.GetRSALeafCertificate().Cert, testhelper.GetRSARootCertificate().Cert}
 	certChain := make([]interface{}, len(certs))
 	for i, c := range certs {
@@ -130,8 +125,8 @@ func getSignReq(sign1 *sign1) (*signature.SignRequest, error) {
 			Content:     []byte("hello COSE"),
 		},
 		Signer:      signer,
-		SigningTime: time.Unix(sign1.SigningTime, 0).Truncate(time.Second),
-		Expiry:      time.Unix(sign1.Expiry, 0).Truncate(time.Second),
+		SigningTime: time.Unix(sign1.SigningTime, 0),
+		Expiry:      time.Unix(sign1.Expiry, 0),
 		ExtendedSignedAttributes: []signature.Attribute{
 			{Key: "signedCritKey1", Value: "signedCritValue1", Critical: true},
 			{Key: "signedKey1", Value: "signedValue1", Critical: false},
@@ -200,16 +195,10 @@ func areAttrEqual(u []signature.Attribute, v []signature.Attribute) bool {
 }
 
 func generateSign1(msg *cose.Sign1Message) *cose.Sign1Message {
-	// Not doing conformance check on CertChain and signature fields,
-	// becase every time we run this test, a new certChain and signer would be
-	// generated, and hence, a new signature would be generated after Sign().
-	// Instead, CertChain is verified in verifySignerInfo, and signature is
-	// verified by go-cose's Verify().
 	newMsg := cose.NewSign1Message()
 	newMsg.Headers.Protected = msg.Headers.Protected
 	newMsg.Headers.Unprotected["io.cncf.notary.signingAgent"] = msg.Headers.Unprotected["io.cncf.notary.signingAgent"]
 	newMsg.Payload = msg.Payload
-	// An arbitrary signature
 	newMsg.Signature = hexToBytes("31b6cb0cd9c974b39d603465811c2aa3d96a5dff89f80b33cb4e321dc6e68a29b4ba65c00f0f9f22ee4376abfaec2cba6fd21c6881ecaab25775e3fb9226a88cf41660b2d6fd14184540d07ded3744e19ff9dbdd081e15c8f77bb6ca3072ef57141594fad4ea57d206c6b8dd3a6e0a0a7ed764ff08dbcc439bd722e1b3d282921a579a3d860cceea37d633184f9316cb6b4fa4ea550da5ad9e5bf3c2d768a787da76e594290cb10b5b1ead8b7e75967de28e9ff429fe9db814380608a15674f9741563902a620f312213d9dce5c264017cbcb3bb4f8cebee0d5ef32b364f68c11cba5630fac8e3165d06fdebaca095267223c552fe605b4529f25b65f8fa47b010b9096cec275307e82b1062f660a73e07d0b85b978b4a59b5cde51fc9a031b488a3deb38fc312a64ef2ec1250238ae16cfefc00d9aa1ceb938fe6de51f265eebe975c29f4cff8ab0afb40c45e8c985d17347bf20f455851c1a46ab655f51a159cf8910a424c5a8bbdd239e49e43a73c7b5174de29e835063e5e64b459558de5")
 	return newMsg
 }
