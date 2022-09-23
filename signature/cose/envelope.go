@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/notaryproject/notation-core-go/signature"
@@ -106,8 +105,8 @@ func (signer *remoteSigner) CertificateChain() []*x509.Certificate {
 }
 
 type localSigner struct {
-	coseSigner cose.Signer
-	certs      []*x509.Certificate
+	cose.Signer
+	certs []*x509.Certificate
 }
 
 func newLocalSigner(base signature.LocalSigner) (*localSigner, error) {
@@ -130,21 +129,11 @@ func newLocalSigner(base signature.LocalSigner) (*localSigner, error) {
 			return nil, err
 		}
 		return &localSigner{
-			coseSigner: coseSigner,
-			certs:      certs,
+			coseSigner,
+			certs,
 		}, nil
 	}
 	return nil, &signature.UnsupportedSigningKeyError{}
-}
-
-// Algorithm implements cose.Signer interface.
-func (signer *localSigner) Algorithm() cose.Algorithm {
-	return signer.coseSigner.Algorithm()
-}
-
-// Sign implements cose.Signer interface.
-func (signer *localSigner) Sign(rand io.Reader, payload []byte) ([]byte, error) {
-	return signer.coseSigner.Sign(rand, payload)
 }
 
 // CertificateChain implements signer interface.
@@ -436,7 +425,7 @@ func generateProtectedHeaders(req *signature.SignRequest, protected cose.Protect
 // during Sign process.
 func generateUnprotectedHeaders(req *signature.SignRequest, signer signer, unprotected cose.UnprotectedHeader) {
 	// signing agent
-	if strings.TrimSpace(req.SigningAgent) != "" {
+	if req.SigningAgent != "" {
 		unprotected[headerLabelSigningAgent] = req.SigningAgent
 	}
 
