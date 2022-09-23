@@ -14,7 +14,7 @@ import (
 	"github.com/veraison/go-cose"
 )
 
-// COSE signature envelope blob mediaType
+// MediaTypeEnvelope is the COSE signature envelope blob mediaType
 const MediaTypeEnvelope = "application/cose"
 
 func init() {
