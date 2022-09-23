@@ -22,8 +22,8 @@ var (
 	// signedAttributes for signing request
 	signedAttributes = signature.SignedAttributes{
 		SigningScheme: "notary.x509",
-		SigningTime:   signingTime.Truncate(time.Second),
-		Expiry:        expiry.Truncate(time.Second).Add(time.Hour * 24),
+		SigningTime:   signingTime,
+		Expiry:        expiry.Add(time.Hour * 24),
 		ExtendedAttributes: sortAttributes([]signature.Attribute{
 			{Key: "signedCritKey1", Value: "signedCritValue1", Critical: true},
 			{Key: "signedKey1", Value: "signedValue1", Critical: false},
@@ -131,17 +131,17 @@ func TestVerifyConformance(t *testing.T) {
 	var e jwsEnvelope
 	err = json.Unmarshal(encoded, &e)
 	checkNoError(t, err)
-	newEnv := envelope{internalEnvelope: &e}
+	newEnv := envelope{base: &e}
 
 	// verify validity
-	payload, signerInfo, err := newEnv.Verify()
+	content, err := newEnv.Verify()
 	checkNoError(t, err)
 
 	// check payload conformance
-	verifyPayload(t, payload)
+	verifyPayload(t, &content.Payload)
 
 	// check signed/unsigned attributes conformance
-	verifyAttributes(t, signerInfo)
+	verifyAttributes(t, &content.SignerInfo)
 }
 
 func verifyPayload(t *testing.T, gotPayload *signature.Payload) {

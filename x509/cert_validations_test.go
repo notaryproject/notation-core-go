@@ -2,8 +2,11 @@ package x509
 
 import (
 	"crypto/x509"
+	_ "embed"
 	"testing"
 	"time"
+
+	"github.com/notaryproject/notation-core-go/testhelper"
 )
 
 // ---------------- Chain Validations ----------------
@@ -158,6 +161,9 @@ var codeSigningLeafInvalidPathLenPem = "-----BEGIN CERTIFICATE-----\n" +
 	"L0Z9ZU3NwwFAh1wpSsoQR4pPN+ZkVj5Irr/KWFk=\n" +
 	"-----END CERTIFICATE-----"
 
+//go:embed testdata/openssl-minimum-self-signed.pem
+var openSSLMinimumPem string
+
 var rootCert = parseCertificateFromString(rootCertPem)
 var intermediateCert1 = parseCertificateFromString(intermediateCertPem1)
 var intermediateCert2 = parseCertificateFromString(intermediateCertPem2)
@@ -166,14 +172,24 @@ var timeStampingCert = parseCertificateFromString(timeStampingLeafPem)
 var unrelatedCert = parseCertificateFromString(unrelatedCertPem)
 var intermediateCertInvalidPathLen = parseCertificateFromString(intermediateCertInvalidPathLenPem)
 var codeSigningLeafInvalidPathLen = parseCertificateFromString(codeSigningLeafInvalidPathLenPem)
+var openSSLMinimumCert = parseCertificateFromString(openSSLMinimumPem)
 
 var signingTime = time.Now()
 
 func TestValidCodeSigningChain(t *testing.T) {
 	certChain := []*x509.Certificate{codeSigningCert, intermediateCert2, intermediateCert1, rootCert}
-
 	if err := ValidateCodeSigningCertChain(certChain, signingTime); err != nil {
-		t.Fatal(err)
+		t.Error(err)
+	}
+
+	certChain = []*x509.Certificate{testhelper.GetRSASelfSignedSigningCertificate().Cert}
+	if err := ValidateCodeSigningCertChain(certChain, signingTime); err != nil {
+		t.Error(err)
+	}
+
+	certChain = []*x509.Certificate{openSSLMinimumCert}
+	if err := ValidateCodeSigningCertChain(certChain, signingTime); err != nil {
+		t.Error(err)
 	}
 }
 
@@ -186,10 +202,9 @@ func TestValidTimeStampingChain(t *testing.T) {
 }
 
 func TestFailEmptyChain(t *testing.T) {
-	certChain := []*x509.Certificate{codeSigningCert}
+	err := ValidateCodeSigningCertChain(nil, signingTime)
 
-	err := ValidateCodeSigningCertChain(certChain, signingTime)
-	assertErrorEqual("certificate chain must contain at least two certificates: a root and a leaf certificate", err, t)
+	assertErrorEqual("certificate chain must contain at least one certificate", err, t)
 }
 
 func TestFailInvalidSigningTime(t *testing.T) {
@@ -239,6 +254,12 @@ func TestRootCertIdentified(t *testing.T) {
 		isSelfSigned(intermediateCert2) || !isSelfSigned(rootCert) {
 		t.Fatal("Root cert was not correctly identified")
 	}
+}
+
+func TestInvalidSelfSignedSigningCertificate(t *testing.T) {
+	certChain := []*x509.Certificate{testhelper.GetRSARootCertificate().Cert}
+	err := ValidateCodeSigningCertChain(certChain, signingTime)
+	assertErrorEqual("certificate with subject \"CN=Notation Test Root,O=Notary,L=Seattle,ST=WA,C=US\": if the basic constraints extension is present, the ca field must be set to false", err, t)
 }
 
 // ---------------- CA Validations ----------------
@@ -631,7 +652,7 @@ func parseCertificateFromString(certPem string) *x509.Certificate {
 }
 
 func assertErrorEqual(expected string, err error, t *testing.T) {
-	if expected != err.Error() {
+	if err == nil || expected != err.Error() {
 		t.Fatalf("Expected error \"%v\" but was \"%v\"", expected, err)
 	}
 }
