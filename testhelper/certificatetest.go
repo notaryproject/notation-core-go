@@ -119,6 +119,11 @@ func GetRSACertTupleWithPK(privKey *rsa.PrivateKey, cn string, issuer *RSACertTu
 	return getRSACertTupleWithTemplate(template, privKey, issuer)
 }
 
+func GetRSASelfSignedCertTupleWithPK(privKey *rsa.PrivateKey, cn string) RSACertTuple {
+	template := getCertTemplate(false, cn)
+	return getRSACertTupleWithTemplate(template, privKey, nil)
+}
+
 func getRSACertTupleWithTemplate(template *x509.Certificate, privKey *rsa.PrivateKey, issuer *RSACertTuple) RSACertTuple {
 	var certBytes []byte
 	if issuer != nil {
