@@ -9,7 +9,7 @@ import (
 	"github.com/notaryproject/notation-core-go/testhelper"
 )
 
-// GetTestLocalSigner returns the local signer with given keyType and size for testing
+// GetTestLocalSigner returns the local signer with given keyType and size for testing.
 func GetTestLocalSigner(keyType signature.KeyType, size int) (signature.Signer, error) {
 	switch keyType {
 	case signature.KeyTypeEC:

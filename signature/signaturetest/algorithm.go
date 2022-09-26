@@ -2,10 +2,10 @@ package signaturetest
 
 import "github.com/notaryproject/notation-core-go/signature"
 
-// KeyTypes contains supported key type
+// KeyTypes contains supported key type.
 var KeyTypes = []signature.KeyType{signature.KeyTypeRSA, signature.KeyTypeEC}
 
-// GetKeySizes returns the supported key size for the named keyType
+// GetKeySizes returns the supported key size for the named keyType.
 func GetKeySizes(keyType signature.KeyType) []int {
 	switch keyType {
 	case signature.KeyTypeRSA:

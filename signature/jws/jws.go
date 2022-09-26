@@ -250,7 +250,7 @@ func mergeMaps(maps ...map[string]interface{}) (map[string]interface{}, error) {
 }
 
 // compactJWS converts Flattened JWS JSON Serialization Syntax (section-7.2.2) to
-// JWS Compact Serialization (section-7.1)
+// JWS Compact Serialization (section-7.1).
 //
 // [RFC 7515]: https://www.rfc-editor.org/rfc/rfc7515.html
 func compactJWS(envelope *jwsEnvelope) string {
