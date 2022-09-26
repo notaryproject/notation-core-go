@@ -277,10 +277,10 @@ func TestSignErrors(t *testing.T) {
 }
 
 func TestVerifyErrors(t *testing.T) {
-	t.Run("when missing COSE signature envelope", func(t *testing.T) {
+	t.Run("when signature envelope is not present", func(t *testing.T) {
 		env := createNewEnv(nil)
 		_, err := env.Verify()
-		expected := errors.New("missing COSE signature envelope")
+		expected := errors.New("signature envelope is not present")
 		if !isErrEqual(expected, err) {
 			t.Fatalf("Verify() expects error: %v, but got: %v.", expected, err)
 		}
@@ -293,7 +293,7 @@ func TestVerifyErrors(t *testing.T) {
 		}
 		env.base.Headers.Unprotected[cose.HeaderLabelX5Chain] = []interface{}{}
 		_, err = env.Verify()
-		expected := errors.New("COSE envelope invalid certificate chain")
+		expected := errors.New("certificate chain is not present")
 		if !isErrEqual(expected, err) {
 			t.Fatalf("Verify() expects error: %v, but got: %v.", expected, err)
 		}
@@ -319,7 +319,7 @@ func TestVerifyErrors(t *testing.T) {
 		}
 		certs, ok := env.base.Headers.Unprotected[cose.HeaderLabelX5Chain].([]interface{})
 		if !ok || len(certs) == 0 {
-			t.Fatalf("COSE envelope invalid certificate chain")
+			t.Fatalf("certificate chain is not present")
 		}
 		certRaw, ok := certs[0].([]byte)
 		if !ok {
@@ -330,7 +330,7 @@ func TestVerifyErrors(t *testing.T) {
 		certs[0] = certRaw
 		env.base.Headers.Unprotected[cose.HeaderLabelX5Chain] = certs
 		_, err = env.Verify()
-		expected := errors.New("x509: malformed certificate")
+		expected := errors.New("malformed leaf certificate")
 		if !isErrEqual(expected, err) {
 			t.Fatalf("Verify() expects error: %v, but got: %v.", expected, err)
 		}
@@ -412,7 +412,7 @@ func TestPayloadErrors(t *testing.T) {
 		}
 		env.base = nil
 		_, err = env.Content()
-		expected := errors.New("missing COSE signature envelope")
+		expected := errors.New("signature envelope is not present")
 		if !isErrEqual(expected, err) {
 			t.Fatalf("Content() expects error: %v, but got: %v.", expected, err)
 		}
@@ -438,7 +438,7 @@ func TestPayloadErrors(t *testing.T) {
 		}
 		env.base.Headers.Protected[cose.HeaderLabelContentType] = 0
 		_, err = env.Content()
-		expected := errors.New("content type requires tstr type")
+		expected := errors.New("content type should be of 'tstr' type")
 		if !isErrEqual(expected, err) {
 			t.Fatalf("Content() expects error: %v, but got: %v.", expected, err)
 		}
@@ -446,14 +446,14 @@ func TestPayloadErrors(t *testing.T) {
 }
 
 func TestSignerInfoErrors(t *testing.T) {
-	t.Run("when COSE envelope missing signature", func(t *testing.T) {
+	t.Run("when signature missing in COSE envelope", func(t *testing.T) {
 		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
 		if err != nil {
 			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
 		}
 		env.base.Signature = []byte{}
 		_, err = env.Content()
-		expected := errors.New("COSE envelope missing signature")
+		expected := errors.New("signature missing in COSE envelope")
 		if !isErrEqual(expected, err) {
 			t.Fatalf("Content() expects error: %v, but got: %v.", expected, err)
 		}
@@ -585,7 +585,7 @@ func TestSignerInfoErrors(t *testing.T) {
 		}
 		delete(env.base.Headers.Unprotected, cose.HeaderLabelX5Chain)
 		_, err = env.Content()
-		expected := errors.New("COSE envelope invalid certificate chain")
+		expected := errors.New("certificate chain is not present")
 		if !isErrEqual(expected, err) {
 			t.Fatalf("Content() expects error: %v, but got: %v.", expected, err)
 		}
@@ -598,7 +598,7 @@ func TestSignerInfoErrors(t *testing.T) {
 		}
 		env.base.Headers.Unprotected[cose.HeaderLabelX5Chain] = []interface{}{0}
 		_, err = env.Content()
-		expected := errors.New("COSE envelope invalid certificate chain")
+		expected := errors.New("certificate chain is not present")
 		if !isErrEqual(expected, err) {
 			t.Fatalf("Content() expects error: %v, but got: %v.", expected, err)
 		}
@@ -611,7 +611,7 @@ func TestSignerInfoErrors(t *testing.T) {
 		}
 		certs, ok := env.base.Headers.Unprotected[cose.HeaderLabelX5Chain].([]interface{})
 		if !ok || len(certs) == 0 {
-			t.Fatalf("COSE envelope invalid certificate chain")
+			t.Fatalf("certificate chain is not present")
 		}
 		certRaw, ok := certs[0].([]byte)
 		if !ok {
