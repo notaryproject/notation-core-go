@@ -129,8 +129,8 @@ func newLocalSigner(base signature.LocalSigner) (*localSigner, error) {
 			return nil, err
 		}
 		return &localSigner{
-			coseSigner,
-			certs,
+			Signer: coseSigner,
+			certs:  certs,
 		}, nil
 	}
 	return nil, &signature.UnsupportedSigningKeyError{}
