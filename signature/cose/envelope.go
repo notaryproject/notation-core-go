@@ -157,7 +157,6 @@ func ParseEnvelope(envelopeBytes []byte) (signature.Envelope, error) {
 	var msg cose.Sign1Message
 	if err := msg.UnmarshalCBOR(envelopeBytes); err != nil {
 		return nil, &signature.InvalidSignatureError{Msg: err.Error()}
-
 	}
 	return &base.Envelope{
 		Envelope: &envelope{
