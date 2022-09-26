@@ -162,19 +162,6 @@ func getSigner(isLocal bool, certs []*x509.Certificate, privateKey *rsa.PrivateK
 	}, nil
 }
 
-func getEnvelope(signingScheme signature.SigningScheme, isLocal bool, extendedSignedAttribute []signature.Attribute) (*jwsEnvelope, error) {
-	encoded, err := getEncodedMessage(signingScheme, isLocal, extendedSignedAttribute)
-	if err != nil {
-		return nil, err
-	}
-	var sigEnv jwsEnvelope
-	err = json.Unmarshal(encoded, &sigEnv)
-	if err != nil {
-		return nil, err
-	}
-	return &sigEnv, nil
-}
-
 func getEncodedMessage(signingScheme signature.SigningScheme, isLocal bool, extendedSignedAttribute []signature.Attribute) ([]byte, error) {
 	signer, err := getSigner(isLocal, nil, nil)
 	if err != nil {
