@@ -22,13 +22,13 @@ var (
 	time08_02           time.Time
 	time08_03           time.Time
 	timeLayout          = "2006-01-02"
-	signiningSchema = signature.SigningScheme("notary.x509")
+	signiningSchema     = signature.SigningScheme("notary.x509")
 	validSignerInfo     = &signature.SignerInfo{
 		Signature:          validBytes,
 		SignatureAlgorithm: signature.AlgorithmPS384,
 		SignedAttributes: signature.SignedAttributes{
-			SigningTime: testhelper.GetRSALeafCertificate().Cert.NotBefore,
-			Expiry:      testhelper.GetECLeafCertificate().Cert.NotAfter,
+			SigningTime:   testhelper.GetRSALeafCertificate().Cert.NotBefore,
+			Expiry:        testhelper.GetECLeafCertificate().Cert.NotAfter,
 			SigningScheme: signiningSchema,
 		},
 		CertificateChain: []*x509.Certificate{
@@ -49,8 +49,8 @@ var (
 			ContentType: validContentType,
 			Content:     validBytes,
 		},
-		SigningTime: testhelper.GetRSALeafCertificate().Cert.NotBefore,
-		Expiry:      testhelper.GetRSALeafCertificate().Cert.NotAfter,
+		SigningTime:   testhelper.GetRSALeafCertificate().Cert.NotBefore,
+		Expiry:        testhelper.GetRSALeafCertificate().Cert.NotAfter,
 		SigningScheme: signiningSchema,
 		Signer: &mockSigner{
 			keySpec: signature.KeySpec{
@@ -69,8 +69,8 @@ var (
 			ContentType: validContentType,
 			Content:     validBytes,
 		},
-		SigningTime: testhelper.GetRSALeafCertificate().Cert.NotBefore,
-		Expiry:      testhelper.GetRSALeafCertificate().Cert.NotAfter,
+		SigningTime:   testhelper.GetRSALeafCertificate().Cert.NotBefore,
+		Expiry:        testhelper.GetRSALeafCertificate().Cert.NotAfter,
 		SigningScheme: signiningSchema,
 		Signer: &mockSigner{
 			keySpec: signature.KeySpec{
@@ -443,8 +443,8 @@ func TestValidateSignRequest(t *testing.T) {
 					ContentType: validContentType,
 					Content:     validBytes,
 				},
-				SigningTime: time08_02,
-				Expiry:      time08_03,
+				SigningTime:   time08_02,
+				Expiry:        time08_03,
 				SigningScheme: signiningSchema,
 				Signer: &mockSigner{
 					certs: []*x509.Certificate{

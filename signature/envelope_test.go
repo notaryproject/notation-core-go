@@ -13,7 +13,7 @@ var (
 
 func init() {
 	validFuncs.Store(testMediaType, envelopeFunc{
-		newFunc: testNewFunc,
+		newFunc:   testNewFunc,
 		parseFunc: testParseFunc,
 	})
 }
@@ -100,9 +100,9 @@ func TestRegisteredEnvelopeTypes(t *testing.T) {
 			expect:        nil,
 		},
 		{
-			name: "nonempty map",
+			name:          "nonempty map",
 			envelopeFuncs: validFuncs,
-			expect: []string{testMediaType},
+			expect:        []string{testMediaType},
 		},
 	}
 
@@ -134,11 +134,11 @@ func TestNewEnvelope(t *testing.T) {
 			expectErr:     true,
 		},
 		{
-			name:      "valid media type",
-			mediaType: testMediaType,
+			name:          "valid media type",
+			mediaType:     testMediaType,
 			envelopeFuncs: validFuncs,
-			expect:    testEnvelope{},
-			expectErr: false,
+			expect:        testEnvelope{},
+			expectErr:     false,
 		},
 	}
 
@@ -173,11 +173,11 @@ func TestParseEnvelope(t *testing.T) {
 			expectErr:     true,
 		},
 		{
-			name:      "valid media type",
-			mediaType: testMediaType,
+			name:          "valid media type",
+			mediaType:     testMediaType,
 			envelopeFuncs: validFuncs,
-			expect:    testEnvelope{},
-			expectErr: false,
+			expect:        testEnvelope{},
+			expectErr:     false,
 		},
 	}
 
