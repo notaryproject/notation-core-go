@@ -14,7 +14,7 @@ import (
 	"github.com/veraison/go-cose"
 )
 
-// MediaTypeEnvelope is the COSE signature envelope blob mediaType
+// MediaTypeEnvelope is the COSE signature envelope blob mediaType.
 const MediaTypeEnvelope = "application/cose"
 
 func init() {
@@ -39,7 +39,7 @@ const (
 	headerLabelSigningAgent       = "io.cncf.notary.signingAgent"
 )
 
-// Map of signature.Algorithm to cose.Algorithm
+// Map of cose.Algorithm to signature.Algorithm
 var coseAlgSignatureAlgMap = map[cose.Algorithm]signature.Algorithm{
 	cose.AlgorithmPS256: signature.AlgorithmPS256,
 	cose.AlgorithmPS384: signature.AlgorithmPS384,
@@ -208,7 +208,7 @@ func (e *envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 }
 
 // Verify implements signature.Envelope interface.
-// Note: Verfiy only verifies integrity of the given COSE envelope
+// Note: Verfiy only verifies integrity of the given COSE envelope.
 func (e *envelope) Verify() (*signature.EnvelopeContent, error) {
 	// sanity check
 	if e.base == nil {
@@ -560,7 +560,6 @@ func generateExtendedAttributes(extendedAttributeKeys []string, protected cose.P
 			Critical: contains(criticalHeaders, key),
 			Value:    protected[key],
 		})
-
 	}
 	return extendedAttr, nil
 }
