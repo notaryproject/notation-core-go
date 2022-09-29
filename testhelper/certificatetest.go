@@ -106,7 +106,7 @@ func getECCertTuple(cn string, issuer *ECCertTuple) ECCertTuple {
 	return GetECDSACertTupleWithPK(k, cn, issuer)
 }
 
-func GetRSASelfSignedSigningCertTuple(cn string)  RSACertTuple {
+func GetRSASelfSignedSigningCertTuple(cn string) RSACertTuple {
 	// Even though we are creating self-signed root, we are using false for 'isRoot' to not
 	// add root CA's basic constraint, KU and EKU.
 	template := getCertTemplate(false, cn)
@@ -117,6 +117,11 @@ func GetRSASelfSignedSigningCertTuple(cn string)  RSACertTuple {
 func GetRSACertTupleWithPK(privKey *rsa.PrivateKey, cn string, issuer *RSACertTuple) RSACertTuple {
 	template := getCertTemplate(issuer == nil, cn)
 	return getRSACertTupleWithTemplate(template, privKey, issuer)
+}
+
+func GetRSASelfSignedCertTupleWithPK(privKey *rsa.PrivateKey, cn string) RSACertTuple {
+	template := getCertTemplate(false, cn)
+	return getRSACertTupleWithTemplate(template, privKey, nil)
 }
 
 func getRSACertTupleWithTemplate(template *x509.Certificate, privKey *rsa.PrivateKey, issuer *RSACertTuple) RSACertTuple {
