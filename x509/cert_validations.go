@@ -10,11 +10,22 @@ import (
 	"time"
 )
 
+var kuLeafCertBlocked = x509.KeyUsageContentCommitment |
+	x509.KeyUsageKeyEncipherment |
+	x509.KeyUsageDataEncipherment |
+	x509.KeyUsageKeyAgreement |
+	x509.KeyUsageCertSign |
+	x509.KeyUsageCRLSign |
+	x509.KeyUsageEncipherOnly |
+	x509.KeyUsageDecipherOnly
+var kuLeafCertBlockedString = "ContentCommitment, KeyEncipherment, DataEncipherment, KeyAgreement, " +
+	"CertSign, CRLSign, EncipherOnly, DecipherOnly"
+
 // ValidateCodeSigningCertChain takes an ordered code-signing certificate chain and validates issuance from leaf to root
 // Validates certificates according to this spec:
 // https://github.com/notaryproject/notaryproject/blob/main/signature-specification.md#certificate-requirements
 func ValidateCodeSigningCertChain(certChain []*x509.Certificate, signingTime time.Time) error {
-	return validateCertChain(certChain, x509.ExtKeyUsageCodeSigning, signingTime)
+	return validateCertChain(certChain, 0, signingTime)
 }
 
 // ValidateTimeStampingCertChain takes an ordered time-stamping certificate chain and validates issuance from leaf to root
@@ -138,8 +149,8 @@ func validateLeafKeyUsage(cert *x509.Certificate) error {
 	if cert.KeyUsage&x509.KeyUsageDigitalSignature == 0 {
 		return fmt.Errorf("certificate with subject %q: key usage must have the bit positions for digital signature set", cert.Subject)
 	}
-	if cert.KeyUsage&x509.KeyUsageCertSign != 0 || cert.KeyUsage&x509.KeyUsageCRLSign != 0 {
-		return fmt.Errorf("certificate with subject %q: key usage must not have the bit positions for key cert sign or crl sign set", cert.Subject)
+	if cert.KeyUsage&kuLeafCertBlocked != 0 {
+		return fmt.Errorf("certificate with subject %q: key usage must not have the bit positions for %s set", cert.Subject, kuLeafCertBlockedString)
 	}
 	return nil
 }
@@ -168,8 +179,15 @@ func validateExtendedKeyUsage(cert *x509.Certificate, expectedEku x509.ExtKeyUsa
 		return nil
 	}
 
-	excludedEkus := []x509.ExtKeyUsage{x509.ExtKeyUsageAny, x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageEmailProtection}
-	if expectedEku == x509.ExtKeyUsageCodeSigning {
+	excludedEkus := []x509.ExtKeyUsage{
+		x509.ExtKeyUsageAny,
+		x509.ExtKeyUsageServerAuth,
+		x509.ExtKeyUsageClientAuth,
+		x509.ExtKeyUsageEmailProtection,
+		x509.ExtKeyUsageOCSPSigning,
+	}
+
+	if expectedEku == 0 {
 		excludedEkus = append(excludedEkus, x509.ExtKeyUsageTimeStamping)
 	} else if expectedEku == x509.ExtKeyUsageTimeStamping {
 		excludedEkus = append(excludedEkus, x509.ExtKeyUsageCodeSigning)
@@ -188,7 +206,7 @@ func validateExtendedKeyUsage(cert *x509.Certificate, expectedEku x509.ExtKeyUsa
 		}
 	}
 
-	if !hasExpectedEku {
+	if expectedEku != 0 && !hasExpectedEku {
 		return fmt.Errorf("certificate with subject %q: extended key usage must contain %s eku", cert.Subject, ekuToString(expectedEku))
 	}
 	return nil
@@ -214,6 +232,10 @@ func ekuToString(eku x509.ExtKeyUsage) string {
 		return "Any"
 	case x509.ExtKeyUsageServerAuth:
 		return "ServerAuth"
+	case x509.ExtKeyUsageClientAuth:
+		return "ClientAuth"
+	case x509.ExtKeyUsageOCSPSigning:
+		return "OCSPSigning"
 	case x509.ExtKeyUsageEmailProtection:
 		return "EmailProtection"
 	case x509.ExtKeyUsageCodeSigning:
