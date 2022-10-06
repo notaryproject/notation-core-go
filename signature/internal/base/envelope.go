@@ -156,7 +156,7 @@ func validateSignerInfo(info *signature.SignerInfo) error {
 
 	return validateCertificateChain(
 		info.CertificateChain,
-		signingTime,
+		time.Time{},
 		info.SignatureAlgorithm,
 	)
 }
