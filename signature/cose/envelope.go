@@ -495,7 +495,7 @@ func parseProtectedHeaders(protected cose.ProtectedHeader, signerInfo *signature
 // 1. validate that all critical headers are present in the protected bucket
 // 2. validate that all required headers(as per spec) are marked critical
 // Returns list of extended attribute keys
-func validateCritHeaders(protected cose.ProtectedHeader) ([]string, error) {
+func validateCritHeaders(protected cose.ProtectedHeader) ([]interface{}, error) {
 	// This ensures all critical headers are present in the protected bucket.
 	labels, err := protected.Critical()
 	if err != nil {
@@ -531,14 +531,10 @@ func validateCritHeaders(protected cose.ProtectedHeader) ([]string, error) {
 	// fetch all the extended signed attributes
 	systemHeaders := []interface{}{cose.HeaderLabelAlgorithm, cose.HeaderLabelCritical, cose.HeaderLabelContentType,
 		headerLabelExpiry, headerLabelSigningScheme, headerLabelSigningTime, headerLabelAuthenticSigningTime}
-	var extendedAttributeKeys []string
+	var extendedAttributeKeys []interface{}
 	for label := range protected {
 		if contains(systemHeaders, label) {
 			continue
-		}
-		label, ok := label.(string)
-		if !ok {
-			return nil, &signature.InvalidSignatureError{Msg: "extendedAttributes key requires string type"}
 		}
 		extendedAttributeKeys = append(extendedAttributeKeys, label)
 	}
@@ -548,16 +544,26 @@ func validateCritHeaders(protected cose.ProtectedHeader) ([]string, error) {
 
 // generateExtendedAttributes generates []signature.Attribute during
 // SignerInfo process.
-func generateExtendedAttributes(extendedAttributeKeys []string, protected cose.ProtectedHeader) ([]signature.Attribute, error) {
+func generateExtendedAttributes(extendedAttributeKeys []interface{}, protected cose.ProtectedHeader) ([]signature.Attribute, error) {
 	criticalHeaders, ok := protected[cose.HeaderLabelCritical].([]interface{})
 	if !ok {
 		return nil, &signature.InvalidSignatureError{Msg: "invalid critical headers"}
 	}
 	var extendedAttr []signature.Attribute
 	for _, key := range extendedAttributeKeys {
+		isCritical := contains(criticalHeaders, key)
+		key, ok := key.(string)
+		if !ok {
+			// if marked as critical, keys are required of type string
+			if isCritical {
+				return nil, &signature.InvalidSignatureError{Msg: "critical extendedAttributes key requires string type"}
+			}
+			// if not marked as critical, non-string type keys are ignored
+			continue
+		}
 		extendedAttr = append(extendedAttr, signature.Attribute{
 			Key:      key,
-			Critical: contains(criticalHeaders, key),
+			Critical: isCritical,
 			Value:    protected[key],
 		})
 	}
