@@ -18,6 +18,7 @@ import (
 var (
 	rsaRoot                  RSACertTuple
 	rsaLeaf                  RSACertTuple
+	rsaLeafWithoutEKU        RSACertTuple
 	ecdsaRoot                ECCertTuple
 	ecdsaLeaf                ECCertTuple
 	unsupportedECDSARoot     ECCertTuple
@@ -50,6 +51,11 @@ func GetRSALeafCertificate() RSACertTuple {
 	return rsaLeaf
 }
 
+// GetRSALeafCertificateWithoutEKU returns leaf certificate without EKU signed using RSA algorithm
+func GetRSALeafCertificateWithoutEKU () RSACertTuple {
+	return rsaLeaf
+}
+
 // GetECRootCertificate returns root certificate signed using EC algorithm
 func GetECRootCertificate() ECCertTuple {
 	return ecdsaRoot
@@ -78,10 +84,11 @@ func GetRSASelfSignedSigningCertificate() RSACertTuple {
 }
 
 func setupCertificates() {
-	rsaRoot = getCertTuple("Notation Test Root", nil)
-	rsaLeaf = getCertTuple("Notation Test Leaf Cert", &rsaRoot)
-	ecdsaRoot = getECCertTuple("Notation Test Root2", nil)
-	ecdsaLeaf = getECCertTuple("Notation Test Leaf Cert", &ecdsaRoot)
+	rsaRoot = getRSACertTuple("Notation Test RSA Root", nil)
+	rsaLeaf = getRSACertTuple("Notation Test RSA Leaf Cert", &rsaRoot)
+	rsaLeafWithoutEKU = getRSACertWithoutEKUTuple("Notation Test RSA Leaf without EKU Cert", &rsaRoot)
+	ecdsaRoot = getECCertTuple("Notation Test EC Root", nil)
+	ecdsaLeaf = getECCertTuple("Notation Test EC Leaf Cert", &ecdsaRoot)
 	unsupportedECDSARoot = getECCertTupleWithCurve("Notation Test Invalid ECDSA Cert", nil, elliptic.P224())
 
 	// This will be flagged by the static code analyzer as 'Use of a weak cryptographic key' but its intentional
@@ -91,9 +98,15 @@ func setupCertificates() {
 	rsaSelfSignedSigningCert = GetRSASelfSignedSigningCertTuple("Notation Signing Test Root")
 }
 
-func getCertTuple(cn string, issuer *RSACertTuple) RSACertTuple {
+func getRSACertTuple(cn string, issuer *RSACertTuple) RSACertTuple {
 	pk, _ := rsa.GenerateKey(rand.Reader, 3072)
 	return GetRSACertTupleWithPK(pk, cn, issuer)
+}
+
+func getRSACertWithoutEKUTuple(cn string, issuer *RSACertTuple) RSACertTuple {
+	pk, _ := rsa.GenerateKey(rand.Reader, 3072)
+	template := getCertTemplate(issuer == nil, false, cn)
+	return getRSACertTupleWithTemplate(template, pk, issuer)
 }
 
 func getECCertTupleWithCurve(cn string, issuer *ECCertTuple, curve elliptic.Curve) ECCertTuple {
@@ -109,18 +122,18 @@ func getECCertTuple(cn string, issuer *ECCertTuple) ECCertTuple {
 func GetRSASelfSignedSigningCertTuple(cn string) RSACertTuple {
 	// Even though we are creating self-signed root, we are using false for 'isRoot' to not
 	// add root CA's basic constraint, KU and EKU.
-	template := getCertTemplate(false, cn)
+	template := getCertTemplate(false, true, cn)
 	privKey, _ := rsa.GenerateKey(rand.Reader, 3072)
 	return getRSACertTupleWithTemplate(template, privKey, nil)
 }
 
 func GetRSACertTupleWithPK(privKey *rsa.PrivateKey, cn string, issuer *RSACertTuple) RSACertTuple {
-	template := getCertTemplate(issuer == nil, cn)
+	template := getCertTemplate(issuer == nil, true, cn)
 	return getRSACertTupleWithTemplate(template, privKey, issuer)
 }
 
 func GetRSASelfSignedCertTupleWithPK(privKey *rsa.PrivateKey, cn string) RSACertTuple {
-	template := getCertTemplate(false, cn)
+	template := getCertTemplate(false, true, cn)
 	return getRSACertTupleWithTemplate(template, privKey, nil)
 }
 
@@ -140,7 +153,7 @@ func getRSACertTupleWithTemplate(template *x509.Certificate, privKey *rsa.Privat
 }
 
 func GetECDSACertTupleWithPK(privKey *ecdsa.PrivateKey, cn string, issuer *ECCertTuple) ECCertTuple {
-	template := getCertTemplate(issuer == nil, cn)
+	template := getCertTemplate(issuer == nil, true, cn)
 
 	var certBytes []byte
 	if issuer != nil {
@@ -156,7 +169,7 @@ func GetECDSACertTupleWithPK(privKey *ecdsa.PrivateKey, cn string, issuer *ECCer
 	}
 }
 
-func getCertTemplate(isRoot bool, cn string) *x509.Certificate {
+func getCertTemplate(isRoot bool, setCodeSignEKU bool, cn string) *x509.Certificate {
 	template := &x509.Certificate{
 		Subject: pkix.Name{
 			Organization: []string{"Notary"},
@@ -167,8 +180,12 @@ func getCertTemplate(isRoot bool, cn string) *x509.Certificate {
 		},
 		NotBefore:   time.Now(),
 		KeyUsage:    x509.KeyUsageDigitalSignature,
-		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageCodeSigning},
 	}
+
+	if setCodeSignEKU {
+		template.ExtKeyUsage = []x509.ExtKeyUsage{x509.ExtKeyUsageCodeSigning}
+	}
+
 	if isRoot {
 		template.SerialNumber = big.NewInt(1)
 		template.NotAfter = time.Now().AddDate(0, 1, 0)

@@ -177,19 +177,23 @@ var openSSLMinimumCert = parseCertificateFromString(openSSLMinimumPem)
 var signingTime = time.Now()
 
 func TestValidCodeSigningChain(t *testing.T) {
-	certChain := []*x509.Certificate{codeSigningCert, intermediateCert2, intermediateCert1, rootCert}
-	if err := ValidateCodeSigningCertChain(certChain, signingTime); err != nil {
-		t.Error(err)
+	testCases := []struct {
+		name      string
+		certChain []*x509.Certificate
+	}{
+		{"cert-chain", []*x509.Certificate{codeSigningCert, intermediateCert2, intermediateCert1, rootCert}},
+		{"self-signed signing certificate", []*x509.Certificate{testhelper.GetRSASelfSignedSigningCertificate().Cert}},
+		{"RSA Leaf certificate without EKU", []*x509.Certificate{testhelper.GetRSALeafCertificateWithoutEKU().Cert,
+			testhelper.GetRSARootCertificate().Cert}},
+		{"Open SSL minimum certificate", []*x509.Certificate{openSSLMinimumCert}},
 	}
 
-	certChain = []*x509.Certificate{testhelper.GetRSASelfSignedSigningCertificate().Cert}
-	if err := ValidateCodeSigningCertChain(certChain, signingTime); err != nil {
-		t.Error(err)
-	}
-
-	certChain = []*x509.Certificate{openSSLMinimumCert}
-	if err := ValidateCodeSigningCertChain(certChain, signingTime); err != nil {
-		t.Error(err)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			if err := ValidateCodeSigningCertChain(tc.certChain, signingTime); err != nil {
+				t.Error(err)
+			}
+		})
 	}
 }
 
@@ -259,7 +263,7 @@ func TestRootCertIdentified(t *testing.T) {
 func TestInvalidSelfSignedSigningCertificate(t *testing.T) {
 	certChain := []*x509.Certificate{testhelper.GetRSARootCertificate().Cert}
 	err := ValidateCodeSigningCertChain(certChain, signingTime)
-	assertErrorEqual("certificate with subject \"CN=Notation Test Root,O=Notary,L=Seattle,ST=WA,C=US\": if the basic constraints extension is present, the ca field must be set to false", err, t)
+	assertErrorEqual("certificate with subject \"CN=Notation Test RSA Root,O=Notary,L=Seattle,ST=WA,C=US\": if the basic constraints extension is present, the ca field must be set to false", err, t)
 }
 
 // ---------------- CA Validations ----------------
@@ -491,7 +495,7 @@ var kuWrongValuesLeaf = parseCertificateFromString(kuWrongValuesLeafPem)
 
 func TestFailKuWrongValuesLeaf(t *testing.T) {
 	err := validateLeafCertificate(kuWrongValuesLeaf, x509.ExtKeyUsageCodeSigning)
-	assertErrorEqual("certificate with subject \"CN=Hello\": key usage must not have the bit positions for key cert sign or crl sign set", err, t)
+	assertErrorEqual("certificate with subject \"CN=Hello\": key usage must not have the bit positions for ContentCommitment, KeyEncipherment, DataEncipherment, KeyAgreement, CertSign, CRLSign, EncipherOnly, DecipherOnly set", err, t)
 }
 
 var rsaKeyTooSmallLeafPem = "-----BEGIN CERTIFICATE-----\n" +
@@ -583,7 +587,7 @@ var ekuMissingCodeSigningLeaf = parseCertificateFromString(ekuMissingCodeSigning
 
 func TestFailEkuMissingCodeSigningLeaf(t *testing.T) {
 	err := validateLeafCertificate(ekuMissingCodeSigningLeaf, x509.ExtKeyUsageCodeSigning)
-	assertErrorEqual("certificate with subject \"CN=Hello\": extended key usage must contain CodeSigning eku", err, t)
+	assertErrorEqual("certificate with subject \"CN=Hello\": extended key usage must not contain OCSPSigning eku", err, t)
 }
 
 // ---------------- Time-Stamping Leaf Validations ----------------
@@ -640,7 +644,7 @@ var ekuMissingTimeStampingLeaf = parseCertificateFromString(ekuMissingTimeStampi
 
 func TestFailEkuMissingTimeStampingLeaf(t *testing.T) {
 	err := validateLeafCertificate(ekuMissingTimeStampingLeaf, x509.ExtKeyUsageTimeStamping)
-	assertErrorEqual("certificate with subject \"CN=Hello\": extended key usage must contain TimeStamping eku", err, t)
+	assertErrorEqual("certificate with subject \"CN=Hello\": extended key usage must not contain OCSPSigning eku", err, t)
 }
 
 // ---------------- Utility Methods ----------------
