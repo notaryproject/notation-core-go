@@ -53,7 +53,7 @@ type UnsignedAttributes struct {
 // Attribute represents metadata in the Signature envelope.
 type Attribute struct {
 	// Key is the key name of the attribute.
-	Key string
+	Key interface{}
 
 	// Critical marks the attribute that MUST be processed by a verifier.
 	Critical bool

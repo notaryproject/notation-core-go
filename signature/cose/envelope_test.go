@@ -499,33 +499,16 @@ func TestSignerInfoErrors(t *testing.T) {
 		}
 	})
 
-	t.Run("when COSE envelope has customized critical protected header key that is not of string type", func(t *testing.T) {
+	t.Run("when COSE envelope has customized protected header key that is not of string or int type", func(t *testing.T) {
 		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
 		if err != nil {
 			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
 		}
-		env.base.Headers.Protected[0] = "unsupported"
-		crit, ok := env.base.Headers.Protected[cose.HeaderLabelCritical].([]interface{})
-		if !ok {
-			t.Fatalf("env.base.Headers.Protected[cose.HeaderLabelCritical] expects type []interface{}")
-		}
-		env.base.Headers.Protected[cose.HeaderLabelCritical] = append(crit, 0)
+		env.base.Headers.Protected[0.1] = "unsupported"
 		_, err = env.Content()
-		expected := errors.New("critical extendedAttributes key requires string type")
+		expected := errors.New("COSE extendedAttributes key requires string or int type")
 		if !isErrEqual(expected, err) {
 			t.Fatalf("Content() expects error: %v, but got: %v.", expected, err)
-		}
-	})
-
-	t.Run("when COSE envelope has customized non-critical protected header key that is not of string type", func(t *testing.T) {
-		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
-		if err != nil {
-			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
-		}
-		env.base.Headers.Protected[0] = "unsupported"
-		_, err = env.Content()
-		if !isErrEqual(nil, err) {
-			t.Fatalf("Content() expects error: %v, but got: %v.", nil, err)
 		}
 	})
 

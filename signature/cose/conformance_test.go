@@ -185,12 +185,8 @@ func verifyPayload(payload *signature.Payload, request *signature.SignRequest, t
 }
 
 func areAttrEqual(u []signature.Attribute, v []signature.Attribute) bool {
-	sort.Slice(u, func(p, q int) bool {
-		return u[p].Key < u[q].Key
-	})
-	sort.Slice(v, func(p, q int) bool {
-		return v[p].Key < v[q].Key
-	})
+	sortCOSEAttributes(u)
+	sortCOSEAttributes(v)
 	return reflect.DeepEqual(u, v)
 }
 
@@ -201,4 +197,26 @@ func generateSign1(msg *cose.Sign1Message) *cose.Sign1Message {
 	newMsg.Payload = msg.Payload
 	newMsg.Signature = hexToBytes("31b6cb0cd9c974b39d603465811c2aa3d96a5dff89f80b33cb4e321dc6e68a29b4ba65c00f0f9f22ee4376abfaec2cba6fd21c6881ecaab25775e3fb9226a88cf41660b2d6fd14184540d07ded3744e19ff9dbdd081e15c8f77bb6ca3072ef57141594fad4ea57d206c6b8dd3a6e0a0a7ed764ff08dbcc439bd722e1b3d282921a579a3d860cceea37d633184f9316cb6b4fa4ea550da5ad9e5bf3c2d768a787da76e594290cb10b5b1ead8b7e75967de28e9ff429fe9db814380608a15674f9741563902a620f312213d9dce5c264017cbcb3bb4f8cebee0d5ef32b364f68c11cba5630fac8e3165d06fdebaca095267223c552fe605b4529f25b65f8fa47b010b9096cec275307e82b1062f660a73e07d0b85b978b4a59b5cde51fc9a031b488a3deb38fc312a64ef2ec1250238ae16cfefc00d9aa1ceb938fe6de51f265eebe975c29f4cff8ab0afb40c45e8c985d17347bf20f455851c1a46ab655f51a159cf8910a424c5a8bbdd239e49e43a73c7b5174de29e835063e5e64b459558de5")
 	return newMsg
+}
+
+func sortCOSEAttributes(u []signature.Attribute) {
+	sort.Slice(u, func(p, q int) bool {
+		switch k1 := u[p].Key.(type) {
+		case int:
+			switch k2 := u[q].Key.(type) {
+			case int:
+				return k1 < k2
+			case string:
+				return false
+			}
+		case string:
+			switch k2 := u[q].Key.(type) {
+			case int:
+				return true
+			case string:
+				return k1 < k2
+			}
+		}
+		return false
+	})
 }
