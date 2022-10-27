@@ -551,11 +551,6 @@ func generateExtendedAttributes(extendedAttributeKeys []interface{}, protected c
 	}
 	var extendedAttr []signature.Attribute
 	for _, key := range extendedAttributeKeys {
-		_, ok1 := key.(string)
-		_, ok2 := key.(int)
-		if !ok1 && !ok2 {
-			return nil, &signature.InvalidSignatureError{Msg: "COSE extendedAttributes key requires string or int type"}
-		}
 		extendedAttr = append(extendedAttr, signature.Attribute{
 			Key:      key,
 			Critical: contains(criticalHeaders, key),
