@@ -177,7 +177,8 @@ func verifyAttributes(t *testing.T, signerInfo *signature.SignerInfo) {
 
 func sortAttributes(attributes []signature.Attribute) []signature.Attribute {
 	sort.Slice(attributes, func(i, j int) bool {
-		return strings.Compare(attributes[i].Key, attributes[j].Key) < 0
+		key1, key2 := attributes[i].Key.(string), attributes[j].Key.(string)
+		return strings.Compare(key1, key2) < 0
 	})
 	return attributes
 }

@@ -189,9 +189,16 @@ func getSignedAttributes(req *signature.SignRequest, algorithm string) (map[stri
 
 	// write extended signed attributes to the extAttrs map
 	for _, elm := range req.ExtendedSignedAttributes {
-		extAttrs[elm.Key] = elm.Value
+		key, ok := elm.Key.(string)
+		if !ok {
+			return nil, &signature.InvalidSignRequestError{Msg: "JWS envelope format only supports key of type string"}
+		}
+		if _, ok := extAttrs[key]; ok {
+			return nil, &signature.InvalidSignRequestError{Msg: fmt.Sprintf("%q already exists in the extAttrs", key)}
+		}
+		extAttrs[key] = elm.Value
 		if elm.Critical {
-			crit = append(crit, elm.Key)
+			crit = append(crit, key)
 		}
 	}
 

@@ -499,19 +499,6 @@ func TestSignerInfoErrors(t *testing.T) {
 		}
 	})
 
-	t.Run("when COSE envelope has customized protected header key that is not of string type", func(t *testing.T) {
-		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
-		if err != nil {
-			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
-		}
-		env.base.Headers.Protected[0] = "unsupported"
-		_, err = env.Content()
-		expected := errors.New("extendedAttributes key requires string type")
-		if !isErrEqual(expected, err) {
-			t.Fatalf("Content() expects error: %v, but got: %v.", expected, err)
-		}
-	})
-
 	t.Run("when COSE envelope protected header missing algorithm", func(t *testing.T) {
 		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
 		if err != nil {
