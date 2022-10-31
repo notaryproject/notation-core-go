@@ -43,7 +43,7 @@ func (e *Envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 
 	if err := validateCertificateChain(
 		content.SignerInfo.CertificateChain,
-		content.SignerInfo.SignedAttributes.SigningTime,
+		&content.SignerInfo.SignedAttributes.SigningTime,
 		content.SignerInfo.SignatureAlgorithm,
 	); err != nil {
 		return nil, err
@@ -156,7 +156,7 @@ func validateSignerInfo(info *signature.SignerInfo) error {
 
 	return validateCertificateChain(
 		info.CertificateChain,
-		signingTime,
+		nil,
 		info.SignatureAlgorithm,
 	)
 }
@@ -184,7 +184,7 @@ func validatePayload(payload *signature.Payload) error {
 }
 
 // validateCertificateChain performs the validation of the certificate chain.
-func validateCertificateChain(certChain []*x509.Certificate, signTime time.Time, expectedAlg signature.Algorithm) error {
+func validateCertificateChain(certChain []*x509.Certificate, signTime *time.Time, expectedAlg signature.Algorithm) error {
 	if len(certChain) == 0 {
 		return &signature.InvalidSignatureError{Msg: "certificate-chain not present or is empty"}
 	}
