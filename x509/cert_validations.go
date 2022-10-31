@@ -24,18 +24,18 @@ var kuLeafCertBlockedString = "ContentCommitment, KeyEncipherment, DataEncipherm
 // ValidateCodeSigningCertChain takes an ordered code-signing certificate chain and validates issuance from leaf to root
 // Validates certificates according to this spec:
 // https://github.com/notaryproject/notaryproject/blob/main/signature-specification.md#certificate-requirements
-func ValidateCodeSigningCertChain(certChain []*x509.Certificate, signingTime time.Time) error {
+func ValidateCodeSigningCertChain(certChain []*x509.Certificate, signingTime *time.Time) error {
 	return validateCertChain(certChain, 0, signingTime)
 }
 
 // ValidateTimeStampingCertChain takes an ordered time-stamping certificate chain and validates issuance from leaf to root
 // Validates certificates according to this spec:
 // https://github.com/notaryproject/notaryproject/blob/main/signature-specification.md#certificate-requirements
-func ValidateTimeStampingCertChain(certChain []*x509.Certificate, signingTime time.Time) error {
+func ValidateTimeStampingCertChain(certChain []*x509.Certificate, signingTime *time.Time) error {
 	return validateCertChain(certChain, x509.ExtKeyUsageTimeStamping, signingTime)
 }
 
-func validateCertChain(certChain []*x509.Certificate, expectedLeafEku x509.ExtKeyUsage, signingTime time.Time) error {
+func validateCertChain(certChain []*x509.Certificate, expectedLeafEku x509.ExtKeyUsage, signingTime *time.Time) error {
 	if len(certChain) < 1 {
 		return errors.New("certificate chain must contain at least one certificate")
 	}
@@ -43,7 +43,7 @@ func validateCertChain(certChain []*x509.Certificate, expectedLeafEku x509.ExtKe
 	// For self-signed signing certificate (not a CA)
 	if len(certChain) == 1 {
 		cert := certChain[0]
-		if !signingTime.IsZero() && (signingTime.Before(cert.NotBefore) || signingTime.After(cert.NotAfter)) {
+		if signingTime != nil && (signingTime.Before(cert.NotBefore) || signingTime.After(cert.NotAfter)) {
 			return fmt.Errorf("certificate with subject %q was not valid at signing time of %s", cert.Subject, signingTime.UTC())
 		}
 
@@ -54,7 +54,7 @@ func validateCertChain(certChain []*x509.Certificate, expectedLeafEku x509.ExtKe
 	}
 
 	for i, cert := range certChain {
-		if !signingTime.IsZero() && (signingTime.Before(cert.NotBefore) || signingTime.After(cert.NotAfter)) {
+		if signingTime != nil && (signingTime.Before(cert.NotBefore) || signingTime.After(cert.NotAfter)) {
 			return fmt.Errorf("certificate with subject %q was not valid at signing time of %s", cert.Subject, signingTime.UTC())
 		}
 
