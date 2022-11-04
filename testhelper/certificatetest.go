@@ -12,6 +12,7 @@ import (
 	"math/big"
 	mrand "math/rand"
 	"strconv"
+	"sync"
 	"time"
 )
 
@@ -26,6 +27,8 @@ var (
 	rsaSelfSignedSigningCert RSACertTuple
 )
 
+var setupCertificatesOnce sync.Once
+
 type RSACertTuple struct {
 	Cert       *x509.Certificate
 	PrivateKey *rsa.PrivateKey
@@ -36,66 +39,71 @@ type ECCertTuple struct {
 	PrivateKey *ecdsa.PrivateKey
 }
 
-// init runs before any other part of this package.
-func init() {
-	setupCertificates()
-}
-
 // GetRSARootCertificate returns root certificate signed using RSA algorithm
 func GetRSARootCertificate() RSACertTuple {
+	setupCertificates()
 	return rsaRoot
 }
 
 // GetRSALeafCertificate returns leaf certificate signed using RSA algorithm
 func GetRSALeafCertificate() RSACertTuple {
+	setupCertificates()
 	return rsaLeaf
 }
 
 // GetRSALeafCertificateWithoutEKU returns leaf certificate without EKU signed using RSA algorithm
-func GetRSALeafCertificateWithoutEKU () RSACertTuple {
-	return rsaLeaf
+func GetRSALeafCertificateWithoutEKU() RSACertTuple {
+	setupCertificates()
+	return rsaLeafWithoutEKU
 }
 
 // GetECRootCertificate returns root certificate signed using EC algorithm
 func GetECRootCertificate() ECCertTuple {
+	setupCertificates()
 	return ecdsaRoot
 }
 
 // GetECLeafCertificate returns leaf certificate signed using EC algorithm
 func GetECLeafCertificate() ECCertTuple {
+	setupCertificates()
 	return ecdsaLeaf
 }
 
 // GetUnsupportedRSACert returns certificate signed using RSA algorithm with key
 // size of 1024 bits which is not supported by notary.
 func GetUnsupportedRSACert() RSACertTuple {
+	setupCertificates()
 	return unsupportedRSARoot
 }
 
 // GetUnsupportedECCert returns certificate signed using EC algorithm with P-224
 // curve which is not supported by notary.
 func GetUnsupportedECCert() ECCertTuple {
+	setupCertificates()
 	return unsupportedECDSARoot
 }
 
 // GetRSASelfSignedSigningCertificate returns a self-signed certificate created which can be used for signing
 func GetRSASelfSignedSigningCertificate() RSACertTuple {
+	setupCertificates()
 	return rsaSelfSignedSigningCert
 }
 
 func setupCertificates() {
-	rsaRoot = getRSACertTuple("Notation Test RSA Root", nil)
-	rsaLeaf = getRSACertTuple("Notation Test RSA Leaf Cert", &rsaRoot)
-	rsaLeafWithoutEKU = getRSACertWithoutEKUTuple("Notation Test RSA Leaf without EKU Cert", &rsaRoot)
-	ecdsaRoot = getECCertTuple("Notation Test EC Root", nil)
-	ecdsaLeaf = getECCertTuple("Notation Test EC Leaf Cert", &ecdsaRoot)
-	unsupportedECDSARoot = getECCertTupleWithCurve("Notation Test Invalid ECDSA Cert", nil, elliptic.P224())
+	setupCertificatesOnce.Do(func() {
+		rsaRoot = getRSACertTuple("Notation Test RSA Root", nil)
+		rsaLeaf = getRSACertTuple("Notation Test RSA Leaf Cert", &rsaRoot)
+		rsaLeafWithoutEKU = getRSACertWithoutEKUTuple("Notation Test RSA Leaf without EKU Cert", &rsaRoot)
+		ecdsaRoot = getECCertTuple("Notation Test EC Root", nil)
+		ecdsaLeaf = getECCertTuple("Notation Test EC Leaf Cert", &ecdsaRoot)
+		unsupportedECDSARoot = getECCertTupleWithCurve("Notation Test Invalid ECDSA Cert", nil, elliptic.P224())
 
-	// This will be flagged by the static code analyzer as 'Use of a weak cryptographic key' but its intentional
-	// and is used only for testing.
-	k, _ := rsa.GenerateKey(rand.Reader, 1024)
-	unsupportedRSARoot = GetRSACertTupleWithPK(k, "Notation Unsupported Root", nil)
-	rsaSelfSignedSigningCert = GetRSASelfSignedSigningCertTuple("Notation Signing Test Root")
+		// This will be flagged by the static code analyzer as 'Use of a weak cryptographic key' but its intentional
+		// and is used only for testing.
+		k, _ := rsa.GenerateKey(rand.Reader, 1024)
+		unsupportedRSARoot = GetRSACertTupleWithPK(k, "Notation Unsupported Root", nil)
+		rsaSelfSignedSigningCert = GetRSASelfSignedSigningCertTuple("Notation Signing Test Root")
+	})
 }
 
 func getRSACertTuple(cn string, issuer *RSACertTuple) RSACertTuple {
@@ -178,8 +186,8 @@ func getCertTemplate(isRoot bool, setCodeSignEKU bool, cn string) *x509.Certific
 			Locality:     []string{"Seattle"},
 			CommonName:   cn,
 		},
-		NotBefore:   time.Now(),
-		KeyUsage:    x509.KeyUsageDigitalSignature,
+		NotBefore: time.Now(),
+		KeyUsage:  x509.KeyUsageDigitalSignature,
 	}
 
 	if setCodeSignEKU {
