@@ -174,8 +174,6 @@ var intermediateCertInvalidPathLen = parseCertificateFromString(intermediateCert
 var codeSigningLeafInvalidPathLen = parseCertificateFromString(codeSigningLeafInvalidPathLenPem)
 var openSSLMinimumCert = parseCertificateFromString(openSSLMinimumPem)
 
-var signingTime = time.Now()
-
 func TestValidCodeSigningChain(t *testing.T) {
 	testCases := []struct {
 		name      string
@@ -188,6 +186,7 @@ func TestValidCodeSigningChain(t *testing.T) {
 		{"Open SSL minimum certificate", []*x509.Certificate{openSSLMinimumCert}},
 	}
 
+	signingTime := time.Now()
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			if err := ValidateCodeSigningCertChain(tc.certChain, &signingTime); err != nil {
@@ -199,6 +198,7 @@ func TestValidCodeSigningChain(t *testing.T) {
 
 func TestValidTimeStampingChain(t *testing.T) {
 	certChain := []*x509.Certificate{timeStampingCert, intermediateCert2, intermediateCert1, rootCert}
+	signingTime := time.Now()
 
 	if err := ValidateTimeStampingCertChain(certChain, &signingTime); err != nil {
 		t.Fatal(err)
@@ -206,6 +206,7 @@ func TestValidTimeStampingChain(t *testing.T) {
 }
 
 func TestFailEmptyChain(t *testing.T) {
+	signingTime := time.Now()
 	err := ValidateCodeSigningCertChain(nil, &signingTime)
 
 	assertErrorEqual("certificate chain must contain at least one certificate", err, t)
@@ -221,6 +222,7 @@ func TestFailInvalidSigningTime(t *testing.T) {
 
 func TestFailChainNotEndingInRoot(t *testing.T) {
 	certChain := []*x509.Certificate{codeSigningCert, intermediateCert2, intermediateCert1}
+	signingTime := time.Now()
 
 	err := ValidateCodeSigningCertChain(certChain, &signingTime)
 	assertErrorEqual("certificate chain must end with a root certificate (root certificates are self-signed)", err, t)
@@ -228,6 +230,7 @@ func TestFailChainNotEndingInRoot(t *testing.T) {
 
 func TestFailChainNotOrdered(t *testing.T) {
 	certChain := []*x509.Certificate{codeSigningCert, intermediateCert1, intermediateCert2, rootCert}
+	signingTime := time.Now()
 
 	err := ValidateCodeSigningCertChain(certChain, &signingTime)
 	assertErrorEqual("certificate with subject \"CN=CodeSigningLeaf\" is not issued by \"CN=Intermediate1\"", err, t)
@@ -235,6 +238,7 @@ func TestFailChainNotOrdered(t *testing.T) {
 
 func TestFailChainWithUnrelatedCert(t *testing.T) {
 	certChain := []*x509.Certificate{codeSigningCert, unrelatedCert, intermediateCert1, rootCert}
+	signingTime := time.Now()
 
 	err := ValidateCodeSigningCertChain(certChain, &signingTime)
 	assertErrorEqual("certificate with subject \"CN=CodeSigningLeaf\" is not issued by \"CN=Hello\"", err, t)
@@ -242,6 +246,7 @@ func TestFailChainWithUnrelatedCert(t *testing.T) {
 
 func TestFailChainWithDuplicateRepeatedRoots(t *testing.T) {
 	certChain := []*x509.Certificate{rootCert, rootCert, rootCert}
+	signingTime := time.Now()
 
 	err := ValidateCodeSigningCertChain(certChain, &signingTime)
 	assertErrorEqual("certificate chain must not contain self-signed intermediate certificates", err, t)
@@ -249,6 +254,7 @@ func TestFailChainWithDuplicateRepeatedRoots(t *testing.T) {
 
 func TestFailInvalidPathLen(t *testing.T) {
 	certChain := []*x509.Certificate{codeSigningLeafInvalidPathLen, intermediateCertInvalidPathLen, intermediateCert2, intermediateCert1, rootCert}
+	signingTime := time.Now()
 
 	err := ValidateCodeSigningCertChain(certChain, &signingTime)
 	assertErrorEqual("certificate with subject \"CN=Intermediate2\": expected path length of 1 but certificate has path length 0 instead", err, t)
@@ -263,6 +269,7 @@ func TestRootCertIdentified(t *testing.T) {
 
 func TestInvalidSelfSignedSigningCertificate(t *testing.T) {
 	certChain := []*x509.Certificate{testhelper.GetRSARootCertificate().Cert}
+	signingTime := time.Now()
 	err := ValidateCodeSigningCertChain(certChain, &signingTime)
 	assertErrorEqual("certificate with subject \"CN=Notation Test RSA Root,O=Notary,L=Seattle,ST=WA,C=US\": if the basic constraints extension is present, the ca field must be set to false", err, t)
 }
