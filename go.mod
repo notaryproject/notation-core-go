@@ -4,7 +4,7 @@ go 1.18
 
 require (
 	github.com/golang-jwt/jwt/v4 v4.4.2
-	github.com/veraison/go-cose v1.0.0-rc.1.0.20220824135457-9d2fab636b83
+	github.com/veraison/go-cose v1.0.0-rc.2
 )
 
 require (
