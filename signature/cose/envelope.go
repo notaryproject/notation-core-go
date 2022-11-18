@@ -57,6 +57,12 @@ var signingSchemeTimeLabelMap = map[signature.SigningScheme]string{
 	signature.SigningSchemeX509SigningAuthority: headerLabelAuthenticSigningTime,
 }
 
+// Encoding options during Sign
+var encOpts = cbor.EncOptions{
+	Time:    cbor.TimeUnix,
+	TimeTag: cbor.EncTagRequired,
+}
+
 // signer interface is a cose.Signer with certificate chain fetcher.
 type signer interface {
 	cose.Signer
@@ -457,10 +463,6 @@ func generateProtectedHeaders(req *signature.SignRequest, protected cose.Protect
 	protected[headerLabelSigningScheme] = string(req.SigningScheme)
 
 	// generate Tag1 Datetime CBOR object
-	encOpts := cbor.EncOptions{
-		Time:    cbor.TimeUnix,
-		TimeTag: cbor.EncTagRequired,
-	}
 	encMode, err := encOpts.EncMode()
 	if err != nil {
 		return &signature.InvalidSignRequestError{Msg: err.Error()}
