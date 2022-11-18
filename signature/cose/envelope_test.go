@@ -445,6 +445,17 @@ func TestPayloadErrors(t *testing.T) {
 	})
 }
 
+func TestSigningTimeType(t *testing.T) {
+	env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
+	if err != nil {
+		t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
+	}
+	_, ok := env.base.Headers.Protected[headerLabelSigningTime].(int64)
+	if !ok {
+		t.Fatalf("signingTime type expected to be int64")
+	}
+}
+
 func TestSignerInfoErrors(t *testing.T) {
 	t.Run("when signature missing in COSE envelope", func(t *testing.T) {
 		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
