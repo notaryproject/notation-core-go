@@ -610,7 +610,7 @@ func contains(s []interface{}, e interface{}) bool {
 func parseTime(timeValue interface{}) (time.Time, error) {
 	t, ok := timeValue.(time.Time)
 	if !ok {
-		return time.Time{}, errors.New("invalid type of timeValue")
+		return time.Time{}, errors.New("invalid date/time type")
 	}
 	return t, nil
 }
