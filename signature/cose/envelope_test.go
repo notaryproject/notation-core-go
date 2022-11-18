@@ -558,7 +558,7 @@ func TestSignerInfoErrors(t *testing.T) {
 		}
 		env.base.Headers.Protected[headerLabelExpiry] = "invalid"
 		_, err = env.Content()
-		expected := errors.New("expiry requires int64 type")
+		expected := errors.New("invalid expiry")
 		if !isErrEqual(expected, err) {
 			t.Fatalf("Content() expects error: %v, but got: %v.", expected, err)
 		}

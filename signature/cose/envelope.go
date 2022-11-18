@@ -4,6 +4,7 @@ import (
 	"crypto"
 	"crypto/rand"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"io"
 	"strconv"
@@ -393,7 +394,11 @@ func generateProtectedHeaders(req *signature.SignRequest, protected cose.Protect
 	if !ok {
 		return &signature.InvalidSignRequestError{Msg: "signing scheme: require notary.x509 or notary.x509.signingAuthority"}
 	}
-	protected[signingTimeLabel] = req.SigningTime.Unix()
+	// in go-cose, time.Time will be encoded as numerical (in integer)
+	// representation of seconds since January 1, 1970 UTC.
+	// For more details: https://github.com/fxamacker/cbor/blob/7704fa5efaf3ef4ac35aff38f50f6ff567793072/encode.go#L75
+	// https://github.com/veraison/go-cose/blob/f72b6bc06b90d1e9c07ab11332df92c7838e3027/cbor.go#L30
+	protected[signingTimeLabel] = req.SigningTime
 	if signingTimeLabel == headerLabelAuthenticSigningTime {
 		crit = append(crit, headerLabelAuthenticSigningTime)
 	}
@@ -401,7 +406,7 @@ func generateProtectedHeaders(req *signature.SignRequest, protected cose.Protect
 	// expiry
 	if !req.Expiry.IsZero() {
 		crit = append(crit, headerLabelExpiry)
-		protected[headerLabelExpiry] = req.Expiry.Unix()
+		protected[headerLabelExpiry] = req.Expiry
 	}
 
 	// extended attributes
@@ -471,20 +476,18 @@ func parseProtectedHeaders(protected cose.ProtectedHeader, signerInfo *signature
 	if !ok {
 		return &signature.InvalidSignatureError{Msg: "unsupported signingScheme: " + signingSchemeString}
 	}
-	signingTime, ok := protected[signingTimeLabel].(int64)
-	if !ok {
+	signingTime, err := parseTime(protected[signingTimeLabel])
+	if err != nil {
 		return &signature.InvalidSignatureError{Msg: "invalid signingTime under signing scheme: " + signingSchemeString}
 	}
-	signerInfo.SignedAttributes.SigningTime = time.Unix(signingTime, 0)
+	signerInfo.SignedAttributes.SigningTime = signingTime
 
 	// populate signerInfo.SignedAttributes.Expiry
-	if exp, ok := protected[headerLabelExpiry]; ok {
-		expiry, ok := exp.(int64)
-		if !ok {
-			return &signature.InvalidSignatureError{Msg: "expiry requires int64 type"}
-		}
-		signerInfo.SignedAttributes.Expiry = time.Unix(expiry, 0)
+	expiry, err := parseTime(protected[headerLabelExpiry])
+	if err != nil {
+		return &signature.InvalidSignatureError{Msg: "invalid expiry"}
 	}
+	signerInfo.SignedAttributes.Expiry = expiry
 
 	// populate signerInfo.SignedAttributes.ExtendedAttributes
 	signerInfo.SignedAttributes.ExtendedAttributes, err = generateExtendedAttributes(extendedAttributeKeys, protected)
@@ -568,4 +571,22 @@ func contains(s []interface{}, e interface{}) bool {
 		}
 	}
 	return false
+}
+
+// parseTime parses time values from cose.ProtectedHeader
+// in go-cose,
+//  1. CBOR times (tag 0 and 1) decode to time.Time.
+//  2. decode CBOR uint/int to Go int64
+//
+// For more details: https://github.com/fxamacker/cbor/blob/7704fa5efaf3ef4ac35aff38f50f6ff567793072/decode.go#L52
+// https://github.com/veraison/go-cose/blob/f72b6bc06b90d1e9c07ab11332df92c7838e3027/cbor.go#L43
+func parseTime(timeValue interface{}) (time.Time, error) {
+	switch t := timeValue.(type) {
+	case time.Time:
+		return t, nil
+	case int64:
+		return time.Unix(t, 0), nil
+	default:
+		return time.Time{}, errors.New("invalid type of timeValue")
+	}
 }
