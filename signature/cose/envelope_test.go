@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fxamacker/cbor/v2"
 	"github.com/notaryproject/notation-core-go/signature"
 	"github.com/notaryproject/notation-core-go/signature/signaturetest"
 	"github.com/notaryproject/notation-core-go/testhelper"
@@ -214,6 +215,19 @@ func TestSignErrors(t *testing.T) {
 		signRequest.SigningScheme = ""
 		_, err = env.Sign(signRequest)
 		expected := errors.New("signing scheme: require notary.x509 or notary.x509.signingAuthority")
+		if !isErrEqual(expected, err) {
+			t.Fatalf("Sign() expects error: %v, but got: %v.", expected, err)
+		}
+	})
+
+	t.Run("when encOpts.TimeTag is invalid", func(t *testing.T) {
+		signRequest, err := getSignRequest()
+		if err != nil {
+			t.Fatalf("getSignRequest() failed. Error = %v", err)
+		}
+		encOpts.TimeTag = 3
+		_, err = env.Sign(signRequest)
+		expected := errors.New("cbor: invalid TimeTag 3")
 		if !isErrEqual(expected, err) {
 			t.Fatalf("Sign() expects error: %v, but got: %v.", expected, err)
 		}
@@ -538,7 +552,34 @@ func TestSignerInfoErrors(t *testing.T) {
 		}
 	})
 
-	t.Run("when COSE envelope protected header has invalid signingTime", func(t *testing.T) {
+	t.Run("when decOpts.TimeTag is invalid", func(t *testing.T) {
+		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
+		if err != nil {
+			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
+		}
+		decOpts.TimeTag = 4
+		_, err = env.Content()
+		expected := errors.New("cbor: invalid TimeTag 4")
+		if !isErrEqual(expected, err) {
+			t.Fatalf("Content() expects error: %v, but got: %v.", expected, err)
+		}
+	})
+
+	t.Run("when COSE envelope protected header has invalid signingTime in sign", func(t *testing.T) {
+		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
+		if err != nil {
+			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
+		}
+		env.base.Headers.Protected[headerLabelSigningTime] = "invalid"
+		env.isSign = true
+		_, err = env.Content()
+		expected := errors.New("in Sign, protected[signingTimeLabel] requires to be cbor.RawMessage")
+		if !isErrEqual(expected, err) {
+			t.Fatalf("Content() expects error: %v, but got: %v.", expected, err)
+		}
+	})
+
+	t.Run("when COSE envelope protected header has invalid signingTime in verify", func(t *testing.T) {
 		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
 		if err != nil {
 			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
@@ -551,7 +592,22 @@ func TestSignerInfoErrors(t *testing.T) {
 		}
 	})
 
-	t.Run("when COSE envelope protected header has invalid expiry", func(t *testing.T) {
+	t.Run("when COSE envelope protected header has invalid expiry in sign", func(t *testing.T) {
+		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
+		if err != nil {
+			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
+		}
+		env.base.Headers.Protected[headerLabelSigningTime] = cbor.RawMessage{}
+		env.base.Headers.Protected[headerLabelExpiry] = "invalid"
+		env.isSign = true
+		_, err = env.Content()
+		expected := errors.New("in Sign, protected[headerLabelExpiry] requires to be cbor.RawMessage")
+		if !isErrEqual(expected, err) {
+			t.Fatalf("Content() expects error: %v, but got: %v.", expected, err)
+		}
+	})
+
+	t.Run("when COSE envelope protected header has invalid expiry in verify", func(t *testing.T) {
 		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
 		if err != nil {
 			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
@@ -667,6 +723,10 @@ func TestSignAndParseVerify(t *testing.T) {
 }
 
 func newSignRequest(signingScheme string, keyType signature.KeyType, size int) (*signature.SignRequest, error) {
+	encOpts = cbor.EncOptions{
+		Time:    cbor.TimeUnix,
+		TimeTag: cbor.EncTagRequired,
+	}
 	signer, err := signaturetest.GetTestLocalSigner(keyType, size)
 	if err != nil {
 		return nil, err
@@ -693,6 +753,9 @@ func getSignRequest() (*signature.SignRequest, error) {
 }
 
 func getVerifyCOSE(signingScheme string, keyType signature.KeyType, size int) (envelope, error) {
+	decOpts = cbor.DecOptions{
+		TimeTag: cbor.DecTagRequired,
+	}
 	signRequest, err := newSignRequest(signingScheme, keyType, size)
 	if err != nil {
 		return createNewEnv(nil), err

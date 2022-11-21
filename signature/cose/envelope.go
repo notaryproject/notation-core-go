@@ -57,10 +57,15 @@ var signingSchemeTimeLabelMap = map[signature.SigningScheme]string{
 	signature.SigningSchemeX509SigningAuthority: headerLabelAuthenticSigningTime,
 }
 
-// Encoding options during Sign
+// Encoding options used in Sign
 var encOpts = cbor.EncOptions{
 	Time:    cbor.TimeUnix,
 	TimeTag: cbor.EncTagRequired,
+}
+
+// Decoding options used in Content
+var decOpts = cbor.DecOptions{
+	TimeTag: cbor.DecTagRequired,
 }
 
 // signer interface is a cose.Signer with certificate chain fetcher.
@@ -150,10 +155,8 @@ func (signer *localSigner) CertificateChain() []*x509.Certificate {
 }
 
 type envelope struct {
-	isSign      bool
-	signingTime time.Time
-	expiry      time.Time
-	base        *cose.Sign1Message
+	isSign bool
+	base   *cose.Sign1Message
 }
 
 // NewEnvelope initializes an empty COSE signature envelope.
@@ -216,8 +219,6 @@ func (e *envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 	}
 	e.base = msg
 	e.isSign = true
-	e.signingTime = req.SigningTime
-	e.expiry = req.Expiry
 
 	return encoded, nil
 }
@@ -374,31 +375,47 @@ func (e *envelope) parseProtectedHeaders(protected cose.ProtectedHeader, signerI
 	signingScheme := signature.SigningScheme(signingSchemeString)
 	signerInfo.SignedAttributes.SigningScheme = signingScheme
 
+	// decode Tag1 Datetime CBOR object into time.Time
+	decMode, err := decOpts.DecMode()
+	if err != nil {
+		return &signature.InvalidSignRequestError{Msg: err.Error()}
+	}
+
 	// populate signerInfo.SignedAttributes.SigningTime
 	signingTimeLabel, ok := signingSchemeTimeLabelMap[signingScheme]
 	if !ok {
 		return &signature.InvalidSignatureError{Msg: "unsupported signingScheme: " + signingSchemeString}
 	}
+	var signingTime time.Time
 	if !e.isSign {
-		signingTime, err := parseTime(protected[signingTimeLabel])
+		signingTime, err = parseTime(protected[signingTimeLabel])
 		if err != nil {
 			return &signature.InvalidSignatureError{Msg: "invalid signingTime under signing scheme: " + signingSchemeString}
 		}
-		signerInfo.SignedAttributes.SigningTime = signingTime
 	} else {
-		signerInfo.SignedAttributes.SigningTime = e.signingTime
+		raw, ok := protected[signingTimeLabel].(cbor.RawMessage)
+		if !ok {
+			return &signature.InvalidSignatureError{Msg: "in Sign, protected[signingTimeLabel] requires to be cbor.RawMessage"}
+		}
+		decMode.Unmarshal([]byte(raw), &signingTime)
 	}
+	signerInfo.SignedAttributes.SigningTime = signingTime
 
 	// populate signerInfo.SignedAttributes.Expiry
+	var expiry time.Time
 	if !e.isSign {
-		expiry, err := parseTime(protected[headerLabelExpiry])
+		expiry, err = parseTime(protected[headerLabelExpiry])
 		if err != nil {
 			return &signature.InvalidSignatureError{Msg: "invalid expiry"}
 		}
-		signerInfo.SignedAttributes.Expiry = expiry
 	} else {
-		signerInfo.SignedAttributes.Expiry = e.expiry
+		raw, ok := protected[headerLabelExpiry].(cbor.RawMessage)
+		if !ok {
+			return &signature.InvalidSignatureError{Msg: "in Sign, protected[headerLabelExpiry] requires to be cbor.RawMessage"}
+		}
+		decMode.Unmarshal([]byte(raw), expiry)
 	}
+	signerInfo.SignedAttributes.Expiry = expiry
 
 	// populate signerInfo.SignedAttributes.ExtendedAttributes
 	signerInfo.SignedAttributes.ExtendedAttributes, err = generateExtendedAttributes(extendedAttributeKeys, protected)
