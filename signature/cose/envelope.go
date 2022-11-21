@@ -312,7 +312,7 @@ func (e *envelope) signerInfo() (*signature.SignerInfo, error) {
 
 	// parse protected headers of COSE envelope and populate related
 	// signerInfo fields
-	err := e.parseProtectedHeaders(e.base.Headers.Protected, &signerInfo)
+	err := parseProtectedHeaders(e.base.Headers.Protected, &signerInfo, e.isSign)
 	if err != nil {
 		return nil, &signature.InvalidSignatureError{Msg: err.Error()}
 	}
@@ -345,81 +345,6 @@ func (e *envelope) signerInfo() (*signature.SignerInfo, error) {
 	// TODO: needs to add headerKeyTimeStampSignature.
 
 	return &signerInfo, nil
-}
-
-// parseProtectedHeaders parses COSE envelope's protected headers and
-// populates signature.SignerInfo.
-func (e *envelope) parseProtectedHeaders(protected cose.ProtectedHeader, signerInfo *signature.SignerInfo) error {
-	// validate critical headers and return extendedAttributeKeys
-	extendedAttributeKeys, err := validateCritHeaders(protected)
-	if err != nil {
-		return err
-	}
-
-	// populate signerInfo.SignatureAlgorithm
-	alg, err := protected.Algorithm()
-	if err != nil {
-		return err
-	}
-	sigAlg, ok := coseAlgSignatureAlgMap[alg]
-	if !ok {
-		return &signature.InvalidSignatureError{Msg: "signature algorithm not supported: " + strconv.Itoa(int(alg))}
-	}
-	signerInfo.SignatureAlgorithm = sigAlg
-
-	// populate signerInfo.SignedAttributes.SigningScheme
-	signingSchemeString, ok := protected[headerLabelSigningScheme].(string)
-	if !ok {
-		return &signature.InvalidSignatureError{Msg: "invalid signingScheme"}
-	}
-	signingScheme := signature.SigningScheme(signingSchemeString)
-	signerInfo.SignedAttributes.SigningScheme = signingScheme
-
-	// decode Tag1 Datetime CBOR object into time.Time
-	decMode, err := decOpts.DecMode()
-	if err != nil {
-		return &signature.InvalidSignRequestError{Msg: err.Error()}
-	}
-
-	// populate signerInfo.SignedAttributes.SigningTime
-	signingTimeLabel, ok := signingSchemeTimeLabelMap[signingScheme]
-	if !ok {
-		return &signature.InvalidSignatureError{Msg: "unsupported signingScheme: " + signingSchemeString}
-	}
-	var signingTime time.Time
-	if !e.isSign {
-		signingTime, err = parseTime(protected[signingTimeLabel])
-		if err != nil {
-			return &signature.InvalidSignatureError{Msg: "invalid signingTime under signing scheme: " + signingSchemeString}
-		}
-	} else {
-		raw, ok := protected[signingTimeLabel].(cbor.RawMessage)
-		if !ok {
-			return &signature.InvalidSignatureError{Msg: "in Sign, protected[signingTimeLabel] requires to be cbor.RawMessage"}
-		}
-		decMode.Unmarshal([]byte(raw), &signingTime)
-	}
-	signerInfo.SignedAttributes.SigningTime = signingTime
-
-	// populate signerInfo.SignedAttributes.Expiry
-	var expiry time.Time
-	if !e.isSign {
-		expiry, err = parseTime(protected[headerLabelExpiry])
-		if err != nil {
-			return &signature.InvalidSignatureError{Msg: "invalid expiry"}
-		}
-	} else {
-		raw, ok := protected[headerLabelExpiry].(cbor.RawMessage)
-		if !ok {
-			return &signature.InvalidSignatureError{Msg: "in Sign, protected[headerLabelExpiry] requires to be cbor.RawMessage"}
-		}
-		decMode.Unmarshal([]byte(raw), expiry)
-	}
-	signerInfo.SignedAttributes.Expiry = expiry
-
-	// populate signerInfo.SignedAttributes.ExtendedAttributes
-	signerInfo.SignedAttributes.ExtendedAttributes, err = generateExtendedAttributes(extendedAttributeKeys, protected)
-	return err
 }
 
 // getSignatureAlgorithm picks up a recommended signing algorithm for given
@@ -543,6 +468,81 @@ func generateUnprotectedHeaders(req *signature.SignRequest, signer signer, unpro
 	unprotected[cose.HeaderLabelX5Chain] = certChain
 }
 
+// parseProtectedHeaders parses COSE envelope's protected headers and
+// populates signature.SignerInfo.
+func parseProtectedHeaders(protected cose.ProtectedHeader, signerInfo *signature.SignerInfo, isSign bool) error {
+	// validate critical headers and return extendedAttributeKeys
+	extendedAttributeKeys, err := validateCritHeaders(protected)
+	if err != nil {
+		return err
+	}
+
+	// populate signerInfo.SignatureAlgorithm
+	alg, err := protected.Algorithm()
+	if err != nil {
+		return err
+	}
+	sigAlg, ok := coseAlgSignatureAlgMap[alg]
+	if !ok {
+		return &signature.InvalidSignatureError{Msg: "signature algorithm not supported: " + strconv.Itoa(int(alg))}
+	}
+	signerInfo.SignatureAlgorithm = sigAlg
+
+	// populate signerInfo.SignedAttributes.SigningScheme
+	signingSchemeString, ok := protected[headerLabelSigningScheme].(string)
+	if !ok {
+		return &signature.InvalidSignatureError{Msg: "invalid signingScheme"}
+	}
+	signingScheme := signature.SigningScheme(signingSchemeString)
+	signerInfo.SignedAttributes.SigningScheme = signingScheme
+
+	// decode Tag1 Datetime CBOR object into time.Time
+	decMode, err := decOpts.DecMode()
+	if err != nil {
+		return &signature.InvalidSignRequestError{Msg: err.Error()}
+	}
+
+	// populate signerInfo.SignedAttributes.SigningTime
+	signingTimeLabel, ok := signingSchemeTimeLabelMap[signingScheme]
+	if !ok {
+		return &signature.InvalidSignatureError{Msg: "unsupported signingScheme: " + signingSchemeString}
+	}
+	var signingTime time.Time
+	if isSign {
+		raw, ok := protected[signingTimeLabel].(cbor.RawMessage)
+		if !ok {
+			return &signature.InvalidSignatureError{Msg: "in Sign, protected[signingTimeLabel] requires to be cbor.RawMessage"}
+		}
+		decMode.Unmarshal([]byte(raw), &signingTime)
+	} else {
+		signingTime, err = parseTime(protected[signingTimeLabel])
+		if err != nil {
+			return &signature.InvalidSignatureError{Msg: "invalid signingTime under signing scheme: " + signingSchemeString}
+		}
+	}
+	signerInfo.SignedAttributes.SigningTime = signingTime
+
+	// populate signerInfo.SignedAttributes.Expiry
+	var expiry time.Time
+	if isSign {
+		raw, ok := protected[headerLabelExpiry].(cbor.RawMessage)
+		if !ok {
+			return &signature.InvalidSignatureError{Msg: "in Sign, protected[headerLabelExpiry] requires to be cbor.RawMessage"}
+		}
+		decMode.Unmarshal([]byte(raw), expiry)
+	} else {
+		expiry, err = parseTime(protected[headerLabelExpiry])
+		if err != nil {
+			return &signature.InvalidSignatureError{Msg: "invalid expiry"}
+		}
+	}
+	signerInfo.SignedAttributes.Expiry = expiry
+
+	// populate signerInfo.SignedAttributes.ExtendedAttributes
+	signerInfo.SignedAttributes.ExtendedAttributes, err = generateExtendedAttributes(extendedAttributeKeys, protected)
+	return err
+}
+
 // validateCritHeaders does a two-way check, namely:
 // 1. validate that all critical headers are present in the protected bucket
 // 2. validate that all required headers(as per spec) are marked critical
@@ -623,7 +623,7 @@ func contains(s []interface{}, e interface{}) bool {
 }
 
 // parseTime parses time values from cose.ProtectedHeader
-// in go-cose, CBOR times (tag 0 and 1) decode to time.Time.
+// in go-cose, CBOR times (tag 1) decode to time.Time.
 //
 // For more details: https://github.com/fxamacker/cbor/blob/7704fa5efaf3ef4ac35aff38f50f6ff567793072/decode.go#L52
 func parseTime(timeValue interface{}) (time.Time, error) {
