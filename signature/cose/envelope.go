@@ -23,14 +23,13 @@ var (
 	// encMode is the encoding mode used in Sign
 	encMode cbor.EncMode
 
-	// decOpts is the decoding mode used in Content
+	// decMode is the decoding mode used in Content
 	decMode cbor.DecMode
 )
 
 func init() {
-	var err error
-
-	if err := signature.RegisterEnvelopeType(MediaTypeEnvelope, NewEnvelope, ParseEnvelope); err != nil {
+	err := signature.RegisterEnvelopeType(MediaTypeEnvelope, NewEnvelope, ParseEnvelope)
+	if err != nil {
 		panic(err)
 	}
 
@@ -639,11 +638,7 @@ func decodeTime(timeRaw cbor.RawMessage) (time.Time, error) {
 func parseTime(timeValue interface{}) (time.Time, error) {
 	switch t := timeValue.(type) {
 	case cbor.RawMessage:
-		decTime, err := decodeTime(t)
-		if err != nil {
-			return time.Time{}, err
-		}
-		return decTime, nil
+		return decodeTime(t)
 	// TODO: need a way to check the tag number of datetime inside the signature
 	// and fail if it's a Tag0. We only accept Tag1 datetime.
 	// https://github.com/notaryproject/notation-core-go/issues/97
