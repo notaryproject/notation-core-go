@@ -227,7 +227,7 @@ func TestSignErrors(t *testing.T) {
 		}
 		encOpts.TimeTag = 3
 		_, err = env.Sign(signRequest)
-		expected := errors.New("cbor: invalid TimeTag 3")
+		expected := errors.New("signing time: \"cbor: invalid TimeTag 3\"")
 		if !isErrEqual(expected, err) {
 			t.Fatalf("Sign() expects error: %v, but got: %v.", expected, err)
 		}
@@ -557,64 +557,36 @@ func TestSignerInfoErrors(t *testing.T) {
 		if err != nil {
 			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
 		}
+		env.base.Headers.Protected[headerLabelSigningTime] = cbor.RawMessage{}
 		decOpts.TimeTag = 4
 		_, err = env.Content()
-		expected := errors.New("cbor: invalid TimeTag 4")
+		expected := errors.New("invalid signingTime: cbor: invalid TimeTag 4")
 		if !isErrEqual(expected, err) {
 			t.Fatalf("Content() expects error: %v, but got: %v.", expected, err)
 		}
 	})
 
-	t.Run("when COSE envelope protected header has invalid signingTime in sign", func(t *testing.T) {
-		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
-		if err != nil {
-			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
-		}
-		env.base.Headers.Protected[headerLabelSigningTime] = "invalid"
-		env.isSign = true
-		_, err = env.Content()
-		expected := errors.New("in Sign, protected[signingTimeLabel] requires to be cbor.RawMessage")
-		if !isErrEqual(expected, err) {
-			t.Fatalf("Content() expects error: %v, but got: %v.", expected, err)
-		}
-	})
-
-	t.Run("when COSE envelope protected header has invalid signingTime in verify", func(t *testing.T) {
+	t.Run("when COSE envelope protected header has invalid signingTime", func(t *testing.T) {
 		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
 		if err != nil {
 			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
 		}
 		env.base.Headers.Protected[headerLabelSigningTime] = "invalid"
 		_, err = env.Content()
-		expected := errors.New("invalid signingTime under signing scheme: notary.x509")
+		expected := errors.New("invalid signingTime: invalid timeValue type")
 		if !isErrEqual(expected, err) {
 			t.Fatalf("Content() expects error: %v, but got: %v.", expected, err)
 		}
 	})
 
-	t.Run("when COSE envelope protected header has invalid expiry in sign", func(t *testing.T) {
-		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
-		if err != nil {
-			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
-		}
-		env.base.Headers.Protected[headerLabelSigningTime] = cbor.RawMessage{}
-		env.base.Headers.Protected[headerLabelExpiry] = "invalid"
-		env.isSign = true
-		_, err = env.Content()
-		expected := errors.New("in Sign, protected[headerLabelExpiry] requires to be cbor.RawMessage")
-		if !isErrEqual(expected, err) {
-			t.Fatalf("Content() expects error: %v, but got: %v.", expected, err)
-		}
-	})
-
-	t.Run("when COSE envelope protected header has invalid expiry in verify", func(t *testing.T) {
+	t.Run("when COSE envelope protected header has invalid expiry", func(t *testing.T) {
 		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
 		if err != nil {
 			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
 		}
 		env.base.Headers.Protected[headerLabelExpiry] = "invalid"
 		_, err = env.Content()
-		expected := errors.New("invalid expiry")
+		expected := errors.New("invalid expiry: invalid timeValue type")
 		if !isErrEqual(expected, err) {
 			t.Fatalf("Content() expects error: %v, but got: %v.", expected, err)
 		}

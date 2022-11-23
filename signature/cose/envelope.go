@@ -19,10 +19,28 @@ import (
 // MediaTypeEnvelope is the COSE signature envelope blob mediaType.
 const MediaTypeEnvelope = "application/cose"
 
+var (
+	// encOpts is the encoding options used in Sign
+	encOpts cbor.EncOptions
+
+	// decOpts is the decoding options used in Content
+	decOpts cbor.DecOptions
+)
+
 func init() {
 	if err := signature.RegisterEnvelopeType(MediaTypeEnvelope, NewEnvelope, ParseEnvelope); err != nil {
 		panic(err)
 	}
+
+	encOpts = cbor.EncOptions{
+		Time:    cbor.TimeUnix,
+		TimeTag: cbor.EncTagRequired,
+	}
+
+	decOpts = cbor.DecOptions{
+		TimeTag: cbor.DecTagRequired,
+	}
+
 }
 
 // Protected Headers
@@ -55,17 +73,6 @@ var coseAlgSignatureAlgMap = map[cose.Algorithm]signature.Algorithm{
 var signingSchemeTimeLabelMap = map[signature.SigningScheme]string{
 	signature.SigningSchemeX509:                 headerLabelSigningTime,
 	signature.SigningSchemeX509SigningAuthority: headerLabelAuthenticSigningTime,
-}
-
-// Encoding options used in Sign
-var encOpts = cbor.EncOptions{
-	Time:    cbor.TimeUnix,
-	TimeTag: cbor.EncTagRequired,
-}
-
-// Decoding options used in Content
-var decOpts = cbor.DecOptions{
-	TimeTag: cbor.DecTagRequired,
 }
 
 // signer interface is a cose.Signer with certificate chain fetcher.
@@ -155,8 +162,7 @@ func (signer *localSigner) CertificateChain() []*x509.Certificate {
 }
 
 type envelope struct {
-	isSign bool
-	base   *cose.Sign1Message
+	base *cose.Sign1Message
 }
 
 // NewEnvelope initializes an empty COSE signature envelope.
@@ -218,7 +224,6 @@ func (e *envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 		return nil, &signature.InvalidSignatureError{Msg: err.Error()}
 	}
 	e.base = msg
-	e.isSign = true
 
 	return encoded, nil
 }
@@ -312,7 +317,7 @@ func (e *envelope) signerInfo() (*signature.SignerInfo, error) {
 
 	// parse protected headers of COSE envelope and populate related
 	// signerInfo fields
-	err := parseProtectedHeaders(e.base.Headers.Protected, &signerInfo, e.isSign)
+	err := parseProtectedHeaders(e.base.Headers.Protected, &signerInfo)
 	if err != nil {
 		return nil, &signature.InvalidSignatureError{Msg: err.Error()}
 	}
@@ -404,22 +409,16 @@ func generateProtectedHeaders(req *signature.SignRequest, protected cose.Protect
 	crit := []interface{}{headerLabelSigningScheme}
 	protected[headerLabelSigningScheme] = string(req.SigningScheme)
 
-	// generate Tag1 Datetime CBOR object
-	encMode, err := encOpts.EncMode()
-	if err != nil {
-		return &signature.InvalidSignRequestError{Msg: err.Error()}
-	}
-
 	// signingTime/authenticSigningTime
 	signingTimeLabel, ok := signingSchemeTimeLabelMap[req.SigningScheme]
 	if !ok {
 		return &signature.InvalidSignRequestError{Msg: "signing scheme: require notary.x509 or notary.x509.signingAuthority"}
 	}
-	signingTimeCBOR, err := encMode.Marshal(req.SigningTime)
+	rawTimeCBOR, err := encodeTime(req.SigningTime)
 	if err != nil {
-		return &signature.InvalidSignRequestError{Msg: err.Error()}
+		return &signature.InvalidSignRequestError{Msg: fmt.Sprintf("signing time: %q", err)}
 	}
-	protected[signingTimeLabel] = cbor.RawMessage(signingTimeCBOR)
+	protected[signingTimeLabel] = rawTimeCBOR
 	if signingTimeLabel == headerLabelAuthenticSigningTime {
 		crit = append(crit, headerLabelAuthenticSigningTime)
 	}
@@ -427,11 +426,11 @@ func generateProtectedHeaders(req *signature.SignRequest, protected cose.Protect
 	// expiry
 	if !req.Expiry.IsZero() {
 		crit = append(crit, headerLabelExpiry)
-		expiryCBOR, err := encMode.Marshal(req.Expiry)
+		rawExpiryCBOR, err := encodeTime(req.Expiry)
 		if err != nil {
-			return &signature.InvalidSignRequestError{Msg: err.Error()}
+			return &signature.InvalidSignRequestError{Msg: fmt.Sprintf("expiry: %q", err)}
 		}
-		protected[headerLabelExpiry] = cbor.RawMessage(expiryCBOR)
+		protected[headerLabelExpiry] = rawExpiryCBOR
 	}
 
 	// extended attributes
@@ -470,7 +469,7 @@ func generateUnprotectedHeaders(req *signature.SignRequest, signer signer, unpro
 
 // parseProtectedHeaders parses COSE envelope's protected headers and
 // populates signature.SignerInfo.
-func parseProtectedHeaders(protected cose.ProtectedHeader, signerInfo *signature.SignerInfo, isSign bool) error {
+func parseProtectedHeaders(protected cose.ProtectedHeader, signerInfo *signature.SignerInfo) error {
 	// validate critical headers and return extendedAttributeKeys
 	extendedAttributeKeys, err := validateCritHeaders(protected)
 	if err != nil {
@@ -496,45 +495,21 @@ func parseProtectedHeaders(protected cose.ProtectedHeader, signerInfo *signature
 	signingScheme := signature.SigningScheme(signingSchemeString)
 	signerInfo.SignedAttributes.SigningScheme = signingScheme
 
-	// decode Tag1 Datetime CBOR object into time.Time
-	decMode, err := decOpts.DecMode()
-	if err != nil {
-		return &signature.InvalidSignRequestError{Msg: err.Error()}
-	}
-
 	// populate signerInfo.SignedAttributes.SigningTime
 	signingTimeLabel, ok := signingSchemeTimeLabelMap[signingScheme]
 	if !ok {
 		return &signature.InvalidSignatureError{Msg: "unsupported signingScheme: " + signingSchemeString}
 	}
-	var signingTime time.Time
-	if isSign {
-		raw, ok := protected[signingTimeLabel].(cbor.RawMessage)
-		if !ok {
-			return &signature.InvalidSignatureError{Msg: "in Sign, protected[signingTimeLabel] requires to be cbor.RawMessage"}
-		}
-		decMode.Unmarshal([]byte(raw), &signingTime)
-	} else {
-		signingTime, err = parseTime(protected[signingTimeLabel])
-		if err != nil {
-			return &signature.InvalidSignatureError{Msg: "invalid signingTime under signing scheme: " + signingSchemeString}
-		}
+	signingTime, err := parseTime(protected[signingTimeLabel])
+	if err != nil {
+		return &signature.InvalidSignatureError{Msg: fmt.Sprintf("invalid signingTime: %v", err)}
 	}
 	signerInfo.SignedAttributes.SigningTime = signingTime
 
 	// populate signerInfo.SignedAttributes.Expiry
-	var expiry time.Time
-	if isSign {
-		raw, ok := protected[headerLabelExpiry].(cbor.RawMessage)
-		if !ok {
-			return &signature.InvalidSignatureError{Msg: "in Sign, protected[headerLabelExpiry] requires to be cbor.RawMessage"}
-		}
-		decMode.Unmarshal([]byte(raw), expiry)
-	} else {
-		expiry, err = parseTime(protected[headerLabelExpiry])
-		if err != nil {
-			return &signature.InvalidSignatureError{Msg: "invalid expiry"}
-		}
+	expiry, err := parseTime(protected[headerLabelExpiry])
+	if err != nil {
+		return &signature.InvalidSignatureError{Msg: fmt.Sprintf("invalid expiry: %v", err)}
 	}
 	signerInfo.SignedAttributes.Expiry = expiry
 
@@ -622,14 +597,54 @@ func contains(s []interface{}, e interface{}) bool {
 	return false
 }
 
+// encodeTime generates a Tag1 Datetime CBOR object and casts it to
+// cbor.RawMessage
+func encodeTime(t time.Time) (cbor.RawMessage, error) {
+	encMode, err := encOpts.EncMode()
+	if err != nil {
+		return nil, err
+	}
+
+	timeCBOR, err := encMode.Marshal(t)
+	if err != nil {
+		return nil, err
+	}
+
+	return cbor.RawMessage(timeCBOR), nil
+}
+
+// decodeTime decodes cbor.RawMessage of Tag1 Datetime CBOR object
+// into time.Time
+func decodeTime(timeRaw cbor.RawMessage) (time.Time, error) {
+	decMode, err := decOpts.DecMode()
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	var t time.Time
+	err = decMode.Unmarshal([]byte(timeRaw), &t)
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	return t, nil
+}
+
 // parseTime parses time values from cose.ProtectedHeader
 // in go-cose, CBOR times (tag 1) decode to time.Time.
 //
 // For more details: https://github.com/fxamacker/cbor/blob/7704fa5efaf3ef4ac35aff38f50f6ff567793072/decode.go#L52
 func parseTime(timeValue interface{}) (time.Time, error) {
-	t, ok := timeValue.(time.Time)
-	if !ok {
-		return time.Time{}, errors.New("invalid date/time type")
+	switch t := timeValue.(type) {
+	case cbor.RawMessage:
+		decTime, err := decodeTime(t)
+		if err != nil {
+			return time.Time{}, err
+		}
+		return decTime, nil
+	case time.Time:
+		return t, nil
 	}
-	return t, nil
+
+	return time.Time{}, errors.New("invalid timeValue type")
 }
