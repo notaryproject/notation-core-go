@@ -220,19 +220,6 @@ func TestSignErrors(t *testing.T) {
 		}
 	})
 
-	t.Run("when encOpts.TimeTag is invalid", func(t *testing.T) {
-		signRequest, err := getSignRequest()
-		if err != nil {
-			t.Fatalf("getSignRequest() failed. Error = %v", err)
-		}
-		encOpts.TimeTag = 3
-		_, err = env.Sign(signRequest)
-		expected := errors.New("signing time: \"cbor: invalid TimeTag 3\"")
-		if !isErrEqual(expected, err) {
-			t.Fatalf("Sign() expects error: %v, but got: %v.", expected, err)
-		}
-	})
-
 	t.Run("when an extended signed attribute already exists in the protected header", func(t *testing.T) {
 		signRequest, err := getSignRequest()
 		if err != nil {
@@ -552,15 +539,16 @@ func TestSignerInfoErrors(t *testing.T) {
 		}
 	})
 
-	t.Run("when decOpts.TimeTag is invalid", func(t *testing.T) {
+	t.Run("when decodeTime fails", func(t *testing.T) {
 		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
 		if err != nil {
 			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
 		}
-		env.base.Headers.Protected[headerLabelSigningTime] = cbor.RawMessage{}
-		decOpts.TimeTag = 4
+		raw := cbor.RawMessage{}
+		env.base.Headers.Protected[headerLabelSigningTime] = raw
+		raw = nil
 		_, err = env.Content()
-		expected := errors.New("invalid signingTime: cbor: invalid TimeTag 4")
+		expected := errors.New("invalid signingTime: EOF")
 		if !isErrEqual(expected, err) {
 			t.Fatalf("Content() expects error: %v, but got: %v.", expected, err)
 		}
@@ -695,10 +683,6 @@ func TestSignAndParseVerify(t *testing.T) {
 }
 
 func newSignRequest(signingScheme string, keyType signature.KeyType, size int) (*signature.SignRequest, error) {
-	encOpts = cbor.EncOptions{
-		Time:    cbor.TimeUnix,
-		TimeTag: cbor.EncTagRequired,
-	}
 	signer, err := signaturetest.GetTestLocalSigner(keyType, size)
 	if err != nil {
 		return nil, err
@@ -725,9 +709,6 @@ func getSignRequest() (*signature.SignRequest, error) {
 }
 
 func getVerifyCOSE(signingScheme string, keyType signature.KeyType, size int) (envelope, error) {
-	decOpts = cbor.DecOptions{
-		TimeTag: cbor.DecTagRequired,
-	}
 	signRequest, err := newSignRequest(signingScheme, keyType, size)
 	if err != nil {
 		return createNewEnv(nil), err

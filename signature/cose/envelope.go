@@ -20,25 +20,35 @@ import (
 const MediaTypeEnvelope = "application/cose"
 
 var (
-	// encOpts is the encoding options used in Sign
-	encOpts cbor.EncOptions
+	// encMode is the encoding mode used in Sign
+	encMode cbor.EncMode
 
-	// decOpts is the decoding options used in Content
-	decOpts cbor.DecOptions
+	// decOpts is the decoding mode used in Content
+	decMode cbor.DecMode
 )
 
 func init() {
+	var err error
+
 	if err := signature.RegisterEnvelopeType(MediaTypeEnvelope, NewEnvelope, ParseEnvelope); err != nil {
 		panic(err)
 	}
 
-	encOpts = cbor.EncOptions{
+	encOpts := cbor.EncOptions{
 		Time:    cbor.TimeUnix,
 		TimeTag: cbor.EncTagRequired,
 	}
+	encMode, err = encOpts.EncMode()
+	if err != nil {
+		panic(err)
+	}
 
-	decOpts = cbor.DecOptions{
+	decOpts := cbor.DecOptions{
 		TimeTag: cbor.DecTagRequired,
+	}
+	decMode, err = decOpts.DecMode()
+	if err != nil {
+		panic(err)
 	}
 
 }
@@ -507,11 +517,13 @@ func parseProtectedHeaders(protected cose.ProtectedHeader, signerInfo *signature
 	signerInfo.SignedAttributes.SigningTime = signingTime
 
 	// populate signerInfo.SignedAttributes.Expiry
-	expiry, err := parseTime(protected[headerLabelExpiry])
-	if err != nil {
-		return &signature.InvalidSignatureError{Msg: fmt.Sprintf("invalid expiry: %v", err)}
+	if _, ok := protected[headerLabelExpiry]; ok {
+		expiry, err := parseTime(protected[headerLabelExpiry])
+		if err != nil {
+			return &signature.InvalidSignatureError{Msg: fmt.Sprintf("invalid expiry: %v", err)}
+		}
+		signerInfo.SignedAttributes.Expiry = expiry
 	}
-	signerInfo.SignedAttributes.Expiry = expiry
 
 	// populate signerInfo.SignedAttributes.ExtendedAttributes
 	signerInfo.SignedAttributes.ExtendedAttributes, err = generateExtendedAttributes(extendedAttributeKeys, protected)
@@ -600,11 +612,6 @@ func contains(s []interface{}, e interface{}) bool {
 // encodeTime generates a Tag1 Datetime CBOR object and casts it to
 // cbor.RawMessage
 func encodeTime(t time.Time) (cbor.RawMessage, error) {
-	encMode, err := encOpts.EncMode()
-	if err != nil {
-		return nil, err
-	}
-
 	timeCBOR, err := encMode.Marshal(t)
 	if err != nil {
 		return nil, err
@@ -616,13 +623,8 @@ func encodeTime(t time.Time) (cbor.RawMessage, error) {
 // decodeTime decodes cbor.RawMessage of Tag1 Datetime CBOR object
 // into time.Time
 func decodeTime(timeRaw cbor.RawMessage) (time.Time, error) {
-	decMode, err := decOpts.DecMode()
-	if err != nil {
-		return time.Time{}, err
-	}
-
 	var t time.Time
-	err = decMode.Unmarshal([]byte(timeRaw), &t)
+	err := decMode.Unmarshal([]byte(timeRaw), &t)
 	if err != nil {
 		return time.Time{}, err
 	}
@@ -642,6 +644,9 @@ func parseTime(timeValue interface{}) (time.Time, error) {
 			return time.Time{}, err
 		}
 		return decTime, nil
+	// TODO: need a way to check the tag number of datetime inside the signature
+	// and fail if it's a Tag0. We only accept Tag1 datetime.
+	// https://github.com/notaryproject/notation-core-go/issues/97
 	case time.Time:
 		return t, nil
 	}
