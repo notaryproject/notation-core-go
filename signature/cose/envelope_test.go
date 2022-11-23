@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fxamacker/cbor/v2"
 	"github.com/notaryproject/notation-core-go/signature"
 	"github.com/notaryproject/notation-core-go/signature/signaturetest"
 	"github.com/notaryproject/notation-core-go/testhelper"
@@ -538,6 +539,21 @@ func TestSignerInfoErrors(t *testing.T) {
 		}
 	})
 
+	t.Run("when decodeTime fails", func(t *testing.T) {
+		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
+		if err != nil {
+			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
+		}
+		raw := cbor.RawMessage{}
+		env.base.Headers.Protected[headerLabelSigningTime] = raw
+		raw = nil
+		_, err = env.Content()
+		expected := errors.New("invalid signingTime: EOF")
+		if !isErrEqual(expected, err) {
+			t.Fatalf("Content() expects error: %v, but got: %v.", expected, err)
+		}
+	})
+
 	t.Run("when COSE envelope protected header has invalid signingTime", func(t *testing.T) {
 		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
 		if err != nil {
@@ -545,7 +561,7 @@ func TestSignerInfoErrors(t *testing.T) {
 		}
 		env.base.Headers.Protected[headerLabelSigningTime] = "invalid"
 		_, err = env.Content()
-		expected := errors.New("invalid signingTime under signing scheme: notary.x509")
+		expected := errors.New("invalid signingTime: invalid timeValue type")
 		if !isErrEqual(expected, err) {
 			t.Fatalf("Content() expects error: %v, but got: %v.", expected, err)
 		}
@@ -558,7 +574,7 @@ func TestSignerInfoErrors(t *testing.T) {
 		}
 		env.base.Headers.Protected[headerLabelExpiry] = "invalid"
 		_, err = env.Content()
-		expected := errors.New("expiry requires int64 type")
+		expected := errors.New("invalid expiry: invalid timeValue type")
 		if !isErrEqual(expected, err) {
 			t.Fatalf("Content() expects error: %v, but got: %v.", expected, err)
 		}

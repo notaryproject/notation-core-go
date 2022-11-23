@@ -17,8 +17,6 @@ import (
 )
 
 type sign1 struct {
-	SigningTime        int64       `json:"signingTime"`
-	Expiry             int64       `json:"expiry"`
 	Payload            string      `json:"payload"`
 	ProtectedHeaders   *cborStruct `json:"protectedHeaders"`
 	UnprotectedHeaders *cborStruct `json:"unprotectedHeaders"`
@@ -125,8 +123,8 @@ func getSignReq(sign1 *sign1) (*signature.SignRequest, error) {
 			Content:     []byte("hello COSE"),
 		},
 		Signer:      signer,
-		SigningTime: time.Unix(sign1.SigningTime, 0),
-		Expiry:      time.Unix(sign1.Expiry, 0),
+		SigningTime: time.Unix(1661321924, 0),
+		Expiry:      time.Unix(1661408324, 0),
 		ExtendedSignedAttributes: []signature.Attribute{
 			{Key: "signedCritKey1", Value: "signedCritValue1", Critical: true},
 			{Key: "signedKey1", Value: "signedValue1", Critical: false},
@@ -195,7 +193,7 @@ func generateSign1(msg *cose.Sign1Message) *cose.Sign1Message {
 	newMsg.Headers.Protected = msg.Headers.Protected
 	newMsg.Headers.Unprotected["io.cncf.notary.signingAgent"] = msg.Headers.Unprotected["io.cncf.notary.signingAgent"]
 	newMsg.Payload = msg.Payload
-	newMsg.Signature = hexToBytes("31b6cb0cd9c974b39d603465811c2aa3d96a5dff89f80b33cb4e321dc6e68a29b4ba65c00f0f9f22ee4376abfaec2cba6fd21c6881ecaab25775e3fb9226a88cf41660b2d6fd14184540d07ded3744e19ff9dbdd081e15c8f77bb6ca3072ef57141594fad4ea57d206c6b8dd3a6e0a0a7ed764ff08dbcc439bd722e1b3d282921a579a3d860cceea37d633184f9316cb6b4fa4ea550da5ad9e5bf3c2d768a787da76e594290cb10b5b1ead8b7e75967de28e9ff429fe9db814380608a15674f9741563902a620f312213d9dce5c264017cbcb3bb4f8cebee0d5ef32b364f68c11cba5630fac8e3165d06fdebaca095267223c552fe605b4529f25b65f8fa47b010b9096cec275307e82b1062f660a73e07d0b85b978b4a59b5cde51fc9a031b488a3deb38fc312a64ef2ec1250238ae16cfefc00d9aa1ceb938fe6de51f265eebe975c29f4cff8ab0afb40c45e8c985d17347bf20f455851c1a46ab655f51a159cf8910a424c5a8bbdd239e49e43a73c7b5174de29e835063e5e64b459558de5")
+	newMsg.Signature = hexToBytes("5bfec0a345098b9b9b6fb7358face7ab76d191b648ccd19e36fb03c2085ea072ec050d9c6e4fa4845478386d0831a2360d343a1ff027bdd56d496f996b90ac2db9da2460baffec21db7c0ca759ba83ab35cdf521c0926138681bde05277e2976cedbeb4040c930908ef2b113d935378bd3c5e7740119b2b81c59e9c6c24411abdf699547864f68f2e0f6346eeff627bf0d971abdf94e67e12a10134ccbbadfa0ab4031b18705696a9567a0f1f061247fdd00d343ea3a45f63da7f80771612b38fc9877375bcbce28aef1f3ee2b25869722c24737c49d8c6711376dd62b3d32b24d489746e2ba5d25fa76febcc6abf9d2baee67221c85a7a8f8763dadc5e20bb8c5c03a75c68211557813d2d6adea56ec5526f78c18460b1944c8307a4b0ed64a6d6b4abed5067de5a5ad38948a2ea140b01a7762c15b3e63d7d7bdc8962e6c4bff18b34d2a19fc627f02ebf88daf7fb25c55ce1b9ca06ade02f9d60ad16cb306f433f692e598132d67b5d0a02193191d5c9cd52ad81f4e31917e5b5d40ef5ce7")
 	return newMsg
 }
 
