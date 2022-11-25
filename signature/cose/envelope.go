@@ -505,7 +505,7 @@ func parseProtectedHeaders(rawProtected cbor.RawMessage, protected cose.Protecte
 	}
 	signerInfo.SignedAttributes.SigningScheme = signingScheme
 
-	// validates Tag1 Datetime CBOR object
+	// validates Tag1 Datetime CBOR object for signing time and expiry
 	err = validateTimeTag(rawProtected, signingTimeLabel)
 	if err != nil {
 		return &signature.InvalidSignatureError{Msg: "validateTimeTag failed: " + err.Error()}
@@ -641,9 +641,6 @@ func parseTime(timeValue interface{}) (time.Time, error) {
 	switch t := timeValue.(type) {
 	case cbor.RawMessage:
 		return decodeTime(t)
-	// TODO: need a way to check the tag number of datetime inside the signature
-	// and fail if it's a Tag0. We only accept Tag1 datetime.
-	// https://github.com/notaryproject/notation-core-go/issues/97
 	case time.Time:
 		return t, nil
 	}
