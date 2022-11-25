@@ -500,21 +500,19 @@ func parseProtectedHeaders(rawProtected cbor.RawMessage, protected cose.Protecte
 	signerInfo.SignatureAlgorithm = sigAlg
 
 	// populate signerInfo.SignedAttributes.SigningScheme
-	signingSchemeString, ok := protected[headerLabelSigningScheme].(string)
-	if !ok {
-		return &signature.InvalidSignatureError{Msg: "invalid signingScheme"}
-	}
+	// headerLabelSigningScheme type already checked in validateCritHeaders
+	signingSchemeString := protected[headerLabelSigningScheme].(string)
 	signingScheme := signature.SigningScheme(signingSchemeString)
-	signerInfo.SignedAttributes.SigningScheme = signingScheme
-
-	// check existence of Tag0 Datetime
 	signingTimeLabel, ok := signingSchemeTimeLabelMap[signingScheme]
 	if !ok {
 		return &signature.InvalidSignatureError{Msg: "unsupported signingScheme: " + signingSchemeString}
 	}
+	signerInfo.SignedAttributes.SigningScheme = signingScheme
+
+	// check existence of Tag0 Datetime
 	err = validateTimeTag(rawProtected, signingTimeLabel)
 	if err != nil {
-		return &signature.InvalidSignatureError{Msg: "validateTimeTag failed with error : " + err.Error()}
+		return &signature.InvalidSignatureError{Msg: "validateTimeTag failed: " + err.Error()}
 	}
 
 	// populate signerInfo.SignedAttributes.SigningTime
@@ -596,10 +594,8 @@ func validateCritHeaders(protected cose.ProtectedHeader) ([]interface{}, error) 
 // generateExtendedAttributes generates []signature.Attribute during
 // SignerInfo process.
 func generateExtendedAttributes(extendedAttributeKeys []interface{}, protected cose.ProtectedHeader) ([]signature.Attribute, error) {
-	criticalHeaders, ok := protected[cose.HeaderLabelCritical].([]interface{})
-	if !ok {
-		return nil, &signature.InvalidSignatureError{Msg: "invalid critical headers"}
-	}
+	// cose.HeaderLabelCritical type already checked in validateCritHeaders
+	criticalHeaders := protected[cose.HeaderLabelCritical].([]interface{})
 	var extendedAttr []signature.Attribute
 	for _, key := range extendedAttributeKeys {
 		extendedAttr = append(extendedAttr, signature.Attribute{
@@ -666,10 +662,14 @@ func validateTimeTag(raw cbor.RawMessage, signingTimeLabel string) error {
 	if len(raw) == 0 {
 		return nil
 	}
-	var encoded []byte
-	decMode.Unmarshal(raw, &encoded)
+	var decoded []byte
+	err := decMode.Unmarshal(raw, &decoded)
+	if err != nil {
+		return err
+	}
 	cborMap := timeTagMap{}
-	cbor.Unmarshal(encoded, &cborMap)
+	cbor.Unmarshal(decoded, &cborMap)
+
 	signingTime, ok := cborMap[signingTimeLabel]
 	if ok {
 		signingTimeTag, err := getTag(signingTime)
@@ -701,5 +701,6 @@ func getTag(raw cbor.RawMessage) (uint64, error) {
 	if err != nil {
 		return 0, err
 	}
+
 	return rawTag.Number, nil
 }

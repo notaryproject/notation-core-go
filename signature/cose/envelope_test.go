@@ -474,6 +474,19 @@ func TestSignerInfoErrors(t *testing.T) {
 		}
 	})
 
+	t.Run("when COSE envelope protected header has invalid crit", func(t *testing.T) {
+		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
+		if err != nil {
+			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
+		}
+		env.base.Headers.Protected[cose.HeaderLabelCritical] = "invalid"
+		_, err = env.Content()
+		expected := errors.New("invalid crit header")
+		if !isErrEqual(expected, err) {
+			t.Fatalf("Content() expects error: %v, but got: %v.", expected, err)
+		}
+	})
+
 	t.Run("when COSE envelope protected header signingScheme has wrong type", func(t *testing.T) {
 		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
 		if err != nil {
@@ -534,6 +547,62 @@ func TestSignerInfoErrors(t *testing.T) {
 		env.base.Headers.Protected[headerLabelSigningScheme] = "unsupported"
 		_, err = env.Content()
 		expected := errors.New("unsupported signingScheme: unsupported")
+		if !isErrEqual(expected, err) {
+			t.Fatalf("Content() expects error: %v, but got: %v.", expected, err)
+		}
+	})
+
+	t.Run("when validateTimeTag has Tag0 signingTime", func(t *testing.T) {
+		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
+		if err != nil {
+			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
+		}
+		raw := generateTestRawMessage(env.base.Headers.RawProtected, headerLabelSigningTime, false)
+		env.base.Headers.RawProtected = raw
+		_, err = env.Content()
+		expected := errors.New("validateTimeTag failed: only supports Tag1 Datetime CBOR object")
+		if !isErrEqual(expected, err) {
+			t.Fatalf("Content() expects error: %v, but got: %v.", expected, err)
+		}
+	})
+
+	t.Run("when validateTimeTag has Tag0 expiry", func(t *testing.T) {
+		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
+		if err != nil {
+			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
+		}
+		raw := generateTestRawMessage(env.base.Headers.RawProtected, headerLabelExpiry, false)
+		env.base.Headers.RawProtected = raw
+		_, err = env.Content()
+		expected := errors.New("validateTimeTag failed: only supports Tag1 Datetime CBOR object")
+		if !isErrEqual(expected, err) {
+			t.Fatalf("Content() expects error: %v, but got: %v.", expected, err)
+		}
+	})
+
+	t.Run("when validateTimeTag fails at signgingTime getTag", func(t *testing.T) {
+		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
+		if err != nil {
+			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
+		}
+		raw := generateTestRawMessage(env.base.Headers.RawProtected, headerLabelSigningTime, true)
+		env.base.Headers.RawProtected = raw
+		_, err = env.Content()
+		expected := errors.New("validateTimeTag failed: cbor: cannot unmarshal UTF-8 text string into Go value of type cbor.RawTag")
+		if !isErrEqual(expected, err) {
+			t.Fatalf("Content() expects error: %v, but got: %v.", expected, err)
+		}
+	})
+
+	t.Run("when validateTimeTag fails at expiry getTag", func(t *testing.T) {
+		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
+		if err != nil {
+			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
+		}
+		raw := generateTestRawMessage(env.base.Headers.RawProtected, headerLabelExpiry, true)
+		env.base.Headers.RawProtected = raw
+		_, err = env.Content()
+		expected := errors.New("validateTimeTag failed: cbor: cannot unmarshal UTF-8 text string into Go value of type cbor.RawTag")
 		if !isErrEqual(expected, err) {
 			t.Fatalf("Content() expects error: %v, but got: %v.", expected, err)
 		}
@@ -839,4 +908,27 @@ func createNewEnv(msg *cose.Sign1Message) envelope {
 	return envelope{
 		base: msg,
 	}
+}
+
+func generateTestRawMessage(raw cbor.RawMessage, label string, unmarshalError bool) cbor.RawMessage {
+	var decoded []byte
+	decMode.Unmarshal(raw, &decoded)
+	cborMap := timeTagMap{}
+	cbor.Unmarshal(decoded, &cborMap)
+	if unmarshalError {
+		cborMap[label] = cbor.RawMessage([]byte("invalid"))
+	} else {
+		// construct Tag0 Datetime CBOR object
+		encOptsTag0 := cbor.EncOptions{
+			Time:    cbor.TimeRFC3339,
+			TimeTag: cbor.EncTagRequired,
+		}
+		encModeTag0, _ := encOptsTag0.EncMode()
+		timeCBOR, _ := encModeTag0.Marshal(time.Time{})
+		cborMap[label] = timeCBOR
+	}
+	encoded, _ := cbor.Marshal(cborMap)
+	resRaw, _ := encMode.Marshal(encoded)
+
+	return resRaw
 }
