@@ -49,7 +49,6 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
-
 }
 
 // Protected Headers
@@ -83,6 +82,10 @@ var signingSchemeTimeLabelMap = map[signature.SigningScheme]string{
 	signature.SigningSchemeX509:                 headerLabelSigningTime,
 	signature.SigningSchemeX509SigningAuthority: headerLabelAuthenticSigningTime,
 }
+
+// timeTagMap holds Tag0 or Tag1 Datetime CBOR objects for expiry and
+// signingTime.
+type timeTagMap map[string]cbor.RawMessage
 
 // signer interface is a cose.Signer with certificate chain fetcher.
 type signer interface {
@@ -326,7 +329,7 @@ func (e *envelope) signerInfo() (*signature.SignerInfo, error) {
 
 	// parse protected headers of COSE envelope and populate related
 	// signerInfo fields
-	err := parseProtectedHeaders(e.base.Headers.Protected, &signerInfo)
+	err := parseProtectedHeaders(e.base.Headers.RawProtected, e.base.Headers.Protected, &signerInfo)
 	if err != nil {
 		return nil, &signature.InvalidSignatureError{Msg: err.Error()}
 	}
@@ -478,7 +481,7 @@ func generateUnprotectedHeaders(req *signature.SignRequest, signer signer, unpro
 
 // parseProtectedHeaders parses COSE envelope's protected headers and
 // populates signature.SignerInfo.
-func parseProtectedHeaders(protected cose.ProtectedHeader, signerInfo *signature.SignerInfo) error {
+func parseProtectedHeaders(rawProtected cbor.RawMessage, protected cose.ProtectedHeader, signerInfo *signature.SignerInfo) error {
 	// validate critical headers and return extendedAttributeKeys
 	extendedAttributeKeys, err := validateCritHeaders(protected)
 	if err != nil {
@@ -504,12 +507,19 @@ func parseProtectedHeaders(protected cose.ProtectedHeader, signerInfo *signature
 	signingScheme := signature.SigningScheme(signingSchemeString)
 	signerInfo.SignedAttributes.SigningScheme = signingScheme
 
-	// populate signerInfo.SignedAttributes.SigningTime
+	// check existence of Tag0 Datetime
 	signingTimeLabel, ok := signingSchemeTimeLabelMap[signingScheme]
 	if !ok {
 		return &signature.InvalidSignatureError{Msg: "unsupported signingScheme: " + signingSchemeString}
 	}
+	err = validateTimeTag(rawProtected, signingTimeLabel)
+	if err != nil {
+		return &signature.InvalidSignatureError{Msg: "validateTimeTag failed with error : " + err.Error()}
+	}
+
+	// populate signerInfo.SignedAttributes.SigningTime
 	signingTime, err := parseTime(protected[signingTimeLabel])
+	//signingTime, err := decodeTime(signingTimeRaw)
 	if err != nil {
 		return &signature.InvalidSignatureError{Msg: fmt.Sprintf("invalid signingTime: %v", err)}
 	}
@@ -517,7 +527,9 @@ func parseProtectedHeaders(protected cose.ProtectedHeader, signerInfo *signature
 
 	// populate signerInfo.SignedAttributes.Expiry
 	if _, ok := protected[headerLabelExpiry]; ok {
+		//if len(timeTagCBOR.Expiry) > 0 {
 		expiry, err := parseTime(protected[headerLabelExpiry])
+		//expiry, err := decodeTime(timeTagCBOR.Expiry)
 		if err != nil {
 			return &signature.InvalidSignatureError{Msg: fmt.Sprintf("invalid expiry: %v", err)}
 		}
@@ -526,6 +538,7 @@ func parseProtectedHeaders(protected cose.ProtectedHeader, signerInfo *signature
 
 	// populate signerInfo.SignedAttributes.ExtendedAttributes
 	signerInfo.SignedAttributes.ExtendedAttributes, err = generateExtendedAttributes(extendedAttributeKeys, protected)
+
 	return err
 }
 
@@ -647,4 +660,46 @@ func parseTime(timeValue interface{}) (time.Time, error) {
 	}
 
 	return time.Time{}, errors.New("invalid timeValue type")
+}
+
+func validateTimeTag(raw cbor.RawMessage, signingTimeLabel string) error {
+	if len(raw) == 0 {
+		return nil
+	}
+	var encoded []byte
+	decMode.Unmarshal(raw, &encoded)
+	cborMap := timeTagMap{}
+	cbor.Unmarshal(encoded, &cborMap)
+	signingTime, ok := cborMap[signingTimeLabel]
+	if ok {
+		signingTimeTag, err := getTag(signingTime)
+		if err != nil {
+			return err
+		}
+		if signingTimeTag == 0 {
+			return errors.New("only supports Tag1 Datetime CBOR object")
+		}
+	}
+
+	expiry, ok := cborMap[headerLabelExpiry]
+	if ok {
+		expiryTag, err := getTag(expiry)
+		if err != nil {
+			return err
+		}
+		if expiryTag == 0 {
+			return errors.New("only supports Tag1 Datetime CBOR object")
+		}
+	}
+
+	return nil
+}
+
+func getTag(raw cbor.RawMessage) (uint64, error) {
+	rawTag := &cbor.RawTag{}
+	err := rawTag.UnmarshalCBOR([]byte(raw))
+	if err != nil {
+		return 0, err
+	}
+	return rawTag.Number, nil
 }
