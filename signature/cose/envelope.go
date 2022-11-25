@@ -83,10 +83,6 @@ var signingSchemeTimeLabelMap = map[signature.SigningScheme]string{
 	signature.SigningSchemeX509SigningAuthority: headerLabelAuthenticSigningTime,
 }
 
-// timeTagMap holds Tag0 or Tag1 Datetime CBOR objects for expiry and
-// signingTime.
-type timeTagMap map[string]cbor.RawMessage
-
 // signer interface is a cose.Signer with certificate chain fetcher.
 type signer interface {
 	cose.Signer
@@ -509,7 +505,7 @@ func parseProtectedHeaders(rawProtected cbor.RawMessage, protected cose.Protecte
 	}
 	signerInfo.SignedAttributes.SigningScheme = signingScheme
 
-	// check existence of Tag0 Datetime
+	// validates Tag1 Datetime CBOR object
 	err = validateTimeTag(rawProtected, signingTimeLabel)
 	if err != nil {
 		return &signature.InvalidSignatureError{Msg: "validateTimeTag failed: " + err.Error()}
@@ -517,7 +513,6 @@ func parseProtectedHeaders(rawProtected cbor.RawMessage, protected cose.Protecte
 
 	// populate signerInfo.SignedAttributes.SigningTime
 	signingTime, err := parseTime(protected[signingTimeLabel])
-	//signingTime, err := decodeTime(signingTimeRaw)
 	if err != nil {
 		return &signature.InvalidSignatureError{Msg: fmt.Sprintf("invalid signingTime: %v", err)}
 	}
@@ -525,9 +520,7 @@ func parseProtectedHeaders(rawProtected cbor.RawMessage, protected cose.Protecte
 
 	// populate signerInfo.SignedAttributes.Expiry
 	if _, ok := protected[headerLabelExpiry]; ok {
-		//if len(timeTagCBOR.Expiry) > 0 {
 		expiry, err := parseTime(protected[headerLabelExpiry])
-		//expiry, err := decodeTime(timeTagCBOR.Expiry)
 		if err != nil {
 			return &signature.InvalidSignatureError{Msg: fmt.Sprintf("invalid expiry: %v", err)}
 		}
@@ -658,36 +651,44 @@ func parseTime(timeValue interface{}) (time.Time, error) {
 	return time.Time{}, errors.New("invalid timeValue type")
 }
 
-func validateTimeTag(raw cbor.RawMessage, signingTimeLabel string) error {
-	if len(raw) == 0 {
+// validateTimeTag checks rawProtected of a COSE envelope Headers. Returns
+// error if signing time and/or expiry is not a Tag1 Datetime CBOR object.
+func validateTimeTag(rawProtected cbor.RawMessage, signingTimeLabel string) error {
+	if len(rawProtected) == 0 {
 		return nil
 	}
+
 	var decoded []byte
-	err := decMode.Unmarshal(raw, &decoded)
+	err := decMode.Unmarshal(rawProtected, &decoded)
 	if err != nil {
 		return err
 	}
-	cborMap := timeTagMap{}
+	cborMap := make(map[string]cbor.RawMessage)
 	cbor.Unmarshal(decoded, &cborMap)
+	if err != nil {
+		return err
+	}
 
+	// signingTime
 	signingTime, ok := cborMap[signingTimeLabel]
 	if ok {
 		signingTimeTag, err := getTag(signingTime)
 		if err != nil {
 			return err
 		}
-		if signingTimeTag == 0 {
+		if signingTimeTag != 1 {
 			return errors.New("only supports Tag1 Datetime CBOR object")
 		}
 	}
 
+	// expiry
 	expiry, ok := cborMap[headerLabelExpiry]
 	if ok {
 		expiryTag, err := getTag(expiry)
 		if err != nil {
 			return err
 		}
-		if expiryTag == 0 {
+		if expiryTag != 1 {
 			return errors.New("only supports Tag1 Datetime CBOR object")
 		}
 	}
@@ -695,6 +696,7 @@ func validateTimeTag(raw cbor.RawMessage, signingTimeLabel string) error {
 	return nil
 }
 
+// getTag gets the tag number of the input cbor.RawMessage
 func getTag(raw cbor.RawMessage) (uint64, error) {
 	rawTag := &cbor.RawTag{}
 	err := rawTag.UnmarshalCBOR([]byte(raw))

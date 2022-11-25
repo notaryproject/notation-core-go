@@ -636,6 +636,19 @@ func TestSignerInfoErrors(t *testing.T) {
 		}
 	})
 
+	t.Run("when COSE envelope protected header missing signingTime", func(t *testing.T) {
+		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
+		if err != nil {
+			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
+		}
+		delete(env.base.Headers.Protected, headerLabelSigningTime)
+		_, err = env.Content()
+		expected := errors.New("invalid signingTime: invalid timeValue type")
+		if !isErrEqual(expected, err) {
+			t.Fatalf("Content() expects error: %v, but got: %v.", expected, err)
+		}
+	})
+
 	t.Run("when COSE envelope protected header has invalid expiry", func(t *testing.T) {
 		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
 		if err != nil {
@@ -913,10 +926,11 @@ func createNewEnv(msg *cose.Sign1Message) envelope {
 func generateTestRawMessage(raw cbor.RawMessage, label string, unmarshalError bool) cbor.RawMessage {
 	var decoded []byte
 	decMode.Unmarshal(raw, &decoded)
-	cborMap := timeTagMap{}
+	cborMap := make(map[string]cbor.RawMessage)
 	cbor.Unmarshal(decoded, &cborMap)
 	if unmarshalError {
-		cborMap[label] = cbor.RawMessage([]byte("invalid"))
+		// "invalid"
+		cborMap[label] = cbor.RawMessage([]byte{103, 105, 110, 118, 97, 108, 105, 100})
 	} else {
 		// construct Tag0 Datetime CBOR object
 		encOptsTag0 := cbor.EncOptions{
@@ -924,11 +938,18 @@ func generateTestRawMessage(raw cbor.RawMessage, label string, unmarshalError bo
 			TimeTag: cbor.EncTagRequired,
 		}
 		encModeTag0, _ := encOptsTag0.EncMode()
-		timeCBOR, _ := encModeTag0.Marshal(time.Time{})
+
+		timeCBOR, _ := encModeTag0.Marshal(time.Now())
 		cborMap[label] = timeCBOR
 	}
-	encoded, _ := cbor.Marshal(cborMap)
-	resRaw, _ := encMode.Marshal(encoded)
+	encoded, err := cbor.Marshal(cborMap)
+	if err != nil {
+		fmt.Println("err1:", err)
+	}
+	resRaw, err := encMode.Marshal(encoded)
+	if err != nil {
+		fmt.Println("err2:", err)
+	}
 
 	return resRaw
 }
