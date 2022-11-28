@@ -661,7 +661,7 @@ func validateTimeTag(rawProtected cbor.RawMessage, signingTimeLabel string) erro
 		return err
 	}
 	cborMap := make(map[string]cbor.RawMessage)
-	cbor.Unmarshal(decoded, &cborMap)
+	err = cbor.Unmarshal(decoded, &cborMap)
 	if err != nil {
 		return err
 	}
