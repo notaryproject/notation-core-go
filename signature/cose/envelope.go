@@ -648,7 +648,7 @@ func parseTime(timeValue interface{}) (time.Time, error) {
 	return time.Time{}, errors.New("invalid timeValue type")
 }
 
-// validateTimeTag checks rawProtected of a COSE envelope Headers. Returns
+// validateTimeTag checks RawProtected of the COSE envelope Headers. Returns
 // error if signing time and/or expiry is not a Tag1 Datetime CBOR object.
 func validateTimeTag(rawProtected cbor.RawMessage, signingTimeLabel string) error {
 	if len(rawProtected) == 0 {
@@ -667,39 +667,28 @@ func validateTimeTag(rawProtected cbor.RawMessage, signingTimeLabel string) erro
 	}
 
 	// signingTime
-	signingTime, ok := cborMap[signingTimeLabel]
-	if ok {
-		signingTimeTag, err := getTag(signingTime)
-		if err != nil {
-			return err
-		}
-		if signingTimeTag != 1 {
-			return errors.New("only supports Tag1 Datetime CBOR object")
-		}
+	err = getTag(cborMap, signingTimeLabel)
+	if err != nil {
+		return err
 	}
 
 	// expiry
-	expiry, ok := cborMap[headerLabelExpiry]
+	return getTag(cborMap, headerLabelExpiry)
+}
+
+// getTag gets the tag number of the input field
+func getTag(cborMap map[interface{}]cbor.RawMessage, label interface{}) error {
+	rawMsg, ok := cborMap[label]
 	if ok {
-		expiryTag, err := getTag(expiry)
+		rawTag := &cbor.RawTag{}
+		err := rawTag.UnmarshalCBOR([]byte(rawMsg))
 		if err != nil {
 			return err
 		}
-		if expiryTag != 1 {
+		if rawTag.Number != 1 {
 			return errors.New("only supports Tag1 Datetime CBOR object")
 		}
 	}
 
 	return nil
-}
-
-// getTag gets the tag number of the input cbor.RawMessage
-func getTag(raw cbor.RawMessage) (uint64, error) {
-	rawTag := &cbor.RawTag{}
-	err := rawTag.UnmarshalCBOR([]byte(raw))
-	if err != nil {
-		return 0, err
-	}
-
-	return rawTag.Number, nil
 }
