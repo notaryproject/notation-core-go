@@ -580,7 +580,7 @@ func TestSignerInfoErrors(t *testing.T) {
 		}
 	})
 
-	t.Run("when validateTimeTag fails at signgingTime getTag", func(t *testing.T) {
+	t.Run("when validateTimeTag fails at signgingTime validateTag", func(t *testing.T) {
 		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
 		if err != nil {
 			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
@@ -594,7 +594,7 @@ func TestSignerInfoErrors(t *testing.T) {
 		}
 	})
 
-	t.Run("when validateTimeTag fails at expiry getTag", func(t *testing.T) {
+	t.Run("when validateTimeTag fails at expiry validateTag", func(t *testing.T) {
 		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
 		if err != nil {
 			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)

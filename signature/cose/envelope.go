@@ -667,17 +667,18 @@ func validateTimeTag(rawProtected cbor.RawMessage, signingTimeLabel string) erro
 	}
 
 	// signingTime
-	err = getTag(cborMap, signingTimeLabel)
+	err = validateTag(cborMap, signingTimeLabel)
 	if err != nil {
 		return err
 	}
 
 	// expiry
-	return getTag(cborMap, headerLabelExpiry)
+	return validateTag(cborMap, headerLabelExpiry)
 }
 
-// getTag gets the tag number of the input field
-func getTag(cborMap map[interface{}]cbor.RawMessage, label interface{}) error {
+// validateTag validates the tag number of the input field. Returns error
+// if the tag number is not 1.
+func validateTag(cborMap map[interface{}]cbor.RawMessage, label interface{}) error {
 	rawMsg, ok := cborMap[label]
 	if ok {
 		rawTag := &cbor.RawTag{}
