@@ -499,14 +499,14 @@ func parseProtectedHeaders(rawProtected cbor.RawMessage, protected cose.Protecte
 	// headerLabelSigningScheme type already checked in validateCritHeaders
 	signingSchemeString := protected[headerLabelSigningScheme].(string)
 	signingScheme := signature.SigningScheme(signingSchemeString)
+	signerInfo.SignedAttributes.SigningScheme = signingScheme
 	signingTimeLabel, ok := signingSchemeTimeLabelMap[signingScheme]
 	if !ok {
 		return &signature.InvalidSignatureError{Msg: "unsupported signingScheme: " + signingSchemeString}
 	}
-	signerInfo.SignedAttributes.SigningScheme = signingScheme
 
 	// validates Tag1 Datetime CBOR object for signing time and expiry
-	err = validateTimeTag(rawProtected, signingTimeLabel)
+	err = validateDateTimeTag(rawProtected, signingTimeLabel)
 	if err != nil {
 		return &signature.InvalidSignatureError{Msg: "validateTimeTag failed: " + err.Error()}
 	}
@@ -648,9 +648,9 @@ func parseTime(timeValue interface{}) (time.Time, error) {
 	return time.Time{}, errors.New("invalid timeValue type")
 }
 
-// validateTimeTag checks RawProtected of the COSE envelope Headers. Returns
+// validateDateTimeTag checks RawProtected of the COSE envelope Headers. Returns
 // error if signing time and/or expiry is not a Tag1 Datetime CBOR object.
-func validateTimeTag(rawProtected cbor.RawMessage, signingTimeLabel string) error {
+func validateDateTimeTag(rawProtected cbor.RawMessage, signingTimeLabel string) error {
 	if len(rawProtected) == 0 {
 		return nil
 	}
@@ -660,7 +660,7 @@ func validateTimeTag(rawProtected cbor.RawMessage, signingTimeLabel string) erro
 	if err != nil {
 		return err
 	}
-	cborMap := make(map[interface{}]cbor.RawMessage)
+	var cborMap map[interface{}]cbor.RawMessage
 	err = cbor.Unmarshal(decoded, &cborMap)
 	if err != nil {
 		return err
@@ -687,7 +687,7 @@ func validateTag(cborMap map[interface{}]cbor.RawMessage, label interface{}) err
 			return err
 		}
 		if rawTag.Number != 1 {
-			return errors.New("only supports Tag1 Datetime CBOR object")
+			return errors.New("only Tag1 Datetime CBOR object is supported")
 		}
 	}
 

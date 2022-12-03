@@ -560,7 +560,7 @@ func TestSignerInfoErrors(t *testing.T) {
 		raw := generateTestRawMessage(env.base.Headers.RawProtected, headerLabelSigningTime, false)
 		env.base.Headers.RawProtected = raw
 		_, err = env.Content()
-		expected := errors.New("validateTimeTag failed: only supports Tag1 Datetime CBOR object")
+		expected := errors.New("validateTimeTag failed: only Tag1 Datetime CBOR object is supported")
 		if !isErrEqual(expected, err) {
 			t.Fatalf("Content() expects error: %v, but got: %v.", expected, err)
 		}
@@ -574,7 +574,7 @@ func TestSignerInfoErrors(t *testing.T) {
 		raw := generateTestRawMessage(env.base.Headers.RawProtected, headerLabelExpiry, false)
 		env.base.Headers.RawProtected = raw
 		_, err = env.Content()
-		expected := errors.New("validateTimeTag failed: only supports Tag1 Datetime CBOR object")
+		expected := errors.New("validateTimeTag failed: only Tag1 Datetime CBOR object is supported")
 		if !isErrEqual(expected, err) {
 			t.Fatalf("Content() expects error: %v, but got: %v.", expected, err)
 		}
