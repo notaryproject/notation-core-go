@@ -64,7 +64,7 @@ func RegisterEnvelopeType(mediaType string, newFunc NewEnvelopeFunc, parseFunc P
 func RegisteredEnvelopeTypes() []string {
 	var types []string
 
-	envelopeFuncs.Range(func(k, v interface{}) bool {
+	envelopeFuncs.Range(func(k, v any) bool {
 		types = append(types, k.(string))
 		return true
 	})

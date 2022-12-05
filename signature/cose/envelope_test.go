@@ -292,7 +292,7 @@ func TestVerifyErrors(t *testing.T) {
 		if err != nil {
 			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
 		}
-		env.base.Headers.Unprotected[cose.HeaderLabelX5Chain] = []interface{}{}
+		env.base.Headers.Unprotected[cose.HeaderLabelX5Chain] = []any{}
 		_, err = env.Verify()
 		expected := errors.New("certificate chain is not present")
 		if !isErrEqual(expected, err) {
@@ -305,7 +305,7 @@ func TestVerifyErrors(t *testing.T) {
 		if err != nil {
 			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
 		}
-		env.base.Headers.Unprotected[cose.HeaderLabelX5Chain] = []interface{}{0}
+		env.base.Headers.Unprotected[cose.HeaderLabelX5Chain] = []any{0}
 		_, err = env.Verify()
 		expected := errors.New("COSE envelope malformed leaf certificate")
 		if !isErrEqual(expected, err) {
@@ -318,7 +318,7 @@ func TestVerifyErrors(t *testing.T) {
 		if err != nil {
 			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
 		}
-		certs, ok := env.base.Headers.Unprotected[cose.HeaderLabelX5Chain].([]interface{})
+		certs, ok := env.base.Headers.Unprotected[cose.HeaderLabelX5Chain].([]any)
 		if !ok || len(certs) == 0 {
 			t.Fatalf("certificate chain is not present")
 		}
@@ -343,7 +343,7 @@ func TestVerifyErrors(t *testing.T) {
 			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
 		}
 		certs := []*x509.Certificate{testhelper.GetUnsupportedRSACert().Cert}
-		certChain := make([]interface{}, len(certs))
+		certChain := make([]any, len(certs))
 		for i, c := range certs {
 			certChain[i] = c.Raw
 		}
@@ -396,7 +396,7 @@ func TestVerifyErrors(t *testing.T) {
 		if err != nil {
 			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
 		}
-		env.base.Headers.Protected[cose.HeaderLabelCritical] = []interface{}{}
+		env.base.Headers.Protected[cose.HeaderLabelCritical] = []any{}
 		_, err = env.Verify()
 		expected := errors.New("empty crit header")
 		if !isErrEqual(expected, err) {
@@ -466,9 +466,22 @@ func TestSignerInfoErrors(t *testing.T) {
 		if err != nil {
 			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
 		}
-		env.base.Headers.Protected[cose.HeaderLabelCritical] = []interface{}{}
+		env.base.Headers.Protected[cose.HeaderLabelCritical] = []any{}
 		_, err = env.Content()
 		expected := errors.New("empty crit header")
+		if !isErrEqual(expected, err) {
+			t.Fatalf("Content() expects error: %v, but got: %v.", expected, err)
+		}
+	})
+
+	t.Run("when COSE envelope protected header has invalid crit", func(t *testing.T) {
+		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
+		if err != nil {
+			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
+		}
+		env.base.Headers.Protected[cose.HeaderLabelCritical] = "invalid"
+		_, err = env.Content()
+		expected := errors.New("invalid crit header")
 		if !isErrEqual(expected, err) {
 			t.Fatalf("Content() expects error: %v, but got: %v.", expected, err)
 		}
@@ -492,7 +505,7 @@ func TestSignerInfoErrors(t *testing.T) {
 		if err != nil {
 			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
 		}
-		env.base.Headers.Protected[cose.HeaderLabelCritical] = []interface{}{"io.cncf.notary.expiry"}
+		env.base.Headers.Protected[cose.HeaderLabelCritical] = []any{"io.cncf.notary.expiry"}
 		_, err = env.Content()
 		expected := errors.New("these required headers are not marked as critical: [io.cncf.notary.signingScheme]")
 		if !isErrEqual(expected, err) {
@@ -539,6 +552,76 @@ func TestSignerInfoErrors(t *testing.T) {
 		}
 	})
 
+	t.Run("when parseTime has Tag0 signingTime", func(t *testing.T) {
+		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
+		if err != nil {
+			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
+		}
+		raw := generateTestRawMessage(env.base.Headers.RawProtected, headerLabelSigningTime, false, false)
+		env.base.Headers.RawProtected = raw
+		_, err = env.Content()
+		expected := errors.New("invalid signingTime: only Tag `1` Datetime CBOR object is supported")
+		if !isErrEqual(expected, err) {
+			t.Fatalf("Content() expects error: %v, but got: %v.", expected, err)
+		}
+	})
+
+	t.Run("when parseTime has Tag0 expiry", func(t *testing.T) {
+		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
+		if err != nil {
+			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
+		}
+		raw := generateTestRawMessage(env.base.Headers.RawProtected, headerLabelExpiry, false, false)
+		env.base.Headers.RawProtected = raw
+		_, err = env.Content()
+		expected := errors.New("invalid expiry: only Tag `1` Datetime CBOR object is supported")
+		if !isErrEqual(expected, err) {
+			t.Fatalf("Content() expects error: %v, but got: %v.", expected, err)
+		}
+	})
+
+	t.Run("when parseTime fails at headerMap missing signgingTime", func(t *testing.T) {
+		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
+		if err != nil {
+			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
+		}
+		raw := generateTestRawMessage(env.base.Headers.RawProtected, headerLabelSigningTime, true, true)
+		env.base.Headers.RawProtected = raw
+		_, err = env.Content()
+		expected := errors.New("invalid signingTime: headerMap is missing label \"io.cncf.notary.signingTime\"")
+		if !isErrEqual(expected, err) {
+			t.Fatalf("Content() expects error: %v, but got: %v.", expected, err)
+		}
+	})
+
+	t.Run("when parseTime fails at signgingTime tag validation", func(t *testing.T) {
+		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
+		if err != nil {
+			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
+		}
+		raw := generateTestRawMessage(env.base.Headers.RawProtected, headerLabelSigningTime, true, false)
+		env.base.Headers.RawProtected = raw
+		_, err = env.Content()
+		expected := errors.New("invalid signingTime: header \"io.cncf.notary.signingTime\" time value does not have a tag")
+		if !isErrEqual(expected, err) {
+			t.Fatalf("Content() expects error: %v, but got: %v.", expected, err)
+		}
+	})
+
+	t.Run("when parseTime fails at expiry tag validation", func(t *testing.T) {
+		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
+		if err != nil {
+			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
+		}
+		raw := generateTestRawMessage(env.base.Headers.RawProtected, headerLabelExpiry, true, false)
+		env.base.Headers.RawProtected = raw
+		_, err = env.Content()
+		expected := errors.New("invalid expiry: header \"io.cncf.notary.expiry\" time value does not have a tag")
+		if !isErrEqual(expected, err) {
+			t.Fatalf("Content() expects error: %v, but got: %v.", expected, err)
+		}
+	})
+
 	t.Run("when decodeTime fails", func(t *testing.T) {
 		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
 		if err != nil {
@@ -562,6 +645,19 @@ func TestSignerInfoErrors(t *testing.T) {
 		env.base.Headers.Protected[headerLabelSigningTime] = "invalid"
 		_, err = env.Content()
 		expected := errors.New("invalid signingTime: invalid timeValue type")
+		if !isErrEqual(expected, err) {
+			t.Fatalf("Content() expects error: %v, but got: %v.", expected, err)
+		}
+	})
+
+	t.Run("when COSE envelope protected header missing signingTime", func(t *testing.T) {
+		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
+		if err != nil {
+			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
+		}
+		delete(env.base.Headers.Protected, headerLabelSigningTime)
+		_, err = env.Content()
+		expected := errors.New("invalid signingTime: protected header \"io.cncf.notary.signingTime\" is missing")
 		if !isErrEqual(expected, err) {
 			t.Fatalf("Content() expects error: %v, but got: %v.", expected, err)
 		}
@@ -599,7 +695,7 @@ func TestSignerInfoErrors(t *testing.T) {
 		if err != nil {
 			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
 		}
-		env.base.Headers.Unprotected[cose.HeaderLabelX5Chain] = []interface{}{0}
+		env.base.Headers.Unprotected[cose.HeaderLabelX5Chain] = []any{0}
 		_, err = env.Content()
 		expected := errors.New("certificate chain is not present")
 		if !isErrEqual(expected, err) {
@@ -612,7 +708,7 @@ func TestSignerInfoErrors(t *testing.T) {
 		if err != nil {
 			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
 		}
-		certs, ok := env.base.Headers.Unprotected[cose.HeaderLabelX5Chain].([]interface{})
+		certs, ok := env.base.Headers.Unprotected[cose.HeaderLabelX5Chain].([]any)
 		if !ok || len(certs) == 0 {
 			t.Fatalf("certificate chain is not present")
 		}
@@ -679,6 +775,16 @@ func TestSignAndParseVerify(t *testing.T) {
 			}
 
 		}
+	}
+}
+
+func TestGenerateExtendedAttributesError(t *testing.T) {
+	var extendedAttributeKeys []any
+	var protected cose.ProtectedHeader
+	_, err := generateExtendedAttributes(extendedAttributeKeys, protected)
+	expected := errors.New("invalid critical headers")
+	if !isErrEqual(expected, err) {
+		t.Fatalf("TestgenerateExtendedAttributesError() expects error: %v, but got: %v.", expected, err)
 	}
 }
 
@@ -839,4 +945,38 @@ func createNewEnv(msg *cose.Sign1Message) envelope {
 	return envelope{
 		base: msg,
 	}
+}
+
+func generateTestRawMessage(raw cbor.RawMessage, label string, unmarshalError bool, mapError bool) cbor.RawMessage {
+	var decoded []byte
+	decMode.Unmarshal(raw, &decoded)
+	cborMap := make(map[string]cbor.RawMessage)
+	cbor.Unmarshal(decoded, &cborMap)
+	if unmarshalError {
+		// "invalid"
+		cborMap[label] = cbor.RawMessage([]byte{103, 105, 110, 118, 97, 108, 105, 100})
+		if mapError {
+			delete(cborMap, label)
+		}
+	} else {
+		// construct Tag0 Datetime CBOR object
+		encOptsTag0 := cbor.EncOptions{
+			Time:    cbor.TimeRFC3339,
+			TimeTag: cbor.EncTagRequired,
+		}
+		encModeTag0, _ := encOptsTag0.EncMode()
+
+		timeCBOR, _ := encModeTag0.Marshal(time.Now())
+		cborMap[label] = timeCBOR
+	}
+	encoded, err := cbor.Marshal(cborMap)
+	if err != nil {
+		fmt.Println("err1:", err)
+	}
+	resRaw, err := encMode.Marshal(encoded)
+	if err != nil {
+		fmt.Println("err2:", err)
+	}
+
+	return resRaw
 }
