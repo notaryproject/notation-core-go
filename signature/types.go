@@ -53,13 +53,13 @@ type UnsignedAttributes struct {
 // Attribute represents metadata in the Signature envelope.
 type Attribute struct {
 	// Key is the key name of the attribute.
-	Key interface{}
+	Key any
 
 	// Critical marks the attribute that MUST be processed by a verifier.
 	Critical bool
 
 	// Value is the value of the attribute.
-	Value interface{}
+	Value any
 }
 
 // SignRequest is used to generate Signature.

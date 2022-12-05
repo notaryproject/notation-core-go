@@ -95,7 +95,7 @@ func testVerify(t *testing.T, sign1 *sign1) {
 	}
 
 	certs := []*x509.Certificate{testhelper.GetRSALeafCertificate().Cert, testhelper.GetRSARootCertificate().Cert}
-	certChain := make([]interface{}, len(certs))
+	certChain := make([]any, len(certs))
 	for i, c := range certs {
 		certChain[i] = c.Raw
 	}

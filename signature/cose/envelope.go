@@ -244,7 +244,7 @@ func (e *envelope) Verify() (*signature.EnvelopeContent, error) {
 		return nil, &signature.SignatureEnvelopeNotFoundError{}
 	}
 
-	certs, ok := e.base.Headers.Unprotected[cose.HeaderLabelX5Chain].([]interface{})
+	certs, ok := e.base.Headers.Unprotected[cose.HeaderLabelX5Chain].([]any)
 	if !ok || len(certs) == 0 {
 		return nil, &signature.InvalidSignatureError{Msg: "certificate chain is not present"}
 	}
@@ -331,7 +331,7 @@ func (e *envelope) signerInfo() (*signature.SignerInfo, error) {
 	}
 
 	// parse unprotected headers of COSE envelope
-	certs, ok := e.base.Headers.Unprotected[cose.HeaderLabelX5Chain].([]interface{})
+	certs, ok := e.base.Headers.Unprotected[cose.HeaderLabelX5Chain].([]any)
 	if !ok || len(certs) == 0 {
 		return nil, &signature.InvalidSignatureError{Msg: "certificate chain is not present"}
 	}
@@ -414,7 +414,7 @@ func getSigner(signer signature.Signer) (signer, error) {
 // during Sign process.
 func generateProtectedHeaders(req *signature.SignRequest, protected cose.ProtectedHeader) error {
 	// signingScheme
-	crit := []interface{}{headerLabelSigningScheme}
+	crit := []any{headerLabelSigningScheme}
 	protected[headerLabelSigningScheme] = string(req.SigningScheme)
 
 	// signingTime/authenticSigningTime
@@ -468,7 +468,7 @@ func generateUnprotectedHeaders(req *signature.SignRequest, signer signer, unpro
 
 	// certChain
 	certs := signer.CertificateChain()
-	certChain := make([]interface{}, len(certs))
+	certChain := make([]any, len(certs))
 	for i, c := range certs {
 		certChain[i] = c.Raw
 	}
@@ -506,14 +506,14 @@ func parseProtectedHeaders(rawProtected cbor.RawMessage, protected cose.Protecte
 		return &signature.InvalidSignatureError{Msg: "unsupported signingScheme: " + signingSchemeString}
 	}
 
-	// generate RawProtected CBOR map
-	cborMap, err := generateRawProtectedCBORMap(rawProtected)
+	// parse CBOR map from raw protected header for tag validation
+	headerMap, err := generateRawProtectedCBORMap(rawProtected)
 	if err != nil {
 		return &signature.InvalidSignatureError{Msg: "generateRawProtectedCBORMap failed: " + err.Error()}
 	}
 
 	// populate signerInfo.SignedAttributes.SigningTime
-	signingTime, err := parseTime(cborMap, signingTimeLabel, protected)
+	signingTime, err := parseTime(headerMap, signingTimeLabel, protected)
 	if err != nil {
 		return &signature.InvalidSignatureError{Msg: fmt.Sprintf("invalid signingTime: %v", err)}
 	}
@@ -521,7 +521,7 @@ func parseProtectedHeaders(rawProtected cbor.RawMessage, protected cose.Protecte
 
 	// populate signerInfo.SignedAttributes.Expiry
 	if _, ok := protected[headerLabelExpiry]; ok {
-		expiry, err := parseTime(cborMap, headerLabelExpiry, protected)
+		expiry, err := parseTime(headerMap, headerLabelExpiry, protected)
 		if err != nil {
 			return &signature.InvalidSignatureError{Msg: fmt.Sprintf("invalid expiry: %v", err)}
 		}
@@ -537,7 +537,7 @@ func parseProtectedHeaders(rawProtected cbor.RawMessage, protected cose.Protecte
 // 1. validate that all critical headers are present in the protected bucket
 // 2. validate that all required headers(as per spec) are marked critical
 // Returns list of extended attribute keys
-func validateCritHeaders(protected cose.ProtectedHeader) ([]interface{}, error) {
+func validateCritHeaders(protected cose.ProtectedHeader) ([]any, error) {
 	// This ensures all critical headers are present in the protected bucket.
 	labels, err := protected.Critical()
 	if err != nil {
@@ -545,7 +545,7 @@ func validateCritHeaders(protected cose.ProtectedHeader) ([]interface{}, error) 
 	}
 
 	// set of headers that must be marked as crit
-	mustMarkedCrit := make(map[interface{}]struct{})
+	mustMarkedCrit := make(map[any]struct{})
 	mustMarkedCrit[headerLabelSigningScheme] = struct{}{}
 	signingScheme, ok := protected[headerLabelSigningScheme].(string)
 	if !ok {
@@ -563,7 +563,7 @@ func validateCritHeaders(protected cose.ProtectedHeader) ([]interface{}, error) 
 		delete(mustMarkedCrit, label)
 	}
 	if len(mustMarkedCrit) != 0 {
-		headers := make([]interface{}, 0, len(mustMarkedCrit))
+		headers := make([]any, 0, len(mustMarkedCrit))
 		for k := range mustMarkedCrit {
 			headers = append(headers, k)
 		}
@@ -571,9 +571,9 @@ func validateCritHeaders(protected cose.ProtectedHeader) ([]interface{}, error) 
 	}
 
 	// fetch all the extended signed attributes
-	systemHeaders := []interface{}{cose.HeaderLabelAlgorithm, cose.HeaderLabelCritical, cose.HeaderLabelContentType,
+	systemHeaders := []any{cose.HeaderLabelAlgorithm, cose.HeaderLabelCritical, cose.HeaderLabelContentType,
 		headerLabelExpiry, headerLabelSigningScheme, headerLabelSigningTime, headerLabelAuthenticSigningTime}
-	var extendedAttributeKeys []interface{}
+	var extendedAttributeKeys []any
 	for label := range protected {
 		if contains(systemHeaders, label) {
 			continue
@@ -586,8 +586,8 @@ func validateCritHeaders(protected cose.ProtectedHeader) ([]interface{}, error) 
 
 // generateExtendedAttributes generates []signature.Attribute during
 // SignerInfo process.
-func generateExtendedAttributes(extendedAttributeKeys []interface{}, protected cose.ProtectedHeader) ([]signature.Attribute, error) {
-	criticalHeaders, ok := protected[cose.HeaderLabelCritical].([]interface{})
+func generateExtendedAttributes(extendedAttributeKeys []any, protected cose.ProtectedHeader) ([]signature.Attribute, error) {
+	criticalHeaders, ok := protected[cose.HeaderLabelCritical].([]any)
 	if !ok {
 		return nil, &signature.InvalidSignatureError{Msg: "invalid critical headers"}
 	}
@@ -603,7 +603,7 @@ func generateExtendedAttributes(extendedAttributeKeys []interface{}, protected c
 }
 
 // contains checks if e is in s
-func contains(s []interface{}, e interface{}) bool {
+func contains(s []any, e any) bool {
 	for _, a := range s {
 		if a == e {
 			return true
@@ -625,6 +625,8 @@ func encodeTime(t time.Time) (cbor.RawMessage, error) {
 
 // decodeTime decodes cbor.RawMessage of Tag1 Datetime CBOR object
 // into time.Time
+//
+// For more details: https://github.com/fxamacker/cbor/blob/7704fa5efaf3ef4ac35aff38f50f6ff567793072/decode.go#L52
 func decodeTime(timeRaw cbor.RawMessage) (time.Time, error) {
 	var t time.Time
 	err := decMode.Unmarshal([]byte(timeRaw), &t)
@@ -635,61 +637,54 @@ func decodeTime(timeRaw cbor.RawMessage) (time.Time, error) {
 	return t, nil
 }
 
-// parseTime validates Tag1 Datetime in cborMap given label then returns
+// parseTime validates Tag1 Datetime in headerMap given label, then returns
 // time.Time value from cose.ProtectedHeader.
-//
-// For more details: https://github.com/fxamacker/cbor/blob/7704fa5efaf3ef4ac35aff38f50f6ff567793072/decode.go#L52
-func parseTime(cborMap map[interface{}]cbor.RawMessage, label string, protected cose.ProtectedHeader) (time.Time, error) {
-	err := validateTag(cborMap, label)
-	if err != nil {
-		return time.Time{}, err
-	}
-
+func parseTime(headerMap map[any]cbor.RawMessage, label string, protected cose.ProtectedHeader) (time.Time, error) {
 	switch t := protected[label].(type) {
+	// cbor.RawMessage indicates the signing process.
 	case cbor.RawMessage:
 		return decodeTime(t)
+	// time.Time indicates the verififcation process.
+	// only need to validate Tag1 Datetime during verification.
 	case time.Time:
+		rawMsg, ok := headerMap[label]
+		if !ok {
+			return time.Time{}, fmt.Errorf("headerMap is missing label %q", label)
+		}
+		rawTag := &cbor.RawTag{}
+		err := rawTag.UnmarshalCBOR([]byte(rawMsg))
+		if err != nil {
+			return time.Time{}, fmt.Errorf("header %q time value does not have a tag", label)
+		}
+		if rawTag.Number != 1 {
+			return time.Time{}, errors.New("only Tag1 Datetime CBOR object is supported")
+		}
 		return t, nil
+	case nil:
+		return time.Time{}, fmt.Errorf("protected header %q is missing", label)
 	}
 
 	return time.Time{}, errors.New("invalid timeValue type")
 }
 
-// generateRawProtectedCBORMap checks RawProtected of the COSE envelope Headers.
-// Returns the unmarshalled CBOR map of the RawProtected header.
-func generateRawProtectedCBORMap(rawProtected cbor.RawMessage) (map[interface{}]cbor.RawMessage, error) {
-	var cborMap map[interface{}]cbor.RawMessage
+// generateRawProtectedCBORMap unmarshals rawProtected Header of COSE
+// envelope into a headerMap.
+func generateRawProtectedCBORMap(rawProtected cbor.RawMessage) (map[any]cbor.RawMessage, error) {
+	// empty rawProtected indicates signing process
 	if len(rawProtected) == 0 {
-		return cborMap, nil
+		return nil, nil
 	}
 
 	var decoded []byte
 	err := decMode.Unmarshal(rawProtected, &decoded)
 	if err != nil {
-		return cborMap, err
+		return nil, err
 	}
-	err = cbor.Unmarshal(decoded, &cborMap)
+	var headerMap map[any]cbor.RawMessage
+	err = cbor.Unmarshal(decoded, &headerMap)
 	if err != nil {
-		return cborMap, err
+		return nil, err
 	}
 
-	return cborMap, nil
-}
-
-// validateTag validates the tag number of the input field. Returns error
-// if the tag number is not 1.
-func validateTag(cborMap map[interface{}]cbor.RawMessage, label interface{}) error {
-	rawMsg, ok := cborMap[label]
-	if ok {
-		rawTag := &cbor.RawTag{}
-		err := rawTag.UnmarshalCBOR([]byte(rawMsg))
-		if err != nil {
-			return err
-		}
-		if rawTag.Number != 1 {
-			return errors.New("only Tag1 Datetime CBOR object is supported")
-		}
-	}
-
-	return nil
+	return headerMap, nil
 }
