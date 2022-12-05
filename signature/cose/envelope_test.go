@@ -552,7 +552,7 @@ func TestSignerInfoErrors(t *testing.T) {
 		}
 	})
 
-	t.Run("when validateTimeTag has Tag0 signingTime", func(t *testing.T) {
+	t.Run("when parseTime has Tag0 signingTime", func(t *testing.T) {
 		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
 		if err != nil {
 			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
@@ -560,13 +560,13 @@ func TestSignerInfoErrors(t *testing.T) {
 		raw := generateTestRawMessage(env.base.Headers.RawProtected, headerLabelSigningTime, false)
 		env.base.Headers.RawProtected = raw
 		_, err = env.Content()
-		expected := errors.New("validateTimeTag failed: only Tag1 Datetime CBOR object is supported")
+		expected := errors.New("invalid signingTime: only Tag1 Datetime CBOR object is supported")
 		if !isErrEqual(expected, err) {
 			t.Fatalf("Content() expects error: %v, but got: %v.", expected, err)
 		}
 	})
 
-	t.Run("when validateTimeTag has Tag0 expiry", func(t *testing.T) {
+	t.Run("when parseTime has Tag0 expiry", func(t *testing.T) {
 		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
 		if err != nil {
 			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
@@ -574,13 +574,13 @@ func TestSignerInfoErrors(t *testing.T) {
 		raw := generateTestRawMessage(env.base.Headers.RawProtected, headerLabelExpiry, false)
 		env.base.Headers.RawProtected = raw
 		_, err = env.Content()
-		expected := errors.New("validateTimeTag failed: only Tag1 Datetime CBOR object is supported")
+		expected := errors.New("invalid expiry: only Tag1 Datetime CBOR object is supported")
 		if !isErrEqual(expected, err) {
 			t.Fatalf("Content() expects error: %v, but got: %v.", expected, err)
 		}
 	})
 
-	t.Run("when validateTimeTag fails at signgingTime validateTag", func(t *testing.T) {
+	t.Run("when parseTime fails at signgingTime validateTag", func(t *testing.T) {
 		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
 		if err != nil {
 			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
@@ -588,13 +588,13 @@ func TestSignerInfoErrors(t *testing.T) {
 		raw := generateTestRawMessage(env.base.Headers.RawProtected, headerLabelSigningTime, true)
 		env.base.Headers.RawProtected = raw
 		_, err = env.Content()
-		expected := errors.New("validateTimeTag failed: cbor: cannot unmarshal UTF-8 text string into Go value of type cbor.RawTag")
+		expected := errors.New("invalid signingTime: cbor: cannot unmarshal UTF-8 text string into Go value of type cbor.RawTag")
 		if !isErrEqual(expected, err) {
 			t.Fatalf("Content() expects error: %v, but got: %v.", expected, err)
 		}
 	})
 
-	t.Run("when validateTimeTag fails at expiry validateTag", func(t *testing.T) {
+	t.Run("when parseTime fails at expiry validateTag", func(t *testing.T) {
 		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
 		if err != nil {
 			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
@@ -602,7 +602,7 @@ func TestSignerInfoErrors(t *testing.T) {
 		raw := generateTestRawMessage(env.base.Headers.RawProtected, headerLabelExpiry, true)
 		env.base.Headers.RawProtected = raw
 		_, err = env.Content()
-		expected := errors.New("validateTimeTag failed: cbor: cannot unmarshal UTF-8 text string into Go value of type cbor.RawTag")
+		expected := errors.New("invalid expiry: cbor: cannot unmarshal UTF-8 text string into Go value of type cbor.RawTag")
 		if !isErrEqual(expected, err) {
 			t.Fatalf("Content() expects error: %v, but got: %v.", expected, err)
 		}
@@ -761,6 +761,16 @@ func TestSignAndParseVerify(t *testing.T) {
 			}
 
 		}
+	}
+}
+
+func TestGenerateExtendedAttributesError(t *testing.T) {
+	var extendedAttributeKeys []interface{}
+	var protected cose.ProtectedHeader
+	_, err := generateExtendedAttributes(extendedAttributeKeys, protected)
+	expected := errors.New("invalid critical headers")
+	if !isErrEqual(expected, err) {
+		t.Fatalf("TestgenerateExtendedAttributesError() expects error: %v, but got: %v.", expected, err)
 	}
 }
 
