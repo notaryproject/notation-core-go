@@ -657,7 +657,7 @@ func parseTime(headerMap map[any]cbor.RawMessage, label string, protected cose.P
 			return time.Time{}, fmt.Errorf("header %q time value does not have a tag", label)
 		}
 		if rawTag.Number != 1 {
-			return time.Time{}, errors.New("only Tag1 Datetime CBOR object is supported")
+			return time.Time{}, errors.New("only Tag `1` Datetime CBOR object is supported")
 		}
 		return t, nil
 	case nil:
