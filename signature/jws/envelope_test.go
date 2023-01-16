@@ -17,7 +17,7 @@ import (
 	"time"
 
 	"github.com/notaryproject/notation-core-go/signature"
-	"github.com/notaryproject/notation-core-go/signature/signaturetest"
+	"github.com/notaryproject/notation-core-go/signature/internal/signaturetest"
 	"github.com/notaryproject/notation-core-go/testhelper"
 )
 
