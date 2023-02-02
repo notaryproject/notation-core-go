@@ -1,3 +1,5 @@
+// Package signaturetest includes variables and functions for signature
+// unit test.
 package signaturetest
 
 import "github.com/notaryproject/notation-core-go/signature"
