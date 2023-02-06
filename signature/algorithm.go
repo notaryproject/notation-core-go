@@ -15,25 +15,31 @@ type Algorithm int
 //
 // Reference: https://github.com/notaryproject/notaryproject/blob/main/signature-specification.md#algorithm-selection
 const (
-	UnsupportedAlgorithm Algorithm = iota
-	AlgorithmPS256                 = iota // RSASSA-PSS with SHA-256
-	AlgorithmPS384                        // RSASSA-PSS with SHA-384
-	AlgorithmPS512                        // RSASSA-PSS with SHA-512
-	AlgorithmES256                        // ECDSA on secp256r1 with SHA-256
-	AlgorithmES384                        // ECDSA on secp384r1 with SHA-384
-	AlgorithmES512                        // ECDSA on secp521r1 with SHA-512
+	AlgorithmPS256 Algorithm = 1 + iota // RSASSA-PSS with SHA-256
+	AlgorithmPS384                      // RSASSA-PSS with SHA-384
+	AlgorithmPS512                      // RSASSA-PSS with SHA-512
+	AlgorithmES256                      // ECDSA on secp256r1 with SHA-256
+	AlgorithmES384                      // ECDSA on secp384r1 with SHA-384
+	AlgorithmES512                      // ECDSA on secp521r1 with SHA-512
 )
 
 func (alg Algorithm) String() string {
-	return [...]string{
-		"UnsupportedAlgorithm",
-		"RSASSA-PSS-SHA-256",
-		"RSASSA-PSS-SHA-384",
-		"RSASSA-PSS-SHA-512",
-		"ECDSA-secp256r1-SHA-256",
-		"ECDSA-secp384r1-SHA-384",
-		"ECDSA-secp521r1-SHA-512",
-	}[alg]
+	switch alg {
+	case AlgorithmPS256:
+		return "RSASSA-PSS-SHA-256"
+	case AlgorithmPS384:
+		return "RSASSA-PSS-SHA-384"
+	case AlgorithmPS512:
+		return "RSASSA-PSS-SHA-512"
+	case AlgorithmES256:
+		return "ECDSA-secp256r1-SHA-256"
+	case AlgorithmES384:
+		return "ECDSA-secp384r1-SHA-384"
+	case AlgorithmES512:
+		return "ECDSA-secp521r1-SHA-512"
+	default:
+		return "unknown algorithm value"
+	}
 }
 
 // KeyType defines the key type.
