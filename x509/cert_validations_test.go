@@ -225,7 +225,8 @@ func TestFailChainNotEndingInRoot(t *testing.T) {
 	signingTime := time.Now()
 
 	err := ValidateCodeSigningCertChain(certChain, &signingTime)
-	assertErrorEqual("certificate chain must end with a root certificate (root certificates are self-signed)", err, t)
+	expected := "root certificate with subject \"CN=Intermediate1\" is invalid or not self-signed. Certificate chain must end with a valid self-signed root certificate. Error: crypto/rsa: verification error"
+	assertErrorEqual(expected, err, t)
 }
 
 func TestFailChainNotOrdered(t *testing.T) {
@@ -233,7 +234,8 @@ func TestFailChainNotOrdered(t *testing.T) {
 	signingTime := time.Now()
 
 	err := ValidateCodeSigningCertChain(certChain, &signingTime)
-	assertErrorEqual("certificate with subject \"CN=CodeSigningLeaf\" is not issued by \"CN=Intermediate1\"", err, t)
+	expected := "invalid certificates or certificate with subject \"CN=CodeSigningLeaf\" is not issued by \"CN=Intermediate1\". Error: crypto/rsa: verification error"
+	assertErrorEqual(expected, err, t)
 }
 
 func TestFailChainWithUnrelatedCert(t *testing.T) {
@@ -241,15 +243,26 @@ func TestFailChainWithUnrelatedCert(t *testing.T) {
 	signingTime := time.Now()
 
 	err := ValidateCodeSigningCertChain(certChain, &signingTime)
-	assertErrorEqual("certificate with subject \"CN=CodeSigningLeaf\" is not issued by \"CN=Hello\"", err, t)
+	expected := "invalid certificates or certificate with subject \"CN=CodeSigningLeaf\" is not issued by \"CN=Hello\". Error: x509: invalid signature: parent certificate cannot sign this kind of certificate"
+	assertErrorEqual(expected, err, t)
 }
 
-func TestFailChainWithDuplicateRepeatedRoots(t *testing.T) {
+func TestFailChainWithSelfSignedLeafCertificate(t *testing.T) {
 	certChain := []*x509.Certificate{rootCert, rootCert, rootCert}
 	signingTime := time.Now()
 
 	err := ValidateCodeSigningCertChain(certChain, &signingTime)
-	assertErrorEqual("certificate chain must not contain self-signed intermediate certificates", err, t)
+	expected := "leaf certificate with subject \"CN=Root\" is self-signed. Certificate chain must not contain self-signed leaf certificate"
+	assertErrorEqual(expected, err, t)
+}
+
+func TestFailChainWithSelfSignedIntermediateCertificate(t *testing.T) {
+	certChain := []*x509.Certificate{codeSigningCert, intermediateCert2, intermediateCert1, rootCert, rootCert}
+	signingTime := time.Now()
+
+	err := ValidateCodeSigningCertChain(certChain, &signingTime)
+	expected := "intermediate certificate with subject \"CN=Root\" is self-signed. Certificate chain must not contain self-signed intermediate certificate"
+	assertErrorEqual(expected, err, t)
 }
 
 func TestFailInvalidPathLen(t *testing.T) {
@@ -261,8 +274,12 @@ func TestFailInvalidPathLen(t *testing.T) {
 }
 
 func TestRootCertIdentified(t *testing.T) {
-	if isSelfSigned(codeSigningCert) || isSelfSigned(intermediateCert1) ||
-		isSelfSigned(intermediateCert2) || !isSelfSigned(rootCert) {
+	selfSignedCodeSigning, _ := isSelfSigned(codeSigningCert)
+	selfSignedIntermediateCert1, _ := isSelfSigned(intermediateCert1)
+	selfSignedIntermediateCert2, _ := isSelfSigned(intermediateCert2)
+	selfSignedRootCert, _ := isSelfSigned(rootCert)
+	if selfSignedCodeSigning || selfSignedIntermediateCert1 ||
+		selfSignedIntermediateCert2 || !selfSignedRootCert {
 		t.Fatal("Root cert was not correctly identified")
 	}
 }
