@@ -21,14 +21,16 @@ var kuLeafCertBlocked = x509.KeyUsageContentCommitment |
 var kuLeafCertBlockedString = "ContentCommitment, KeyEncipherment, DataEncipherment, KeyAgreement, " +
 	"CertSign, CRLSign, EncipherOnly, DecipherOnly"
 
-// ValidateCodeSigningCertChain takes an ordered code-signing certificate chain and validates issuance from leaf to root
+// ValidateCodeSigningCertChain takes an ordered code-signing certificate chain
+// and validates issuance from leaf to root
 // Validates certificates according to this spec:
 // https://github.com/notaryproject/notaryproject/blob/main/signature-specification.md#certificate-requirements
 func ValidateCodeSigningCertChain(certChain []*x509.Certificate, signingTime *time.Time) error {
 	return validateCertChain(certChain, 0, signingTime)
 }
 
-// ValidateTimeStampingCertChain takes an ordered time-stamping certificate chain and validates issuance from leaf to root
+// ValidateTimeStampingCertChain takes an ordered time-stamping certificate
+// chain and validates issuance from leaf to root
 // Validates certificates according to this spec:
 // https://github.com/notaryproject/notaryproject/blob/main/signature-specification.md#certificate-requirements
 func ValidateTimeStampingCertChain(certChain []*x509.Certificate, signingTime *time.Time) error {
@@ -66,20 +68,21 @@ func validateCertChain(certChain []*x509.Certificate, expectedLeafEku x509.ExtKe
 				return fmt.Errorf("root certificate with subject %q is not self-signed. Certificate chain must end with a valid self-signed root certificate", cert.Subject)
 			}
 		} else {
-			// This is to avoid extra/redundant multiple root cert at the end of certificate-chain
+			// This is to avoid extra/redundant multiple root cert at the end
+			// of certificate-chain
 			if selfSigned {
 				if i == 0 {
 					return fmt.Errorf("leaf certificate with subject %q is self-signed. Certificate chain must not contain self-signed leaf certificate", cert.Subject)
 				}
 				return fmt.Errorf("intermediate certificate with subject %q is self-signed. Certificate chain must not contain self-signed intermediate certificate", cert.Subject)
 			}
-			nextCert := certChain[i+1]
-			issuedBy, issuedByError := isIssuedBy(cert, nextCert)
+			parentCert := certChain[i+1]
+			issuedBy, issuedByError := isIssuedBy(cert, parentCert)
 			if !issuedBy {
 				if issuedByError != nil {
-					return fmt.Errorf("invalid certificates or certificate with subject %q is not issued by %q. Error: %v", cert.Subject, nextCert.Subject, issuedByError)
+					return fmt.Errorf("invalid certificates or certificate with subject %q is not issued by %q. Error: %v", cert.Subject, parentCert.Subject, issuedByError)
 				}
-				return fmt.Errorf("certificate with subject %q is not issued by %q", cert.Subject, nextCert.Subject)
+				return fmt.Errorf("certificate with subject %q is not issued by %q", cert.Subject, parentCert.Subject)
 			}
 		}
 
