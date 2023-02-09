@@ -48,11 +48,13 @@ func validateCertChain(certChain []*x509.Certificate, expectedLeafEku x509.ExtKe
 		if signingTime != nil && (signingTime.Before(cert.NotBefore) || signingTime.After(cert.NotAfter)) {
 			return fmt.Errorf("certificate with subject %q was not valid at signing time of %s", cert.Subject, signingTime.UTC())
 		}
-
 		if err := cert.CheckSignature(cert.SignatureAlgorithm, cert.RawTBSCertificate, cert.Signature); err != nil {
-			return err
+			return fmt.Errorf("self-signed signing certificate with subject %q failed at checking signature. Error: %v", cert.Subject, err)
 		}
-		return validateLeafCertificate(cert, expectedLeafEku)
+		if err := validateLeafCertificate(cert, expectedLeafEku); err != nil {
+			return fmt.Errorf("self-signed signing certificate is invalid. Error: %v", err)
+		}
+		return nil
 	}
 
 	for i, cert := range certChain {
