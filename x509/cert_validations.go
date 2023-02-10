@@ -49,10 +49,10 @@ func validateCertChain(certChain []*x509.Certificate, expectedLeafEku x509.ExtKe
 			return fmt.Errorf("certificate with subject %q was not valid at signing time of %s", cert.Subject, signingTime.UTC())
 		}
 		if err := cert.CheckSignature(cert.SignatureAlgorithm, cert.RawTBSCertificate, cert.Signature); err != nil {
-			return fmt.Errorf("invalid self-signed certificate. subject: %q. Error: %v", cert.Subject, err)
+			return fmt.Errorf("invalid self-signed certificate. subject: %q. Error: %w", cert.Subject, err)
 		}
 		if err := validateLeafCertificate(cert, expectedLeafEku); err != nil {
-			return fmt.Errorf("invalid self-signed certificate. Error: %v", err)
+			return fmt.Errorf("invalid self-signed certificate. Error: %w", err)
 		}
 		return nil
 	}
@@ -61,18 +61,23 @@ func validateCertChain(certChain []*x509.Certificate, expectedLeafEku x509.ExtKe
 		if signingTime != nil && (signingTime.Before(cert.NotBefore) || signingTime.After(cert.NotAfter)) {
 			return fmt.Errorf("certificate with subject %q was not valid at signing time of %s", cert.Subject, signingTime.UTC())
 		}
-		selfSigned, selfSignedError := isSelfSigned(cert)
 		if i == len(certChain)-1 {
+			selfSigned, selfSignedError := isSelfSigned(cert)
+			if selfSignedError != nil {
+				return fmt.Errorf("root certificate with subject %q is invalid or not self-signed. Certificate chain must end with a valid self-signed root certificate. Error: %v", cert.Subject, selfSignedError)
+			}
 			if !selfSigned {
-				if selfSignedError != nil {
-					return fmt.Errorf("root certificate with subject %q is invalid or not self-signed. Certificate chain must end with a valid self-signed root certificate. Error: %v", cert.Subject, selfSignedError)
-				}
 				return fmt.Errorf("root certificate with subject %q is not self-signed. Certificate chain must end with a valid self-signed root certificate", cert.Subject)
 			}
 		} else {
 			// This is to avoid extra/redundant multiple root cert at the end
 			// of certificate-chain
-			if selfSigned {
+			selfSigned, selfSignedError := isSelfSigned(cert)
+			// not checking selfSignedError != nil here because we expect
+			// a non-nil err. For a non-root certificate, it shouldn't be
+			// self-signed, hence CheckSignatureFrom would return a non-nil
+			// error.
+			if selfSignedError == nil && selfSigned {
 				if i == 0 {
 					return fmt.Errorf("leaf certificate with subject %q is self-signed. Certificate chain must not contain self-signed leaf certificate", cert.Subject)
 				}
@@ -80,10 +85,10 @@ func validateCertChain(certChain []*x509.Certificate, expectedLeafEku x509.ExtKe
 			}
 			parentCert := certChain[i+1]
 			issuedBy, issuedByError := isIssuedBy(cert, parentCert)
+			if issuedByError != nil {
+				return fmt.Errorf("invalid certificates or certificate with subject %q is not issued by %q. Error: %v", cert.Subject, parentCert.Subject, issuedByError)
+			}
 			if !issuedBy {
-				if issuedByError != nil {
-					return fmt.Errorf("invalid certificates or certificate with subject %q is not issued by %q. Error: %v", cert.Subject, parentCert.Subject, issuedByError)
-				}
 				return fmt.Errorf("certificate with subject %q is not issued by %q", cert.Subject, parentCert.Subject)
 			}
 		}
