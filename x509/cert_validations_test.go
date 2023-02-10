@@ -288,7 +288,7 @@ func TestInvalidSelfSignedSigningCertificate(t *testing.T) {
 	certChain := []*x509.Certificate{testhelper.GetRSARootCertificate().Cert}
 	signingTime := time.Now()
 	err := ValidateCodeSigningCertChain(certChain, &signingTime)
-	expected := "self-signed signing certificate is invalid. Error: certificate with subject \"CN=Notation Test RSA Root,O=Notary,L=Seattle,ST=WA,C=US\": if the basic constraints extension is present, the ca field must be set to false"
+	expected := "invalid self-signed certificate. Error: certificate with subject \"CN=Notation Test RSA Root,O=Notary,L=Seattle,ST=WA,C=US\": if the basic constraints extension is present, the ca field must be set to false"
 	assertErrorEqual(expected, err, t)
 }
 
