@@ -6,7 +6,7 @@ import (
 	"os"
 )
 
-// ReadCertificateFile reads a certificate PEM file.
+// ReadCertificateFile reads a certificate PEM or DER file.
 func ReadCertificateFile(path string) ([]*x509.Certificate, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
