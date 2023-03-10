@@ -1,6 +1,7 @@
 package jws
 
 import (
+	"context"
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/rand"
@@ -13,12 +14,14 @@ import (
 	"math"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/notaryproject/notation-core-go/signature"
 	"github.com/notaryproject/notation-core-go/signature/internal/signaturetest"
 	"github.com/notaryproject/notation-core-go/testhelper"
+	"golang.org/x/crypto/ocsp"
 )
 
 // remoteMockSigner is used to mock remote signer
@@ -334,6 +337,85 @@ func TestVerify(t *testing.T) {
 
 		err = verifyEnvelope(env)
 		checkErrorEqual(t, "malformed leaf certificate", err.Error())
+	})
+
+	t.Run("nonrevoked certificate", func(t *testing.T) {
+		revokableCertTuple := testhelper.GetRevokableRSALeafCertificate()
+		revokableCert := revokableCertTuple.Cert
+		revokableKey := revokableCertTuple.PrivateKey
+
+		serverShutdownWaitGroup := &sync.WaitGroup{}
+		serverShutdownWaitGroup.Add(1)
+		srv := testhelper.MockServer(revokableCert, revokableKey, ocsp.Good, false, serverShutdownWaitGroup)
+
+		// get envelope
+		env, err := getSignedEnvelope(signature.SigningSchemeX509, true, extSignedAttr)
+		checkNoError(t, err)
+
+		// change cert to revokable cert
+		env.Header.CertChain[0] = revokableCert.Raw
+
+		// Integrity of the envelope has been invalidated, so signature will fail, but this is after revoke check
+		err = verifyEnvelope(env)
+		unexpected := errors.New("certificate has been revoked")
+		if err == unexpected {
+			t.Errorf("did not expect to not get error: %v, but got: %v.", unexpected, err)
+		}
+
+		if err := srv.Shutdown(context.TODO()); err != nil {
+			t.Errorf("Error while shutting down server: %v", err)
+		}
+		serverShutdownWaitGroup.Wait()
+	})
+
+	t.Run("OCSP revoked certificate", func(t *testing.T) {
+		revokableCertTuple := testhelper.GetRevokableRSALeafCertificate()
+		revokableCert := revokableCertTuple.Cert
+		revokableKey := revokableCertTuple.PrivateKey
+
+		serverShutdownWaitGroup := &sync.WaitGroup{}
+		serverShutdownWaitGroup.Add(1)
+		srv := testhelper.MockServer(revokableCert, revokableKey, ocsp.Revoked, false, serverShutdownWaitGroup)
+
+		// get envelope
+		env, err := getSignedEnvelope(signature.SigningSchemeX509, true, extSignedAttr)
+		checkNoError(t, err)
+
+		// change cert to revokable cert
+		env.Header.CertChain[0] = revokableCert.Raw
+
+		err = verifyEnvelope(env)
+		checkErrorEqual(t, "certificate has been revoked", err.Error())
+
+		if err := srv.Shutdown(context.TODO()); err != nil {
+			t.Errorf("Error while shutting down server: %v", err)
+		}
+		serverShutdownWaitGroup.Wait()
+	})
+
+	t.Run("CRL revoked certificate", func(t *testing.T) {
+		revokableCertTuple := testhelper.GetRevokableRSALeafCertificate()
+		revokableCert := revokableCertTuple.Cert
+		revokableKey := revokableCertTuple.PrivateKey
+
+		serverShutdownWaitGroup := &sync.WaitGroup{}
+		serverShutdownWaitGroup.Add(1)
+		srv := testhelper.MockServer(revokableCert, revokableKey, ocsp.Good, true, serverShutdownWaitGroup)
+
+		// get envelope
+		env, err := getSignedEnvelope(signature.SigningSchemeX509, true, extSignedAttr)
+		checkNoError(t, err)
+
+		// change cert to revokable cert
+		env.Header.CertChain[0] = revokableCert.Raw
+
+		err = verifyEnvelope(env)
+		checkErrorEqual(t, "certificate has been revoked", err.Error())
+
+		if err := srv.Shutdown(context.TODO()); err != nil {
+			t.Errorf("Error while shutting down server: %v", err)
+		}
+		serverShutdownWaitGroup.Wait()
 	})
 
 	t.Run("malformed protected header base64 encoded", func(t *testing.T) {

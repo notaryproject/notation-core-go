@@ -257,6 +257,14 @@ func (e *envelope) Verify() (*signature.EnvelopeContent, error) {
 		return nil, &signature.InvalidSignatureError{Msg: "malformed leaf certificate"}
 	}
 
+	rc := signature.NewRevocationChecker()
+	revoked, err := rc.CheckRevocationStatus(cert)
+	if err != nil {
+		return nil, err
+	} else if revoked {
+		return nil, &signature.InvalidSignatureError{Msg: "certificate has been revoked"}
+	}
+
 	// core verify process, verify integrity of COSE envelope
 	publicKeyAlg, err := getSignatureAlgorithm(cert)
 	if err != nil {

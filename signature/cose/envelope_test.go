@@ -1,10 +1,12 @@
 package cose
 
 import (
+	"context"
 	"crypto"
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -13,6 +15,7 @@ import (
 	"github.com/notaryproject/notation-core-go/signature/internal/signaturetest"
 	"github.com/notaryproject/notation-core-go/testhelper"
 	"github.com/veraison/go-cose"
+	"golang.org/x/crypto/ocsp"
 )
 
 const (
@@ -402,6 +405,99 @@ func TestVerifyErrors(t *testing.T) {
 		if !isErrEqual(expected, err) {
 			t.Fatalf("Verify() expects error: %v, but got: %v.", expected, err)
 		}
+	})
+
+	// Testing verify with revokable certificates
+	t.Run("when COSE envelope has non-revoked certificate", func(t *testing.T) {
+		revokableCertTuple := testhelper.GetRevokableRSALeafCertificate()
+		revokableCert := revokableCertTuple.Cert
+		revokableKey := revokableCertTuple.PrivateKey
+
+		serverShutdownWaitGroup := &sync.WaitGroup{}
+		serverShutdownWaitGroup.Add(1)
+		srv := testhelper.MockServer(revokableCert, revokableKey, ocsp.Good, false, serverShutdownWaitGroup)
+
+		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
+		if err != nil {
+			t.Errorf("getVerifyCOSE() failed. Error = %s", err)
+		}
+		certs, ok := env.base.Headers.Unprotected[cose.HeaderLabelX5Chain].([]any)
+		if !ok || len(certs) == 0 {
+			t.Errorf("certificate chain is not present")
+		}
+		certs[0] = revokableCert.Raw
+		env.base.Headers.Unprotected[cose.HeaderLabelX5Chain] = certs
+		//Integrity of the envelope has been invalidated, so signature will fail, but this is after revoke check
+		_, err = env.Verify()
+		unexpected := errors.New("certificate has been revoked")
+		if isErrEqual(unexpected, err) {
+			t.Errorf("Verify() expects to not get error: %v, but got: %v.", unexpected, err)
+		}
+
+		if err := srv.Shutdown(context.TODO()); err != nil {
+			t.Errorf("Error while shutting down server: %v", err)
+		}
+		serverShutdownWaitGroup.Wait()
+	})
+	t.Run("when COSE envelope has OCSP revoked certificate", func(t *testing.T) {
+		revokableCertTuple := testhelper.GetRevokableRSALeafCertificate()
+		revokableCert := revokableCertTuple.Cert
+		revokableKey := revokableCertTuple.PrivateKey
+
+		serverShutdownWaitGroup := &sync.WaitGroup{}
+		serverShutdownWaitGroup.Add(1)
+		srv := testhelper.MockServer(revokableCert, revokableKey, ocsp.Revoked, false, serverShutdownWaitGroup)
+
+		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
+		if err != nil {
+			t.Errorf("getVerifyCOSE() failed. Error = %s", err)
+		}
+		certs, ok := env.base.Headers.Unprotected[cose.HeaderLabelX5Chain].([]any)
+		if !ok || len(certs) == 0 {
+			t.Errorf("certificate chain is not present")
+		}
+		certs[0] = revokableCert.Raw
+		env.base.Headers.Unprotected[cose.HeaderLabelX5Chain] = certs
+		_, err = env.Verify()
+		expected := errors.New("certificate has been revoked")
+		if !isErrEqual(expected, err) {
+			t.Errorf("Verify() expects error: %v, but got: %v.", expected, err)
+		}
+
+		if err := srv.Shutdown(context.TODO()); err != nil {
+			t.Errorf("Error while shutting down server: %v", err)
+		}
+		serverShutdownWaitGroup.Wait()
+	})
+	t.Run("when COSE envelope has CRL revoked certificate", func(t *testing.T) {
+		revokableCertTuple := testhelper.GetRevokableRSALeafCertificate()
+		revokableCert := revokableCertTuple.Cert
+		revokableKey := revokableCertTuple.PrivateKey
+
+		serverShutdownWaitGroup := &sync.WaitGroup{}
+		serverShutdownWaitGroup.Add(1)
+		srv := testhelper.MockServer(revokableCert, revokableKey, ocsp.Good, true, serverShutdownWaitGroup)
+
+		env, err := getVerifyCOSE("notary.x509", signature.KeyTypeRSA, 3072)
+		if err != nil {
+			t.Errorf("getVerifyCOSE() failed. Error = %s", err)
+		}
+		certs, ok := env.base.Headers.Unprotected[cose.HeaderLabelX5Chain].([]any)
+		if !ok || len(certs) == 0 {
+			t.Errorf("certificate chain is not present")
+		}
+		certs[0] = revokableCert.Raw
+		env.base.Headers.Unprotected[cose.HeaderLabelX5Chain] = certs
+		_, err = env.Verify()
+		expected := errors.New("certificate has been revoked")
+		if !isErrEqual(expected, err) {
+			t.Errorf("Verify() expects error: %v, but got: %v.", expected, err)
+		}
+
+		if err := srv.Shutdown(context.TODO()); err != nil {
+			t.Errorf("Error while shutting down server: %v", err)
+		}
+		serverShutdownWaitGroup.Wait()
 	})
 }
 

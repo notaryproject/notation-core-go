@@ -19,6 +19,7 @@ import (
 var (
 	rsaRoot                  RSACertTuple
 	rsaLeaf                  RSACertTuple
+	revokableRSALeaf         RSACertTuple
 	rsaLeafWithoutEKU        RSACertTuple
 	ecdsaRoot                ECCertTuple
 	ecdsaLeaf                ECCertTuple
@@ -49,6 +50,12 @@ func GetRSARootCertificate() RSACertTuple {
 func GetRSALeafCertificate() RSACertTuple {
 	setupCertificates()
 	return rsaLeaf
+}
+
+// GetRSALeafCertificate returns leaf certificate that specifies a local OCSP server and IssuingCertificateURL signed using RSA algorithm
+func GetRevokableRSALeafCertificate() RSACertTuple {
+	setupCertificates()
+	return revokableRSALeaf
 }
 
 // GetRSALeafCertificateWithoutEKU returns leaf certificate without EKU signed using RSA algorithm
@@ -93,6 +100,7 @@ func setupCertificates() {
 	setupCertificatesOnce.Do(func() {
 		rsaRoot = getRSACertTuple("Notation Test RSA Root", nil)
 		rsaLeaf = getRSACertTuple("Notation Test RSA Leaf Cert", &rsaRoot)
+		revokableRSALeaf = getRevokableRSACertTuple("Notation Test Revokable RSA Leaf Cert", &rsaRoot)
 		rsaLeafWithoutEKU = getRSACertWithoutEKUTuple("Notation Test RSA Leaf without EKU Cert", &rsaRoot)
 		ecdsaRoot = getECCertTuple("Notation Test EC Root", nil)
 		ecdsaLeaf = getECCertTuple("Notation Test EC Leaf Cert", &ecdsaRoot)
@@ -109,6 +117,15 @@ func setupCertificates() {
 func getRSACertTuple(cn string, issuer *RSACertTuple) RSACertTuple {
 	pk, _ := rsa.GenerateKey(rand.Reader, 3072)
 	return GetRSACertTupleWithPK(pk, cn, issuer)
+}
+
+func getRevokableRSACertTuple(cn string, issuer *RSACertTuple) RSACertTuple {
+	template := getCertTemplate(issuer == nil, true, cn)
+	template.Version = 1
+	template.OCSPServer = []string{"http://localhost:8080/ocsp"}
+	template.IssuingCertificateURL = []string{"http://localhost:8080/issuer"}
+	template.CRLDistributionPoints = []string{"http://localhost:8080/crl"}
+	return getRSACertTupleWithTemplate(template, issuer.PrivateKey, issuer)
 }
 
 func getRSACertWithoutEKUTuple(cn string, issuer *RSACertTuple) RSACertTuple {

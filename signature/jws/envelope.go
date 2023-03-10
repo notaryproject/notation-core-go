@@ -101,6 +101,14 @@ func (e *envelope) Verify() (*signature.EnvelopeContent, error) {
 		return nil, &signature.InvalidSignatureError{Msg: "malformed leaf certificate"}
 	}
 
+	rc := signature.NewRevocationChecker()
+	revoked, err := rc.CheckRevocationStatus(cert)
+	if err != nil {
+		return nil, err
+	} else if revoked {
+		return nil, &signature.InvalidSignatureError{Msg: "certificate has been revoked"}
+	}
+
 	// verify JWT
 	compact := compactJWS(e.base)
 	if err = verifyJWT(compact, cert.PublicKey); err != nil {
