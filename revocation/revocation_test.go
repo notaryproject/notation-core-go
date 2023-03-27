@@ -173,6 +173,7 @@ func TestCheckRevocationErrors(t *testing.T) {
 	expiredLeaf.OCSPServer = []string{"http://localhost:8080/expired_ocsp"}
 	expiredChain := []*x509.Certificate{expiredLeaf, revokableTuples[1].Cert, revokableTuples[2].Cert}
 
+	invalidChainErr := CheckOCSPError{Err: errors.New("invalid chain: expected chain to be correct and complete with each cert issued by the next in the chain")}
 	chainRootErr := CheckOCSPError{Err: errors.New("invalid chain: expected chain to end with root cert")}
 	expiredRespErr := CheckOCSPError{Err: errors.New("expired OCSP response")}
 
@@ -203,7 +204,7 @@ func TestCheckRevocationErrors(t *testing.T) {
 	t.Run("backwards chain", func(t *testing.T) {
 		err := r.Validate(backwardsChain)
 		if err != nil {
-			if err.Error() != chainRootErr.Error() {
+			if err.Error() != invalidChainErr.Error() {
 				t.Errorf("Unexpected error while checking revocation status: %v", err)
 			}
 		} else {
@@ -257,7 +258,7 @@ func TestCheckRevocationInvalidChain(t *testing.T) {
 		}
 	}
 
-	invalidChainErr := CheckOCSPError{Err: errors.New("no response matching the supplied certificate")}
+	invalidChainErr := CheckOCSPError{Err: errors.New("invalid chain: expected chain to be correct and complete with each cert issued by the next in the chain")}
 
 	t.Run("chain missing intermediate", func(t *testing.T) {
 		client := testhelper.MockClient(revokableTuples, []ocsp.ResponseStatus{ocsp.Good}, nil)

@@ -10,30 +10,28 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
-	"reflect"
 	"sync"
 	"time"
 
 	"golang.org/x/crypto/ocsp"
 )
 
-// Internal struct used for revocation checking
+// Revocation is an internal struct used for revocation checking
 type revocation struct {
 	httpClient      *http.Client
 	wg              sync.WaitGroup
 	mergeErrorsFunc func(errors []error) error
 }
 
-// Constructor to return a revocation object that substitutes default values for any that are passed as nil
+// NewRevocation constructs a revocation object and substitutes default values for any that are passed as nil
 func NewRevocation(httpClient *http.Client) *revocation {
 	if httpClient != nil {
 		return &revocation{httpClient: httpClient, wg: sync.WaitGroup{}, mergeErrorsFunc: defaultMergeErrors}
-	} else {
-		return &revocation{httpClient: http.DefaultClient, wg: sync.WaitGroup{}, mergeErrorsFunc: defaultMergeErrors}
 	}
+	return &revocation{httpClient: http.DefaultClient, wg: sync.WaitGroup{}, mergeErrorsFunc: defaultMergeErrors}
 }
 
-// Checks OCSP, then CRL status, returns nil if all certs in the chain are not revoked.
+// Validate checks OCSP, then CRL status, returns nil if all certs in the chain are not revoked.
 // If there is an error, it will return one of the errors defined in this package in errors.go.
 // (e.g. if a certificate in the chain is revoked by OCSP and there are no other errors, it will return revocation.RevokedInOCSPError)
 //
@@ -46,19 +44,21 @@ func (r *revocation) Validate(certChain []*x509.Certificate) error {
 	return nil // This will eventually return the result of CRLStatus
 }
 
-// Checks OCSP, returns nil if all certs in the chain are not revoked.
+// OCSPStatus checks OCSP, returns nil if all certs in the chain are not revoked.
 // If there is an error, it will return one of the errors defined in this package in errors.go.
 // (e.g. if a certificate in the chain is revoked by OCSP and there are no other errors, it will return revocation.RevokedInOCSPError)
 func (r *revocation) OCSPStatus(certChain []*x509.Certificate) error {
-
 	certResults := make([]error, len(certChain))
 	for i, cert := range certChain {
 		if i != (len(certChain) - 1) {
+			if !isCorrectIssuer(cert, certChain[i+1]) {
+				return CheckOCSPError{Err: errors.New("invalid chain: expected chain to be correct and complete with each cert issued by the next in the chain")}
+			}
 			r.wg.Add(1)
 			// Assume cert chain is accurate and next cert in chain is the issuer
 			go r.certOCSPStatus(cert, certChain[i+1], &certResults, i)
 		} else {
-			if !reflect.DeepEqual(cert.Issuer, cert.Subject) {
+			if !isCorrectIssuer(cert, cert) {
 				return CheckOCSPError{Err: errors.New("invalid chain: expected chain to end with root cert")}
 			}
 			// Last is root cert, which will never be revoked by OCSP
@@ -68,6 +68,16 @@ func (r *revocation) OCSPStatus(certChain []*x509.Certificate) error {
 
 	r.wg.Wait()
 	return r.mergeErrorsFunc(certResults)
+}
+
+func isCorrectIssuer(subject *x509.Certificate, issuer *x509.Certificate) bool {
+	if err := subject.CheckSignatureFrom(issuer); err != nil {
+		return false
+	}
+	if !bytes.Equal(issuer.RawSubject, subject.RawIssuer) {
+		return false
+	}
+	return true
 }
 
 func (r *revocation) certOCSPStatus(cert *x509.Certificate, issuer *x509.Certificate, results *[]error, resultIndex int) error {
@@ -180,7 +190,7 @@ func (r *revocation) ocspRequest(cert, issuer *x509.Certificate, server string) 
 	return ocsp.ParseResponseForCert(body, cert, issuer)
 }
 
-// If the defaultMergeErrors function does not fit your use case, you can specify an alternative
+// SetMergeErrorsFunction allows you to specify an alternative function to merge errors if the default does not fit your use case. You can also pass nil to reset it to the defaultMergeErrors function
 func (r *revocation) SetMergeErrorsFunction(mergeErrorsFunc func(errors []error) error) {
 	if mergeErrorsFunc == nil {
 		r.mergeErrorsFunc = defaultMergeErrors
@@ -189,7 +199,7 @@ func (r *revocation) SetMergeErrorsFunction(mergeErrorsFunc func(errors []error)
 	}
 }
 
-// Condenses errors for list of errors (either for cert chain or OCSP servers) into one primary error
+// DefaultMergeErrors condenses errors for a list of errors (either for cert chain or OCSP servers) into one primary error
 func defaultMergeErrors(errorList []error) error {
 	var result error
 	if len(errorList) > 0 {

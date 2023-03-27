@@ -53,13 +53,13 @@ func GetRSALeafCertificate() RSACertTuple {
 	return rsaLeaf
 }
 
-// GetRSALeafCertificate returns leaf certificate that specifies a local OCSP server and IssuingCertificateURL signed using RSA algorithm
+// GetRevokableRSALeafCertificate returns leaf certificate that specifies a local OCSP server signed using RSA algorithm
 func GetRevokableRSALeafCertificate() RSACertTuple {
 	setupCertificates()
 	return revokableRSALeaf
 }
 
-// GetRSALeafCertificate returns leaf certificate that specifies a local OCSP server and IssuingCertificateURL signed using RSA algorithm
+// GetRevokableRSAChain returns a chain of certificates that specify a local OCSP server signed using RSA algorithm
 func GetRevokableRSAChain(size int) []RSACertTuple {
 	setupCertificates()
 	chain := make([]RSACertTuple, size)
@@ -133,14 +133,15 @@ func getRSACertTuple(cn string, issuer *RSACertTuple) RSACertTuple {
 
 func getRevokableRSACertTuple(cn string, issuer *RSACertTuple) RSACertTuple {
 	template := getCertTemplate(issuer == nil, true, cn)
-	template.Version = 1
 	template.OCSPServer = []string{"http://localhost:8080/ocsp"}
 	return getRSACertTupleWithTemplate(template, issuer.PrivateKey, issuer)
 }
 
 func getRevokableRSAChainCertTuple(cn string, previous *RSACertTuple, index int) RSACertTuple {
 	template := getCertTemplate(previous == nil, true, cn)
-	template.Version = 1
+	template.BasicConstraintsValid = true
+	template.IsCA = true
+	template.KeyUsage = 0
 	template.OCSPServer = []string{fmt.Sprintf("http://localhost:8080/chain_ocsp/%d", index)}
 	return getRSACertTupleWithTemplate(template, previous.PrivateKey, previous)
 }
