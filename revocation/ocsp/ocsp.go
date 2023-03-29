@@ -18,60 +18,43 @@ import (
 	"golang.org/x/crypto/ocsp"
 )
 
-// Logger is a simple logging interface based on what is logged in this package
-type Logger interface {
-	// Warnf logs a warn level message with format.
-	Warnf(format string, args ...interface{})
-	// Error logs an error level message.
-	Error(args ...interface{})
-}
-
-// NoOpLogger is a No-Op implementation of Logger
-type NoOpLogger struct{}
-
-// Warnf for NoOpLogger does nothing
-func (n *NoOpLogger) Warnf(format string, args ...interface{}) {}
-
-// Error for NoOpLogger does nothing
-func (n *NoOpLogger) Error(args ...interface{}) {}
-
 type Options struct {
 	CertChain       []*x509.Certificate
 	SigningTime     time.Time
 	HTTPClient      *http.Client
 	MergeErrorsFunc func(errors []error) error
-	Logger          Logger
 }
 
 const pkixNoCheckOID string = "1.3.6.1.5.5.7.48.1.5"
 const ocspMaxResponseSize int64 = 20480 //bytes
 
 func OCSPStatus(opts Options) error {
-	wg := sync.WaitGroup{}
-	certResults := make([]error, len(opts.CertChain))
 	for i, cert := range opts.CertChain {
 		if i != (len(opts.CertChain) - 1) {
 			if err := validateIssuer(cert, opts.CertChain[i+1]); err != nil {
 				return CheckOCSPError{Err: errors.New("invalid chain: expected chain to be correct and complete with each cert issued by the next in the chain")}
 			}
-			wg.Add(1)
-			// Assume cert chain is accurate and next cert in chain is the issuer
-			go certOCSPStatus(cert, opts.CertChain[i+1], &certResults[i], &wg, opts)
 		} else {
 			if err := validateIssuer(cert, cert); err != nil {
 				return CheckOCSPError{Err: errors.New("invalid chain: expected chain to end with root cert")}
 			}
+		}
+	}
+
+	wg := sync.WaitGroup{}
+	certResults := make([]error, len(opts.CertChain))
+	for i, cert := range opts.CertChain {
+		if i != (len(opts.CertChain) - 1) {
+			wg.Add(1)
+			// Assume cert chain is accurate and next cert in chain is the issuer
+			go certOCSPStatus(cert, opts.CertChain[i+1], &certResults[i], &wg, opts)
+		} else {
 			// Last is root cert, which will never be revoked by OCSP
 			certResults[len(opts.CertChain)-1] = nil
 		}
 	}
 
 	wg.Wait()
-	for _, err := range certResults {
-		if err != nil {
-			opts.Logger.Error(err)
-		}
-	}
 	return opts.MergeErrorsFunc(certResults)
 }
 
@@ -101,7 +84,6 @@ func certOCSPStatus(cert *x509.Certificate, issuer *x509.Certificate, result *er
 		resp, err := ocspRequest(cert, issuer, server, opts)
 		if err != nil {
 			// If there is a server error, attempt all servers before determining what to return to the user
-			opts.Logger.Error(err)
 			serverErrs[serverIndex] = err
 			continue
 		}
@@ -121,7 +103,10 @@ func certOCSPStatus(cert *x509.Certificate, issuer *x509.Certificate, result *er
 		if !foundNoCheck {
 			// This will be ignored until CRL is implemented
 			// If it isn't found, CRL should be used to verify the OCSP response
-			opts.Logger.Warnf("\nAn ocsp signing cert is missing the id-pkix-ocsp-nocheck extension (%s)\n", pkixNoCheckOID)
+			// TODO: add CRL support
+			// https://github.com/notaryproject/notation-core-go/issues/125
+			serverErrs[serverIndex] = PKIXNoCheckError{}
+			continue
 		}
 
 		if resp.Status == ocsp.Revoked {

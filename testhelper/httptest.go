@@ -23,6 +23,7 @@ type spyRoundTripper struct {
 	certChain           []RSACertTuple
 	desiredOCSPStatuses []ocsp.ResponseStatus
 	revokedTime         *time.Time
+	validPKIXNoCheck    bool
 }
 
 func (s spyRoundTripper) roundTripResponse(index int, expired bool) (*http.Response, error) {
@@ -52,10 +53,9 @@ func (s spyRoundTripper) roundTripResponse(index int, expired bool) (*http.Respo
 		nextUpdate = time.Now().Add(time.Hour)
 	}
 	template := ocsp.Response{
-		Status:          int(status),
-		SerialNumber:    s.certChain[index].Cert.SerialNumber,
-		NextUpdate:      nextUpdate,
-		ExtraExtensions: []pkix.Extension{{Id: asn1.ObjectIdentifier{1, 3, 6, 1, 5, 5, 7, 48, 1, 5}, Critical: false, Value: nil}},
+		Status:       int(status),
+		SerialNumber: s.certChain[index].Cert.SerialNumber,
+		NextUpdate:   nextUpdate,
 	}
 	if status == ocsp.Revoked {
 		if s.revokedTime != nil {
@@ -64,6 +64,9 @@ func (s spyRoundTripper) roundTripResponse(index int, expired bool) (*http.Respo
 			template.RevokedAt = time.Now().Add(-1 * time.Hour)
 		}
 		template.RevocationReason = ocsp.Unspecified
+	}
+	if s.validPKIXNoCheck {
+		template.ExtraExtensions = []pkix.Extension{{Id: asn1.ObjectIdentifier{1, 3, 6, 1, 5, 5, 7, 48, 1, 5}, Critical: false, Value: nil}}
 	}
 
 	// Create ocsp response
@@ -101,13 +104,14 @@ func (s spyRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 
 // Creates a mock HTTP Client (more accurately, a spy) that intercepts requests to /issuer and /ocsp endpoints
 // The client's responses are dependent on the cert and desiredOCSPStatus
-func MockClient(certChain []RSACertTuple, desiredOCSPStatuses []ocsp.ResponseStatus, revokedTime *time.Time) *http.Client {
+func MockClient(certChain []RSACertTuple, desiredOCSPStatuses []ocsp.ResponseStatus, revokedTime *time.Time, validPKIXNoCheck bool) *http.Client {
 	return &http.Client{
 		Transport: spyRoundTripper{
 			backupTransport:     http.DefaultTransport,
 			certChain:           certChain,
 			desiredOCSPStatuses: desiredOCSPStatuses,
 			revokedTime:         revokedTime,
+			validPKIXNoCheck:    validPKIXNoCheck,
 		},
 	}
 }

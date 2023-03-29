@@ -19,21 +19,16 @@ type Revocation interface {
 // revocation is an internal struct used for revocation checking
 type revocation struct {
 	httpClient      *http.Client
-	logger          ocsp.Logger
 	mergeErrorsFunc func(errors []error) error
 }
 
 // New constructs a revocation object and substitutes default values for any that are passed as nil
-func New(httpClient *http.Client, logger ocsp.Logger) Revocation {
+func New(httpClient *http.Client) Revocation {
 	if httpClient == nil {
 		httpClient = http.DefaultClient
 	}
-	if logger == nil {
-		logger = &ocsp.NoOpLogger{}
-	}
 	return &revocation{
 		httpClient:      httpClient,
-		logger:          logger,
 		mergeErrorsFunc: DefaultMergeErrors,
 	}
 }
@@ -58,7 +53,6 @@ func (r *revocation) OCSPStatus(certChain []*x509.Certificate, signingTime time.
 		SigningTime:     signingTime,
 		HTTPClient:      r.httpClient,
 		MergeErrorsFunc: r.mergeErrorsFunc,
-		Logger:          r.logger,
 	})
 }
 
@@ -94,18 +88,25 @@ func DefaultMergeErrors(errorList []error) error {
 				// A cert in the chain has status unknown
 				// will not return immediately (in case one is revoked or has error), but will override other chain errors
 				result = t
-			case ocsp.NoOCSPServerError:
-				// A cert in the chain does not have OCSP enabled
-				// Still considered valid and not revoked
+			case ocsp.PKIXNoCheckError:
+				// A cert in the chain only had server responses without the pkix nocheck extension
 				// will not return immediately (in case there is higher level error)
-				// will override OCSPTimeoutError and nil, but not UnknownInOCSPError (since a known unknown is worse than a cert without OCSP)
+				// will override TimeoutError, NoOCSPServerError, and nil, but not UnknownStatusError
 				if _, ok := result.(ocsp.UnknownStatusError); !ok || result == nil {
 					result = t
 				}
 			case ocsp.TimeoutError:
 				// A cert in the chain timed out while checking OCSP
 				// will not return immediately (in case there is higher level error)
-				// will override nil, but not UnknownInOCSPError or NoOCSPServerError (since timeout should only be conveyed if that is the only issue)
+				// will override nil and NoOCSPServerError, but not UnknownInOCSPError or PKIXNoCheckError
+				if _, ok := result.(ocsp.NoOCSPServerError); ok || result == nil {
+					result = t
+				}
+			case ocsp.NoOCSPServerError:
+				// A cert in the chain does not have OCSP enabled
+				// Still considered valid and not revoked
+				// will not return immediately (in case there is higher level error)
+				// will override nil, but not UnknownInOCSPError, PKIXNoCheckError, nor TimeoutError
 				if result == nil {
 					result = t
 				}
