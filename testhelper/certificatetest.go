@@ -133,7 +133,7 @@ func getRSACertTuple(cn string, issuer *RSACertTuple) RSACertTuple {
 
 func getRevokableRSACertTuple(cn string, issuer *RSACertTuple) RSACertTuple {
 	template := getCertTemplate(issuer == nil, true, cn)
-	template.OCSPServer = []string{"http://localhost:8080/ocsp"}
+	template.OCSPServer = []string{"http://example.com/ocsp"}
 	return getRSACertTupleWithTemplate(template, issuer.PrivateKey, issuer)
 }
 
@@ -142,7 +142,7 @@ func getRevokableRSAChainCertTuple(cn string, previous *RSACertTuple, index int)
 	template.BasicConstraintsValid = true
 	template.IsCA = true
 	template.KeyUsage = 0
-	template.OCSPServer = []string{fmt.Sprintf("http://localhost:8080/chain_ocsp/%d", index)}
+	template.OCSPServer = []string{fmt.Sprintf("http://example.com/chain_ocsp/%d", index)}
 	return getRSACertTupleWithTemplate(template, previous.PrivateKey, previous)
 }
 

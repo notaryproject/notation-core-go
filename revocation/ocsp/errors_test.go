@@ -1,12 +1,14 @@
-package revocation
+package ocsp
 
 import (
 	"errors"
+	"fmt"
 	"testing"
+	"time"
 )
 
-func TestRevokedInOCSPError(t *testing.T) {
-	err := &RevokedInOCSPError{}
+func TestRevokedError(t *testing.T) {
+	err := &RevokedError{}
 	expectedMsg := "certificate is revoked via OCSP"
 
 	if err.Error() != expectedMsg {
@@ -14,8 +16,8 @@ func TestRevokedInOCSPError(t *testing.T) {
 	}
 }
 
-func TestUnknownInOCSPError(t *testing.T) {
-	err := &UnknownInOCSPError{}
+func TestUnknownStatusError(t *testing.T) {
+	err := &UnknownStatusError{}
 	expectedMsg := "certificate has unknown status via OCSP"
 
 	if err.Error() != expectedMsg {
@@ -26,7 +28,7 @@ func TestUnknownInOCSPError(t *testing.T) {
 func TestCheckOCSPError(t *testing.T) {
 	t.Run("without_inner_error", func(t *testing.T) {
 		err := &CheckOCSPError{}
-		expectedMsg := "error checking revocation via OCSP"
+		expectedMsg := "error checking revocation status via OCSP"
 
 		if err.Error() != expectedMsg {
 			t.Errorf("Expected %v but got %v", expectedMsg, err.Error())
@@ -35,7 +37,7 @@ func TestCheckOCSPError(t *testing.T) {
 
 	t.Run("with_inner_error", func(t *testing.T) {
 		err := &CheckOCSPError{Err: errors.New("inner error")}
-		expectedMsg := "error checking revocation via OCSP: inner error"
+		expectedMsg := "error checking revocation status via OCSP: inner error"
 
 		if err.Error() != expectedMsg {
 			t.Errorf("Expected %v but got %v", expectedMsg, err.Error())
@@ -53,9 +55,10 @@ func TestNoOCSPServerError(t *testing.T) {
 	}
 }
 
-func TestOCSPTimeoutError(t *testing.T) {
-	err := &OCSPTimeoutError{}
-	expectedMsg := "exceeded timeout threshold for OCSP check"
+func TestTimeoutError(t *testing.T) {
+	duration := 5 * time.Second
+	err := &TimeoutError{duration}
+	expectedMsg := fmt.Sprintf("exceeded timeout threshold of %.2f seconds for OCSP check", duration.Seconds())
 
 	if err.Error() != expectedMsg {
 		t.Errorf("Expected %v but got %v", expectedMsg, err.Error())
