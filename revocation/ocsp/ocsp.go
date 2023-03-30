@@ -1,5 +1,5 @@
-// Package OCSP provides methods for checking the OCSP revocation status of a certificate chain
-// as well as errors related to these checks
+// Package OCSP provides methods for checking the OCSP revocation status of a
+// certificate chain, as well as errors related to these checks
 package ocsp
 
 import (
@@ -12,50 +12,75 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 
 	"golang.org/x/crypto/ocsp"
 )
 
+// Options specifies values that are needed to check OCSP revocation
 type Options struct {
-	CertChain       []*x509.Certificate
-	SigningTime     time.Time
-	HTTPClient      *http.Client
-	MergeErrorsFunc func(errors []error) error
+	CertChain   []*x509.Certificate
+	SigningTime time.Time
+	HTTPClient  *http.Client
 }
 
-const pkixNoCheckOID string = "1.3.6.1.5.5.7.48.1.5"
-const ocspMaxResponseSize int64 = 20480 //bytes
+const (
+	pkixNoCheckOID      string = "1.3.6.1.5.5.7.48.1.5"
+	ocspMaxResponseSize int64  = 20480 //bytes
+)
 
-func OCSPStatus(opts Options) error {
+// OCSPStatus checks OCSP based on the passed options and returns a 2D array of
+// errors. The size of these dimensions is as follows:
+//   - 1st dimension will always be equal in length to the certificate chain.
+//   - 2nd will have a length between 1 and the number of OCSPServers for the cert
+//
+// At each index, nil will be used to indicate no error. If there is an error,
+// it will be one of the errors defined in errors.go.
+//
+// (e.g. for a chain with 3 certs (leaf, intermediate, root) with both the leaf
+// and intermediate specifying 2 OCSP server, this could be a possible result):
+//
+//	[[PKIXNoCheckError, TimeoutError], [RevokedError], [nil]]
+func OCSPStatus(opts Options) [][]error {
+	certResults := make([][]error, len(opts.CertChain))
 	for i, cert := range opts.CertChain {
 		if i != (len(opts.CertChain) - 1) {
 			if err := validateIssuer(cert, opts.CertChain[i+1]); err != nil {
-				return CheckOCSPError{Err: errors.New("invalid chain: expected chain to be correct and complete with each cert issued by the next in the chain")}
+				fillResultsWithError(certResults, CheckOCSPError{Err: errors.New("invalid chain: expected chain to be correct and complete with each cert issued by the next in the chain")})
+				return certResults
 			}
 		} else {
 			if err := validateIssuer(cert, cert); err != nil {
-				return CheckOCSPError{Err: errors.New("invalid chain: expected chain to end with root cert")}
+				fillResultsWithError(certResults, CheckOCSPError{Err: errors.New("invalid chain: expected chain to end with root cert")})
+				return certResults
 			}
 		}
 	}
 
 	wg := sync.WaitGroup{}
-	certResults := make([]error, len(opts.CertChain))
-	for i, cert := range opts.CertChain {
-		if i != (len(opts.CertChain) - 1) {
+	if len(opts.CertChain) > 0 {
+		for i, cert := range opts.CertChain[:len(opts.CertChain)-1] {
 			wg.Add(1)
 			// Assume cert chain is accurate and next cert in chain is the issuer
-			go certOCSPStatus(cert, opts.CertChain[i+1], &certResults[i], &wg, opts)
-		} else {
-			// Last is root cert, which will never be revoked by OCSP
-			certResults[len(opts.CertChain)-1] = nil
+			go func(i int, cert *x509.Certificate) {
+				defer wg.Done()
+				certResults[i] = certOCSPStatus(cert, opts.CertChain[i+1], opts)
+			}(i, cert)
 		}
-	}
+		// Last is root cert, which will never be revoked by OCSP
+		certResults[len(opts.CertChain)-1] = []error{nil}
 
-	wg.Wait()
-	return opts.MergeErrorsFunc(certResults)
+		wg.Wait()
+	}
+	return certResults
+}
+
+func fillResultsWithError(results [][]error, err error) {
+	for i := range results {
+		results[i] = []error{err}
+	}
 }
 
 func validateIssuer(subject *x509.Certificate, issuer *x509.Certificate) error {
@@ -68,29 +93,34 @@ func validateIssuer(subject *x509.Certificate, issuer *x509.Certificate) error {
 	return nil
 }
 
-func certOCSPStatus(cert *x509.Certificate, issuer *x509.Certificate, result *error, wg *sync.WaitGroup, opts Options) {
-	defer wg.Done()
-	var err error
-
+func certOCSPStatus(cert *x509.Certificate, issuer *x509.Certificate, opts Options) []error {
 	ocspURLs := cert.OCSPServer
 	if len(ocspURLs) == 0 {
 		// OCSP not enabled for this certificate.
-		(*result) = NoOCSPServerError{}
-		return
+		return []error{NoOCSPServerError{}}
 	}
 
 	serverErrs := make([]error, len(ocspURLs))
 	for serverIndex, server := range ocspURLs {
+		if !strings.HasPrefix(strings.ToLower(server), "http://") {
+			// This function is only able to check servers that are accessible via HTTP
+			serverErrs[serverIndex] = CheckOCSPError{Err: errors.New("OCSPServer must be accessible over HTTP")}
+			continue
+		}
 		resp, err := ocspRequest(cert, issuer, server, opts)
 		if err != nil {
-			// If there is a server error, attempt all servers before determining what to return to the user
-			serverErrs[serverIndex] = err
+			// If there is a server error, attempt all servers before determining what to return
+			// to the user
+			if errors.Is(err, TimeoutError{}) {
+				serverErrs[serverIndex] = err
+			} else {
+				serverErrs[serverIndex] = CheckOCSPError{Err: err}
+			}
 			continue
 		}
 
-		if opts.SigningTime.After(resp.NextUpdate) {
-			err = errors.New("expired OCSP response")
-			serverErrs[serverIndex] = err
+		if time.Now().After(resp.NextUpdate) {
+			serverErrs[serverIndex] = CheckOCSPError{Err: errors.New("expired OCSP response")}
 			continue
 		}
 
@@ -98,6 +128,7 @@ func certOCSPStatus(cert *x509.Certificate, issuer *x509.Certificate, result *er
 		for _, extension := range resp.Extensions {
 			if !foundNoCheck && extension.Id.String() == pkixNoCheckOID {
 				foundNoCheck = true
+				break
 			}
 		}
 		if !foundNoCheck {
@@ -109,25 +140,21 @@ func certOCSPStatus(cert *x509.Certificate, issuer *x509.Certificate, result *er
 			continue
 		}
 
-		if resp.Status == ocsp.Revoked {
-			if time.Now().After(resp.RevokedAt) {
-				(*result) = RevokedError{}
-				return
+		switch resp.Status {
+		case ocsp.Revoked:
+			if opts.SigningTime.After(resp.RevokedAt) {
+				return []error{RevokedError{}}
 			} else {
-				(*result) = nil
-				return
+				return []error{nil}
 			}
-		} else if resp.Status == ocsp.Good {
-			(*result) = nil
-			return
-		} else {
-			(*result) = UnknownStatusError{}
-			return
+		case ocsp.Good:
+			return []error{nil}
+		default:
+			return []error{UnknownStatusError{}}
 		}
 
 	}
-	err = opts.MergeErrorsFunc(serverErrs)
-	(*result) = err
+	return serverErrs
 }
 
 func ocspRequest(cert, issuer *x509.Certificate, server string, opts Options) (*ocsp.Response, error) {
@@ -137,11 +164,12 @@ func ocspRequest(cert, issuer *x509.Certificate, server string, opts Options) (*
 	}
 
 	var resp *http.Response
-	if len(ocspRequest) > 256 {
-		buf := bytes.NewBuffer(ocspRequest)
-		resp, err = opts.HTTPClient.Post(server, "application/ocsp-request", buf)
+	encodedReq := base64.StdEncoding.EncodeToString(ocspRequest)
+	if len(encodedReq) >= 255 {
+		reader := bytes.NewReader(ocspRequest)
+		resp, err = opts.HTTPClient.Post(server, "application/ocsp-request", reader)
 	} else {
-		reqURL := server + "/" + url.QueryEscape(base64.StdEncoding.EncodeToString(ocspRequest))
+		reqURL := server + "/" + url.QueryEscape(encodedReq)
 		resp, err = opts.HTTPClient.Get(reqURL)
 	}
 

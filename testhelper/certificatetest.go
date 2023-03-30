@@ -141,7 +141,7 @@ func getRevokableRSAChainCertTuple(cn string, previous *RSACertTuple, index int)
 	template := getCertTemplate(previous == nil, true, cn)
 	template.BasicConstraintsValid = true
 	template.IsCA = true
-	template.KeyUsage = 0
+	template.KeyUsage = x509.KeyUsageCertSign
 	template.OCSPServer = []string{fmt.Sprintf("http://example.com/chain_ocsp/%d", index)}
 	return getRSACertTupleWithTemplate(template, previous.PrivateKey, previous)
 }

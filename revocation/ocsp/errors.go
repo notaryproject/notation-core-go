@@ -1,5 +1,5 @@
-// Package OCSP provides methods for checking the OCSP revocation status of a certificate chain
-// as well as errors related to these checks
+// Package OCSP provides methods for checking the OCSP revocation status of a
+// certificate chain, as well as errors related to these checks
 package ocsp
 
 import (
@@ -7,21 +7,24 @@ import (
 	"time"
 )
 
-// RevokedError is returned when the certificate's status for OCSP is ocsp.Revoked
+// RevokedError is returned when the certificate's status for OCSP is
+// ocsp.Revoked
 type RevokedError struct{}
 
 func (e RevokedError) Error() string {
 	return "certificate is revoked via OCSP"
 }
 
-// UnknownStatusError is returned when the certificate's status for OCSP is ocsp.Unknown
+// UnknownStatusError is returned when the certificate's status for OCSP is
+// ocsp.Unknown
 type UnknownStatusError struct{}
 
 func (e UnknownStatusError) Error() string {
 	return "certificate has unknown status via OCSP"
 }
 
-// CheckOCSPError is returned when there is an error during the OCSP revocation check, not necessarily a revocation
+// CheckOCSPError is returned when there is an error during the OCSP revocation
+// check, not necessarily a revocation
 type CheckOCSPError struct {
 	Err error
 }
@@ -34,21 +37,24 @@ func (e CheckOCSPError) Error() string {
 	return msg
 }
 
-// NoServerError is returned when the OCSPServer is not specified or is not an HTTP URL.
+// NoServerError is returned when the OCSPServer is not specified or is not an
+// HTTP URL.
 type NoOCSPServerError struct{}
 
 func (e NoOCSPServerError) Error() string {
 	return "no valid OCSPServer found"
 }
 
-// PKIXNoCheckError is returned when the OCSP signing cert is missing the id-pkix-ocsp-nocheck extension.
+// PKIXNoCheckError is returned when the OCSP signing cert is missing the
+// id-pkix-ocsp-nocheck extension.
 type PKIXNoCheckError struct{}
 
 func (e PKIXNoCheckError) Error() string {
 	return fmt.Sprintf("an OCSP signing cert is missing the id-pkix-ocsp-nocheck extension (%s)", pkixNoCheckOID)
 }
 
-// TimeoutError is returned when the connection attempt to an OCSP URL exceeds the specified threshold
+// TimeoutError is returned when the connection attempt to an OCSP URL exceeds
+// the specified threshold
 type TimeoutError struct {
 	timeout time.Duration
 }

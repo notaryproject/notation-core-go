@@ -12,46 +12,34 @@ import (
 	"golang.org/x/crypto/ocsp"
 )
 
-func defaultMergeErrors(errorList []error) error {
-	var result error
-	if len(errorList) > 0 {
-		result = errorList[0]
-
-		for _, err := range errorList {
+func identicalErrResults(errs, expectedErrs [][]error) bool {
+	if len(errs) != len(expectedErrs) {
+		return false
+	}
+	for i, serverErrs := range errs {
+		if len(serverErrs) != len(expectedErrs[i]) {
+			return false
+		}
+		for j, err := range serverErrs {
 			if err == nil {
-				continue
+				if expectedErrs[i][j] == nil {
+					continue
+				} else {
+					return false
+				}
+			} else if expectedErrs[i][j] == nil {
+				return false
 			}
-			switch t := err.(type) {
-			case RevokedError:
-				return t
-			case CheckOCSPError:
-				return t
-			case UnknownStatusError:
-				result = t
-			case PKIXNoCheckError:
-				if _, ok := result.(UnknownStatusError); !ok || result == nil {
-					result = t
-				}
-			case TimeoutError:
-				if _, ok := result.(NoOCSPServerError); ok || result == nil {
-					result = t
-				}
-			case NoOCSPServerError:
-				if result == nil {
-					result = t
-				}
-			default:
-				return CheckOCSPError{Err: err}
+			if err.Error() != expectedErrs[i][j].Error() {
+				return false
 			}
 		}
-
-		return result
-	} else {
-		return nil
 	}
+
+	return true
 }
 
-func TestCheckOCSPStatusForSingleCert(t *testing.T) {
+func TestCertOCSPStatus(t *testing.T) {
 	revokableCertTuple := testhelper.GetRevokableRSALeafCertificate()
 	revokableIssuerTuple := testhelper.GetRSARootCertificate()
 	revokableChain := []*x509.Certificate{revokableCertTuple.Cert, revokableIssuerTuple.Cert}
@@ -60,66 +48,66 @@ func TestCheckOCSPStatusForSingleCert(t *testing.T) {
 	t.Run("check non-revoked cert", func(t *testing.T) {
 		client := testhelper.MockClient(testChain, []ocsp.ResponseStatus{ocsp.Good}, nil, true)
 		opts := Options{
-			CertChain:       revokableChain,
-			SigningTime:     time.Now(),
-			HTTPClient:      client,
-			MergeErrorsFunc: defaultMergeErrors,
+			CertChain:   revokableChain,
+			SigningTime: time.Now(),
+			HTTPClient:  client,
 		}
 
-		err := OCSPStatus(opts)
-		if err != nil {
-			t.Errorf("Unexpected error while checking revocation status: %v", err)
+		err := certOCSPStatus(revokableChain[0], revokableChain[1], opts)
+		expectedErrs := [][]error{
+			{nil},
+		}
+		if !identicalErrResults([][]error{err}, expectedErrs) {
+			t.Errorf("Expected no errors.\nReceived: %v\nExpected: %v\n", err, expectedErrs[0])
 		}
 	})
 	t.Run("check cert with Unknown OCSP response", func(t *testing.T) {
 		client := testhelper.MockClient(testChain, []ocsp.ResponseStatus{ocsp.Unknown}, nil, true)
 		opts := Options{
-			CertChain:       revokableChain,
-			SigningTime:     time.Now(),
-			HTTPClient:      client,
-			MergeErrorsFunc: defaultMergeErrors,
+			CertChain:   revokableChain,
+			SigningTime: time.Now(),
+			HTTPClient:  client,
 		}
 
-		err := OCSPStatus(opts)
-		if err != nil {
-			if _, ok := err.(UnknownStatusError); !ok {
-				t.Errorf("Unexpected error while checking revocation status: %v", err)
-			}
-		} else {
-			t.Errorf("Expected certificate to be revoked")
+		err := certOCSPStatus(revokableChain[0], revokableChain[1], opts)
+		expectedErrs := [][]error{
+			{UnknownStatusError{}},
+		}
+		if !identicalErrResults([][]error{err}, expectedErrs) {
+			t.Errorf("Expected certificate to have unknown status.\nReceived: %v\nExpected: %v\n", err, expectedErrs[0])
 		}
 	})
 	t.Run("check OCSP revoked cert", func(t *testing.T) {
 		client := testhelper.MockClient(testChain, []ocsp.ResponseStatus{ocsp.Revoked}, nil, true)
 		opts := Options{
-			CertChain:       revokableChain,
-			SigningTime:     time.Now(),
-			HTTPClient:      client,
-			MergeErrorsFunc: defaultMergeErrors,
+			CertChain:   revokableChain,
+			SigningTime: time.Now(),
+			HTTPClient:  client,
 		}
 
-		err := OCSPStatus(opts)
-		if err != nil {
-			if _, ok := err.(RevokedError); !ok {
-				t.Errorf("Unexpected error while checking revocation status: %v", err)
-			}
-		} else {
-			t.Errorf("Expected certificate to be revoked")
+		err := certOCSPStatus(revokableChain[0], revokableChain[1], opts)
+		expectedErrs := [][]error{
+			{RevokedError{}},
+		}
+		if !identicalErrResults([][]error{err}, expectedErrs) {
+			t.Errorf("Expected certificate to be revoked.\nReceived: %v\nExpected: %v\n", err, expectedErrs[0])
 		}
 	})
 	t.Run("check OCSP future revoked cert", func(t *testing.T) {
 		revokedTime := time.Now().Add(time.Hour)
 		client := testhelper.MockClient(testChain, []ocsp.ResponseStatus{ocsp.Revoked}, &revokedTime, true)
 		opts := Options{
-			CertChain:       revokableChain,
-			SigningTime:     time.Now(),
-			HTTPClient:      client,
-			MergeErrorsFunc: defaultMergeErrors,
+			CertChain:   revokableChain,
+			SigningTime: time.Now(),
+			HTTPClient:  client,
 		}
 
-		err := OCSPStatus(opts)
-		if err != nil {
-			t.Errorf("Unexpected error while checking revocation status: %v", err)
+		err := certOCSPStatus(revokableChain[0], revokableChain[1], opts)
+		expectedErrs := [][]error{
+			{nil},
+		}
+		if !identicalErrResults([][]error{err}, expectedErrs) {
+			t.Errorf("Expected no errors.\nReceived: %v\nExpected: %v\n", err, expectedErrs[0])
 		}
 	})
 }
@@ -128,20 +116,18 @@ func TestCheckOCSPStatusForSelfSignedCert(t *testing.T) {
 	selfSignedTuple := testhelper.GetRSASelfSignedSigningCertTuple("Notation revocation test self-signed cert")
 	client := testhelper.MockClient([]testhelper.RSACertTuple{selfSignedTuple}, []ocsp.ResponseStatus{ocsp.Good}, nil, true)
 	opts := Options{
-		CertChain:       []*x509.Certificate{selfSignedTuple.Cert},
-		SigningTime:     time.Now(),
-		HTTPClient:      client,
-		MergeErrorsFunc: defaultMergeErrors,
+		CertChain:   []*x509.Certificate{selfSignedTuple.Cert},
+		SigningTime: time.Now(),
+		HTTPClient:  client,
 	}
 
 	chainRootErr := CheckOCSPError{Err: errors.New("invalid chain: expected chain to end with root cert")}
-	err := OCSPStatus(opts)
-	if err != nil {
-		if err.Error() != chainRootErr.Error() {
-			t.Errorf("Unexpected error while checking revocation status: %v", err)
-		}
-	} else {
-		t.Errorf("Expected chain root error")
+	errs := OCSPStatus(opts)
+	expectedErrs := [][]error{
+		{chainRootErr},
+	}
+	if !identicalErrResults(errs, expectedErrs) {
+		t.Errorf("Expected invalid chain root error.\nReceived: %v\nExpected: %v\n", errs, expectedErrs)
 	}
 }
 
@@ -149,15 +135,17 @@ func TestCheckOCSPStatusForRootCert(t *testing.T) {
 	rootTuple := testhelper.GetRSARootCertificate()
 	client := testhelper.MockClient([]testhelper.RSACertTuple{rootTuple}, []ocsp.ResponseStatus{ocsp.Good}, nil, true)
 	opts := Options{
-		CertChain:       []*x509.Certificate{rootTuple.Cert},
-		SigningTime:     time.Now(),
-		HTTPClient:      client,
-		MergeErrorsFunc: defaultMergeErrors,
+		CertChain:   []*x509.Certificate{rootTuple.Cert},
+		SigningTime: time.Now(),
+		HTTPClient:  client,
 	}
 
-	err := OCSPStatus(opts)
-	if err != nil {
-		t.Errorf("Unexpected error while checking revocation status: %v", err)
+	errs := OCSPStatus(opts)
+	expectedErrs := [][]error{
+		{nil},
+	}
+	if !identicalErrResults(errs, expectedErrs) {
+		t.Errorf("Expected no errors.\nReceived: %v\nExpected: %v\n", errs, expectedErrs)
 	}
 }
 
@@ -170,85 +158,101 @@ func TestCheckOCSPStatusForChain(t *testing.T) {
 
 	t.Run("empty chain", func(t *testing.T) {
 		opts := Options{
-			CertChain:       []*x509.Certificate{},
-			SigningTime:     time.Now(),
-			HTTPClient:      http.DefaultClient,
-			MergeErrorsFunc: defaultMergeErrors,
+			CertChain:   []*x509.Certificate{},
+			SigningTime: time.Now(),
+			HTTPClient:  http.DefaultClient,
 		}
-		err := OCSPStatus(opts)
-		if err != nil {
-			t.Errorf("Unexpected error while checking revocation status: %v", err)
+		errs := OCSPStatus(opts)
+		expectedErrs := [][]error{}
+		if !identicalErrResults(errs, expectedErrs) {
+			t.Errorf("Expected no errors.\nReceived: %v\nExpected: %v\n", errs, expectedErrs)
 		}
 	})
 	t.Run("check non-revoked chain", func(t *testing.T) {
 		client := testhelper.MockClient(testChain, []ocsp.ResponseStatus{ocsp.Good}, nil, true)
 		opts := Options{
-			CertChain:       revokableChain,
-			SigningTime:     time.Now(),
-			HTTPClient:      client,
-			MergeErrorsFunc: defaultMergeErrors,
+			CertChain:   revokableChain,
+			SigningTime: time.Now(),
+			HTTPClient:  client,
 		}
 
-		err := OCSPStatus(opts)
-		if err != nil {
-			t.Errorf("Unexpected error while checking revocation status: %v", err)
+		errs := OCSPStatus(opts)
+		expectedErrs := [][]error{
+			{nil},
+			{nil},
+			{nil},
+			{nil},
+			{nil},
+			{nil},
+		}
+		if !identicalErrResults(errs, expectedErrs) {
+			t.Errorf("Expected no errors.\nReceived: %v\nExpected: %v\n", errs, expectedErrs)
 		}
 	})
 	t.Run("check chain with 1 Unknown cert", func(t *testing.T) {
 		client := testhelper.MockClient(testChain, []ocsp.ResponseStatus{ocsp.Good, ocsp.Good, ocsp.Unknown, ocsp.Good}, nil, true)
 		// 3rd cert will be unknown, the rest will be good
 		opts := Options{
-			CertChain:       revokableChain,
-			SigningTime:     time.Now(),
-			HTTPClient:      client,
-			MergeErrorsFunc: defaultMergeErrors,
+			CertChain:   revokableChain,
+			SigningTime: time.Now(),
+			HTTPClient:  client,
 		}
 
-		err := OCSPStatus(opts)
-		if err != nil {
-			if _, ok := err.(UnknownStatusError); !ok {
-				t.Errorf("Unexpected error while checking revocation status: %v", err)
-			}
-		} else {
-			t.Errorf("Expected certificate to be revoked")
+		errs := OCSPStatus(opts)
+		expectedErrs := [][]error{
+			{nil},
+			{nil},
+			{UnknownStatusError{}},
+			{nil},
+			{nil},
+			{nil},
+		}
+		if !identicalErrResults(errs, expectedErrs) {
+			t.Errorf("Expected 3rd error to be UnknownStatus.\nReceived: %v\nExpected: %v\n", errs, expectedErrs)
 		}
 	})
 	t.Run("check OCSP with 1 revoked cert", func(t *testing.T) {
 		client := testhelper.MockClient(testChain, []ocsp.ResponseStatus{ocsp.Good, ocsp.Good, ocsp.Revoked, ocsp.Good}, nil, true)
 		// 3rd cert will be revoked, the rest will be good
 		opts := Options{
-			CertChain:       revokableChain,
-			SigningTime:     time.Now(),
-			HTTPClient:      client,
-			MergeErrorsFunc: defaultMergeErrors,
+			CertChain:   revokableChain,
+			SigningTime: time.Now(),
+			HTTPClient:  client,
 		}
 
-		err := OCSPStatus(opts)
-		if err != nil {
-			if _, ok := err.(RevokedError); !ok {
-				t.Errorf("Unexpected error while checking revocation status: %v", err)
-			}
-		} else {
-			t.Errorf("Expected certificate to be revoked")
+		errs := OCSPStatus(opts)
+		expectedErrs := [][]error{
+			{nil},
+			{nil},
+			{RevokedError{}},
+			{nil},
+			{nil},
+			{nil},
+		}
+		if !identicalErrResults(errs, expectedErrs) {
+			t.Errorf("Expected 3rd cert to be Revoked.\nReceived: %v\nExpected: %v\n", errs, expectedErrs)
 		}
 	})
 	t.Run("check OCSP with 1 unknown and 1 revoked cert", func(t *testing.T) {
 		client := testhelper.MockClient(testChain, []ocsp.ResponseStatus{ocsp.Good, ocsp.Good, ocsp.Unknown, ocsp.Good, ocsp.Revoked, ocsp.Good}, nil, true)
 		// 3rd cert will be unknown, 5th will be revoked, the rest will be good
 		opts := Options{
-			CertChain:       revokableChain,
-			SigningTime:     time.Now(),
-			HTTPClient:      client,
-			MergeErrorsFunc: defaultMergeErrors,
+			CertChain:   revokableChain,
+			SigningTime: time.Now(),
+			HTTPClient:  client,
 		}
 
-		err := OCSPStatus(opts)
-		if err != nil {
-			if _, ok := err.(RevokedError); !ok {
-				t.Errorf("Unexpected error while checking revocation status: %v", err)
-			}
-		} else {
-			t.Errorf("Expected certificate to be revoked")
+		errs := OCSPStatus(opts)
+		expectedErrs := [][]error{
+			{nil},
+			{nil},
+			{UnknownStatusError{}},
+			{nil},
+			{RevokedError{}},
+			{nil},
+		}
+		if !identicalErrResults(errs, expectedErrs) {
+			t.Errorf("Expected 3rd error to be UnknownStatus and 5th to be Revoked.\nReceived: %v\nExpected: %v\n", errs, expectedErrs)
 		}
 	})
 	t.Run("check OCSP with 1 future revoked cert", func(t *testing.T) {
@@ -256,15 +260,22 @@ func TestCheckOCSPStatusForChain(t *testing.T) {
 		client := testhelper.MockClient(testChain, []ocsp.ResponseStatus{ocsp.Good, ocsp.Good, ocsp.Revoked, ocsp.Good}, &revokedTime, true)
 		// 3rd cert will be revoked, the rest will be good
 		opts := Options{
-			CertChain:       revokableChain,
-			SigningTime:     time.Now(),
-			HTTPClient:      client,
-			MergeErrorsFunc: defaultMergeErrors,
+			CertChain:   revokableChain,
+			SigningTime: time.Now(),
+			HTTPClient:  client,
 		}
 
-		err := OCSPStatus(opts)
-		if err != nil {
-			t.Errorf("Unexpected error while checking revocation status: %v", err)
+		errs := OCSPStatus(opts)
+		expectedErrs := [][]error{
+			{nil},
+			{nil},
+			{nil},
+			{nil},
+			{nil},
+			{nil},
+		}
+		if !identicalErrResults(errs, expectedErrs) {
+			t.Errorf("Expected no errors.\nReceived: %v\nExpected: %v\n", errs, expectedErrs)
 		}
 	})
 	t.Run("check OCSP with 1 unknown and 1 future revoked cert", func(t *testing.T) {
@@ -272,43 +283,49 @@ func TestCheckOCSPStatusForChain(t *testing.T) {
 		client := testhelper.MockClient(testChain, []ocsp.ResponseStatus{ocsp.Good, ocsp.Good, ocsp.Unknown, ocsp.Good, ocsp.Revoked, ocsp.Good}, &revokedTime, true)
 		// 3rd cert will be unknown, 5th will be revoked, the rest will be good
 		opts := Options{
-			CertChain:       revokableChain,
-			SigningTime:     time.Now(),
-			HTTPClient:      client,
-			MergeErrorsFunc: defaultMergeErrors,
+			CertChain:   revokableChain,
+			SigningTime: time.Now(),
+			HTTPClient:  client,
 		}
 
-		err := OCSPStatus(opts)
-		if err != nil {
-			if _, ok := err.(UnknownStatusError); !ok {
-				t.Errorf("Unexpected error while checking revocation status: %v", err)
-			}
-		} else {
-			t.Errorf("Expected certificate to be revoked")
+		errs := OCSPStatus(opts)
+		expectedErrs := [][]error{
+			{nil},
+			{nil},
+			{UnknownStatusError{}},
+			{nil},
+			{nil},
+			{nil},
+		}
+		if !identicalErrResults(errs, expectedErrs) {
+			t.Errorf("Expected 3rd error to be UnknownStatus.\nReceived: %v\nExpected: %v\n", errs, expectedErrs)
 		}
 	})
 	t.Run("check OCSP with 1 revoked cert after signing time", func(t *testing.T) {
 		client := testhelper.MockClient(testChain, []ocsp.ResponseStatus{ocsp.Good, ocsp.Good, ocsp.Revoked, ocsp.Good}, nil, true)
 		// 3rd cert will be revoked, the rest will be good
 		opts := Options{
-			CertChain:       revokableChain,
-			SigningTime:     time.Now().Add(-2 * time.Hour),
-			HTTPClient:      client,
-			MergeErrorsFunc: defaultMergeErrors,
+			CertChain:   revokableChain,
+			SigningTime: time.Now().Add(time.Hour),
+			HTTPClient:  client,
 		}
 
-		err := OCSPStatus(opts)
-		if err != nil {
-			if _, ok := err.(RevokedError); !ok {
-				t.Errorf("Unexpected error while checking revocation status: %v", err)
-			}
-		} else {
-			t.Errorf("Expected certificate to be revoked")
+		errs := OCSPStatus(opts)
+		expectedErrs := [][]error{
+			{nil},
+			{nil},
+			{RevokedError{}},
+			{nil},
+			{nil},
+			{nil},
+		}
+		if !identicalErrResults(errs, expectedErrs) {
+			t.Errorf("Expected 3rd error to be Revoked.\nReceived: %v\nExpected: %v\n", errs, expectedErrs)
 		}
 	})
 }
 
-func TestCheckOCSPErrors(t *testing.T) {
+func TestOCSPStatusErrors(t *testing.T) {
 	leafCertTuple := testhelper.GetRSALeafCertificate()
 	rootCertTuple := testhelper.GetRSARootCertificate()
 	noOCSPChain := []*x509.Certificate{leafCertTuple.Cert, rootCertTuple.Cert}
@@ -319,136 +336,157 @@ func TestCheckOCSPErrors(t *testing.T) {
 	okChain := []*x509.Certificate{revokableTuples[0].Cert, revokableTuples[1].Cert, revokableTuples[2].Cert}
 
 	expiredLeaf, _ := x509.ParseCertificate(revokableTuples[0].Cert.Raw)
-	expiredLeaf.OCSPServer = []string{"http://localhost:8080/expired_ocsp"}
+	expiredLeaf.OCSPServer = []string{"http://example.com/expired_ocsp"}
 	expiredChain := []*x509.Certificate{expiredLeaf, revokableTuples[1].Cert, revokableTuples[2].Cert}
+
+	noHTTPLeaf, _ := x509.ParseCertificate(revokableTuples[0].Cert.Raw)
+	noHTTPLeaf.OCSPServer = []string{"ldap://ds.example.com:123/chain_ocsp/0"}
+	noHTTPChain := []*x509.Certificate{noHTTPLeaf, revokableTuples[1].Cert, revokableTuples[2].Cert}
 
 	invalidChainErr := CheckOCSPError{Err: errors.New("invalid chain: expected chain to be correct and complete with each cert issued by the next in the chain")}
 	chainRootErr := CheckOCSPError{Err: errors.New("invalid chain: expected chain to end with root cert")}
 	expiredRespErr := CheckOCSPError{Err: errors.New("expired OCSP response")}
+	noHTTPErr := CheckOCSPError{Err: errors.New("OCSPServer must be accessible over HTTP")}
 
 	t.Run("no OCSPServer specified", func(t *testing.T) {
 		opts := Options{
-			CertChain:       noOCSPChain,
-			SigningTime:     time.Now(),
-			HTTPClient:      http.DefaultClient,
-			MergeErrorsFunc: defaultMergeErrors,
+			CertChain:   noOCSPChain,
+			SigningTime: time.Now(),
+			HTTPClient:  http.DefaultClient,
 		}
-		err := OCSPStatus(opts)
-		if err != nil {
-			if _, ok := err.(NoOCSPServerError); !ok {
-				t.Errorf("Unexpected error while checking revocation status: %v", err)
-			}
-		} else {
-			t.Errorf("Expected NoOCSPServerError")
+		errs := OCSPStatus(opts)
+		expectedErrs := [][]error{
+			{NoOCSPServerError{}},
+			{nil},
+		}
+		if !identicalErrResults(errs, expectedErrs) {
+			t.Errorf("Expected NoOCSPServerError.\nReceived: %v\nExpected: %v\n", errs, expectedErrs)
 		}
 	})
 
 	t.Run("chain missing root", func(t *testing.T) {
 		opts := Options{
-			CertChain:       noRootChain,
-			SigningTime:     time.Now(),
-			HTTPClient:      http.DefaultClient,
-			MergeErrorsFunc: defaultMergeErrors,
+			CertChain:   noRootChain,
+			SigningTime: time.Now(),
+			HTTPClient:  http.DefaultClient,
 		}
-		err := OCSPStatus(opts)
-		if err != nil {
-			if err.Error() != chainRootErr.Error() {
-				t.Errorf("Unexpected error while checking revocation status: %v", err)
-			}
-		} else {
-			t.Errorf("Expected chain root error")
+		errs := OCSPStatus(opts)
+		expectedErrs := [][]error{
+			{chainRootErr},
+			{chainRootErr},
+		}
+		if !identicalErrResults(errs, expectedErrs) {
+			t.Errorf("Expected invalid chain root error.\nReceived: %v\nExpected: %v\n", errs, expectedErrs)
 		}
 	})
 
 	t.Run("backwards chain", func(t *testing.T) {
 		opts := Options{
-			CertChain:       backwardsChain,
-			SigningTime:     time.Now(),
-			HTTPClient:      http.DefaultClient,
-			MergeErrorsFunc: defaultMergeErrors,
+			CertChain:   backwardsChain,
+			SigningTime: time.Now(),
+			HTTPClient:  http.DefaultClient,
 		}
-		err := OCSPStatus(opts)
-		if err != nil {
-			if err.Error() != invalidChainErr.Error() {
-				t.Errorf("Unexpected error while checking revocation status: %v", err)
-			}
-		} else {
-			t.Errorf("Expected chain root error")
+		errs := OCSPStatus(opts)
+		expectedErrs := [][]error{
+			{invalidChainErr},
+			{invalidChainErr},
+			{invalidChainErr},
+		}
+		if !identicalErrResults(errs, expectedErrs) {
+			t.Errorf("Expected invalid chain error.\nReceived: %v\nExpected: %v\n", errs, expectedErrs)
 		}
 	})
 
 	t.Run("timeout", func(t *testing.T) {
 		timeoutClient := &http.Client{Timeout: 1 * time.Nanosecond}
 		opts := Options{
-			CertChain:       okChain,
-			SigningTime:     time.Now(),
-			HTTPClient:      timeoutClient,
-			MergeErrorsFunc: defaultMergeErrors,
+			CertChain:   okChain,
+			SigningTime: time.Now(),
+			HTTPClient:  timeoutClient,
 		}
-		err := OCSPStatus(opts)
-		if err != nil {
-			if _, ok := err.(TimeoutError); !ok {
-				t.Errorf("Unexpected error while checking revocation status: %v", err)
-			}
-		} else {
-			t.Errorf("Expected request to time out")
+		errs := OCSPStatus(opts)
+		expectedErrs := [][]error{
+			{TimeoutError{}},
+			{TimeoutError{}},
+			{nil},
+		}
+		if !identicalErrResults(errs, expectedErrs) {
+			t.Errorf("Expected timeout errors.\nReceived: %v\nExpected: %v\n", errs, expectedErrs)
 		}
 	})
 
 	t.Run("expired ocsp response", func(t *testing.T) {
 		client := testhelper.MockClient(revokableTuples, []ocsp.ResponseStatus{ocsp.Good}, nil, true)
 		opts := Options{
-			CertChain:       expiredChain,
-			SigningTime:     time.Now(),
-			HTTPClient:      client,
-			MergeErrorsFunc: defaultMergeErrors,
+			CertChain:   expiredChain,
+			SigningTime: time.Now(),
+			HTTPClient:  client,
 		}
-		err := OCSPStatus(opts)
-		if err != nil {
-			if err.Error() != expiredRespErr.Error() {
-				t.Errorf("Unexpected error while checking revocation status: %v", err)
-			}
-		} else {
-			t.Errorf("Expected expired response error")
+		errs := OCSPStatus(opts)
+		expectedErrs := [][]error{
+			{expiredRespErr},
+			{nil},
+			{nil},
+		}
+		if !identicalErrResults(errs, expectedErrs) {
+			t.Errorf("Expected expired response errors.\nReceived: %v\nExpected: %v\n", errs, expectedErrs)
 		}
 	})
 
 	t.Run("pkixNoCheck error", func(t *testing.T) {
 		client := testhelper.MockClient(revokableTuples, []ocsp.ResponseStatus{ocsp.Good}, nil, false)
 		opts := Options{
-			CertChain:       okChain,
-			SigningTime:     time.Now(),
-			HTTPClient:      client,
-			MergeErrorsFunc: defaultMergeErrors,
+			CertChain:   okChain,
+			SigningTime: time.Now(),
+			HTTPClient:  client,
 		}
 
-		err := OCSPStatus(opts)
-		if err != nil {
-			if _, ok := err.(PKIXNoCheckError); !ok {
-				t.Errorf("Unexpected error while checking revocation status: %v", err)
-			}
-		} else {
-			t.Errorf("Expected chain to have PKIXNoCheckError")
+		errs := OCSPStatus(opts)
+		expectedErrs := [][]error{
+			{PKIXNoCheckError{}},
+			{PKIXNoCheckError{}},
+			{nil},
+		}
+		if !identicalErrResults(errs, expectedErrs) {
+			t.Errorf("Expected expired response errors.\nReceived: %v\nExpected: %v\n", errs, expectedErrs)
+		}
+	})
+
+	t.Run("non-HTTP URI error", func(t *testing.T) {
+		client := testhelper.MockClient(revokableTuples, []ocsp.ResponseStatus{ocsp.Good}, nil, true)
+		opts := Options{
+			CertChain:   noHTTPChain,
+			SigningTime: time.Now(),
+			HTTPClient:  client,
+		}
+		errs := OCSPStatus(opts)
+		expectedErrs := [][]error{
+			{noHTTPErr},
+			{nil},
+			{nil},
+		}
+		if !identicalErrResults(errs, expectedErrs) {
+			t.Errorf("Expected expired response errors.\nReceived: %v\nExpected: %v\n", errs, expectedErrs)
 		}
 	})
 }
 
 func TestCheckOCSPInvalidChain(t *testing.T) {
 	revokableTuples := testhelper.GetRevokableRSAChain(4)
-	misorderedIntermediateTuples := []testhelper.RSACertTuple{revokableTuples[1], revokableTuples[0], revokableTuples[3]}
-	misorderedIntermediateChain := []*x509.Certificate{revokableTuples[1].Cert, revokableTuples[0].Cert, revokableTuples[3].Cert}
+	misorderedIntermediateTuples := []testhelper.RSACertTuple{revokableTuples[1], revokableTuples[0], revokableTuples[2], revokableTuples[3]}
+	misorderedIntermediateChain := []*x509.Certificate{revokableTuples[1].Cert, revokableTuples[0].Cert, revokableTuples[2].Cert, revokableTuples[3].Cert}
 	for i, cert := range misorderedIntermediateChain {
 		if i != (len(misorderedIntermediateChain) - 1) {
 			// Skip root which won't have an OCSP Server
-			cert.OCSPServer[0] = fmt.Sprintf("http://localhost:8080/chain_ocsp/%d", i)
+			cert.OCSPServer[0] = fmt.Sprintf("http://example.com/chain_ocsp/%d", i)
 		}
 	}
 
 	missingIntermediateChain := []*x509.Certificate{revokableTuples[0].Cert, revokableTuples[2].Cert, revokableTuples[3].Cert}
 	for i, cert := range missingIntermediateChain {
-		if i != (len(misorderedIntermediateChain) - 1) {
+		if i != (len(missingIntermediateChain) - 1) {
 			// Skip root which won't have an OCSP Server
-			cert.OCSPServer[0] = fmt.Sprintf("http://localhost:8080/chain_ocsp/%d", i)
+			cert.OCSPServer[0] = fmt.Sprintf("http://example.com/chain_ocsp/%d", i)
 		}
 	}
 
@@ -457,36 +495,37 @@ func TestCheckOCSPInvalidChain(t *testing.T) {
 	t.Run("chain missing intermediate", func(t *testing.T) {
 		client := testhelper.MockClient(revokableTuples, []ocsp.ResponseStatus{ocsp.Good}, nil, true)
 		opts := Options{
-			CertChain:       missingIntermediateChain,
-			SigningTime:     time.Now(),
-			HTTPClient:      client,
-			MergeErrorsFunc: defaultMergeErrors,
+			CertChain:   missingIntermediateChain,
+			SigningTime: time.Now(),
+			HTTPClient:  client,
 		}
-		err := OCSPStatus(opts)
-		if err != nil {
-			if err.Error() != invalidChainErr.Error() {
-				t.Errorf("Unexpected error while checking revocation status: %v", err)
-			}
-		} else {
-			t.Errorf("Expected invalid chain error")
+		errs := OCSPStatus(opts)
+		expectedErrs := [][]error{
+			{invalidChainErr},
+			{invalidChainErr},
+			{invalidChainErr},
+		}
+		if !identicalErrResults(errs, expectedErrs) {
+			t.Errorf("Expected invalid chain error.\nReceived: %v\nExpected: %v\n", errs, expectedErrs)
 		}
 	})
 
 	t.Run("chain out of order", func(t *testing.T) {
 		client := testhelper.MockClient(misorderedIntermediateTuples, []ocsp.ResponseStatus{ocsp.Good}, nil, true)
 		opts := Options{
-			CertChain:       misorderedIntermediateChain,
-			SigningTime:     time.Now(),
-			HTTPClient:      client,
-			MergeErrorsFunc: defaultMergeErrors,
+			CertChain:   misorderedIntermediateChain,
+			SigningTime: time.Now(),
+			HTTPClient:  client,
 		}
-		err := OCSPStatus(opts)
-		if err != nil {
-			if err.Error() != invalidChainErr.Error() {
-				t.Errorf("Unexpected error while checking revocation status: %v", err)
-			}
-		} else {
-			t.Errorf("Expected invalid chain error")
+		errs := OCSPStatus(opts)
+		expectedErrs := [][]error{
+			{invalidChainErr},
+			{invalidChainErr},
+			{invalidChainErr},
+			{invalidChainErr},
+		}
+		if !identicalErrResults(errs, expectedErrs) {
+			t.Errorf("Expected invalid chain error.\nReceived: %v\nExpected: %v\n", errs, expectedErrs)
 		}
 	})
 }
