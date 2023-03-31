@@ -45,6 +45,12 @@ const (
 //	[[PKIXNoCheckError, TimeoutError], [RevokedError], [nil]]
 func OCSPStatus(opts Options) [][]error {
 	certResults := make([][]error, len(opts.CertChain))
+
+	if len(opts.CertChain) == 0 {
+		return certResults
+	}
+
+	// Validate cert chain structure
 	for i, cert := range opts.CertChain {
 		if i != (len(opts.CertChain) - 1) {
 			if err := validateIssuer(cert, opts.CertChain[i+1]); err != nil {
@@ -59,21 +65,20 @@ func OCSPStatus(opts Options) [][]error {
 		}
 	}
 
-	wg := sync.WaitGroup{}
-	if len(opts.CertChain) > 0 {
-		for i, cert := range opts.CertChain[:len(opts.CertChain)-1] {
-			wg.Add(1)
-			// Assume cert chain is accurate and next cert in chain is the issuer
-			go func(i int, cert *x509.Certificate) {
-				defer wg.Done()
-				certResults[i] = certOCSPStatus(cert, opts.CertChain[i+1], opts)
-			}(i, cert)
-		}
-		// Last is root cert, which will never be revoked by OCSP
-		certResults[len(opts.CertChain)-1] = []error{nil}
-
-		wg.Wait()
+	// Check status for each cert in cert chain
+	var wg sync.WaitGroup
+	for i, cert := range opts.CertChain[:len(opts.CertChain)-1] {
+		wg.Add(1)
+		// Assume cert chain is accurate and next cert in chain is the issuer
+		go func(i int, cert *x509.Certificate) {
+			defer wg.Done()
+			certResults[i] = certOCSPStatus(cert, opts.CertChain[i+1], opts)
+		}(i, cert)
 	}
+	// Last is root cert, which will never be revoked by OCSP
+	certResults[len(opts.CertChain)-1] = []error{nil}
+
+	wg.Wait()
 	return certResults
 }
 
@@ -93,7 +98,7 @@ func validateIssuer(subject *x509.Certificate, issuer *x509.Certificate) error {
 	return nil
 }
 
-func certOCSPStatus(cert *x509.Certificate, issuer *x509.Certificate, opts Options) []error {
+func certOCSPStatus(cert, issuer *x509.Certificate, opts Options) []error {
 	ocspURLs := cert.OCSPServer
 	if len(ocspURLs) == 0 {
 		// OCSP not enabled for this certificate.
@@ -102,51 +107,18 @@ func certOCSPStatus(cert *x509.Certificate, issuer *x509.Certificate, opts Optio
 
 	serverErrs := make([]error, len(ocspURLs))
 	for serverIndex, server := range ocspURLs {
-		if !strings.HasPrefix(strings.ToLower(server), "http://") {
-			// This function is only able to check servers that are accessible via HTTP
-			serverErrs[serverIndex] = CheckOCSPError{Err: errors.New("OCSPServer must be accessible over HTTP")}
-			continue
-		}
-		resp, err := ocspRequest(cert, issuer, server, opts)
+		status, err := checkStatusFromServer(cert, issuer, server, opts)
 		if err != nil {
-			// If there is a server error, attempt all servers before determining what to return
-			// to the user
-			if errors.Is(err, TimeoutError{}) {
-				serverErrs[serverIndex] = err
-			} else {
-				serverErrs[serverIndex] = CheckOCSPError{Err: err}
-			}
+			serverErrs[serverIndex] = err
 			continue
 		}
 
-		if time.Now().After(resp.NextUpdate) {
-			serverErrs[serverIndex] = CheckOCSPError{Err: errors.New("expired OCSP response")}
-			continue
-		}
-
-		foundNoCheck := false
-		for _, extension := range resp.Extensions {
-			if !foundNoCheck && extension.Id.String() == pkixNoCheckOID {
-				foundNoCheck = true
-				break
-			}
-		}
-		if !foundNoCheck {
-			// This will be ignored until CRL is implemented
-			// If it isn't found, CRL should be used to verify the OCSP response
-			// TODO: add CRL support
-			// https://github.com/notaryproject/notation-core-go/issues/125
-			serverErrs[serverIndex] = PKIXNoCheckError{}
-			continue
-		}
-
-		switch resp.Status {
+		// A valid response has been received from an OCSP server
+		// Result should be based on only this response, not any errors from
+		// other servers
+		switch status {
 		case ocsp.Revoked:
-			if opts.SigningTime.After(resp.RevokedAt) {
-				return []error{RevokedError{}}
-			} else {
-				return []error{nil}
-			}
+			return []error{RevokedError{}}
 		case ocsp.Good:
 			return []error{nil}
 		default:
@@ -157,6 +129,54 @@ func certOCSPStatus(cert *x509.Certificate, issuer *x509.Certificate, opts Optio
 	return serverErrs
 }
 
+func checkStatusFromServer(cert, issuer *x509.Certificate, server string, opts Options) (ocsp.ResponseStatus, error) {
+	// Check valid server
+	if !strings.HasPrefix(strings.ToLower(server), "http://") {
+		// This function is only able to check servers that are accessible via HTTP
+		return ocsp.Unknown, CheckOCSPError{Err: errors.New("OCSPServer must be accessible over HTTP")}
+	}
+
+	// Create OCSP Request
+	resp, err := ocspRequest(cert, issuer, server, opts)
+	if err != nil {
+		// If there is a server error, attempt all servers before determining what to return
+		// to the user
+		if errors.Is(err, TimeoutError{}) {
+			return ocsp.Unknown, err
+		}
+		return ocsp.Unknown, CheckOCSPError{Err: err}
+	}
+
+	// Validate OCSP response isn't expired
+	if time.Now().After(resp.NextUpdate) {
+		return ocsp.Unknown, CheckOCSPError{Err: errors.New("expired OCSP response")}
+	}
+
+	// Check for presence of pkix-ocsp-no-check extension in response
+	foundNoCheck := false
+	for _, extension := range resp.Extensions {
+		if !foundNoCheck && extension.Id.String() == pkixNoCheckOID {
+			foundNoCheck = true
+			break
+		}
+	}
+	if !foundNoCheck {
+		// This will be ignored until CRL is implemented
+		// If it isn't found, CRL should be used to verify the OCSP response
+		// TODO: add CRL support
+		// https://github.com/notaryproject/notation-core-go/issues/125
+		return ocsp.Unknown, PKIXNoCheckError{}
+	}
+
+	// Check if SigningTime was before the revocation
+	if opts.SigningTime.Before(resp.RevokedAt) {
+		return ocsp.Good, nil
+	}
+
+	// No errors, valid server response
+	return ocsp.ResponseStatus(resp.Status), nil
+}
+
 func ocspRequest(cert, issuer *x509.Certificate, server string, opts Options) (*ocsp.Response, error) {
 	ocspRequest, err := ocsp.CreateRequest(cert, issuer, &ocsp.RequestOptions{Hash: crypto.SHA256})
 	if err != nil {
@@ -164,12 +184,16 @@ func ocspRequest(cert, issuer *x509.Certificate, server string, opts Options) (*
 	}
 
 	var resp *http.Response
-	encodedReq := base64.StdEncoding.EncodeToString(ocspRequest)
-	if len(encodedReq) >= 255 {
+	if base64.URLEncoding.EncodedLen(len(ocspRequest)) >= 255 {
 		reader := bytes.NewReader(ocspRequest)
 		resp, err = opts.HTTPClient.Post(server, "application/ocsp-request", reader)
 	} else {
-		reqURL := server + "/" + url.QueryEscape(encodedReq)
+		encodedReq := base64.URLEncoding.EncodeToString(ocspRequest)
+		var reqURL string
+		reqURL, err = url.JoinPath(server, encodedReq)
+		if err != nil {
+			return nil, err
+		}
 		resp, err = opts.HTTPClient.Get(reqURL)
 	}
 

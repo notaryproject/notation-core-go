@@ -41,7 +41,7 @@ func New(httpClient *http.Client) Revocation {
 // revocation/ocsp package.
 //
 // To get a single Result for the chain, pass the list of errors to the
-// GetResultFromErrors function
+// ResultFromErrors function
 //
 // TODO: add CRL support
 // https://github.com/notaryproject/notation-core-go/issues/125
@@ -85,9 +85,9 @@ func (r Result) String() string {
 	}
 }
 
-// GetResultFromErrors provides a way to convert the [][]error result from
+// ResultFromErrors provides a way to convert the [][]error result from
 // Validate into a singular Result
-func GetResultFromErrors(errs [][]error) Result {
+func ResultFromErrors(errs [][]error) Result {
 	currResult := OK
 	for _, serverErrs := range errs {
 		for _, err := range serverErrs {

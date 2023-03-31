@@ -467,114 +467,114 @@ func TestResultString(t *testing.T) {
 	})
 }
 
-func TestGetResultFromErrorsSingle(t *testing.T) {
+func TestResultFromErrorsSingle(t *testing.T) {
 	t.Run("nil", func(t *testing.T) {
-		result := GetResultFromErrors([][]error{{nil}})
+		result := ResultFromErrors([][]error{{nil}})
 		if result != OK {
 			t.Errorf("Expected %s but got %s", OK, result)
 		}
 	})
 	t.Run("no ocsp server", func(t *testing.T) {
-		result := GetResultFromErrors([][]error{{revocation_ocsp.NoOCSPServerError{}}})
+		result := ResultFromErrors([][]error{{revocation_ocsp.NoOCSPServerError{}}})
 		if result != OK {
 			t.Errorf("Expected %s but got %s", OK, result)
 		}
 	})
 	t.Run("ocsp unknown status", func(t *testing.T) {
-		result := GetResultFromErrors([][]error{{revocation_ocsp.UnknownStatusError{}}})
+		result := ResultFromErrors([][]error{{revocation_ocsp.UnknownStatusError{}}})
 		if result != Unknown {
 			t.Errorf("Expected %s but got %s", Unknown, result)
 		}
 	})
 	t.Run("check ocsp err", func(t *testing.T) {
-		result := GetResultFromErrors([][]error{{revocation_ocsp.CheckOCSPError{}}})
+		result := ResultFromErrors([][]error{{revocation_ocsp.CheckOCSPError{}}})
 		if result != Unknown {
 			t.Errorf("Expected %s but got %s", Unknown, result)
 		}
 	})
 	t.Run("ocsp pkix no check", func(t *testing.T) {
-		result := GetResultFromErrors([][]error{{revocation_ocsp.PKIXNoCheckError{}}})
+		result := ResultFromErrors([][]error{{revocation_ocsp.PKIXNoCheckError{}}})
 		if result != Unknown {
 			t.Errorf("Expected %s but got %s", Unknown, result)
 		}
 	})
 	t.Run("ocsp timeout", func(t *testing.T) {
-		result := GetResultFromErrors([][]error{{revocation_ocsp.TimeoutError{}}})
+		result := ResultFromErrors([][]error{{revocation_ocsp.TimeoutError{}}})
 		if result != Unknown {
 			t.Errorf("Expected %s but got %s", Unknown, result)
 		}
 	})
 	t.Run("ocsp revoked", func(t *testing.T) {
-		result := GetResultFromErrors([][]error{{revocation_ocsp.RevokedError{}}})
+		result := ResultFromErrors([][]error{{revocation_ocsp.RevokedError{}}})
 		if result != Revoked {
 			t.Errorf("Expected %s but got %s", Revoked, result)
 		}
 	})
 }
 
-func TestGetResultFromErrorsMultiple(t *testing.T) {
+func TestResultFromErrorsMultiple(t *testing.T) {
 	t.Run("no errors", func(t *testing.T) {
-		result := GetResultFromErrors([][]error{{nil}, {nil}, {nil}})
+		result := ResultFromErrors([][]error{{nil}, {nil}, {nil}})
 		if result != OK {
 			t.Errorf("Expected %s but got %s", OK, result)
 		}
 	})
 	t.Run("only ok errors (single server)", func(t *testing.T) {
-		result := GetResultFromErrors([][]error{{nil}, {revocation_ocsp.NoOCSPServerError{}}, {nil}})
+		result := ResultFromErrors([][]error{{nil}, {revocation_ocsp.NoOCSPServerError{}}, {nil}})
 		if result != OK {
 			t.Errorf("Expected %s but got %s", OK, result)
 		}
 	})
 	t.Run("only ok errors (multi server)", func(t *testing.T) {
-		result := GetResultFromErrors([][]error{{nil}, {nil, nil}, {revocation_ocsp.NoOCSPServerError{}, nil}, {revocation_ocsp.NoOCSPServerError{}, revocation_ocsp.NoOCSPServerError{}}, {nil, revocation_ocsp.NoOCSPServerError{}}, {nil}})
+		result := ResultFromErrors([][]error{{nil}, {nil, nil}, {revocation_ocsp.NoOCSPServerError{}, nil}, {revocation_ocsp.NoOCSPServerError{}, revocation_ocsp.NoOCSPServerError{}}, {nil, revocation_ocsp.NoOCSPServerError{}}, {nil}})
 		if result != OK {
 			t.Errorf("Expected %s but got %s", OK, result)
 		}
 	})
 	t.Run("ok and unknown errors (single server)", func(t *testing.T) {
-		result := GetResultFromErrors([][]error{{nil}, {revocation_ocsp.UnknownStatusError{}}, {revocation_ocsp.NoOCSPServerError{}}, {nil}})
+		result := ResultFromErrors([][]error{{nil}, {revocation_ocsp.UnknownStatusError{}}, {revocation_ocsp.NoOCSPServerError{}}, {nil}})
 		if result != Unknown {
 			t.Errorf("Expected %s but got %s", Unknown, result)
 		}
 	})
 	t.Run("ok and unknown errors (multi server)", func(t *testing.T) {
-		result := GetResultFromErrors([][]error{{nil}, {revocation_ocsp.NoOCSPServerError{}, revocation_ocsp.TimeoutError{}}, {nil}})
+		result := ResultFromErrors([][]error{{nil}, {revocation_ocsp.NoOCSPServerError{}, revocation_ocsp.TimeoutError{}}, {nil}})
 		if result != Unknown {
 			t.Errorf("Expected %s but got %s", Unknown, result)
 		}
 	})
 	t.Run("ok and revoked errors (single server)", func(t *testing.T) {
-		result := GetResultFromErrors([][]error{{nil}, {revocation_ocsp.RevokedError{}}, {revocation_ocsp.NoOCSPServerError{}}, {nil}})
+		result := ResultFromErrors([][]error{{nil}, {revocation_ocsp.RevokedError{}}, {revocation_ocsp.NoOCSPServerError{}}, {nil}})
 		if result != Revoked {
 			t.Errorf("Expected %s but got %s", Revoked, result)
 		}
 	})
 	t.Run("ok and revoked errors (multi server)", func(t *testing.T) {
-		result := GetResultFromErrors([][]error{{nil}, {revocation_ocsp.NoOCSPServerError{}, revocation_ocsp.RevokedError{}}, {nil}})
+		result := ResultFromErrors([][]error{{nil}, {revocation_ocsp.NoOCSPServerError{}, revocation_ocsp.RevokedError{}}, {nil}})
 		if result != Revoked {
 			t.Errorf("Expected %s but got %s", Revoked, result)
 		}
 	})
 	t.Run("unknown and revoked errors (single server)", func(t *testing.T) {
-		result := GetResultFromErrors([][]error{{revocation_ocsp.RevokedError{}}, {revocation_ocsp.UnknownStatusError{}}, {nil}})
+		result := ResultFromErrors([][]error{{revocation_ocsp.RevokedError{}}, {revocation_ocsp.UnknownStatusError{}}, {nil}})
 		if result != Revoked {
 			t.Errorf("Expected %s but got %s", Revoked, result)
 		}
 	})
 	t.Run("unknown and revoked errors (multi server)", func(t *testing.T) {
-		result := GetResultFromErrors([][]error{{revocation_ocsp.RevokedError{}, revocation_ocsp.UnknownStatusError{}}})
+		result := ResultFromErrors([][]error{{revocation_ocsp.RevokedError{}, revocation_ocsp.UnknownStatusError{}}})
 		if result != Revoked {
 			t.Errorf("Expected %s but got %s", Revoked, result)
 		}
 	})
 	t.Run("all three types (single server)", func(t *testing.T) {
-		result := GetResultFromErrors([][]error{{nil}, {revocation_ocsp.RevokedError{}}, {revocation_ocsp.UnknownStatusError{}}, {revocation_ocsp.NoOCSPServerError{}}, {nil}})
+		result := ResultFromErrors([][]error{{nil}, {revocation_ocsp.RevokedError{}}, {revocation_ocsp.UnknownStatusError{}}, {revocation_ocsp.NoOCSPServerError{}}, {nil}})
 		if result != Revoked {
 			t.Errorf("Expected %s but got %s", Revoked, result)
 		}
 	})
 	t.Run("all three types (multi server)", func(t *testing.T) {
-		result := GetResultFromErrors([][]error{{nil}, {revocation_ocsp.RevokedError{}, revocation_ocsp.UnknownStatusError{}, revocation_ocsp.NoOCSPServerError{}}, {nil}})
+		result := ResultFromErrors([][]error{{nil}, {revocation_ocsp.RevokedError{}, revocation_ocsp.UnknownStatusError{}, revocation_ocsp.NoOCSPServerError{}}, {nil}})
 		if result != Revoked {
 			t.Errorf("Expected %s but got %s", Revoked, result)
 		}
