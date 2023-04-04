@@ -39,7 +39,7 @@ func identicalErrResults(errs, expectedErrs [][]error) bool {
 	return true
 }
 
-func TestCertOCSPStatus(t *testing.T) {
+func TestCheckStatus(t *testing.T) {
 	revokableCertTuple := testhelper.GetRevokableRSALeafCertificate()
 	revokableIssuerTuple := testhelper.GetRSARootCertificate()
 	revokableChain := []*x509.Certificate{revokableCertTuple.Cert, revokableIssuerTuple.Cert}
@@ -53,7 +53,7 @@ func TestCertOCSPStatus(t *testing.T) {
 			HTTPClient:  client,
 		}
 
-		err := certOCSPStatus(revokableChain[0], revokableChain[1], opts)
+		err := certCheckStatus(revokableChain[0], revokableChain[1], opts)
 		expectedErrs := [][]error{
 			{nil},
 		}
@@ -69,7 +69,7 @@ func TestCertOCSPStatus(t *testing.T) {
 			HTTPClient:  client,
 		}
 
-		err := certOCSPStatus(revokableChain[0], revokableChain[1], opts)
+		err := certCheckStatus(revokableChain[0], revokableChain[1], opts)
 		expectedErrs := [][]error{
 			{UnknownStatusError{}},
 		}
@@ -85,7 +85,7 @@ func TestCertOCSPStatus(t *testing.T) {
 			HTTPClient:  client,
 		}
 
-		err := certOCSPStatus(revokableChain[0], revokableChain[1], opts)
+		err := certCheckStatus(revokableChain[0], revokableChain[1], opts)
 		expectedErrs := [][]error{
 			{RevokedError{}},
 		}
@@ -102,7 +102,7 @@ func TestCertOCSPStatus(t *testing.T) {
 			HTTPClient:  client,
 		}
 
-		err := certOCSPStatus(revokableChain[0], revokableChain[1], opts)
+		err := certCheckStatus(revokableChain[0], revokableChain[1], opts)
 		expectedErrs := [][]error{
 			{nil},
 		}
@@ -112,7 +112,7 @@ func TestCertOCSPStatus(t *testing.T) {
 	})
 }
 
-func TestCheckOCSPStatusForSelfSignedCert(t *testing.T) {
+func TestCheckStatusForSelfSignedCert(t *testing.T) {
 	selfSignedTuple := testhelper.GetRSASelfSignedSigningCertTuple("Notation revocation test self-signed cert")
 	client := testhelper.MockClient([]testhelper.RSACertTuple{selfSignedTuple}, []ocsp.ResponseStatus{ocsp.Good}, nil, true)
 	opts := Options{
@@ -121,8 +121,8 @@ func TestCheckOCSPStatusForSelfSignedCert(t *testing.T) {
 		HTTPClient:  client,
 	}
 
-	chainRootErr := CheckOCSPError{Err: errors.New("invalid chain: expected chain to end with root cert")}
-	errs := OCSPStatus(opts)
+	chainRootErr := OCSPCheckError{Err: errors.New("invalid chain: expected chain to end with root cert: x509: invalid signature: parent certificate cannot sign this kind of certificate")}
+	errs := CheckStatus(opts)
 	expectedErrs := [][]error{
 		{chainRootErr},
 	}
@@ -131,7 +131,7 @@ func TestCheckOCSPStatusForSelfSignedCert(t *testing.T) {
 	}
 }
 
-func TestCheckOCSPStatusForRootCert(t *testing.T) {
+func TestCheckStatusForRootCert(t *testing.T) {
 	rootTuple := testhelper.GetRSARootCertificate()
 	client := testhelper.MockClient([]testhelper.RSACertTuple{rootTuple}, []ocsp.ResponseStatus{ocsp.Good}, nil, true)
 	opts := Options{
@@ -140,7 +140,7 @@ func TestCheckOCSPStatusForRootCert(t *testing.T) {
 		HTTPClient:  client,
 	}
 
-	errs := OCSPStatus(opts)
+	errs := CheckStatus(opts)
 	expectedErrs := [][]error{
 		{nil},
 	}
@@ -149,7 +149,7 @@ func TestCheckOCSPStatusForRootCert(t *testing.T) {
 	}
 }
 
-func TestCheckOCSPStatusForChain(t *testing.T) {
+func TestCheckStatusForChain(t *testing.T) {
 	testChain := testhelper.GetRevokableRSAChain(6)
 	revokableChain := make([]*x509.Certificate, 6)
 	for i, tuple := range testChain {
@@ -162,7 +162,7 @@ func TestCheckOCSPStatusForChain(t *testing.T) {
 			SigningTime: time.Now(),
 			HTTPClient:  http.DefaultClient,
 		}
-		errs := OCSPStatus(opts)
+		errs := CheckStatus(opts)
 		expectedErrs := [][]error{}
 		if !identicalErrResults(errs, expectedErrs) {
 			t.Errorf("Expected no errors.\nReceived: %v\nExpected: %v\n", errs, expectedErrs)
@@ -176,7 +176,7 @@ func TestCheckOCSPStatusForChain(t *testing.T) {
 			HTTPClient:  client,
 		}
 
-		errs := OCSPStatus(opts)
+		errs := CheckStatus(opts)
 		expectedErrs := [][]error{
 			{nil},
 			{nil},
@@ -198,7 +198,7 @@ func TestCheckOCSPStatusForChain(t *testing.T) {
 			HTTPClient:  client,
 		}
 
-		errs := OCSPStatus(opts)
+		errs := CheckStatus(opts)
 		expectedErrs := [][]error{
 			{nil},
 			{nil},
@@ -220,7 +220,7 @@ func TestCheckOCSPStatusForChain(t *testing.T) {
 			HTTPClient:  client,
 		}
 
-		errs := OCSPStatus(opts)
+		errs := CheckStatus(opts)
 		expectedErrs := [][]error{
 			{nil},
 			{nil},
@@ -242,7 +242,7 @@ func TestCheckOCSPStatusForChain(t *testing.T) {
 			HTTPClient:  client,
 		}
 
-		errs := OCSPStatus(opts)
+		errs := CheckStatus(opts)
 		expectedErrs := [][]error{
 			{nil},
 			{nil},
@@ -265,7 +265,7 @@ func TestCheckOCSPStatusForChain(t *testing.T) {
 			HTTPClient:  client,
 		}
 
-		errs := OCSPStatus(opts)
+		errs := CheckStatus(opts)
 		expectedErrs := [][]error{
 			{nil},
 			{nil},
@@ -288,7 +288,7 @@ func TestCheckOCSPStatusForChain(t *testing.T) {
 			HTTPClient:  client,
 		}
 
-		errs := OCSPStatus(opts)
+		errs := CheckStatus(opts)
 		expectedErrs := [][]error{
 			{nil},
 			{nil},
@@ -310,7 +310,7 @@ func TestCheckOCSPStatusForChain(t *testing.T) {
 			HTTPClient:  client,
 		}
 
-		errs := OCSPStatus(opts)
+		errs := CheckStatus(opts)
 		expectedErrs := [][]error{
 			{nil},
 			{nil},
@@ -325,7 +325,7 @@ func TestCheckOCSPStatusForChain(t *testing.T) {
 	})
 }
 
-func TestOCSPStatusErrors(t *testing.T) {
+func TestCheckStatusErrors(t *testing.T) {
 	leafCertTuple := testhelper.GetRSALeafCertificate()
 	rootCertTuple := testhelper.GetRSARootCertificate()
 	noOCSPChain := []*x509.Certificate{leafCertTuple.Cert, rootCertTuple.Cert}
@@ -343,10 +343,10 @@ func TestOCSPStatusErrors(t *testing.T) {
 	noHTTPLeaf.OCSPServer = []string{"ldap://ds.example.com:123/chain_ocsp/0"}
 	noHTTPChain := []*x509.Certificate{noHTTPLeaf, revokableTuples[1].Cert, revokableTuples[2].Cert}
 
-	invalidChainErr := CheckOCSPError{Err: errors.New("invalid chain: expected chain to be correct and complete with each cert issued by the next in the chain")}
-	chainRootErr := CheckOCSPError{Err: errors.New("invalid chain: expected chain to end with root cert")}
-	expiredRespErr := CheckOCSPError{Err: errors.New("expired OCSP response")}
-	noHTTPErr := CheckOCSPError{Err: errors.New("OCSPServer must be accessible over HTTP")}
+	invalidChainErr := OCSPCheckError{Err: errors.New("invalid chain: expected chain to be correct and complete: parent's subject does not match issuer for a cert in the chain")}
+	chainRootErr := OCSPCheckError{Err: errors.New("invalid chain: expected chain to end with root cert: parent's subject does not match issuer for a cert in the chain")}
+	expiredRespErr := OCSPCheckError{Err: errors.New("expired OCSP response")}
+	noHTTPErr := OCSPCheckError{Err: errors.New("OCSPServer must be accessible over HTTP")}
 
 	t.Run("no OCSPServer specified", func(t *testing.T) {
 		opts := Options{
@@ -354,7 +354,7 @@ func TestOCSPStatusErrors(t *testing.T) {
 			SigningTime: time.Now(),
 			HTTPClient:  http.DefaultClient,
 		}
-		errs := OCSPStatus(opts)
+		errs := CheckStatus(opts)
 		expectedErrs := [][]error{
 			{NoOCSPServerError{}},
 			{nil},
@@ -370,7 +370,7 @@ func TestOCSPStatusErrors(t *testing.T) {
 			SigningTime: time.Now(),
 			HTTPClient:  http.DefaultClient,
 		}
-		errs := OCSPStatus(opts)
+		errs := CheckStatus(opts)
 		expectedErrs := [][]error{
 			{chainRootErr},
 			{chainRootErr},
@@ -386,7 +386,7 @@ func TestOCSPStatusErrors(t *testing.T) {
 			SigningTime: time.Now(),
 			HTTPClient:  http.DefaultClient,
 		}
-		errs := OCSPStatus(opts)
+		errs := CheckStatus(opts)
 		expectedErrs := [][]error{
 			{invalidChainErr},
 			{invalidChainErr},
@@ -404,7 +404,7 @@ func TestOCSPStatusErrors(t *testing.T) {
 			SigningTime: time.Now(),
 			HTTPClient:  timeoutClient,
 		}
-		errs := OCSPStatus(opts)
+		errs := CheckStatus(opts)
 		expectedErrs := [][]error{
 			{TimeoutError{}},
 			{TimeoutError{}},
@@ -422,7 +422,7 @@ func TestOCSPStatusErrors(t *testing.T) {
 			SigningTime: time.Now(),
 			HTTPClient:  client,
 		}
-		errs := OCSPStatus(opts)
+		errs := CheckStatus(opts)
 		expectedErrs := [][]error{
 			{expiredRespErr},
 			{nil},
@@ -441,7 +441,7 @@ func TestOCSPStatusErrors(t *testing.T) {
 			HTTPClient:  client,
 		}
 
-		errs := OCSPStatus(opts)
+		errs := CheckStatus(opts)
 		expectedErrs := [][]error{
 			{PKIXNoCheckError{}},
 			{PKIXNoCheckError{}},
@@ -459,7 +459,7 @@ func TestOCSPStatusErrors(t *testing.T) {
 			SigningTime: time.Now(),
 			HTTPClient:  client,
 		}
-		errs := OCSPStatus(opts)
+		errs := CheckStatus(opts)
 		expectedErrs := [][]error{
 			{noHTTPErr},
 			{nil},
@@ -490,7 +490,7 @@ func TestCheckOCSPInvalidChain(t *testing.T) {
 		}
 	}
 
-	invalidChainErr := CheckOCSPError{Err: errors.New("invalid chain: expected chain to be correct and complete with each cert issued by the next in the chain")}
+	invalidChainErr := OCSPCheckError{Err: errors.New("invalid chain: expected chain to be correct and complete: parent's subject does not match issuer for a cert in the chain")}
 
 	t.Run("chain missing intermediate", func(t *testing.T) {
 		client := testhelper.MockClient(revokableTuples, []ocsp.ResponseStatus{ocsp.Good}, nil, true)
@@ -499,7 +499,7 @@ func TestCheckOCSPInvalidChain(t *testing.T) {
 			SigningTime: time.Now(),
 			HTTPClient:  client,
 		}
-		errs := OCSPStatus(opts)
+		errs := CheckStatus(opts)
 		expectedErrs := [][]error{
 			{invalidChainErr},
 			{invalidChainErr},
@@ -517,7 +517,7 @@ func TestCheckOCSPInvalidChain(t *testing.T) {
 			SigningTime: time.Now(),
 			HTTPClient:  client,
 		}
-		errs := OCSPStatus(opts)
+		errs := CheckStatus(opts)
 		expectedErrs := [][]error{
 			{invalidChainErr},
 			{invalidChainErr},

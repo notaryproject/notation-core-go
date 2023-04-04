@@ -37,7 +37,7 @@ func New(httpClient *http.Client) Revocation {
 // Validate checks the revocation status for a certificate chain using OCSP and
 // returns a 2D array of errors that are encountered during the process
 //
-// The specific OCSP implementation is from the OCSPStatus function in the
+// The specific OCSP implementation is from the CheckStatus function in the
 // revocation/ocsp package.
 //
 // To get a single Result for the chain, pass the list of errors to the
@@ -46,7 +46,7 @@ func New(httpClient *http.Client) Revocation {
 // TODO: add CRL support
 // https://github.com/notaryproject/notation-core-go/issues/125
 func (r *revocation) Validate(certChain []*x509.Certificate, signingTime time.Time) [][]error {
-	return ocsp.OCSPStatus(ocsp.Options{
+	return ocsp.CheckStatus(ocsp.Options{
 		CertChain:   certChain,
 		SigningTime: signingTime,
 		HTTPClient:  r.httpClient,
@@ -98,7 +98,7 @@ func ResultFromErrors(errs [][]error) Result {
 				// If even one cert is revoked, then return Revoked
 				return Revoked
 			} else {
-				// Includes ocsp.CheckOCSPError, ocsp.UnknownStatusError,
+				// Includes ocsp.OCSPCheckError, ocsp.UnknownStatusError,
 				// ocsp.PKIXNoCheckError, and ocsp.TimeoutError
 				// Overrides OK, but continues in case a cert is revoked
 				currResult = Unknown

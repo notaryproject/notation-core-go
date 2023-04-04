@@ -23,13 +23,13 @@ func (e UnknownStatusError) Error() string {
 	return "certificate has unknown status via OCSP"
 }
 
-// CheckOCSPError is returned when there is an error during the OCSP revocation
+// OCSPCheckError is returned when there is an error during the OCSP revocation
 // check, not necessarily a revocation
-type CheckOCSPError struct {
+type OCSPCheckError struct {
 	Err error
 }
 
-func (e CheckOCSPError) Error() string {
+func (e OCSPCheckError) Error() string {
 	msg := "error checking revocation status via OCSP"
 	if e.Err != nil {
 		return fmt.Sprintf("%s: %s", msg, e.Err.Error())
