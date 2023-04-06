@@ -23,15 +23,14 @@ type revocation struct {
 	httpClient *http.Client
 }
 
-// New constructs a revocation object and substitutes default values for any
-// that are passed as nil
-func New(httpClient *http.Client) Revocation {
+// New constructs a revocation object
+func New(httpClient *http.Client) (Revocation, error) {
 	if httpClient == nil {
-		httpClient = &http.Client{Timeout: 5 * time.Second}
+		return nil, errors.New("invalid input: a non-nil httpClient must be specified")
 	}
 	return &revocation{
 		httpClient: httpClient,
-	}
+	}, nil
 }
 
 // Validate checks the revocation status for a certificate chain using OCSP and

@@ -40,6 +40,26 @@ func identicalErrResults(errs, expectedErrs [][]error) bool {
 	return true
 }
 
+func TestNew(t *testing.T) {
+	r, err := New(nil)
+	expectedError := errors.New("invalid input: a non-nil httpClient must be specified")
+	if r != nil && err.Error() != expectedError.Error() {
+		t.Errorf("Expected New(nil) to fail with %v and %v, but received %v and %v", nil, expectedError, r, err)
+	}
+
+	client := http.DefaultClient
+	r, err = New(client)
+	if err != nil {
+		t.Errorf("Expected to succeed with default client, but received error %v", err)
+	}
+	revR, ok := r.(*revocation)
+	if !ok {
+		t.Error("Expected New to create an object matching the internal revocation struct")
+	} else if revR.httpClient != client {
+		t.Errorf("Expected New to set client to %v, but it was set to %v", client, revR.httpClient)
+	}
+}
+
 func TestCheckRevocationStatusForSingleCert(t *testing.T) {
 	revokableCertTuple := testhelper.GetRevokableRSALeafCertificate()
 	revokableIssuerTuple := testhelper.GetRSARootCertificate()
@@ -48,7 +68,10 @@ func TestCheckRevocationStatusForSingleCert(t *testing.T) {
 
 	t.Run("check non-revoked cert", func(t *testing.T) {
 		client := testhelper.MockClient(testChain, []ocsp.ResponseStatus{ocsp.Good}, nil, true)
-		r := New(client)
+		r, err := New(client)
+		if err != nil {
+			t.Errorf("Expected successful creation of revocation, but received error: %v", err)
+		}
 
 		errs := r.Validate(revokableChain, time.Now())
 		expectedErrs := [][]error{
@@ -61,7 +84,10 @@ func TestCheckRevocationStatusForSingleCert(t *testing.T) {
 	})
 	t.Run("check cert with Unknown OCSP response", func(t *testing.T) {
 		client := testhelper.MockClient(testChain, []ocsp.ResponseStatus{ocsp.Unknown}, nil, true)
-		r := New(client)
+		r, err := New(client)
+		if err != nil {
+			t.Errorf("Expected successful creation of revocation, but received error: %v", err)
+		}
 
 		errs := r.Validate(revokableChain, time.Now())
 		expectedErrs := [][]error{
@@ -74,7 +100,10 @@ func TestCheckRevocationStatusForSingleCert(t *testing.T) {
 	})
 	t.Run("check OCSP revoked cert", func(t *testing.T) {
 		client := testhelper.MockClient(testChain, []ocsp.ResponseStatus{ocsp.Revoked}, nil, true)
-		r := New(client)
+		r, err := New(client)
+		if err != nil {
+			t.Errorf("Expected successful creation of revocation, but received error: %v", err)
+		}
 
 		errs := r.Validate(revokableChain, time.Now())
 		expectedErrs := [][]error{
@@ -88,7 +117,10 @@ func TestCheckRevocationStatusForSingleCert(t *testing.T) {
 	t.Run("check OCSP future revoked cert", func(t *testing.T) {
 		revokedTime := time.Now().Add(time.Hour)
 		client := testhelper.MockClient(testChain, []ocsp.ResponseStatus{ocsp.Revoked}, &revokedTime, true)
-		r := New(client)
+		r, err := New(client)
+		if err != nil {
+			t.Errorf("Expected successful creation of revocation, but received error: %v", err)
+		}
 
 		errs := r.Validate(revokableChain, time.Now())
 		expectedErrs := [][]error{
@@ -104,7 +136,10 @@ func TestCheckRevocationStatusForSingleCert(t *testing.T) {
 func TestCheckRevocationStatusForSelfSignedCert(t *testing.T) {
 	selfSignedTuple := testhelper.GetRSASelfSignedSigningCertTuple("Notation revocation test self-signed cert")
 	client := testhelper.MockClient([]testhelper.RSACertTuple{selfSignedTuple}, []ocsp.ResponseStatus{ocsp.Good}, nil, true)
-	r := New(client)
+	r, err := New(client)
+	if err != nil {
+		t.Errorf("Expected successful creation of revocation, but received error: %v", err)
+	}
 
 	chainRootErr := revocation_ocsp.OCSPCheckError{Err: errors.New("invalid chain: expected chain to end with root cert: x509: invalid signature: parent certificate cannot sign this kind of certificate")}
 	errs := r.Validate([]*x509.Certificate{selfSignedTuple.Cert}, time.Now())
@@ -119,7 +154,10 @@ func TestCheckRevocationStatusForSelfSignedCert(t *testing.T) {
 func TestCheckRevocationStatusForRootCert(t *testing.T) {
 	rootTuple := testhelper.GetRSARootCertificate()
 	client := testhelper.MockClient([]testhelper.RSACertTuple{rootTuple}, []ocsp.ResponseStatus{ocsp.Good}, nil, true)
-	r := New(client)
+	r, err := New(client)
+	if err != nil {
+		t.Errorf("Expected successful creation of revocation, but received error: %v", err)
+	}
 
 	errs := r.Validate([]*x509.Certificate{rootTuple.Cert}, time.Now())
 	expectedErrs := [][]error{
@@ -138,7 +176,10 @@ func TestCheckRevocationStatusForChain(t *testing.T) {
 	}
 
 	t.Run("empty chain", func(t *testing.T) {
-		r := New(nil)
+		r, err := New(&http.Client{Timeout: 5 * time.Second})
+		if err != nil {
+			t.Errorf("Expected successful creation of revocation, but received error: %v", err)
+		}
 		errs := r.Validate([]*x509.Certificate{}, time.Now())
 		expectedErrs := [][]error{}
 		if !identicalErrResults(errs, expectedErrs) {
@@ -147,7 +188,10 @@ func TestCheckRevocationStatusForChain(t *testing.T) {
 	})
 	t.Run("check non-revoked chain", func(t *testing.T) {
 		client := testhelper.MockClient(testChain, []ocsp.ResponseStatus{ocsp.Good}, nil, true)
-		r := New(client)
+		r, err := New(client)
+		if err != nil {
+			t.Errorf("Expected successful creation of revocation, but received error: %v", err)
+		}
 
 		errs := r.Validate(revokableChain, time.Now())
 		expectedErrs := [][]error{
@@ -165,7 +209,10 @@ func TestCheckRevocationStatusForChain(t *testing.T) {
 	t.Run("check chain with 1 Unknown cert", func(t *testing.T) {
 		client := testhelper.MockClient(testChain, []ocsp.ResponseStatus{ocsp.Good, ocsp.Good, ocsp.Unknown, ocsp.Good}, nil, true)
 		// 3rd cert will be unknown, the rest will be good
-		r := New(client)
+		r, err := New(client)
+		if err != nil {
+			t.Errorf("Expected successful creation of revocation, but received error: %v", err)
+		}
 
 		errs := r.Validate(revokableChain, time.Now())
 		expectedErrs := [][]error{
@@ -183,7 +230,10 @@ func TestCheckRevocationStatusForChain(t *testing.T) {
 	t.Run("check OCSP with 1 revoked cert", func(t *testing.T) {
 		client := testhelper.MockClient(testChain, []ocsp.ResponseStatus{ocsp.Good, ocsp.Good, ocsp.Revoked, ocsp.Good}, nil, true)
 		// 3rd cert will be revoked, the rest will be good
-		r := New(client)
+		r, err := New(client)
+		if err != nil {
+			t.Errorf("Expected successful creation of revocation, but received error: %v", err)
+		}
 
 		errs := r.Validate(revokableChain, time.Now())
 		expectedErrs := [][]error{
@@ -201,7 +251,10 @@ func TestCheckRevocationStatusForChain(t *testing.T) {
 	t.Run("check OCSP with 1 unknown and 1 revoked cert", func(t *testing.T) {
 		client := testhelper.MockClient(testChain, []ocsp.ResponseStatus{ocsp.Good, ocsp.Good, ocsp.Unknown, ocsp.Good, ocsp.Revoked, ocsp.Good}, nil, true)
 		// 3rd cert will be unknown, 5th will be revoked, the rest will be good
-		r := New(client)
+		r, err := New(client)
+		if err != nil {
+			t.Errorf("Expected successful creation of revocation, but received error: %v", err)
+		}
 
 		errs := r.Validate(revokableChain, time.Now())
 		expectedErrs := [][]error{
@@ -220,7 +273,10 @@ func TestCheckRevocationStatusForChain(t *testing.T) {
 		revokedTime := time.Now().Add(time.Hour)
 		client := testhelper.MockClient(testChain, []ocsp.ResponseStatus{ocsp.Good, ocsp.Good, ocsp.Revoked, ocsp.Good}, &revokedTime, true)
 		// 3rd cert will be future revoked, the rest will be good
-		r := New(client)
+		r, err := New(client)
+		if err != nil {
+			t.Errorf("Expected successful creation of revocation, but received error: %v", err)
+		}
 
 		errs := r.Validate(revokableChain, time.Now())
 		expectedErrs := [][]error{
@@ -239,7 +295,10 @@ func TestCheckRevocationStatusForChain(t *testing.T) {
 		revokedTime := time.Now().Add(time.Hour)
 		client := testhelper.MockClient(testChain, []ocsp.ResponseStatus{ocsp.Good, ocsp.Good, ocsp.Unknown, ocsp.Good, ocsp.Revoked, ocsp.Good}, &revokedTime, true)
 		// 3rd cert will be unknown, 5th will be future revoked, the rest will be good
-		r := New(client)
+		r, err := New(client)
+		if err != nil {
+			t.Errorf("Expected successful creation of revocation, but received error: %v", err)
+		}
 
 		errs := r.Validate(revokableChain, time.Now())
 		expectedErrs := [][]error{
@@ -257,7 +316,10 @@ func TestCheckRevocationStatusForChain(t *testing.T) {
 	t.Run("check OCSP with 1 revoked cert before signing time", func(t *testing.T) {
 		client := testhelper.MockClient(testChain, []ocsp.ResponseStatus{ocsp.Good, ocsp.Good, ocsp.Revoked, ocsp.Good}, nil, true)
 		// 3rd cert will be revoked, the rest will be good
-		r := New(client)
+		r, err := New(client)
+		if err != nil {
+			t.Errorf("Expected successful creation of revocation, but received error: %v", err)
+		}
 
 		errs := r.Validate(revokableChain, time.Now().Add(time.Hour))
 		expectedErrs := [][]error{
@@ -297,7 +359,10 @@ func TestCheckRevocationErrors(t *testing.T) {
 	expiredRespErr := revocation_ocsp.OCSPCheckError{Err: errors.New("expired OCSP response")}
 	noHTTPErr := revocation_ocsp.OCSPCheckError{Err: errors.New("OCSPServer must be accessible over HTTP")}
 
-	r := New(nil)
+	r, err := New(&http.Client{Timeout: 5 * time.Second})
+	if err != nil {
+		t.Errorf("Expected successful creation of revocation, but received error: %v", err)
+	}
 
 	t.Run("no OCSPServer specified", func(t *testing.T) {
 		errs := r.Validate(noOCSPChain, time.Now())
@@ -335,7 +400,10 @@ func TestCheckRevocationErrors(t *testing.T) {
 
 	t.Run("timeout", func(t *testing.T) {
 		timeoutClient := &http.Client{Timeout: 1 * time.Nanosecond}
-		timeoutR := New(timeoutClient)
+		timeoutR, err := New(timeoutClient)
+		if err != nil {
+			t.Errorf("Expected successful creation of revocation, but received error: %v", err)
+		}
 		errs := timeoutR.Validate(okChain, time.Now())
 		expectedErrs := [][]error{
 			{revocation_ocsp.TimeoutError{}},
@@ -349,7 +417,10 @@ func TestCheckRevocationErrors(t *testing.T) {
 
 	t.Run("expired ocsp response", func(t *testing.T) {
 		client := testhelper.MockClient(revokableTuples, []ocsp.ResponseStatus{ocsp.Good}, nil, true)
-		expiredR := New(client)
+		expiredR, err := New(client)
+		if err != nil {
+			t.Errorf("Expected successful creation of revocation, but received error: %v", err)
+		}
 		errs := expiredR.Validate(expiredChain, time.Now())
 		expectedErrs := [][]error{
 			{expiredRespErr},
@@ -363,7 +434,10 @@ func TestCheckRevocationErrors(t *testing.T) {
 
 	t.Run("OCSP pkixNoCheck error", func(t *testing.T) {
 		client := testhelper.MockClient(revokableTuples, []ocsp.ResponseStatus{ocsp.Good}, nil, false)
-		r := New(client)
+		r, err := New(client)
+		if err != nil {
+			t.Errorf("Expected successful creation of revocation, but received error: %v", err)
+		}
 
 		errs := r.Validate(okChain, time.Now())
 		expectedErrs := [][]error{
@@ -378,7 +452,10 @@ func TestCheckRevocationErrors(t *testing.T) {
 
 	t.Run("non-HTTP URI error", func(t *testing.T) {
 		client := testhelper.MockClient(revokableTuples, []ocsp.ResponseStatus{ocsp.Good}, nil, true)
-		r := New(client)
+		r, err := New(client)
+		if err != nil {
+			t.Errorf("Expected successful creation of revocation, but received error: %v", err)
+		}
 		errs := r.Validate(noHTTPChain, time.Now())
 		expectedErrs := [][]error{
 			{noHTTPErr},
@@ -414,7 +491,10 @@ func TestCheckRevocationInvalidChain(t *testing.T) {
 
 	t.Run("chain missing intermediate", func(t *testing.T) {
 		client := testhelper.MockClient(revokableTuples, []ocsp.ResponseStatus{ocsp.Good}, nil, true)
-		r := New(client)
+		r, err := New(client)
+		if err != nil {
+			t.Errorf("Expected successful creation of revocation, but received error: %v", err)
+		}
 
 		errs := r.Validate(missingIntermediateChain, time.Now())
 		expectedErrs := [][]error{
@@ -429,7 +509,10 @@ func TestCheckRevocationInvalidChain(t *testing.T) {
 
 	t.Run("chain out of order", func(t *testing.T) {
 		client := testhelper.MockClient(misorderedIntermediateTuples, []ocsp.ResponseStatus{ocsp.Good}, nil, true)
-		r := New(client)
+		r, err := New(client)
+		if err != nil {
+			t.Errorf("Expected successful creation of revocation, but received error: %v", err)
+		}
 
 		errs := r.Validate(misorderedIntermediateChain, time.Now())
 		expectedErrs := [][]error{
