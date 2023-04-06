@@ -37,8 +37,7 @@ func (e OCSPCheckError) Error() string {
 	return msg
 }
 
-// NoServerError is returned when the OCSPServer is not specified or is not an
-// HTTP URL.
+// NoOCSPServerError is returned when the OCSPServer is not specified.
 type NoOCSPServerError struct{}
 
 func (e NoOCSPServerError) Error() string {
@@ -61,4 +60,23 @@ type TimeoutError struct {
 
 func (e TimeoutError) Error() string {
 	return fmt.Sprintf("exceeded timeout threshold of %.2f seconds for OCSP check", e.timeout.Seconds())
+}
+
+// InvalidChainError is returned when the certificate chain does not meet the
+// requirements for a valid certificate chain
+type InvalidChainError struct {
+	Err           error
+	IsInvalidRoot bool
+}
+
+func (e InvalidChainError) Error() string {
+	msg := "invalid chain: expected chain to be correct and complete"
+	if e.IsInvalidRoot {
+		msg = "invalid chain: expected chain to end with root cert"
+	}
+
+	if e.Err != nil {
+		return fmt.Sprintf("%s: %s", msg, e.Err.Error())
+	}
+	return msg
 }

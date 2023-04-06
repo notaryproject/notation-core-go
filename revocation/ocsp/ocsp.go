@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	coreX509 "github.com/notaryproject/notation-core-go/x509"
 	"golang.org/x/crypto/ocsp"
 )
 
@@ -51,17 +52,15 @@ func CheckStatus(opts Options) [][]error {
 	}
 
 	// Validate cert chain structure
-	for i, cert := range opts.CertChain {
-		if i != (len(opts.CertChain) - 1) {
-			if err := validateIssuer(cert, opts.CertChain[i+1]); err != nil {
-				fillResultsWithError(result, OCSPCheckError{Err: fmt.Errorf("invalid chain: expected chain to be correct and complete: %s", err.Error())})
-				return result
-			}
-		} else {
-			if err := validateIssuer(cert, cert); err != nil {
-				fillResultsWithError(result, OCSPCheckError{Err: fmt.Errorf("invalid chain: expected chain to end with root cert: %s", err.Error())})
-				return result
-			}
+	if len(opts.CertChain) == 1 {
+		if err := validateIssuer(opts.CertChain[0], opts.CertChain[0]); err != nil {
+			fillResultsWithError(result, InvalidChainError{IsInvalidRoot: true, Err: err})
+			return result
+		}
+	} else {
+		if err := coreX509.ValidateCodeSigningCertChain(opts.CertChain, &opts.SigningTime); err != nil {
+			fillResultsWithError(result, InvalidChainError{Err: err})
+			return result
 		}
 	}
 

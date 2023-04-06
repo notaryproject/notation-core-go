@@ -63,10 +63,14 @@ func GetRevokableRSALeafCertificate() RSACertTuple {
 func GetRevokableRSAChain(size int) []RSACertTuple {
 	setupCertificates()
 	chain := make([]RSACertTuple, size)
-	chain[size-1] = rsaRoot
+	chain[size-1].Cert, _ = x509.ParseCertificate(rsaRoot.Cert.Raw)
+	chain[size-1].PrivateKey = rsaRoot.PrivateKey
 	for i := size - 2; i >= 0; i-- {
 		chain[i] = getRevokableRSAChainCertTuple(fmt.Sprintf("Notation Test Revokable RSA Chain Cert %d", size-i), &chain[i+1], i)
 	}
+	chain[0].Cert.IsCA = false
+	chain[0].Cert.KeyUsage = x509.KeyUsageDigitalSignature
+	chain[size-1].Cert.MaxPathLen = size - 1
 	return chain
 }
 

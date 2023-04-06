@@ -121,7 +121,7 @@ func TestCheckStatusForSelfSignedCert(t *testing.T) {
 		HTTPClient:  client,
 	}
 
-	chainRootErr := OCSPCheckError{Err: errors.New("invalid chain: expected chain to end with root cert: x509: invalid signature: parent certificate cannot sign this kind of certificate")}
+	chainRootErr := InvalidChainError{IsInvalidRoot: true, Err: errors.New("x509: invalid signature: parent certificate cannot sign this kind of certificate")}
 	errs := CheckStatus(opts)
 	expectedErrs := [][]error{
 		{chainRootErr},
@@ -336,15 +336,19 @@ func TestCheckStatusErrors(t *testing.T) {
 	okChain := []*x509.Certificate{revokableTuples[0].Cert, revokableTuples[1].Cert, revokableTuples[2].Cert}
 
 	expiredLeaf, _ := x509.ParseCertificate(revokableTuples[0].Cert.Raw)
+	expiredLeaf.IsCA = false
+	expiredLeaf.KeyUsage = x509.KeyUsageDigitalSignature
 	expiredLeaf.OCSPServer = []string{"http://example.com/expired_ocsp"}
 	expiredChain := []*x509.Certificate{expiredLeaf, revokableTuples[1].Cert, revokableTuples[2].Cert}
 
 	noHTTPLeaf, _ := x509.ParseCertificate(revokableTuples[0].Cert.Raw)
+	noHTTPLeaf.IsCA = false
+	noHTTPLeaf.KeyUsage = x509.KeyUsageDigitalSignature
 	noHTTPLeaf.OCSPServer = []string{"ldap://ds.example.com:123/chain_ocsp/0"}
 	noHTTPChain := []*x509.Certificate{noHTTPLeaf, revokableTuples[1].Cert, revokableTuples[2].Cert}
 
-	invalidChainErr := OCSPCheckError{Err: errors.New("invalid chain: expected chain to be correct and complete: parent's subject does not match issuer for a cert in the chain")}
-	chainRootErr := OCSPCheckError{Err: errors.New("invalid chain: expected chain to end with root cert: parent's subject does not match issuer for a cert in the chain")}
+	backwardsChainErr := InvalidChainError{Err: errors.New("leaf certificate with subject \"CN=Notation Test RSA Root,O=Notary,L=Seattle,ST=WA,C=US\" is self-signed. Certificate chain must not contain self-signed leaf certificate")}
+	chainRootErr := InvalidChainError{Err: errors.New("root certificate with subject \"CN=Notation Test Revokable RSA Chain Cert 2,O=Notary,L=Seattle,ST=WA,C=US\" is not self-signed. Certificate chain must end with a valid self-signed root certificate")}
 	expiredRespErr := OCSPCheckError{Err: errors.New("expired OCSP response")}
 	noHTTPErr := OCSPCheckError{Err: errors.New("OCSPServer must be accessible over HTTP")}
 
@@ -388,9 +392,9 @@ func TestCheckStatusErrors(t *testing.T) {
 		}
 		errs := CheckStatus(opts)
 		expectedErrs := [][]error{
-			{invalidChainErr},
-			{invalidChainErr},
-			{invalidChainErr},
+			{backwardsChainErr},
+			{backwardsChainErr},
+			{backwardsChainErr},
 		}
 		if !identicalErrResults(errs, expectedErrs) {
 			t.Errorf("Expected invalid chain error.\nReceived: %v\nExpected: %v\n", errs, expectedErrs)
@@ -490,7 +494,8 @@ func TestCheckOCSPInvalidChain(t *testing.T) {
 		}
 	}
 
-	invalidChainErr := OCSPCheckError{Err: errors.New("invalid chain: expected chain to be correct and complete: parent's subject does not match issuer for a cert in the chain")}
+	missingIntermediateErr := InvalidChainError{Err: errors.New("certificate with subject \"CN=Notation Test Revokable RSA Chain Cert 4,O=Notary,L=Seattle,ST=WA,C=US\" is not issued by \"CN=Notation Test Revokable RSA Chain Cert 2,O=Notary,L=Seattle,ST=WA,C=US\"")}
+	misorderedChainErr := InvalidChainError{Err: errors.New("invalid certificates or certificate with subject \"CN=Notation Test Revokable RSA Chain Cert 3,O=Notary,L=Seattle,ST=WA,C=US\" is not issued by \"CN=Notation Test Revokable RSA Chain Cert 4,O=Notary,L=Seattle,ST=WA,C=US\". Error: x509: invalid signature: parent certificate cannot sign this kind of certificate")}
 
 	t.Run("chain missing intermediate", func(t *testing.T) {
 		client := testhelper.MockClient(revokableTuples, []ocsp.ResponseStatus{ocsp.Good}, nil, true)
@@ -501,9 +506,9 @@ func TestCheckOCSPInvalidChain(t *testing.T) {
 		}
 		errs := CheckStatus(opts)
 		expectedErrs := [][]error{
-			{invalidChainErr},
-			{invalidChainErr},
-			{invalidChainErr},
+			{missingIntermediateErr},
+			{missingIntermediateErr},
+			{missingIntermediateErr},
 		}
 		if !identicalErrResults(errs, expectedErrs) {
 			t.Errorf("Expected invalid chain error.\nReceived: %v\nExpected: %v\n", errs, expectedErrs)
@@ -519,10 +524,10 @@ func TestCheckOCSPInvalidChain(t *testing.T) {
 		}
 		errs := CheckStatus(opts)
 		expectedErrs := [][]error{
-			{invalidChainErr},
-			{invalidChainErr},
-			{invalidChainErr},
-			{invalidChainErr},
+			{misorderedChainErr},
+			{misorderedChainErr},
+			{misorderedChainErr},
+			{misorderedChainErr},
 		}
 		if !identicalErrResults(errs, expectedErrs) {
 			t.Errorf("Expected invalid chain error.\nReceived: %v\nExpected: %v\n", errs, expectedErrs)
