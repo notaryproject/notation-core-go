@@ -8,7 +8,7 @@ import (
 
 // ReadCertificateFile reads a certificate PEM or DER file.
 func ReadCertificateFile(path string) ([]*x509.Certificate, error) {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec
 	if err != nil {
 		return nil, err
 	}

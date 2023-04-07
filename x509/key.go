@@ -11,7 +11,7 @@ import (
 
 // ReadPrivateKeyFile reads a key PEM file as a signing key.
 func ReadPrivateKeyFile(path string) (crypto.PrivateKey, error) {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec
 	if err != nil {
 		return nil, err
 	}

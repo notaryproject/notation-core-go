@@ -100,7 +100,7 @@ func setupCertificates() {
 
 		// This will be flagged by the static code analyzer as 'Use of a weak cryptographic key' but its intentional
 		// and is used only for testing.
-		k, _ := rsa.GenerateKey(rand.Reader, 1024)
+		k, _ := rsa.GenerateKey(rand.Reader, 1024) // #nosec
 		unsupportedRSARoot = GetRSACertTupleWithPK(k, "Notation Unsupported Root", nil)
 		rsaSelfSignedSigningCert = GetRSASelfSignedSigningCertTuple("Notation Signing Test Root")
 	})
@@ -202,7 +202,7 @@ func getCertTemplate(isRoot bool, setCodeSignEKU bool, cn string) *x509.Certific
 		template.MaxPathLen = 1
 		template.IsCA = true
 	} else {
-		template.SerialNumber = big.NewInt(int64(mrand.Intn(200)))
+		template.SerialNumber = big.NewInt(int64(mrand.Intn(200))) // #nosec
 		template.NotAfter = time.Now().AddDate(0, 0, 1)
 	}
 
