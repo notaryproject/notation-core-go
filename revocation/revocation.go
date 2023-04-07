@@ -15,7 +15,7 @@ import (
 type Revocation interface {
 	// Validate checks the revocation status for a certificate chain using OCSP
 	// and returns a 2D array of errors that are encountered during the process
-	Validate(certChain []*x509.Certificate, signingTime time.Time) [][]error
+	Validate(certChain []*x509.Certificate, signingTime time.Time) []*CertRevocationResult
 }
 
 // revocation is an internal struct used for revocation checking
@@ -44,12 +44,13 @@ func New(httpClient *http.Client) (Revocation, error) {
 //
 // TODO: add CRL support
 // https://github.com/notaryproject/notation-core-go/issues/125
-func (r *revocation) Validate(certChain []*x509.Certificate, signingTime time.Time) [][]error {
-	return ocsp.CheckStatus(ocsp.Options{
+func (r *revocation) Validate(certChain []*x509.Certificate, signingTime time.Time) []*CertRevocationResult {
+	ocspErrs := ocsp.CheckStatus(ocsp.Options{
 		CertChain:   certChain,
 		SigningTime: signingTime,
 		HTTPClient:  r.httpClient,
 	})
+	return ocspErrsToRevocationOutcome(ocspErrs)
 	// TODO: add CRL support
 	// https://github.com/notaryproject/notation-core-go/issues/125
 }
@@ -84,26 +85,91 @@ func (r Result) String() string {
 	}
 }
 
-// ResultFromErrors provides a way to convert the [][]error result from
-// Validate into a singular Result
-func ResultFromErrors(errs [][]error) Result {
+// ServerResult encapsulates the result for a single server for a single
+// certificate in the chain
+type ServerResult struct {
+	// Result of revocation for this server (Unknown if there is an error which
+	// prevents the retrieval of a valid status)
+	Result Result
+
+	// Error is set if there is an error associated with the revocation check
+	// to this server
+	Error error
+}
+
+// CertRevocationResult encapsulates the result for a single certificate in the
+// chain as well as the results from individual servers associated with this
+// certificate
+type CertRevocationResult struct {
+	// Result of revocation for a specific cert in the chain
+	Result Result
+
+	// An array of results for each server assocaited with the certificate.
+	// The length will be either 1 or the number of OCSPServers for the cert.
+	//
+	// If the length is 1, then a valid status was able to be retrieved. Only
+	// this server result is contained. Any errors for other servers are
+	// discarded in favor of this valid response.
+	//
+	// Otherwise, every server specified had some error that prevented the
+	// status from being retrieved. These are all contained here for evaluation
+	ServerResults []*ServerResult
+}
+
+func errToServerResult(err error) *ServerResult {
+	if err == nil || errors.Is(err, ocsp.NoOCSPServerError{}) {
+		return &ServerResult{
+			Result: OK,
+			Error:  err,
+		}
+	} else if errors.Is(err, ocsp.RevokedError{}) {
+		return &ServerResult{
+			Result: Revoked,
+			Error:  err,
+		}
+	} else {
+		// Includes ocsp.OCSPCheckError, ocsp.UnknownStatusError
+		// ocsp.PKIXNoCheckError, InvalidChainError, and ocsp.TimeoutError
+		return &ServerResult{
+			Result: Unknown,
+			Error:  err,
+		}
+	}
+}
+
+func serverErrsToCertRevocationResult(serverErrs []error) *CertRevocationResult {
+	if len(serverErrs) == 1 {
+		serverRes := errToServerResult(serverErrs[0])
+		return &CertRevocationResult{
+			Result:        serverRes.Result,
+			ServerResults: []*ServerResult{serverRes},
+		}
+	}
+	serverResults := make([]*ServerResult, len(serverErrs))
 	currResult := OK
-	for _, serverErrs := range errs {
-		for _, err := range serverErrs {
-			if err == nil || errors.Is(err, ocsp.NoOCSPServerError{}) {
-				// These are OK, don't override Unknown or Revoked, continue
-				continue
-			} else if errors.Is(err, ocsp.RevokedError{}) {
-				// If even one cert is revoked, then return Revoked
-				return Revoked
-			} else {
-				// Includes ocsp.OCSPCheckError, ocsp.UnknownStatusError,
-				// ocsp.PKIXNoCheckError, and ocsp.TimeoutError
-				// Overrides OK, but continues in case a cert is revoked
+	for j, err := range serverErrs {
+		serverRes := errToServerResult(err)
+		serverResults[j] = serverRes
+		switch serverRes.Result {
+		case Revoked:
+			currResult = Revoked
+		case Unknown:
+			if currResult != Revoked {
 				currResult = Unknown
 			}
 		}
 	}
+	return &CertRevocationResult{
+		Result:        currResult,
+		ServerResults: serverResults,
+	}
+}
 
-	return currResult
+func ocspErrsToRevocationOutcome(ocspErrs [][]error) []*CertRevocationResult {
+	certResults := make([]*CertRevocationResult, len(ocspErrs))
+	for i, serverErrs := range ocspErrs {
+		certResults[i] = serverErrsToCertRevocationResult(serverErrs)
+	}
+
+	return certResults
 }

@@ -179,6 +179,8 @@ func checkStatusFromServer(cert, issuer *x509.Certificate, server string, opts O
 }
 
 func executeOCSPCheck(cert, issuer *x509.Certificate, server string, opts Options) (*ocsp.Response, error) {
+	// TODO: Look into other alternatives for specifying the Hash
+	// https://github.com/notaryproject/notation-core-go/issues/139
 	ocspRequest, err := ocsp.CreateRequest(cert, issuer, &ocsp.RequestOptions{Hash: crypto.SHA256})
 	if err != nil {
 		return nil, err
