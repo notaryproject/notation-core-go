@@ -127,13 +127,12 @@ func errToServerResult(err error) *ServerResult {
 			Result: Revoked,
 			Error:  err,
 		}
-	} else {
-		// Includes ocsp.OCSPCheckError, ocsp.UnknownStatusError
-		// ocsp.PKIXNoCheckError, InvalidChainError, and ocsp.TimeoutError
-		return &ServerResult{
-			Result: Unknown,
-			Error:  err,
-		}
+	}
+	// Includes ocsp.OCSPCheckError, ocsp.UnknownStatusError
+	// ocsp.PKIXNoCheckError, InvalidChainError, and ocsp.TimeoutError
+	return &ServerResult{
+		Result: Unknown,
+		Error:  err,
 	}
 }
 

@@ -134,10 +134,7 @@ func checkStatusFromServer(cert, issuer *x509.Certificate, server string, opts O
 	if err != nil {
 		// If there is a server error, attempt all servers before determining what to return
 		// to the user
-		if errors.Is(err, TimeoutError{}) {
-			return err
-		}
-		return OCSPCheckError{Err: err}
+		return err
 	}
 
 	// Validate OCSP response isn't expired
@@ -183,7 +180,7 @@ func executeOCSPCheck(cert, issuer *x509.Certificate, server string, opts Option
 	// https://github.com/notaryproject/notation-core-go/issues/139
 	ocspRequest, err := ocsp.CreateRequest(cert, issuer, &ocsp.RequestOptions{Hash: crypto.SHA256})
 	if err != nil {
-		return nil, err
+		return nil, OCSPCheckError{Err: err}
 	}
 
 	var resp *http.Response
@@ -195,7 +192,7 @@ func executeOCSPCheck(cert, issuer *x509.Certificate, server string, opts Option
 		var reqURL string
 		reqURL, err = url.JoinPath(server, encodedReq)
 		if err != nil {
-			return nil, err
+			return nil, OCSPCheckError{Err: err}
 		}
 		resp, err = opts.HTTPClient.Get(reqURL)
 	}
@@ -205,7 +202,7 @@ func executeOCSPCheck(cert, issuer *x509.Certificate, server string, opts Option
 		if errors.As(err, &urlErr) && urlErr.Timeout() {
 			return nil, TimeoutError{}
 		}
-		return nil, err
+		return nil, OCSPCheckError{Err: err}
 	}
 	defer resp.Body.Close()
 
@@ -215,20 +212,20 @@ func executeOCSPCheck(cert, issuer *x509.Certificate, server string, opts Option
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, ocspMaxResponseSize))
 	if err != nil {
-		return nil, err
+		return nil, OCSPCheckError{Err: err}
 	}
 
 	switch {
 	case bytes.Equal(body, ocsp.UnauthorizedErrorResponse):
-		return nil, errors.New("OSCP unauthorized")
+		return nil, OCSPCheckError{Err: errors.New("OSCP unauthorized")}
 	case bytes.Equal(body, ocsp.MalformedRequestErrorResponse):
-		return nil, errors.New("OSCP malformed")
+		return nil, OCSPCheckError{Err: errors.New("OSCP malformed")}
 	case bytes.Equal(body, ocsp.InternalErrorErrorResponse):
-		return nil, errors.New("OSCP internal error")
+		return nil, OCSPCheckError{Err: errors.New("OSCP internal error")}
 	case bytes.Equal(body, ocsp.TryLaterErrorResponse):
-		return nil, errors.New("OSCP try later")
+		return nil, OCSPCheckError{Err: errors.New("OSCP try later")}
 	case bytes.Equal(body, ocsp.SigRequredErrorResponse):
-		return nil, errors.New("OSCP signature required")
+		return nil, OCSPCheckError{Err: errors.New("OSCP signature required")}
 	}
 
 	return ocsp.ParseResponseForCert(body, cert, issuer)
