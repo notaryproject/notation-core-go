@@ -8,24 +8,25 @@ import (
 	"testing"
 	"time"
 
+	"github.com/notaryproject/notation-core-go/revocation/base"
 	revocation_ocsp "github.com/notaryproject/notation-core-go/revocation/ocsp"
 	"github.com/notaryproject/notation-core-go/testhelper"
 	"golang.org/x/crypto/ocsp"
 )
 
-func errToResult(err error) Result {
+func errToResult(err error) base.Result {
 	if err == nil || errors.Is(err, revocation_ocsp.NoOCSPServerError{}) {
-		return OK
+		return base.OK
 	} else if errors.Is(err, revocation_ocsp.RevokedError{}) {
-		return Revoked
+		return base.Revoked
 	} else {
 		// Includes ocsp.OCSPCheckError, ocsp.UnknownStatusError,
-		// ocsp.PKIXNoCheckError, InvalidChainError, and ocsp.TimeoutError
-		return Unknown
+		// ocsp.PKIXNoCheckError, base.InvalidChainError, and ocsp.TimeoutError
+		return base.Unknown
 	}
 }
 
-func identicalErrResults(certResults []*CertRevocationResult, expectedErrs [][]error, expectedResults []Result) bool {
+func identicalErrResults(certResults []*base.CertRevocationResult, expectedErrs [][]error, expectedResults []base.Result) bool {
 	if len(certResults) != len(expectedErrs) || len(certResults) != len(expectedResults) {
 		return false
 	}
@@ -97,7 +98,7 @@ func TestCheckRevocationStatusForSingleCert(t *testing.T) {
 			{nil},
 			{nil},
 		}
-		expectedResults := []Result{OK, OK}
+		expectedResults := []base.Result{base.OK, base.OK}
 		if !identicalErrResults(errs, expectedErrs, expectedResults) {
 			t.Errorf("Expected no errors.\nReceived: %v\nExpected: %v\n", errs, expectedErrs)
 		}
@@ -114,7 +115,7 @@ func TestCheckRevocationStatusForSingleCert(t *testing.T) {
 			{revocation_ocsp.UnknownStatusError{}},
 			{nil},
 		}
-		expectedResults := []Result{Unknown, OK}
+		expectedResults := []base.Result{base.Unknown, base.OK}
 		if !identicalErrResults(errs, expectedErrs, expectedResults) {
 			t.Errorf("Expected certificate to have unknown status.\nReceived: %v\nExpected: %v\n", errs, expectedErrs)
 		}
@@ -131,7 +132,7 @@ func TestCheckRevocationStatusForSingleCert(t *testing.T) {
 			{revocation_ocsp.RevokedError{}},
 			{nil},
 		}
-		expectedResults := []Result{Revoked, OK}
+		expectedResults := []base.Result{base.Revoked, base.OK}
 		if !identicalErrResults(errs, expectedErrs, expectedResults) {
 			t.Errorf("Expected certificate to be revoked.\nReceived: %v\nExpected: %v\n", errs, expectedErrs)
 		}
@@ -149,7 +150,7 @@ func TestCheckRevocationStatusForSingleCert(t *testing.T) {
 			{nil},
 			{nil},
 		}
-		expectedResults := []Result{OK, OK}
+		expectedResults := []base.Result{base.OK, base.OK}
 		if !identicalErrResults(errs, expectedErrs, expectedResults) {
 			t.Errorf("Expected no errors.\nReceived: %v\nExpected: %v\n", errs, expectedErrs)
 		}
@@ -164,12 +165,12 @@ func TestCheckRevocationStatusForSelfSignedCert(t *testing.T) {
 		t.Errorf("Expected successful creation of revocation, but received error: %v", err)
 	}
 
-	chainRootErr := revocation_ocsp.InvalidChainError{IsInvalidRoot: true, Err: errors.New("x509: invalid signature: parent certificate cannot sign this kind of certificate")}
+	chainRootErr := base.InvalidChainError{IsInvalidRoot: true, Err: errors.New("x509: invalid signature: parent certificate cannot sign this kind of certificate")}
 	errs := r.Validate([]*x509.Certificate{selfSignedTuple.Cert}, time.Now())
 	expectedErrs := [][]error{
 		{chainRootErr},
 	}
-	expectedResults := []Result{Unknown}
+	expectedResults := []base.Result{base.Unknown}
 	if !identicalErrResults(errs, expectedErrs, expectedResults) {
 		t.Errorf("Expected invalid chain root error.\nReceived: %v\nExpected: %v\n", errs, expectedErrs)
 	}
@@ -187,7 +188,7 @@ func TestCheckRevocationStatusForRootCert(t *testing.T) {
 	expectedErrs := [][]error{
 		{nil},
 	}
-	expectedResults := []Result{OK}
+	expectedResults := []base.Result{base.OK}
 	if !identicalErrResults(errs, expectedErrs, expectedResults) {
 		t.Errorf("Expected no errors.\nReceived: %v\nExpected: %v\n", errs, expectedErrs)
 	}
@@ -207,7 +208,7 @@ func TestCheckRevocationStatusForChain(t *testing.T) {
 		}
 		errs := r.Validate([]*x509.Certificate{}, time.Now())
 		expectedErrs := [][]error{}
-		expectedResults := []Result{}
+		expectedResults := []base.Result{}
 		if !identicalErrResults(errs, expectedErrs, expectedResults) {
 			t.Errorf("Expected no errors.\nReceived: %v\nExpected: %v\n", errs, expectedErrs)
 		}
@@ -228,7 +229,7 @@ func TestCheckRevocationStatusForChain(t *testing.T) {
 			{nil},
 			{nil},
 		}
-		expectedResults := []Result{OK, OK, OK, OK, OK, OK}
+		expectedResults := []base.Result{base.OK, base.OK, base.OK, base.OK, base.OK, base.OK}
 		if !identicalErrResults(errs, expectedErrs, expectedResults) {
 			t.Errorf("Expected no errors.\nReceived: %v\nExpected: %v\n", errs, expectedErrs)
 		}
@@ -250,7 +251,7 @@ func TestCheckRevocationStatusForChain(t *testing.T) {
 			{nil},
 			{nil},
 		}
-		expectedResults := []Result{OK, OK, Unknown, OK, OK, OK}
+		expectedResults := []base.Result{base.OK, base.OK, base.Unknown, base.OK, base.OK, base.OK}
 		if !identicalErrResults(errs, expectedErrs, expectedResults) {
 			t.Errorf("Expected 3rd error to be UnknownStatus.\nReceived: %v\nExpected: %v\n", errs, expectedErrs)
 		}
@@ -272,7 +273,7 @@ func TestCheckRevocationStatusForChain(t *testing.T) {
 			{nil},
 			{nil},
 		}
-		expectedResults := []Result{OK, OK, Revoked, OK, OK, OK}
+		expectedResults := []base.Result{base.OK, base.OK, base.Revoked, base.OK, base.OK, base.OK}
 		if !identicalErrResults(errs, expectedErrs, expectedResults) {
 			t.Errorf("Expected 3rd error to be Revoked.\nReceived: %v\nExpected: %v\n", errs, expectedErrs)
 		}
@@ -294,7 +295,7 @@ func TestCheckRevocationStatusForChain(t *testing.T) {
 			{revocation_ocsp.RevokedError{}},
 			{nil},
 		}
-		expectedResults := []Result{OK, OK, Unknown, OK, Revoked, OK}
+		expectedResults := []base.Result{base.OK, base.OK, base.Unknown, base.OK, base.Revoked, base.OK}
 		if !identicalErrResults(errs, expectedErrs, expectedResults) {
 			t.Errorf("Expected 3rd error to be UnknownStatus and 5th to be Revoked.\nReceived: %v\nExpected: %v\n", errs, expectedErrs)
 		}
@@ -317,7 +318,7 @@ func TestCheckRevocationStatusForChain(t *testing.T) {
 			{nil},
 			{nil},
 		}
-		expectedResults := []Result{OK, OK, OK, OK, OK, OK}
+		expectedResults := []base.Result{base.OK, base.OK, base.OK, base.OK, base.OK, base.OK}
 		if !identicalErrResults(errs, expectedErrs, expectedResults) {
 			t.Errorf("Expected no errors.\nReceived: %v\nExpected: %v\n", errs, expectedErrs)
 		}
@@ -340,7 +341,7 @@ func TestCheckRevocationStatusForChain(t *testing.T) {
 			{nil},
 			{nil},
 		}
-		expectedResults := []Result{OK, OK, Unknown, OK, OK, OK}
+		expectedResults := []base.Result{base.OK, base.OK, base.Unknown, base.OK, base.OK, base.OK}
 		if !identicalErrResults(errs, expectedErrs, expectedResults) {
 			t.Errorf("Expected 3rd error to be UnknownStatus.\nReceived: %v\nExpected: %v\n", errs, expectedErrs)
 		}
@@ -362,7 +363,7 @@ func TestCheckRevocationStatusForChain(t *testing.T) {
 			{nil},
 			{nil},
 		}
-		expectedResults := []Result{OK, OK, Revoked, OK, OK, OK}
+		expectedResults := []base.Result{base.OK, base.OK, base.Revoked, base.OK, base.OK, base.OK}
 		if !identicalErrResults(errs, expectedErrs, expectedResults) {
 			t.Errorf("Expected 3rd error to be Revoked.\nReceived: %v\nExpected: %v\n", errs, expectedErrs)
 		}
@@ -391,10 +392,10 @@ func TestCheckRevocationErrors(t *testing.T) {
 	noHTTPLeaf.OCSPServer = []string{"ldap://ds.example.com:123/chain_ocsp/0"}
 	noHTTPChain := []*x509.Certificate{noHTTPLeaf, revokableTuples[1].Cert, revokableTuples[2].Cert}
 
-	backwardsChainErr := revocation_ocsp.InvalidChainError{Err: errors.New("leaf certificate with subject \"CN=Notation Test RSA Root,O=Notary,L=Seattle,ST=WA,C=US\" is self-signed. Certificate chain must not contain self-signed leaf certificate")}
-	chainRootErr := revocation_ocsp.InvalidChainError{Err: errors.New("root certificate with subject \"CN=Notation Test Revokable RSA Chain Cert 2,O=Notary,L=Seattle,ST=WA,C=US\" is not self-signed. Certificate chain must end with a valid self-signed root certificate")}
+	backwardsChainErr := base.InvalidChainError{Err: errors.New("leaf certificate with subject \"CN=Notation Test RSA Root,O=Notary,L=Seattle,ST=WA,C=US\" is self-signed. Certificate chain must not contain self-signed leaf certificate")}
+	chainRootErr := base.InvalidChainError{Err: errors.New("root certificate with subject \"CN=Notation Test Revokable RSA Chain Cert 2,O=Notary,L=Seattle,ST=WA,C=US\" is not self-signed. Certificate chain must end with a valid self-signed root certificate")}
 	expiredRespErr := revocation_ocsp.OCSPCheckError{Err: errors.New("expired OCSP response")}
-	noHTTPErr := revocation_ocsp.OCSPCheckError{Err: errors.New("OCSPServer must be accessible over HTTP")}
+	noHTTPErr := revocation_ocsp.OCSPCheckError{Err: errors.New("OCSPServer protocol ldap is not supported")}
 
 	r, err := New(&http.Client{Timeout: 5 * time.Second})
 	if err != nil {
@@ -407,7 +408,7 @@ func TestCheckRevocationErrors(t *testing.T) {
 			{revocation_ocsp.NoOCSPServerError{}},
 			{nil},
 		}
-		expectedResults := []Result{OK, OK}
+		expectedResults := []base.Result{base.OK, base.OK}
 		if !identicalErrResults(errs, expectedErrs, expectedResults) {
 			t.Errorf("Expected revocation_ocsp.NoOCSPServerError.\nReceived: %v\nExpected: %v\n", errs, expectedErrs)
 		}
@@ -419,7 +420,7 @@ func TestCheckRevocationErrors(t *testing.T) {
 			{chainRootErr},
 			{chainRootErr},
 		}
-		expectedResults := []Result{Unknown, Unknown}
+		expectedResults := []base.Result{base.Unknown, base.Unknown}
 		if !identicalErrResults(errs, expectedErrs, expectedResults) {
 			t.Errorf("Expected invalid chain root error.\nReceived: %v\nExpected: %v\n", errs, expectedErrs)
 		}
@@ -432,7 +433,7 @@ func TestCheckRevocationErrors(t *testing.T) {
 			{backwardsChainErr},
 			{backwardsChainErr},
 		}
-		expectedResults := []Result{Unknown, Unknown, Unknown}
+		expectedResults := []base.Result{base.Unknown, base.Unknown, base.Unknown}
 		if !identicalErrResults(errs, expectedErrs, expectedResults) {
 			t.Errorf("Expected invalid chain error.\nReceived: %v\nExpected: %v\n", errs, expectedErrs)
 		}
@@ -450,7 +451,7 @@ func TestCheckRevocationErrors(t *testing.T) {
 			{revocation_ocsp.TimeoutError{}},
 			{nil},
 		}
-		expectedResults := []Result{Unknown, Unknown, OK}
+		expectedResults := []base.Result{base.Unknown, base.Unknown, base.OK}
 		if !identicalErrResults(errs, expectedErrs, expectedResults) {
 			t.Errorf("Expected timeout errors.\nReceived: %v\nExpected: %v\n", errs, expectedErrs)
 		}
@@ -468,7 +469,7 @@ func TestCheckRevocationErrors(t *testing.T) {
 			{nil},
 			{nil},
 		}
-		expectedResults := []Result{Unknown, OK, OK}
+		expectedResults := []base.Result{base.Unknown, base.OK, base.OK}
 		if !identicalErrResults(errs, expectedErrs, expectedResults) {
 			t.Errorf("Expected expired response errors.\nReceived: %v\nExpected: %v\n", errs, expectedErrs)
 		}
@@ -487,7 +488,7 @@ func TestCheckRevocationErrors(t *testing.T) {
 			{revocation_ocsp.PKIXNoCheckError{}},
 			{nil},
 		}
-		expectedResults := []Result{Unknown, Unknown, OK}
+		expectedResults := []base.Result{base.Unknown, base.Unknown, base.OK}
 		if !identicalErrResults(errs, expectedErrs, expectedResults) {
 			t.Errorf("Expected expired response errors.\nReceived: %v\nExpected: %v\n", errs, expectedErrs)
 		}
@@ -505,7 +506,7 @@ func TestCheckRevocationErrors(t *testing.T) {
 			{nil},
 			{nil},
 		}
-		expectedResults := []Result{Unknown, OK, OK}
+		expectedResults := []base.Result{base.Unknown, base.OK, base.OK}
 		if !identicalErrResults(errs, expectedErrs, expectedResults) {
 			t.Errorf("Expected expired response errors.\nReceived: %v\nExpected: %v\n", errs, expectedErrs)
 		}
@@ -531,8 +532,8 @@ func TestCheckRevocationInvalidChain(t *testing.T) {
 		}
 	}
 
-	missingIntermediateErr := revocation_ocsp.InvalidChainError{Err: errors.New("certificate with subject \"CN=Notation Test Revokable RSA Chain Cert 4,O=Notary,L=Seattle,ST=WA,C=US\" is not issued by \"CN=Notation Test Revokable RSA Chain Cert 2,O=Notary,L=Seattle,ST=WA,C=US\"")}
-	misorderedChainErr := revocation_ocsp.InvalidChainError{Err: errors.New("invalid certificates or certificate with subject \"CN=Notation Test Revokable RSA Chain Cert 3,O=Notary,L=Seattle,ST=WA,C=US\" is not issued by \"CN=Notation Test Revokable RSA Chain Cert 4,O=Notary,L=Seattle,ST=WA,C=US\". Error: x509: invalid signature: parent certificate cannot sign this kind of certificate")}
+	missingIntermediateErr := base.InvalidChainError{Err: errors.New("certificate with subject \"CN=Notation Test Revokable RSA Chain Cert 4,O=Notary,L=Seattle,ST=WA,C=US\" is not issued by \"CN=Notation Test Revokable RSA Chain Cert 2,O=Notary,L=Seattle,ST=WA,C=US\"")}
+	misorderedChainErr := base.InvalidChainError{Err: errors.New("invalid certificates or certificate with subject \"CN=Notation Test Revokable RSA Chain Cert 3,O=Notary,L=Seattle,ST=WA,C=US\" is not issued by \"CN=Notation Test Revokable RSA Chain Cert 4,O=Notary,L=Seattle,ST=WA,C=US\". Error: x509: invalid signature: parent certificate cannot sign this kind of certificate")}
 
 	t.Run("chain missing intermediate", func(t *testing.T) {
 		client := testhelper.MockClient(revokableTuples, []ocsp.ResponseStatus{ocsp.Good}, nil, true)
@@ -547,7 +548,7 @@ func TestCheckRevocationInvalidChain(t *testing.T) {
 			{missingIntermediateErr},
 			{missingIntermediateErr},
 		}
-		expectedResults := []Result{Unknown, Unknown, Unknown}
+		expectedResults := []base.Result{base.Unknown, base.Unknown, base.Unknown}
 		if !identicalErrResults(errs, expectedErrs, expectedResults) {
 			t.Errorf("Expected invalid chain error.\nReceived: %v\nExpected: %v\n", errs, expectedErrs)
 		}
@@ -567,177 +568,9 @@ func TestCheckRevocationInvalidChain(t *testing.T) {
 			{misorderedChainErr},
 			{misorderedChainErr},
 		}
-		expectedResults := []Result{Unknown, Unknown, Unknown, Unknown}
+		expectedResults := []base.Result{base.Unknown, base.Unknown, base.Unknown, base.Unknown}
 		if !identicalErrResults(errs, expectedErrs, expectedResults) {
 			t.Errorf("Expected invalid chain error.\nReceived: %v\nExpected: %v\n", errs, expectedErrs)
-		}
-	})
-}
-
-func TestResultString(t *testing.T) {
-	t.Run("ok", func(t *testing.T) {
-		if OK.String() != "OK" {
-			t.Errorf("Expected %s but got %s", "OK", OK.String())
-		}
-	})
-	t.Run("unknown", func(t *testing.T) {
-		if Unknown.String() != "Unknown" {
-			t.Errorf("Expected %s but got %s", "Unknown", Unknown.String())
-		}
-	})
-	t.Run("revoked", func(t *testing.T) {
-		if Revoked.String() != "Revoked" {
-			t.Errorf("Expected %s but got %s", "Revoked", Revoked.String())
-		}
-	})
-	t.Run("invalid result", func(t *testing.T) {
-		if Result(3).String() != "Invalid Result" {
-			t.Errorf("Expected %s but got %s", "Invalid Result", Result(3).String())
-		}
-	})
-}
-
-func equivalentErrorList(certResult CertRevocationResult, errs []error) bool {
-	for i, serverResult := range certResult.ServerResults {
-		if !errors.Is(serverResult.Error, errs[i]) {
-			return false
-		}
-	}
-	return true
-}
-
-func TestServerErrsToCertRevocationResultSingle(t *testing.T) {
-	t.Run("nil", func(t *testing.T) {
-		expectedErrs := []error{nil}
-		result := serverErrsToCertRevocationResult(expectedErrs)
-		if result.Result != OK {
-			t.Errorf("Expected %s but got %s", OK, result.Result)
-		}
-		if !equivalentErrorList(*result, expectedErrs) {
-			t.Error("Errors for result did not match expected errors")
-		}
-	})
-	t.Run("no ocsp server", func(t *testing.T) {
-		expectedErrs := []error{revocation_ocsp.NoOCSPServerError{}}
-		result := serverErrsToCertRevocationResult(expectedErrs)
-		if result.Result != OK {
-			t.Errorf("Expected %s but got %s", OK, result.Result)
-		}
-		if !equivalentErrorList(*result, expectedErrs) {
-			t.Error("Errors for result did not match expected errors")
-		}
-	})
-	t.Run("ocsp unknown status", func(t *testing.T) {
-		expectedErrs := []error{revocation_ocsp.UnknownStatusError{}}
-		result := serverErrsToCertRevocationResult(expectedErrs)
-		if result.Result != Unknown {
-			t.Errorf("Expected %s but got %s", Unknown, result.Result)
-		}
-		if !equivalentErrorList(*result, expectedErrs) {
-			t.Error("Errors for result did not match expected errors")
-		}
-	})
-	t.Run("check ocsp err", func(t *testing.T) {
-		expectedErrs := []error{revocation_ocsp.OCSPCheckError{}}
-		result := serverErrsToCertRevocationResult(expectedErrs)
-		if result.Result != Unknown {
-			t.Errorf("Expected %s but got %s", Unknown, result.Result)
-		}
-		if !equivalentErrorList(*result, expectedErrs) {
-			t.Error("Errors for result did not match expected errors")
-		}
-	})
-	t.Run("ocsp pkix no check", func(t *testing.T) {
-		expectedErrs := []error{revocation_ocsp.PKIXNoCheckError{}}
-		result := serverErrsToCertRevocationResult(expectedErrs)
-		if result.Result != Unknown {
-			t.Errorf("Expected %s but got %s", Unknown, result.Result)
-		}
-		if !equivalentErrorList(*result, expectedErrs) {
-			t.Error("Errors for result did not match expected errors")
-		}
-	})
-	t.Run("ocsp timeout", func(t *testing.T) {
-		expectedErrs := []error{revocation_ocsp.TimeoutError{}}
-		result := serverErrsToCertRevocationResult(expectedErrs)
-		if result.Result != Unknown {
-			t.Errorf("Expected %s but got %s", Unknown, result.Result)
-		}
-		if !equivalentErrorList(*result, expectedErrs) {
-			t.Error("Errors for result did not match expected errors")
-		}
-	})
-	t.Run("ocsp revoked", func(t *testing.T) {
-		expectedErrs := []error{revocation_ocsp.RevokedError{}}
-		result := serverErrsToCertRevocationResult(expectedErrs)
-		if result.Result != Revoked {
-			t.Errorf("Expected %s but got %s", Revoked, result.Result)
-		}
-		if !equivalentErrorList(*result, expectedErrs) {
-			t.Error("Errors for result did not match expected errors")
-		}
-	})
-}
-
-func TestServerErrsToCertRevocationResultMultiple(t *testing.T) {
-	t.Run("no errors", func(t *testing.T) {
-		expectedErrs := []error{nil, nil, nil}
-		result := serverErrsToCertRevocationResult(expectedErrs)
-		if result.Result != OK {
-			t.Errorf("Expected %s but got %s", OK, result.Result)
-		}
-		if !equivalentErrorList(*result, expectedErrs) {
-			t.Error("Errors for result did not match expected errors")
-		}
-	})
-	t.Run("only ok errors (multi server)", func(t *testing.T) {
-		expectedErrs := []error{revocation_ocsp.NoOCSPServerError{}, nil}
-		result := serverErrsToCertRevocationResult(expectedErrs)
-		if result.Result != OK {
-			t.Errorf("Expected %s but got %s", OK, result.Result)
-		}
-		if !equivalentErrorList(*result, expectedErrs) {
-			t.Error("Errors for result did not match expected errors")
-		}
-	})
-	t.Run("ok and unknown errors (multi server)", func(t *testing.T) {
-		expectedErrs := []error{revocation_ocsp.NoOCSPServerError{}, revocation_ocsp.TimeoutError{}}
-		result := serverErrsToCertRevocationResult(expectedErrs)
-		if result.Result != Unknown {
-			t.Errorf("Expected %s but got %s", Unknown, result.Result)
-		}
-		if !equivalentErrorList(*result, expectedErrs) {
-			t.Error("Errors for result did not match expected errors")
-		}
-	})
-	t.Run("ok and revoked errors (multi server)", func(t *testing.T) {
-		expectedErrs := []error{revocation_ocsp.NoOCSPServerError{}, revocation_ocsp.RevokedError{}}
-		result := serverErrsToCertRevocationResult(expectedErrs)
-		if result.Result != Revoked {
-			t.Errorf("Expected %s but got %s", Revoked, result.Result)
-		}
-		if !equivalentErrorList(*result, expectedErrs) {
-			t.Error("Errors for result did not match expected errors")
-		}
-	})
-	t.Run("unknown and revoked errors (multi server)", func(t *testing.T) {
-		expectedErrs := []error{revocation_ocsp.RevokedError{}, revocation_ocsp.UnknownStatusError{}}
-		result := serverErrsToCertRevocationResult(expectedErrs)
-		if result.Result != Revoked {
-			t.Errorf("Expected %s but got %s", Revoked, result.Result)
-		}
-		if !equivalentErrorList(*result, expectedErrs) {
-			t.Error("Errors for result did not match expected errors")
-		}
-	})
-	t.Run("all three types (multi server)", func(t *testing.T) {
-		expectedErrs := []error{revocation_ocsp.RevokedError{}, revocation_ocsp.UnknownStatusError{}, revocation_ocsp.NoOCSPServerError{}}
-		result := serverErrsToCertRevocationResult(expectedErrs)
-		if result.Result != Revoked {
-			t.Errorf("Expected %s but got %s", Revoked, result.Result)
-		}
-		if !equivalentErrorList(*result, expectedErrs) {
-			t.Error("Errors for result did not match expected errors")
 		}
 	})
 }

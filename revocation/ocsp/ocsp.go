@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/notaryproject/notation-core-go/revocation/base"
 	coreX509 "github.com/notaryproject/notation-core-go/x509"
 	"golang.org/x/crypto/ocsp"
 )
@@ -32,20 +33,12 @@ const (
 	ocspMaxResponseSize int64  = 20480 //bytes
 )
 
-// CheckStatus checks OCSP based on the passed options and returns a 2D array of
-// errors. The size of these dimensions is as follows:
-//   - 1st dimension will always be equal in length to the certificate chain.
-//   - 2nd will have a length between 1 and the number of OCSPServers for the cert
-//
-// At each index, nil will be used to indicate no error. If there is an error,
-// it will be one of the errors defined in errors.go.
-//
-// (e.g. for a chain with 3 certs (leaf, intermediate, root) with both the leaf
-// and intermediate specifying 2 OCSP server, this could be a possible result):
-//
-//	[[PKIXNoCheckError, TimeoutError], [RevokedError], [nil]]
-func CheckStatus(opts Options) [][]error {
-	result := make([][]error, len(opts.CertChain))
+// CheckStatus checks OCSP based on the passed options and returns an array of
+// base.CertRevocationResult objects that contains the results and error. The
+// length of this array will always be equal to the length of the certificate
+// chain.
+func CheckStatus(opts Options) []*base.CertRevocationResult {
+	result := make([]*base.CertRevocationResult, len(opts.CertChain))
 
 	if len(opts.CertChain) == 0 {
 		return result
@@ -54,12 +47,12 @@ func CheckStatus(opts Options) [][]error {
 	// Validate cert chain structure
 	if len(opts.CertChain) == 1 {
 		if err := validateIssuer(opts.CertChain[0], opts.CertChain[0]); err != nil {
-			fillResultsWithError(result, InvalidChainError{IsInvalidRoot: true, Err: err})
+			fillResultsWithError(result, base.InvalidChainError{IsInvalidRoot: true, Err: err})
 			return result
 		}
 	} else {
 		if err := coreX509.ValidateCodeSigningCertChain(opts.CertChain, &opts.SigningTime); err != nil {
-			fillResultsWithError(result, InvalidChainError{Err: err})
+			fillResultsWithError(result, base.InvalidChainError{Err: err})
 			return result
 		}
 	}
@@ -75,15 +68,27 @@ func CheckStatus(opts Options) [][]error {
 		}(i, cert)
 	}
 	// Last is root cert, which will never be revoked by OCSP
-	result[len(opts.CertChain)-1] = []error{nil}
+	result[len(opts.CertChain)-1] = &base.CertRevocationResult{
+		Result: base.OK,
+		ServerResults: []*base.ServerResult{{
+			Result: base.OK,
+			Error:  nil,
+		}},
+	}
 
 	wg.Wait()
 	return result
 }
 
-func fillResultsWithError(results [][]error, err error) {
+func fillResultsWithError(results []*base.CertRevocationResult, err error) {
 	for i := range results {
-		results[i] = []error{err}
+		results[i] = &base.CertRevocationResult{
+			Result: base.Unknown,
+			ServerResults: []*base.ServerResult{{
+				Result: base.Unknown,
+				Error:  err,
+			}},
+		}
 	}
 }
 
@@ -97,36 +102,42 @@ func validateIssuer(subject *x509.Certificate, issuer *x509.Certificate) error {
 	return nil
 }
 
-func certCheckStatus(cert, issuer *x509.Certificate, opts Options) []error {
+func certCheckStatus(cert, issuer *x509.Certificate, opts Options) *base.CertRevocationResult {
 	ocspURLs := cert.OCSPServer
 	if len(ocspURLs) == 0 {
 		// OCSP not enabled for this certificate.
-		return []error{NoOCSPServerError{}}
+		return &base.CertRevocationResult{
+			Result:        base.OK,
+			ServerResults: []*base.ServerResult{errToServerResult(NoOCSPServerError{})},
+		}
 	}
 
-	serverErrs := make([]error, len(ocspURLs))
+	serverResults := make([]*base.ServerResult, len(ocspURLs))
 	for serverIndex, server := range ocspURLs {
-		err := checkStatusFromServer(cert, issuer, server, opts)
-		switch t := err.(type) {
+		serverResult := checkStatusFromServer(cert, issuer, server, opts)
+		switch t := serverResult.Error.(type) {
 		case nil, RevokedError, UnknownStatusError:
 			// A valid response has been received from an OCSP server
 			// Result should be based on only this response, not any errors from
 			// other servers
-			return []error{t}
+			return serverResultsToCertRevocationResult([]*base.ServerResult{errToServerResult(t)})
 		default:
-			serverErrs[serverIndex] = err
+			serverResults[serverIndex] = serverResult
 			continue
 		}
 
 	}
-	return serverErrs
+	return &base.CertRevocationResult{
+		Result:        base.Unknown,
+		ServerResults: serverResults,
+	}
 }
 
-func checkStatusFromServer(cert, issuer *x509.Certificate, server string, opts Options) error {
+func checkStatusFromServer(cert, issuer *x509.Certificate, server string, opts Options) *base.ServerResult {
 	// Check valid server
 	if serverURL, err := url.Parse(server); err != nil || strings.ToLower(serverURL.Scheme) != "http" {
 		// This function is only able to check servers that are accessible via HTTP
-		return OCSPCheckError{Err: errors.New("OCSPServer must be accessible over HTTP")}
+		return errToServerResult(OCSPCheckError{Err: fmt.Errorf("OCSPServer protocol %s is not supported", serverURL.Scheme)})
 	}
 
 	// Create OCSP Request
@@ -134,12 +145,12 @@ func checkStatusFromServer(cert, issuer *x509.Certificate, server string, opts O
 	if err != nil {
 		// If there is a server error, attempt all servers before determining what to return
 		// to the user
-		return err
+		return errToServerResult(err)
 	}
 
 	// Validate OCSP response isn't expired
 	if time.Now().After(resp.NextUpdate) {
-		return OCSPCheckError{Err: errors.New("expired OCSP response")}
+		return errToServerResult(OCSPCheckError{Err: errors.New("expired OCSP response")})
 	}
 
 	// Check for presence of pkix-ocsp-no-check extension in response
@@ -155,23 +166,23 @@ func checkStatusFromServer(cert, issuer *x509.Certificate, server string, opts O
 		// If it isn't found, CRL should be used to verify the OCSP response
 		// TODO: add CRL support
 		// https://github.com/notaryproject/notation-core-go/issues/125
-		return PKIXNoCheckError{}
+		return errToServerResult(PKIXNoCheckError{})
 	}
 
 	// Check if SigningTime was before the revocation
 	if opts.SigningTime.Before(resp.RevokedAt) {
-		return nil
+		return errToServerResult(nil)
 	}
 
 	// No errors, valid server response
 	switch resp.Status {
 	case ocsp.Good:
-		return nil
+		return errToServerResult(nil)
 	case ocsp.Revoked:
-		return RevokedError{}
+		return errToServerResult(RevokedError{})
 	default:
 		// ocsp.Unknown
-		return UnknownStatusError{}
+		return errToServerResult(UnknownStatusError{})
 	}
 }
 
@@ -229,4 +240,48 @@ func executeOCSPCheck(cert, issuer *x509.Certificate, server string, opts Option
 	}
 
 	return ocsp.ParseResponseForCert(body, cert, issuer)
+}
+
+func errToServerResult(err error) *base.ServerResult {
+	if err == nil || errors.Is(err, NoOCSPServerError{}) {
+		return &base.ServerResult{
+			Result: base.OK,
+			Error:  err,
+		}
+	} else if errors.Is(err, RevokedError{}) {
+		return &base.ServerResult{
+			Result: base.Revoked,
+			Error:  err,
+		}
+	}
+	// Includes OCSPCheckError, UnknownStatusError
+	// PKIXNoCheckError, base.InvalidChainError, and TimeoutError
+	return &base.ServerResult{
+		Result: base.Unknown,
+		Error:  err,
+	}
+}
+
+func serverResultsToCertRevocationResult(serverResults []*base.ServerResult) *base.CertRevocationResult {
+	if len(serverResults) == 1 {
+		return &base.CertRevocationResult{
+			Result:        serverResults[0].Result,
+			ServerResults: []*base.ServerResult{serverResults[0]},
+		}
+	}
+	currResult := base.OK
+	for _, serverResult := range serverResults {
+		switch serverResult.Result {
+		case base.Revoked:
+			currResult = base.Revoked
+		case base.Unknown:
+			if currResult != base.Revoked {
+				currResult = base.Unknown
+			}
+		}
+	}
+	return &base.CertRevocationResult{
+		Result:        currResult,
+		ServerResults: serverResults,
+	}
 }
