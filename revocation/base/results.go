@@ -1,6 +1,8 @@
 // Package base provides general objects that are used across revocation
 package base
 
+import "strconv"
+
 // Result is a type of enumerated value to help characterize errors. It can be
 // OK, Unknown, or Revoked
 type Result int
@@ -9,6 +11,10 @@ const (
 	// OK is a Result that indicates that the revocation check resulted in no
 	// important errors
 	OK Result = iota
+	// NonRevokable is a Result that indicates that the certificate cannot be
+	// checked for revocation. This may be a result of no OCSP servers being
+	// specified, the cert is a root certificate, or other related situations.
+	NonRevokable
 	// Unknown is a Result that indicates that some error other than a
 	// revocation was encountered during the revocation check
 	Unknown
@@ -22,12 +28,14 @@ func (r Result) String() string {
 	switch r {
 	case OK:
 		return "OK"
+	case NonRevokable:
+		return "NonRevokable"
 	case Unknown:
 		return "Unknown"
 	case Revoked:
 		return "Revoked"
 	default:
-		return "Invalid Result"
+		return "invalid result with value " + strconv.Itoa(int(r))
 	}
 }
 
