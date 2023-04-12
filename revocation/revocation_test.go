@@ -98,7 +98,10 @@ func TestCheckRevocationStatusForSingleCert(t *testing.T) {
 			t.Errorf("Expected successful creation of revocation, but received error: %v", err)
 		}
 
-		certResults := r.Validate(revokableChain, time.Now())
+		certResults, err := r.Validate(revokableChain, time.Now())
+		if err != nil {
+			t.Errorf("Expected CheckStatus to succeed, but got error: %v", err)
+		}
 		expectedCertResults := []*base.CertRevocationResult{getOKCertResult(), getRootCertResult()}
 		validateEquivalentCertResults(certResults, expectedCertResults, t)
 	})
@@ -109,7 +112,10 @@ func TestCheckRevocationStatusForSingleCert(t *testing.T) {
 			t.Errorf("Expected successful creation of revocation, but received error: %v", err)
 		}
 
-		certResults := r.Validate(revokableChain, time.Now())
+		certResults, err := r.Validate(revokableChain, time.Now())
+		if err != nil {
+			t.Errorf("Expected CheckStatus to succeed, but got error: %v", err)
+		}
 		expectedCertResults := []*base.CertRevocationResult{
 			{
 				Result: base.ResultUnknown,
@@ -129,7 +135,10 @@ func TestCheckRevocationStatusForSingleCert(t *testing.T) {
 			t.Errorf("Expected successful creation of revocation, but received error: %v", err)
 		}
 
-		certResults := r.Validate(revokableChain, time.Now())
+		certResults, err := r.Validate(revokableChain, time.Now())
+		if err != nil {
+			t.Errorf("Expected CheckStatus to succeed, but got error: %v", err)
+		}
 		expectedCertResults := []*base.CertRevocationResult{
 			{
 				Result: base.ResultRevoked,
@@ -150,7 +159,10 @@ func TestCheckRevocationStatusForSingleCert(t *testing.T) {
 			t.Errorf("Expected successful creation of revocation, but received error: %v", err)
 		}
 
-		certResults := r.Validate(revokableChain, time.Now())
+		certResults, err := r.Validate(revokableChain, time.Now())
+		if err != nil {
+			t.Errorf("Expected CheckStatus to succeed, but got error: %v", err)
+		}
 		expectedCertResults := []*base.CertRevocationResult{
 			getOKCertResult(),
 			getRootCertResult(),
@@ -166,7 +178,10 @@ func TestCheckRevocationStatusForSelfSignedCert(t *testing.T) {
 	if err != nil {
 		t.Errorf("Expected successful creation of revocation, but received error: %v", err)
 	}
-	certResults := r.Validate([]*x509.Certificate{selfSignedTuple.Cert}, time.Now())
+	certResults, err := r.Validate([]*x509.Certificate{selfSignedTuple.Cert}, time.Now())
+	if err != nil {
+		t.Errorf("Expected CheckStatus to succeed, but got error: %v", err)
+	}
 	expectedCertResults := []*base.CertRevocationResult{getRootCertResult()}
 	validateEquivalentCertResults(certResults, expectedCertResults, t)
 }
@@ -179,15 +194,14 @@ func TestCheckRevocationStatusForRootCert(t *testing.T) {
 		t.Errorf("Expected successful creation of revocation, but received error: %v", err)
 	}
 
-	certResults := r.Validate([]*x509.Certificate{rootTuple.Cert}, time.Now())
-	expectedCertResults := []*base.CertRevocationResult{{
-		Result: base.ResultUnknown,
-		ServerResults: []*base.ServerResult{{
-			Result: base.ResultUnknown,
-			Error:  base.InvalidChainError{Err: errors.New("invalid self-signed certificate. Error: certificate with subject \"CN=Notation Test RSA Root,O=Notary,L=Seattle,ST=WA,C=US\": if the basic constraints extension is present, the ca field must be set to false")},
-		}},
-	}}
-	validateEquivalentCertResults(certResults, expectedCertResults, t)
+	certResults, err := r.Validate([]*x509.Certificate{rootTuple.Cert}, time.Now())
+	expectedErr := base.InvalidChainError{Err: errors.New("invalid self-signed certificate. Error: certificate with subject \"CN=Notation Test RSA Root,O=Notary,L=Seattle,ST=WA,C=US\": if the basic constraints extension is present, the ca field must be set to false")}
+	if err == nil || err.Error() != expectedErr.Error() {
+		t.Errorf("Expected Validate to fail with %v, but got: %v", expectedErr, err)
+	}
+	if certResults != nil {
+		t.Error("Expected certResults to be nil when there is an error")
+	}
 }
 
 func TestCheckRevocationStatusForChain(t *testing.T) {
@@ -202,7 +216,10 @@ func TestCheckRevocationStatusForChain(t *testing.T) {
 		if err != nil {
 			t.Errorf("Expected successful creation of revocation, but received error: %v", err)
 		}
-		certResults := r.Validate([]*x509.Certificate{}, time.Now())
+		certResults, err := r.Validate([]*x509.Certificate{}, time.Now())
+		if err != nil {
+			t.Errorf("Expected CheckStatus to succeed, but got error: %v", err)
+		}
 		expectedCertResults := []*base.CertRevocationResult{}
 		validateEquivalentCertResults(certResults, expectedCertResults, t)
 	})
@@ -213,7 +230,10 @@ func TestCheckRevocationStatusForChain(t *testing.T) {
 			t.Errorf("Expected successful creation of revocation, but received error: %v", err)
 		}
 
-		certResults := r.Validate(revokableChain, time.Now())
+		certResults, err := r.Validate(revokableChain, time.Now())
+		if err != nil {
+			t.Errorf("Expected CheckStatus to succeed, but got error: %v", err)
+		}
 		expectedCertResults := []*base.CertRevocationResult{
 			getOKCertResult(),
 			getOKCertResult(),
@@ -232,7 +252,10 @@ func TestCheckRevocationStatusForChain(t *testing.T) {
 			t.Errorf("Expected successful creation of revocation, but received error: %v", err)
 		}
 
-		certResults := r.Validate(revokableChain, time.Now())
+		certResults, err := r.Validate(revokableChain, time.Now())
+		if err != nil {
+			t.Errorf("Expected CheckStatus to succeed, but got error: %v", err)
+		}
 		expectedCertResults := []*base.CertRevocationResult{
 			getOKCertResult(),
 			getOKCertResult(),
@@ -257,7 +280,10 @@ func TestCheckRevocationStatusForChain(t *testing.T) {
 			t.Errorf("Expected successful creation of revocation, but received error: %v", err)
 		}
 
-		certResults := r.Validate(revokableChain, time.Now())
+		certResults, err := r.Validate(revokableChain, time.Now())
+		if err != nil {
+			t.Errorf("Expected CheckStatus to succeed, but got error: %v", err)
+		}
 		expectedCertResults := []*base.CertRevocationResult{
 			getOKCertResult(),
 			getOKCertResult(),
@@ -282,7 +308,10 @@ func TestCheckRevocationStatusForChain(t *testing.T) {
 			t.Errorf("Expected successful creation of revocation, but received error: %v", err)
 		}
 
-		certResults := r.Validate(revokableChain, time.Now())
+		certResults, err := r.Validate(revokableChain, time.Now())
+		if err != nil {
+			t.Errorf("Expected CheckStatus to succeed, but got error: %v", err)
+		}
 		expectedCertResults := []*base.CertRevocationResult{
 			getOKCertResult(),
 			getOKCertResult(),
@@ -314,7 +343,10 @@ func TestCheckRevocationStatusForChain(t *testing.T) {
 			t.Errorf("Expected successful creation of revocation, but received error: %v", err)
 		}
 
-		certResults := r.Validate(revokableChain, time.Now())
+		certResults, err := r.Validate(revokableChain, time.Now())
+		if err != nil {
+			t.Errorf("Expected CheckStatus to succeed, but got error: %v", err)
+		}
 		expectedCertResults := []*base.CertRevocationResult{
 			getOKCertResult(),
 			getOKCertResult(),
@@ -334,7 +366,10 @@ func TestCheckRevocationStatusForChain(t *testing.T) {
 			t.Errorf("Expected successful creation of revocation, but received error: %v", err)
 		}
 
-		certResults := r.Validate(revokableChain, time.Now())
+		certResults, err := r.Validate(revokableChain, time.Now())
+		if err != nil {
+			t.Errorf("Expected CheckStatus to succeed, but got error: %v", err)
+		}
 		expectedCertResults := []*base.CertRevocationResult{
 			getOKCertResult(),
 			getOKCertResult(),
@@ -359,7 +394,10 @@ func TestCheckRevocationStatusForChain(t *testing.T) {
 			t.Errorf("Expected successful creation of revocation, but received error: %v", err)
 		}
 
-		certResults := r.Validate(revokableChain, time.Now().Add(time.Hour))
+		certResults, err := r.Validate(revokableChain, time.Now().Add(time.Hour))
+		if err != nil {
+			t.Errorf("Expected CheckStatus to succeed, but got error: %v", err)
+		}
 		expectedCertResults := []*base.CertRevocationResult{
 			getOKCertResult(),
 			getOKCertResult(),
@@ -411,7 +449,10 @@ func TestCheckRevocationErrors(t *testing.T) {
 	}
 
 	t.Run("no OCSPServer specified", func(t *testing.T) {
-		certResults := r.Validate(noOCSPChain, time.Now())
+		certResults, err := r.Validate(noOCSPChain, time.Now())
+		if err != nil {
+			t.Errorf("Expected CheckStatus to succeed, but got error: %v", err)
+		}
 		expectedCertResults := []*base.CertRevocationResult{
 			{
 				Result: base.ResultNonRevokable,
@@ -426,52 +467,23 @@ func TestCheckRevocationErrors(t *testing.T) {
 	})
 
 	t.Run("chain missing root", func(t *testing.T) {
-		certResults := r.Validate(noRootChain, time.Now())
-		expectedCertResults := []*base.CertRevocationResult{
-			{
-				Result: base.ResultUnknown,
-				ServerResults: []*base.ServerResult{{
-					Result: base.ResultUnknown,
-					Error:  chainRootErr,
-				}},
-			},
-			{
-				Result: base.ResultUnknown,
-				ServerResults: []*base.ServerResult{{
-					Result: base.ResultUnknown,
-					Error:  chainRootErr,
-				}},
-			},
+		certResults, err := r.Validate(noRootChain, time.Now())
+		if err == nil || err.Error() != chainRootErr.Error() {
+			t.Errorf("Expected Validate to fail with %v, but got: %v", chainRootErr, err)
 		}
-		validateEquivalentCertResults(certResults, expectedCertResults, t)
+		if certResults != nil {
+			t.Error("Expected certResults to be nil when there is an error")
+		}
 	})
 
 	t.Run("backwards chain", func(t *testing.T) {
-		certResults := r.Validate(backwardsChain, time.Now())
-		expectedCertResults := []*base.CertRevocationResult{
-			{
-				Result: base.ResultUnknown,
-				ServerResults: []*base.ServerResult{{
-					Result: base.ResultUnknown,
-					Error:  backwardsChainErr,
-				}},
-			},
-			{
-				Result: base.ResultUnknown,
-				ServerResults: []*base.ServerResult{{
-					Result: base.ResultUnknown,
-					Error:  backwardsChainErr,
-				}},
-			},
-			{
-				Result: base.ResultUnknown,
-				ServerResults: []*base.ServerResult{{
-					Result: base.ResultUnknown,
-					Error:  backwardsChainErr,
-				}},
-			},
+		certResults, err := r.Validate(backwardsChain, time.Now())
+		if err == nil || err.Error() != backwardsChainErr.Error() {
+			t.Errorf("Expected Validate to fail with %v, but got: %v", backwardsChainErr, err)
 		}
-		validateEquivalentCertResults(certResults, expectedCertResults, t)
+		if certResults != nil {
+			t.Error("Expected certResults to be nil when there is an error")
+		}
 	})
 
 	t.Run("timeout", func(t *testing.T) {
@@ -480,7 +492,10 @@ func TestCheckRevocationErrors(t *testing.T) {
 		if err != nil {
 			t.Errorf("Expected successful creation of revocation, but received error: %v", err)
 		}
-		certResults := timeoutR.Validate(okChain, time.Now())
+		certResults, err := timeoutR.Validate(okChain, time.Now())
+		if err != nil {
+			t.Errorf("Expected CheckStatus to succeed, but got error: %v", err)
+		}
 		expectedCertResults := []*base.CertRevocationResult{
 			{
 				Result: base.ResultUnknown,
@@ -507,7 +522,10 @@ func TestCheckRevocationErrors(t *testing.T) {
 		if err != nil {
 			t.Errorf("Expected successful creation of revocation, but received error: %v", err)
 		}
-		certResults := expiredR.Validate(expiredChain, time.Now())
+		certResults, err := expiredR.Validate(expiredChain, time.Now())
+		if err != nil {
+			t.Errorf("Expected CheckStatus to succeed, but got error: %v", err)
+		}
 		expectedCertResults := []*base.CertRevocationResult{
 			{
 				Result: base.ResultUnknown,
@@ -529,7 +547,10 @@ func TestCheckRevocationErrors(t *testing.T) {
 			t.Errorf("Expected successful creation of revocation, but received error: %v", err)
 		}
 
-		certResults := r.Validate(okChain, time.Now())
+		certResults, err := r.Validate(okChain, time.Now())
+		if err != nil {
+			t.Errorf("Expected CheckStatus to succeed, but got error: %v", err)
+		}
 		expectedCertResults := []*base.CertRevocationResult{
 			{
 				Result: base.ResultNonRevokable,
@@ -556,7 +577,10 @@ func TestCheckRevocationErrors(t *testing.T) {
 		if err != nil {
 			t.Errorf("Expected successful creation of revocation, but received error: %v", err)
 		}
-		certResults := r.Validate(noHTTPChain, time.Now())
+		certResults, err := r.Validate(noHTTPChain, time.Now())
+		if err != nil {
+			t.Errorf("Expected CheckStatus to succeed, but got error: %v", err)
+		}
 		expectedCertResults := []*base.CertRevocationResult{
 			{
 				Result: base.ResultUnknown,
@@ -601,31 +625,13 @@ func TestCheckRevocationInvalidChain(t *testing.T) {
 			t.Errorf("Expected successful creation of revocation, but received error: %v", err)
 		}
 
-		certResults := r.Validate(missingIntermediateChain, time.Now())
-		expectedCertResults := []*base.CertRevocationResult{
-			{
-				Result: base.ResultUnknown,
-				ServerResults: []*base.ServerResult{{
-					Result: base.ResultUnknown,
-					Error:  missingIntermediateErr,
-				}},
-			},
-			{
-				Result: base.ResultUnknown,
-				ServerResults: []*base.ServerResult{{
-					Result: base.ResultUnknown,
-					Error:  missingIntermediateErr,
-				}},
-			},
-			{
-				Result: base.ResultUnknown,
-				ServerResults: []*base.ServerResult{{
-					Result: base.ResultUnknown,
-					Error:  missingIntermediateErr,
-				}},
-			},
+		certResults, err := r.Validate(missingIntermediateChain, time.Now())
+		if err == nil || err.Error() != missingIntermediateErr.Error() {
+			t.Errorf("Expected Validate to fail with %v, but got: %v", missingIntermediateErr, err)
 		}
-		validateEquivalentCertResults(certResults, expectedCertResults, t)
+		if certResults != nil {
+			t.Error("Expected certResults to be nil when there is an error")
+		}
 	})
 
 	t.Run("chain out of order", func(t *testing.T) {
@@ -635,37 +641,12 @@ func TestCheckRevocationInvalidChain(t *testing.T) {
 			t.Errorf("Expected successful creation of revocation, but received error: %v", err)
 		}
 
-		certResults := r.Validate(misorderedIntermediateChain, time.Now())
-		expectedCertResults := []*base.CertRevocationResult{
-			{
-				Result: base.ResultUnknown,
-				ServerResults: []*base.ServerResult{{
-					Result: base.ResultUnknown,
-					Error:  misorderedChainErr,
-				}},
-			},
-			{
-				Result: base.ResultUnknown,
-				ServerResults: []*base.ServerResult{{
-					Result: base.ResultUnknown,
-					Error:  misorderedChainErr,
-				}},
-			},
-			{
-				Result: base.ResultUnknown,
-				ServerResults: []*base.ServerResult{{
-					Result: base.ResultUnknown,
-					Error:  misorderedChainErr,
-				}},
-			},
-			{
-				Result: base.ResultUnknown,
-				ServerResults: []*base.ServerResult{{
-					Result: base.ResultUnknown,
-					Error:  misorderedChainErr,
-				}},
-			},
+		certResults, err := r.Validate(misorderedIntermediateChain, time.Now())
+		if err == nil || err.Error() != misorderedChainErr.Error() {
+			t.Errorf("Expected Validate to fail with %v, but got: %v", misorderedChainErr, err)
 		}
-		validateEquivalentCertResults(certResults, expectedCertResults, t)
+		if certResults != nil {
+			t.Error("Expected certResults to be nil when there is an error")
+		}
 	})
 }

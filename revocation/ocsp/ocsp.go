@@ -37,17 +37,16 @@ const (
 // base.CertRevocationResult objects that contains the results and error. The
 // length of this array will always be equal to the length of the certificate
 // chain.
-func CheckStatus(opts Options) []*base.CertRevocationResult {
+func CheckStatus(opts Options) ([]*base.CertRevocationResult, error) {
 	result := make([]*base.CertRevocationResult, len(opts.CertChain))
 
 	if len(opts.CertChain) == 0 {
-		return result
+		return result, nil
 	}
 
 	// Validate cert chain structure
 	if err := coreX509.ValidateCodeSigningCertChain(opts.CertChain, &opts.SigningTime); err != nil {
-		fillResultsWithError(result, base.InvalidChainError{Err: err})
-		return result
+		return nil, base.InvalidChainError{Err: err}
 	}
 
 	// Check status for each cert in cert chain
@@ -70,19 +69,7 @@ func CheckStatus(opts Options) []*base.CertRevocationResult {
 	}
 
 	wg.Wait()
-	return result
-}
-
-func fillResultsWithError(results []*base.CertRevocationResult, err error) {
-	for i := range results {
-		results[i] = &base.CertRevocationResult{
-			Result: base.ResultUnknown,
-			ServerResults: []*base.ServerResult{{
-				Result: base.ResultUnknown,
-				Error:  err,
-			}},
-		}
-	}
+	return result, nil
 }
 
 func certCheckStatus(cert, issuer *x509.Certificate, opts Options) *base.CertRevocationResult {
