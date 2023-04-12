@@ -46,9 +46,9 @@ func validateEquivalentCertResults(certResults, expectedCertResults []*base.Cert
 
 func getOKCertResult() *base.CertRevocationResult {
 	return &base.CertRevocationResult{
-		Result: base.OK,
+		Result: base.ResultOK,
 		ServerResults: []*base.ServerResult{{
-			Result: base.OK,
+			Result: base.ResultOK,
 			Error:  nil,
 		}},
 	}
@@ -56,9 +56,9 @@ func getOKCertResult() *base.CertRevocationResult {
 
 func getRootCertResult() *base.CertRevocationResult {
 	return &base.CertRevocationResult{
-		Result: base.NonRevokable,
+		Result: base.ResultNonRevokable,
 		ServerResults: []*base.ServerResult{{
-			Result: base.NonRevokable,
+			Result: base.ResultNonRevokable,
 			Error:  nil,
 		}},
 	}
@@ -92,9 +92,9 @@ func TestCheckStatus(t *testing.T) {
 
 		certResult := certCheckStatus(revokableChain[0], revokableChain[1], opts)
 		expectedCertResults := []*base.CertRevocationResult{{
-			Result: base.Unknown,
+			Result: base.ResultUnknown,
 			ServerResults: []*base.ServerResult{{
-				Result: base.Unknown,
+				Result: base.ResultUnknown,
 				Error:  UnknownStatusError{},
 			}},
 		}}
@@ -110,9 +110,9 @@ func TestCheckStatus(t *testing.T) {
 
 		certResult := certCheckStatus(revokableChain[0], revokableChain[1], opts)
 		expectedCertResults := []*base.CertRevocationResult{{
-			Result: base.Revoked,
+			Result: base.ResultRevoked,
 			ServerResults: []*base.ServerResult{{
-				Result: base.Revoked,
+				Result: base.ResultRevoked,
 				Error:  RevokedError{},
 			}},
 		}}
@@ -157,7 +157,13 @@ func TestCheckStatusForRootCert(t *testing.T) {
 	}
 
 	certResults := CheckStatus(opts)
-	expectedCertResults := []*base.CertRevocationResult{getRootCertResult()}
+	expectedCertResults := []*base.CertRevocationResult{{
+		Result: base.ResultUnknown,
+		ServerResults: []*base.ServerResult{{
+			Result: base.ResultUnknown,
+			Error:  base.InvalidChainError{Err: errors.New("invalid self-signed certificate. Error: certificate with subject \"CN=Notation Test RSA Root,O=Notary,L=Seattle,ST=WA,C=US\": if the basic constraints extension is present, the ca field must be set to false")},
+		}},
+	}}
 	validateEquivalentCertResults(certResults, expectedCertResults, t)
 }
 
@@ -170,10 +176,10 @@ func TestCheckStatusForNonSelfSignedSingleCert(t *testing.T) {
 		HTTPClient:  client,
 	}
 	expectedResult := &base.CertRevocationResult{
-		Result: base.Unknown,
+		Result: base.ResultUnknown,
 		ServerResults: []*base.ServerResult{{
-			Result: base.Unknown,
-			Error:  base.InvalidChainError{IsInvalidRoot: true, Err: errors.New("crypto/rsa: verification error")},
+			Result: base.ResultUnknown,
+			Error:  base.InvalidChainError{Err: errors.New("invalid self-signed certificate. subject: \"CN=Notation Test RSA Leaf Cert,O=Notary,L=Seattle,ST=WA,C=US\". Error: crypto/rsa: verification error")},
 		}},
 	}
 
@@ -232,9 +238,9 @@ func TestCheckStatusForChain(t *testing.T) {
 			getOKCertResult(),
 			getOKCertResult(),
 			{
-				Result: base.Unknown,
+				Result: base.ResultUnknown,
 				ServerResults: []*base.ServerResult{{
-					Result: base.Unknown,
+					Result: base.ResultUnknown,
 					Error:  UnknownStatusError{},
 				}},
 			},
@@ -258,9 +264,9 @@ func TestCheckStatusForChain(t *testing.T) {
 			getOKCertResult(),
 			getOKCertResult(),
 			{
-				Result: base.Revoked,
+				Result: base.ResultRevoked,
 				ServerResults: []*base.ServerResult{{
-					Result: base.Revoked,
+					Result: base.ResultRevoked,
 					Error:  RevokedError{},
 				}},
 			},
@@ -284,17 +290,17 @@ func TestCheckStatusForChain(t *testing.T) {
 			getOKCertResult(),
 			getOKCertResult(),
 			{
-				Result: base.Unknown,
+				Result: base.ResultUnknown,
 				ServerResults: []*base.ServerResult{{
-					Result: base.Unknown,
+					Result: base.ResultUnknown,
 					Error:  UnknownStatusError{},
 				}},
 			},
 			getOKCertResult(),
 			{
-				Result: base.Revoked,
+				Result: base.ResultRevoked,
 				ServerResults: []*base.ServerResult{{
-					Result: base.Revoked,
+					Result: base.ResultRevoked,
 					Error:  RevokedError{},
 				}},
 			},
@@ -338,9 +344,9 @@ func TestCheckStatusForChain(t *testing.T) {
 			getOKCertResult(),
 			getOKCertResult(),
 			{
-				Result: base.Unknown,
+				Result: base.ResultUnknown,
 				ServerResults: []*base.ServerResult{{
-					Result: base.Unknown,
+					Result: base.ResultUnknown,
 					Error:  UnknownStatusError{},
 				}},
 			},
@@ -364,9 +370,9 @@ func TestCheckStatusForChain(t *testing.T) {
 			getOKCertResult(),
 			getOKCertResult(),
 			{
-				Result: base.Revoked,
+				Result: base.ResultRevoked,
 				ServerResults: []*base.ServerResult{{
-					Result: base.Revoked,
+					Result: base.ResultRevoked,
 					Error:  RevokedError{},
 				}},
 			},
@@ -414,10 +420,10 @@ func TestCheckStatusErrors(t *testing.T) {
 		certResults := CheckStatus(opts)
 		expectedCertResults := []*base.CertRevocationResult{
 			{
-				Result: base.NonRevokable,
+				Result: base.ResultNonRevokable,
 				ServerResults: []*base.ServerResult{{
-					Result: base.NonRevokable,
-					Error:  NoOCSPServerError{},
+					Result: base.ResultNonRevokable,
+					Error:  nil,
 				}},
 			},
 			getRootCertResult(),
@@ -434,16 +440,16 @@ func TestCheckStatusErrors(t *testing.T) {
 		certResults := CheckStatus(opts)
 		expectedCertResults := []*base.CertRevocationResult{
 			{
-				Result: base.Unknown,
+				Result: base.ResultUnknown,
 				ServerResults: []*base.ServerResult{{
-					Result: base.Unknown,
+					Result: base.ResultUnknown,
 					Error:  chainRootErr,
 				}},
 			},
 			{
-				Result: base.Unknown,
+				Result: base.ResultUnknown,
 				ServerResults: []*base.ServerResult{{
-					Result: base.Unknown,
+					Result: base.ResultUnknown,
 					Error:  chainRootErr,
 				}},
 			},
@@ -460,23 +466,23 @@ func TestCheckStatusErrors(t *testing.T) {
 		certResults := CheckStatus(opts)
 		expectedCertResults := []*base.CertRevocationResult{
 			{
-				Result: base.Unknown,
+				Result: base.ResultUnknown,
 				ServerResults: []*base.ServerResult{{
-					Result: base.Unknown,
+					Result: base.ResultUnknown,
 					Error:  backwardsChainErr,
 				}},
 			},
 			{
-				Result: base.Unknown,
+				Result: base.ResultUnknown,
 				ServerResults: []*base.ServerResult{{
-					Result: base.Unknown,
+					Result: base.ResultUnknown,
 					Error:  backwardsChainErr,
 				}},
 			},
 			{
-				Result: base.Unknown,
+				Result: base.ResultUnknown,
 				ServerResults: []*base.ServerResult{{
-					Result: base.Unknown,
+					Result: base.ResultUnknown,
 					Error:  backwardsChainErr,
 				}},
 			},
@@ -494,16 +500,16 @@ func TestCheckStatusErrors(t *testing.T) {
 		certResults := CheckStatus(opts)
 		expectedCertResults := []*base.CertRevocationResult{
 			{
-				Result: base.Unknown,
+				Result: base.ResultUnknown,
 				ServerResults: []*base.ServerResult{{
-					Result: base.Unknown,
+					Result: base.ResultUnknown,
 					Error:  TimeoutError{},
 				}},
 			},
 			{
-				Result: base.Unknown,
+				Result: base.ResultUnknown,
 				ServerResults: []*base.ServerResult{{
-					Result: base.Unknown,
+					Result: base.ResultUnknown,
 					Error:  TimeoutError{},
 				}},
 			},
@@ -522,9 +528,9 @@ func TestCheckStatusErrors(t *testing.T) {
 		certResults := CheckStatus(opts)
 		expectedCertResults := []*base.CertRevocationResult{
 			{
-				Result: base.Unknown,
+				Result: base.ResultUnknown,
 				ServerResults: []*base.ServerResult{{
-					Result: base.Unknown,
+					Result: base.ResultUnknown,
 					Error:  expiredRespErr,
 				}},
 			},
@@ -545,17 +551,17 @@ func TestCheckStatusErrors(t *testing.T) {
 		certResults := CheckStatus(opts)
 		expectedCertResults := []*base.CertRevocationResult{
 			{
-				Result: base.NonRevokable,
+				Result: base.ResultNonRevokable,
 				ServerResults: []*base.ServerResult{{
-					Result: base.NonRevokable,
-					Error:  PKIXNoCheckError{},
+					Result: base.ResultNonRevokable,
+					Error:  nil,
 				}},
 			},
 			{
-				Result: base.NonRevokable,
+				Result: base.ResultNonRevokable,
 				ServerResults: []*base.ServerResult{{
-					Result: base.NonRevokable,
-					Error:  PKIXNoCheckError{},
+					Result: base.ResultNonRevokable,
+					Error:  nil,
 				}},
 			},
 			getRootCertResult(),
@@ -573,9 +579,9 @@ func TestCheckStatusErrors(t *testing.T) {
 		certResults := CheckStatus(opts)
 		expectedCertResults := []*base.CertRevocationResult{
 			{
-				Result: base.Unknown,
+				Result: base.ResultUnknown,
 				ServerResults: []*base.ServerResult{{
-					Result: base.Unknown,
+					Result: base.ResultUnknown,
 					Error:  noHTTPErr,
 				}},
 			},
@@ -618,23 +624,23 @@ func TestCheckOCSPInvalidChain(t *testing.T) {
 		certResults := CheckStatus(opts)
 		expectedCertResults := []*base.CertRevocationResult{
 			{
-				Result: base.Unknown,
+				Result: base.ResultUnknown,
 				ServerResults: []*base.ServerResult{{
-					Result: base.Unknown,
+					Result: base.ResultUnknown,
 					Error:  missingIntermediateErr,
 				}},
 			},
 			{
-				Result: base.Unknown,
+				Result: base.ResultUnknown,
 				ServerResults: []*base.ServerResult{{
-					Result: base.Unknown,
+					Result: base.ResultUnknown,
 					Error:  missingIntermediateErr,
 				}},
 			},
 			{
-				Result: base.Unknown,
+				Result: base.ResultUnknown,
 				ServerResults: []*base.ServerResult{{
-					Result: base.Unknown,
+					Result: base.ResultUnknown,
 					Error:  missingIntermediateErr,
 				}},
 			},
@@ -652,30 +658,30 @@ func TestCheckOCSPInvalidChain(t *testing.T) {
 		certResults := CheckStatus(opts)
 		expectedCertResults := []*base.CertRevocationResult{
 			{
-				Result: base.Unknown,
+				Result: base.ResultUnknown,
 				ServerResults: []*base.ServerResult{{
-					Result: base.Unknown,
+					Result: base.ResultUnknown,
 					Error:  misorderedChainErr,
 				}},
 			},
 			{
-				Result: base.Unknown,
+				Result: base.ResultUnknown,
 				ServerResults: []*base.ServerResult{{
-					Result: base.Unknown,
+					Result: base.ResultUnknown,
 					Error:  misorderedChainErr,
 				}},
 			},
 			{
-				Result: base.Unknown,
+				Result: base.ResultUnknown,
 				ServerResults: []*base.ServerResult{{
-					Result: base.Unknown,
+					Result: base.ResultUnknown,
 					Error:  misorderedChainErr,
 				}},
 			},
 			{
-				Result: base.Unknown,
+				Result: base.ResultUnknown,
 				ServerResults: []*base.ServerResult{{
-					Result: base.Unknown,
+					Result: base.ResultUnknown,
 					Error:  misorderedChainErr,
 				}},
 			},
@@ -688,20 +694,20 @@ func TestMultipleServerCertResults(t *testing.T) {
 	t.Run("no errors", func(t *testing.T) {
 		serverResults := []*base.ServerResult{
 			{
-				Result: base.OK,
+				Result: base.ResultOK,
 				Error:  nil,
 			},
 			{
-				Result: base.OK,
+				Result: base.ResultOK,
 				Error:  nil,
 			},
 			{
-				Result: base.OK,
+				Result: base.ResultOK,
 				Error:  nil,
 			},
 		}
 		expectedResult := []*base.CertRevocationResult{{
-			Result:        base.OK,
+			Result:        base.ResultOK,
 			ServerResults: serverResults,
 		}}
 		result := serverResultsToCertRevocationResult(serverResults)
@@ -710,16 +716,16 @@ func TestMultipleServerCertResults(t *testing.T) {
 	t.Run("only non-revocable errors (multi server)", func(t *testing.T) {
 		serverResults := []*base.ServerResult{
 			{
-				Result: base.NonRevokable,
-				Error:  NoOCSPServerError{},
+				Result: base.ResultNonRevokable,
+				Error:  nil,
 			},
 			{
-				Result: base.NonRevokable,
-				Error:  PKIXNoCheckError{},
+				Result: base.ResultNonRevokable,
+				Error:  nil,
 			},
 		}
 		expectedResult := []*base.CertRevocationResult{{
-			Result:        base.NonRevokable,
+			Result:        base.ResultNonRevokable,
 			ServerResults: serverResults,
 		}}
 		result := serverResultsToCertRevocationResult(serverResults)
@@ -728,16 +734,16 @@ func TestMultipleServerCertResults(t *testing.T) {
 	t.Run("non-revocable and unknown errors (multi server)", func(t *testing.T) {
 		serverResults := []*base.ServerResult{
 			{
-				Result: base.NonRevokable,
-				Error:  NoOCSPServerError{},
+				Result: base.ResultNonRevokable,
+				Error:  nil,
 			},
 			{
-				Result: base.Unknown,
+				Result: base.ResultUnknown,
 				Error:  TimeoutError{},
 			},
 		}
 		expectedResult := []*base.CertRevocationResult{{
-			Result:        base.Unknown,
+			Result:        base.ResultUnknown,
 			ServerResults: serverResults,
 		}}
 		result := serverResultsToCertRevocationResult(serverResults)
@@ -746,16 +752,16 @@ func TestMultipleServerCertResults(t *testing.T) {
 	t.Run("non-revocable and revoked errors (multi server)", func(t *testing.T) {
 		serverResults := []*base.ServerResult{
 			{
-				Result: base.NonRevokable,
-				Error:  NoOCSPServerError{},
+				Result: base.ResultNonRevokable,
+				Error:  nil,
 			},
 			{
-				Result: base.Revoked,
+				Result: base.ResultRevoked,
 				Error:  RevokedError{},
 			},
 		}
 		expectedResult := []*base.CertRevocationResult{{
-			Result:        base.Revoked,
+			Result:        base.ResultRevoked,
 			ServerResults: serverResults,
 		}}
 		result := serverResultsToCertRevocationResult(serverResults)
@@ -764,16 +770,16 @@ func TestMultipleServerCertResults(t *testing.T) {
 	t.Run("unknown and revoked errors (multi server)", func(t *testing.T) {
 		serverResults := []*base.ServerResult{
 			{
-				Result: base.Revoked,
+				Result: base.ResultRevoked,
 				Error:  RevokedError{},
 			},
 			{
-				Result: base.Unknown,
+				Result: base.ResultUnknown,
 				Error:  UnknownStatusError{},
 			},
 		}
 		expectedResult := []*base.CertRevocationResult{{
-			Result:        base.Revoked,
+			Result:        base.ResultRevoked,
 			ServerResults: serverResults,
 		}}
 		result := serverResultsToCertRevocationResult(serverResults)
@@ -782,20 +788,20 @@ func TestMultipleServerCertResults(t *testing.T) {
 	t.Run("all three types (multi server)", func(t *testing.T) {
 		serverResults := []*base.ServerResult{
 			{
-				Result: base.Revoked,
+				Result: base.ResultRevoked,
 				Error:  RevokedError{},
 			},
 			{
-				Result: base.Unknown,
+				Result: base.ResultUnknown,
 				Error:  UnknownStatusError{},
 			},
 			{
-				Result: base.NonRevokable,
-				Error:  NoOCSPServerError{},
+				Result: base.ResultNonRevokable,
+				Error:  nil,
 			},
 		}
 		expectedResult := []*base.CertRevocationResult{{
-			Result:        base.Revoked,
+			Result:        base.ResultRevoked,
 			ServerResults: serverResults,
 		}}
 		result := serverResultsToCertRevocationResult(serverResults)

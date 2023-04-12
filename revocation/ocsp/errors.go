@@ -32,7 +32,7 @@ type OCSPCheckError struct {
 func (e OCSPCheckError) Error() string {
 	msg := "error checking revocation status via OCSP"
 	if e.Err != nil {
-		return fmt.Sprintf("%s: %s", msg, e.Err.Error())
+		return fmt.Sprintf("%s: %v", msg, e.Err)
 	}
 	return msg
 }

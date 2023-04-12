@@ -8,31 +8,31 @@ import "strconv"
 type Result int
 
 const (
-	// OK is a Result that indicates that the revocation check resulted in no
+	// ResultOK is a Result that indicates that the revocation check resulted in no
 	// important errors
-	OK Result = iota
-	// NonRevokable is a Result that indicates that the certificate cannot be
+	ResultOK Result = 1 + iota
+	// ResultNonRevokable is a Result that indicates that the certificate cannot be
 	// checked for revocation. This may be a result of no OCSP servers being
 	// specified, the cert is a root certificate, or other related situations.
-	NonRevokable
-	// Unknown is a Result that indicates that some error other than a
+	ResultNonRevokable
+	// ResultUnknown is a Result that indicates that some error other than a
 	// revocation was encountered during the revocation check
-	Unknown
-	// Revoked is a Result that indicates that at least one certificate was
+	ResultUnknown
+	// ResultRevoked is a Result that indicates that at least one certificate was
 	// revoked when performing a revocation check on the certificate chain
-	Revoked
+	ResultRevoked
 )
 
 // String provides a conversion from a Result to a string
 func (r Result) String() string {
 	switch r {
-	case OK:
+	case ResultOK:
 		return "OK"
-	case NonRevokable:
+	case ResultNonRevokable:
 		return "NonRevokable"
-	case Unknown:
+	case ResultUnknown:
 		return "Unknown"
-	case Revoked:
+	case ResultRevoked:
 		return "Revoked"
 	default:
 		return "invalid result with value " + strconv.Itoa(int(r))
