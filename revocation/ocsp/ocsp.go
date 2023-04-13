@@ -132,16 +132,15 @@ func checkStatusFromServer(cert, issuer *x509.Certificate, server string, opts O
 		return errToServerResult(PKIXNoCheckError{})
 	}
 
-	// Check if SigningTime was before the revocation
-	if opts.SigningTime.Before(resp.RevokedAt) {
-		return errToServerResult(nil)
-	}
-
 	// No errors, valid server response
 	switch resp.Status {
 	case ocsp.Good:
 		return errToServerResult(nil)
 	case ocsp.Revoked:
+		// Check if SigningTime was before the revocation
+		if opts.SigningTime.Before(resp.RevokedAt) {
+			return errToServerResult(nil)
+		}
 		return errToServerResult(RevokedError{})
 	default:
 		// ocsp.Unknown
@@ -231,12 +230,6 @@ func errToServerResult(err error) *base.ServerResult {
 }
 
 func serverResultsToCertRevocationResult(serverResults []*base.ServerResult) *base.CertRevocationResult {
-	if len(serverResults) == 1 {
-		return &base.CertRevocationResult{
-			Result:        serverResults[0].Result,
-			ServerResults: []*base.ServerResult{serverResults[0]},
-		}
-	}
 	currResult := base.ResultOK
 	for _, serverResult := range serverResults {
 		switch serverResult.Result {
