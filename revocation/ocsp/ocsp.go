@@ -29,8 +29,10 @@ type Options struct {
 }
 
 const (
-	pkixNoCheckOID      string = "1.3.6.1.5.5.7.48.1.5"
-	ocspMaxResponseSize int64  = 20480 //bytes
+	pkixNoCheckOID string = "1.3.6.1.5.5.7.48.1.5"
+	// Max size determined from https://www.ibm.com/docs/en/sva/9.0.6?topic=stanza-ocsp-max-response-size.
+	// Typical size is ~4 KB
+	ocspMaxResponseSize int64 = 20480 //bytes
 )
 
 // CheckStatus checks OCSP based on the passed options and returns an array of
