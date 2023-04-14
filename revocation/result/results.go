@@ -62,13 +62,9 @@ type ServerResult struct {
 type CertRevocationResult struct {
 	// Result of revocation for a specific cert in the chain
 	//
-	// If there are multiple ServerResults with different Results, then this
-	// Result will be the most significant of the Results. It will be set
-	// according to the following precendence:
-	//  ResultOK -> ResultNonRevocable -> ResultUnknown -> ResultRevoked
-	// (e.g. If there are 3 ServerResults, 2 of which have a result of
-	// ResultUnknown and one that is ResultNonRevocable, this Result value for
-	// the certificate would be ResultUnknown)
+	// If there are multiple ServerResults, this is because no responses were
+	// able to be retrieved, leaving each ServerResult with a Result of Unknown.
+	// Thus, in the case of more than one ServerResult, this will be ResultUnknown
 	Result Result
 
 	// An array of results for each server associated with the certificate.

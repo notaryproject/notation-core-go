@@ -236,23 +236,11 @@ func errToServerResult(server string, err error) *result.ServerResult {
 }
 
 func serverResultsToCertRevocationResult(serverResults []*result.ServerResult) *result.CertRevocationResult {
-	currResult := result.ResultOK
-	for _, serverResult := range serverResults {
-		switch serverResult.Result {
-		case result.ResultRevoked:
-			currResult = result.ResultRevoked
-		case result.ResultUnknown:
-			if currResult != result.ResultRevoked {
-				currResult = result.ResultUnknown
-			}
-		case result.ResultNonRevokable:
-			if currResult != result.ResultRevoked && currResult != result.ResultUnknown {
-				currResult = result.ResultNonRevokable
-			}
-		}
+	if len(serverResults) == 0 {
+		return nil
 	}
 	return &result.CertRevocationResult{
-		Result:        currResult,
+		Result:        serverResults[len(serverResults)-1].Result,
 		ServerResults: serverResults,
 	}
 }
