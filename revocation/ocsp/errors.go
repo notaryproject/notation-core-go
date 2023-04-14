@@ -44,14 +44,6 @@ func (e NoOCSPServerError) Error() string {
 	return "no valid OCSPServer found"
 }
 
-// PKIXNoCheckError is returned when the OCSP signing cert is missing the
-// id-pkix-ocsp-nocheck extension.
-type PKIXNoCheckError struct{}
-
-func (e PKIXNoCheckError) Error() string {
-	return fmt.Sprintf("an OCSP signing cert is missing the id-pkix-ocsp-nocheck extension (%s)", pkixNoCheckOID)
-}
-
 // TimeoutError is returned when the connection attempt to an OCSP URL exceeds
 // the specified threshold
 type TimeoutError struct {

@@ -43,7 +43,7 @@ func CheckStatus(opts Options) ([]*result.CertRevocationResult, error) {
 	certResults := make([]*result.CertRevocationResult, len(opts.CertChain))
 
 	if len(opts.CertChain) == 0 {
-		return certResults, nil
+		return nil, result.InvalidChainError{Err: errors.New("chain does not contain any certificates")}
 	}
 
 	// Validate cert chain structure
@@ -80,7 +80,7 @@ func certCheckStatus(cert, issuer *x509.Certificate, opts Options) *result.CertR
 		// OCSP not enabled for this certificate.
 		return &result.CertRevocationResult{
 			Result:        result.ResultNonRevokable,
-			ServerResults: []*result.ServerResult{errToServerResult(NoOCSPServerError{})},
+			ServerResults: []*result.ServerResult{errToServerResult("", NoOCSPServerError{})},
 		}
 	}
 
@@ -102,7 +102,7 @@ func checkStatusFromServer(cert, issuer *x509.Certificate, server string, opts O
 	// Check valid server
 	if serverURL, err := url.Parse(server); err != nil || strings.ToLower(serverURL.Scheme) != "http" {
 		// This function is only able to check servers that are accessible via HTTP
-		return errToServerResult(OCSPCheckError{Err: fmt.Errorf("OCSPServer protocol %s is not supported", serverURL.Scheme)})
+		return errToServerResult(server, OCSPCheckError{Err: fmt.Errorf("OCSPServer protocol %s is not supported", serverURL.Scheme)})
 	}
 
 	// Create OCSP Request
@@ -110,12 +110,12 @@ func checkStatusFromServer(cert, issuer *x509.Certificate, server string, opts O
 	if err != nil {
 		// If there is a server error, attempt all servers before determining what to return
 		// to the user
-		return errToServerResult(err)
+		return errToServerResult(server, err)
 	}
 
 	// Validate OCSP response isn't expired
 	if time.Now().After(resp.NextUpdate) {
-		return errToServerResult(OCSPCheckError{Err: errors.New("expired OCSP response")})
+		return errToServerResult(server, OCSPCheckError{Err: errors.New("expired OCSP response")})
 	}
 
 	// Check for presence of pkix-ocsp-no-check extension in response
@@ -126,27 +126,27 @@ func checkStatusFromServer(cert, issuer *x509.Certificate, server string, opts O
 			break
 		}
 	}
+	//lint:ignore SA9003 // Empty body in an if branch (Remove after adding CRL)
 	if !foundNoCheck {
 		// This will be ignored until CRL is implemented
 		// If it isn't found, CRL should be used to verify the OCSP response
 		// TODO: add CRL support
 		// https://github.com/notaryproject/notation-core-go/issues/125
-		return errToServerResult(PKIXNoCheckError{})
 	}
 
 	// No errors, valid server response
 	switch resp.Status {
 	case ocsp.Good:
-		return errToServerResult(nil)
+		return errToServerResult(server, nil)
 	case ocsp.Revoked:
 		// Check if SigningTime was before the revocation
 		if opts.SigningTime.Before(resp.RevokedAt) {
-			return errToServerResult(nil)
+			return errToServerResult(server, nil)
 		}
-		return errToServerResult(RevokedError{})
+		return errToServerResult(server, RevokedError{})
 	default:
 		// ocsp.Unknown
-		return errToServerResult(UnknownStatusError{})
+		return errToServerResult(server, UnknownStatusError{})
 	}
 }
 
@@ -206,20 +206,23 @@ func executeOCSPCheck(cert, issuer *x509.Certificate, server string, opts Option
 	return ocsp.ParseResponseForCert(body, cert, issuer)
 }
 
-func errToServerResult(err error) *result.ServerResult {
+func errToServerResult(server string, err error) *result.ServerResult {
 	if err == nil {
 		return &result.ServerResult{
 			Result: result.ResultOK,
+			Server: server,
 			Error:  nil,
 		}
-	} else if errors.Is(err, NoOCSPServerError{}) || errors.Is(err, PKIXNoCheckError{}) {
+	} else if errors.Is(err, NoOCSPServerError{}) {
 		return &result.ServerResult{
 			Result: result.ResultNonRevokable,
+			Server: server,
 			Error:  nil,
 		}
 	} else if errors.Is(err, RevokedError{}) {
 		return &result.ServerResult{
 			Result: result.ResultRevoked,
+			Server: server,
 			Error:  err,
 		}
 	}
@@ -227,6 +230,7 @@ func errToServerResult(err error) *result.ServerResult {
 	// TimeoutError
 	return &result.ServerResult{
 		Result: result.ResultUnknown,
+		Server: server,
 		Error:  err,
 	}
 }

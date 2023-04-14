@@ -54,15 +54,6 @@ func TestNoOCSPServerError(t *testing.T) {
 	}
 }
 
-func TestPKIXNoCheckError(t *testing.T) {
-	err := &PKIXNoCheckError{}
-	expectedMsg := fmt.Sprintf("an OCSP signing cert is missing the id-pkix-ocsp-nocheck extension (%s)", pkixNoCheckOID)
-
-	if err.Error() != expectedMsg {
-		t.Errorf("Expected %v but got %v", expectedMsg, err.Error())
-	}
-}
-
 func TestTimeoutError(t *testing.T) {
 	duration := 5 * time.Second
 	err := &TimeoutError{duration}

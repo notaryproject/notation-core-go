@@ -46,6 +46,11 @@ type ServerResult struct {
 	// prevents the retrieval of a valid status)
 	Result Result
 
+	// Server is the URI associated with this result. If no server is associated
+	// with the result (e.g. it is a root certificate or no OCSPServers are
+	// specified), then this will be an empty string ("")
+	Server string
+
 	// Error is set if there is an error associated with the revocation check
 	// to this server
 	Error error
