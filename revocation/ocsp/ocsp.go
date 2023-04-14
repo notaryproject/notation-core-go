@@ -16,7 +16,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/notaryproject/notation-core-go/revocation/base"
+	"github.com/notaryproject/notation-core-go/revocation/result"
 	coreX509 "github.com/notaryproject/notation-core-go/x509"
 	"golang.org/x/crypto/ocsp"
 )
@@ -36,19 +36,19 @@ const (
 )
 
 // CheckStatus checks OCSP based on the passed options and returns an array of
-// base.CertRevocationResult objects that contains the results and error. The
+// result.CertRevocationResult objects that contains the results and error. The
 // length of this array will always be equal to the length of the certificate
 // chain.
-func CheckStatus(opts Options) ([]*base.CertRevocationResult, error) {
-	result := make([]*base.CertRevocationResult, len(opts.CertChain))
+func CheckStatus(opts Options) ([]*result.CertRevocationResult, error) {
+	certResults := make([]*result.CertRevocationResult, len(opts.CertChain))
 
 	if len(opts.CertChain) == 0 {
-		return result, nil
+		return certResults, nil
 	}
 
 	// Validate cert chain structure
 	if err := coreX509.ValidateCodeSigningCertChain(opts.CertChain, &opts.SigningTime); err != nil {
-		return nil, base.InvalidChainError{Err: err}
+		return nil, result.InvalidChainError{Err: err}
 	}
 
 	// Check status for each cert in cert chain
@@ -58,47 +58,47 @@ func CheckStatus(opts Options) ([]*base.CertRevocationResult, error) {
 		// Assume cert chain is accurate and next cert in chain is the issuer
 		go func(i int, cert *x509.Certificate) {
 			defer wg.Done()
-			result[i] = certCheckStatus(cert, opts.CertChain[i+1], opts)
+			certResults[i] = certCheckStatus(cert, opts.CertChain[i+1], opts)
 		}(i, cert)
 	}
 	// Last is root cert, which will never be revoked by OCSP
-	result[len(opts.CertChain)-1] = &base.CertRevocationResult{
-		Result: base.ResultNonRevokable,
-		ServerResults: []*base.ServerResult{{
-			Result: base.ResultNonRevokable,
+	certResults[len(opts.CertChain)-1] = &result.CertRevocationResult{
+		Result: result.ResultNonRevokable,
+		ServerResults: []*result.ServerResult{{
+			Result: result.ResultNonRevokable,
 			Error:  nil,
 		}},
 	}
 
 	wg.Wait()
-	return result, nil
+	return certResults, nil
 }
 
-func certCheckStatus(cert, issuer *x509.Certificate, opts Options) *base.CertRevocationResult {
+func certCheckStatus(cert, issuer *x509.Certificate, opts Options) *result.CertRevocationResult {
 	ocspURLs := cert.OCSPServer
 	if len(ocspURLs) == 0 {
 		// OCSP not enabled for this certificate.
-		return &base.CertRevocationResult{
-			Result:        base.ResultNonRevokable,
-			ServerResults: []*base.ServerResult{errToServerResult(NoOCSPServerError{})},
+		return &result.CertRevocationResult{
+			Result:        result.ResultNonRevokable,
+			ServerResults: []*result.ServerResult{errToServerResult(NoOCSPServerError{})},
 		}
 	}
 
-	serverResults := make([]*base.ServerResult, len(ocspURLs))
+	serverResults := make([]*result.ServerResult, len(ocspURLs))
 	for serverIndex, server := range ocspURLs {
 		serverResult := checkStatusFromServer(cert, issuer, server, opts)
-		if serverResult.Result == base.ResultOK || serverResult.Result == base.ResultRevoked || errors.Is(serverResult.Error, UnknownStatusError{}) {
+		if serverResult.Result == result.ResultOK || serverResult.Result == result.ResultRevoked || errors.Is(serverResult.Error, UnknownStatusError{}) {
 			// A valid response has been received from an OCSP server
 			// Result should be based on only this response, not any errors from
 			// other servers
-			return serverResultsToCertRevocationResult([]*base.ServerResult{serverResult})
+			return serverResultsToCertRevocationResult([]*result.ServerResult{serverResult})
 		}
 		serverResults[serverIndex] = serverResult
 	}
 	return serverResultsToCertRevocationResult(serverResults)
 }
 
-func checkStatusFromServer(cert, issuer *x509.Certificate, server string, opts Options) *base.ServerResult {
+func checkStatusFromServer(cert, issuer *x509.Certificate, server string, opts Options) *result.ServerResult {
 	// Check valid server
 	if serverURL, err := url.Parse(server); err != nil || strings.ToLower(serverURL.Scheme) != "http" {
 		// This function is only able to check servers that are accessible via HTTP
@@ -206,48 +206,48 @@ func executeOCSPCheck(cert, issuer *x509.Certificate, server string, opts Option
 	return ocsp.ParseResponseForCert(body, cert, issuer)
 }
 
-func errToServerResult(err error) *base.ServerResult {
+func errToServerResult(err error) *result.ServerResult {
 	if err == nil {
-		return &base.ServerResult{
-			Result: base.ResultOK,
+		return &result.ServerResult{
+			Result: result.ResultOK,
 			Error:  nil,
 		}
 	} else if errors.Is(err, NoOCSPServerError{}) || errors.Is(err, PKIXNoCheckError{}) {
-		return &base.ServerResult{
-			Result: base.ResultNonRevokable,
+		return &result.ServerResult{
+			Result: result.ResultNonRevokable,
 			Error:  nil,
 		}
 	} else if errors.Is(err, RevokedError{}) {
-		return &base.ServerResult{
-			Result: base.ResultRevoked,
+		return &result.ServerResult{
+			Result: result.ResultRevoked,
 			Error:  err,
 		}
 	}
-	// Includes OCSPCheckError, UnknownStatusError, base.InvalidChainError, and
+	// Includes OCSPCheckError, UnknownStatusError, result.InvalidChainError, and
 	// TimeoutError
-	return &base.ServerResult{
-		Result: base.ResultUnknown,
+	return &result.ServerResult{
+		Result: result.ResultUnknown,
 		Error:  err,
 	}
 }
 
-func serverResultsToCertRevocationResult(serverResults []*base.ServerResult) *base.CertRevocationResult {
-	currResult := base.ResultOK
+func serverResultsToCertRevocationResult(serverResults []*result.ServerResult) *result.CertRevocationResult {
+	currResult := result.ResultOK
 	for _, serverResult := range serverResults {
 		switch serverResult.Result {
-		case base.ResultRevoked:
-			currResult = base.ResultRevoked
-		case base.ResultUnknown:
-			if currResult != base.ResultRevoked {
-				currResult = base.ResultUnknown
+		case result.ResultRevoked:
+			currResult = result.ResultRevoked
+		case result.ResultUnknown:
+			if currResult != result.ResultRevoked {
+				currResult = result.ResultUnknown
 			}
-		case base.ResultNonRevokable:
-			if currResult != base.ResultRevoked && currResult != base.ResultUnknown {
-				currResult = base.ResultNonRevokable
+		case result.ResultNonRevokable:
+			if currResult != result.ResultRevoked && currResult != result.ResultUnknown {
+				currResult = result.ResultNonRevokable
 			}
 		}
 	}
-	return &base.CertRevocationResult{
+	return &result.CertRevocationResult{
 		Result:        currResult,
 		ServerResults: serverResults,
 	}

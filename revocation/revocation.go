@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/notaryproject/notation-core-go/revocation/base"
 	"github.com/notaryproject/notation-core-go/revocation/ocsp"
+	"github.com/notaryproject/notation-core-go/revocation/result"
 )
 
 // Revocation is an interface that specifies methods used for revocation checking
@@ -17,7 +17,7 @@ type Revocation interface {
 	// Validate checks the revocation status for a certificate chain using OCSP
 	// and returns an array of CertRevocationResults that contain the results
 	// and any errors that are encountered during the process
-	Validate(certChain []*x509.Certificate, signingTime time.Time) ([]*base.CertRevocationResult, error)
+	Validate(certChain []*x509.Certificate, signingTime time.Time) ([]*result.CertRevocationResult, error)
 }
 
 // revocation is an internal struct used for revocation checking
@@ -41,7 +41,7 @@ func New(httpClient *http.Client) (Revocation, error) {
 //
 // TODO: add CRL support
 // https://github.com/notaryproject/notation-core-go/issues/125
-func (r *revocation) Validate(certChain []*x509.Certificate, signingTime time.Time) ([]*base.CertRevocationResult, error) {
+func (r *revocation) Validate(certChain []*x509.Certificate, signingTime time.Time) ([]*result.CertRevocationResult, error) {
 	return ocsp.CheckStatus(ocsp.Options{
 		CertChain:   certChain,
 		SigningTime: signingTime,

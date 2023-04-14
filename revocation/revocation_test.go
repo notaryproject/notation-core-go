@@ -8,13 +8,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/notaryproject/notation-core-go/revocation/base"
 	revocation_ocsp "github.com/notaryproject/notation-core-go/revocation/ocsp"
+	"github.com/notaryproject/notation-core-go/revocation/result"
 	"github.com/notaryproject/notation-core-go/testhelper"
 	"golang.org/x/crypto/ocsp"
 )
 
-func validateEquivalentCertResults(certResults, expectedCertResults []*base.CertRevocationResult, t *testing.T) {
+func validateEquivalentCertResults(certResults, expectedCertResults []*result.CertRevocationResult, t *testing.T) {
 	if len(certResults) != len(expectedCertResults) {
 		t.Errorf("Length of certResults (%d) did not match expected length (%d)", len(certResults), len(expectedCertResults))
 		return
@@ -45,21 +45,21 @@ func validateEquivalentCertResults(certResults, expectedCertResults []*base.Cert
 	}
 }
 
-func getOKCertResult() *base.CertRevocationResult {
-	return &base.CertRevocationResult{
-		Result: base.ResultOK,
-		ServerResults: []*base.ServerResult{{
-			Result: base.ResultOK,
+func getOKCertResult() *result.CertRevocationResult {
+	return &result.CertRevocationResult{
+		Result: result.ResultOK,
+		ServerResults: []*result.ServerResult{{
+			Result: result.ResultOK,
 			Error:  nil,
 		}},
 	}
 }
 
-func getRootCertResult() *base.CertRevocationResult {
-	return &base.CertRevocationResult{
-		Result: base.ResultNonRevokable,
-		ServerResults: []*base.ServerResult{{
-			Result: base.ResultNonRevokable,
+func getRootCertResult() *result.CertRevocationResult {
+	return &result.CertRevocationResult{
+		Result: result.ResultNonRevokable,
+		ServerResults: []*result.ServerResult{{
+			Result: result.ResultNonRevokable,
 			Error:  nil,
 		}},
 	}
@@ -102,7 +102,7 @@ func TestCheckRevocationStatusForSingleCert(t *testing.T) {
 		if err != nil {
 			t.Errorf("Expected CheckStatus to succeed, but got error: %v", err)
 		}
-		expectedCertResults := []*base.CertRevocationResult{getOKCertResult(), getRootCertResult()}
+		expectedCertResults := []*result.CertRevocationResult{getOKCertResult(), getRootCertResult()}
 		validateEquivalentCertResults(certResults, expectedCertResults, t)
 	})
 	t.Run("check cert with Unknown OCSP response", func(t *testing.T) {
@@ -116,11 +116,11 @@ func TestCheckRevocationStatusForSingleCert(t *testing.T) {
 		if err != nil {
 			t.Errorf("Expected CheckStatus to succeed, but got error: %v", err)
 		}
-		expectedCertResults := []*base.CertRevocationResult{
+		expectedCertResults := []*result.CertRevocationResult{
 			{
-				Result: base.ResultUnknown,
-				ServerResults: []*base.ServerResult{{
-					Result: base.ResultUnknown,
+				Result: result.ResultUnknown,
+				ServerResults: []*result.ServerResult{{
+					Result: result.ResultUnknown,
 					Error:  revocation_ocsp.UnknownStatusError{},
 				}},
 			},
@@ -139,11 +139,11 @@ func TestCheckRevocationStatusForSingleCert(t *testing.T) {
 		if err != nil {
 			t.Errorf("Expected CheckStatus to succeed, but got error: %v", err)
 		}
-		expectedCertResults := []*base.CertRevocationResult{
+		expectedCertResults := []*result.CertRevocationResult{
 			{
-				Result: base.ResultRevoked,
-				ServerResults: []*base.ServerResult{{
-					Result: base.ResultRevoked,
+				Result: result.ResultRevoked,
+				ServerResults: []*result.ServerResult{{
+					Result: result.ResultRevoked,
 					Error:  revocation_ocsp.RevokedError{},
 				}},
 			},
@@ -163,7 +163,7 @@ func TestCheckRevocationStatusForSingleCert(t *testing.T) {
 		if err != nil {
 			t.Errorf("Expected CheckStatus to succeed, but got error: %v", err)
 		}
-		expectedCertResults := []*base.CertRevocationResult{
+		expectedCertResults := []*result.CertRevocationResult{
 			getOKCertResult(),
 			getRootCertResult(),
 		}
@@ -182,7 +182,7 @@ func TestCheckRevocationStatusForSelfSignedCert(t *testing.T) {
 	if err != nil {
 		t.Errorf("Expected CheckStatus to succeed, but got error: %v", err)
 	}
-	expectedCertResults := []*base.CertRevocationResult{getRootCertResult()}
+	expectedCertResults := []*result.CertRevocationResult{getRootCertResult()}
 	validateEquivalentCertResults(certResults, expectedCertResults, t)
 }
 
@@ -195,7 +195,7 @@ func TestCheckRevocationStatusForRootCert(t *testing.T) {
 	}
 
 	certResults, err := r.Validate([]*x509.Certificate{rootTuple.Cert}, time.Now())
-	expectedErr := base.InvalidChainError{Err: errors.New("invalid self-signed certificate. Error: certificate with subject \"CN=Notation Test RSA Root,O=Notary,L=Seattle,ST=WA,C=US\": if the basic constraints extension is present, the ca field must be set to false")}
+	expectedErr := result.InvalidChainError{Err: errors.New("invalid self-signed certificate. Error: certificate with subject \"CN=Notation Test RSA Root,O=Notary,L=Seattle,ST=WA,C=US\": if the basic constraints extension is present, the ca field must be set to false")}
 	if err == nil || err.Error() != expectedErr.Error() {
 		t.Errorf("Expected Validate to fail with %v, but got: %v", expectedErr, err)
 	}
@@ -220,7 +220,7 @@ func TestCheckRevocationStatusForChain(t *testing.T) {
 		if err != nil {
 			t.Errorf("Expected CheckStatus to succeed, but got error: %v", err)
 		}
-		expectedCertResults := []*base.CertRevocationResult{}
+		expectedCertResults := []*result.CertRevocationResult{}
 		validateEquivalentCertResults(certResults, expectedCertResults, t)
 	})
 	t.Run("check non-revoked chain", func(t *testing.T) {
@@ -234,7 +234,7 @@ func TestCheckRevocationStatusForChain(t *testing.T) {
 		if err != nil {
 			t.Errorf("Expected CheckStatus to succeed, but got error: %v", err)
 		}
-		expectedCertResults := []*base.CertRevocationResult{
+		expectedCertResults := []*result.CertRevocationResult{
 			getOKCertResult(),
 			getOKCertResult(),
 			getOKCertResult(),
@@ -256,13 +256,13 @@ func TestCheckRevocationStatusForChain(t *testing.T) {
 		if err != nil {
 			t.Errorf("Expected CheckStatus to succeed, but got error: %v", err)
 		}
-		expectedCertResults := []*base.CertRevocationResult{
+		expectedCertResults := []*result.CertRevocationResult{
 			getOKCertResult(),
 			getOKCertResult(),
 			{
-				Result: base.ResultUnknown,
-				ServerResults: []*base.ServerResult{{
-					Result: base.ResultUnknown,
+				Result: result.ResultUnknown,
+				ServerResults: []*result.ServerResult{{
+					Result: result.ResultUnknown,
 					Error:  revocation_ocsp.UnknownStatusError{},
 				}},
 			},
@@ -284,13 +284,13 @@ func TestCheckRevocationStatusForChain(t *testing.T) {
 		if err != nil {
 			t.Errorf("Expected CheckStatus to succeed, but got error: %v", err)
 		}
-		expectedCertResults := []*base.CertRevocationResult{
+		expectedCertResults := []*result.CertRevocationResult{
 			getOKCertResult(),
 			getOKCertResult(),
 			{
-				Result: base.ResultRevoked,
-				ServerResults: []*base.ServerResult{{
-					Result: base.ResultRevoked,
+				Result: result.ResultRevoked,
+				ServerResults: []*result.ServerResult{{
+					Result: result.ResultRevoked,
 					Error:  revocation_ocsp.RevokedError{},
 				}},
 			},
@@ -312,21 +312,21 @@ func TestCheckRevocationStatusForChain(t *testing.T) {
 		if err != nil {
 			t.Errorf("Expected CheckStatus to succeed, but got error: %v", err)
 		}
-		expectedCertResults := []*base.CertRevocationResult{
+		expectedCertResults := []*result.CertRevocationResult{
 			getOKCertResult(),
 			getOKCertResult(),
 			{
-				Result: base.ResultUnknown,
-				ServerResults: []*base.ServerResult{{
-					Result: base.ResultUnknown,
+				Result: result.ResultUnknown,
+				ServerResults: []*result.ServerResult{{
+					Result: result.ResultUnknown,
 					Error:  revocation_ocsp.UnknownStatusError{},
 				}},
 			},
 			getOKCertResult(),
 			{
-				Result: base.ResultRevoked,
-				ServerResults: []*base.ServerResult{{
-					Result: base.ResultRevoked,
+				Result: result.ResultRevoked,
+				ServerResults: []*result.ServerResult{{
+					Result: result.ResultRevoked,
 					Error:  revocation_ocsp.RevokedError{},
 				}},
 			},
@@ -347,7 +347,7 @@ func TestCheckRevocationStatusForChain(t *testing.T) {
 		if err != nil {
 			t.Errorf("Expected CheckStatus to succeed, but got error: %v", err)
 		}
-		expectedCertResults := []*base.CertRevocationResult{
+		expectedCertResults := []*result.CertRevocationResult{
 			getOKCertResult(),
 			getOKCertResult(),
 			getOKCertResult(),
@@ -370,13 +370,13 @@ func TestCheckRevocationStatusForChain(t *testing.T) {
 		if err != nil {
 			t.Errorf("Expected CheckStatus to succeed, but got error: %v", err)
 		}
-		expectedCertResults := []*base.CertRevocationResult{
+		expectedCertResults := []*result.CertRevocationResult{
 			getOKCertResult(),
 			getOKCertResult(),
 			{
-				Result: base.ResultUnknown,
-				ServerResults: []*base.ServerResult{{
-					Result: base.ResultUnknown,
+				Result: result.ResultUnknown,
+				ServerResults: []*result.ServerResult{{
+					Result: result.ResultUnknown,
 					Error:  revocation_ocsp.UnknownStatusError{},
 				}},
 			},
@@ -398,13 +398,13 @@ func TestCheckRevocationStatusForChain(t *testing.T) {
 		if err != nil {
 			t.Errorf("Expected CheckStatus to succeed, but got error: %v", err)
 		}
-		expectedCertResults := []*base.CertRevocationResult{
+		expectedCertResults := []*result.CertRevocationResult{
 			getOKCertResult(),
 			getOKCertResult(),
 			{
-				Result: base.ResultRevoked,
-				ServerResults: []*base.ServerResult{{
-					Result: base.ResultRevoked,
+				Result: result.ResultRevoked,
+				ServerResults: []*result.ServerResult{{
+					Result: result.ResultRevoked,
 					Error:  revocation_ocsp.RevokedError{},
 				}},
 			},
@@ -438,8 +438,8 @@ func TestCheckRevocationErrors(t *testing.T) {
 	noHTTPLeaf.OCSPServer = []string{"ldap://ds.example.com:123/chain_ocsp/0"}
 	noHTTPChain := []*x509.Certificate{noHTTPLeaf, revokableTuples[1].Cert, revokableTuples[2].Cert}
 
-	backwardsChainErr := base.InvalidChainError{Err: errors.New("leaf certificate with subject \"CN=Notation Test RSA Root,O=Notary,L=Seattle,ST=WA,C=US\" is self-signed. Certificate chain must not contain self-signed leaf certificate")}
-	chainRootErr := base.InvalidChainError{Err: errors.New("root certificate with subject \"CN=Notation Test Revokable RSA Chain Cert 2,O=Notary,L=Seattle,ST=WA,C=US\" is not self-signed. Certificate chain must end with a valid self-signed root certificate")}
+	backwardsChainErr := result.InvalidChainError{Err: errors.New("leaf certificate with subject \"CN=Notation Test RSA Root,O=Notary,L=Seattle,ST=WA,C=US\" is self-signed. Certificate chain must not contain self-signed leaf certificate")}
+	chainRootErr := result.InvalidChainError{Err: errors.New("root certificate with subject \"CN=Notation Test Revokable RSA Chain Cert 2,O=Notary,L=Seattle,ST=WA,C=US\" is not self-signed. Certificate chain must end with a valid self-signed root certificate")}
 	expiredRespErr := revocation_ocsp.OCSPCheckError{Err: errors.New("expired OCSP response")}
 	noHTTPErr := revocation_ocsp.OCSPCheckError{Err: errors.New("OCSPServer protocol ldap is not supported")}
 
@@ -453,11 +453,11 @@ func TestCheckRevocationErrors(t *testing.T) {
 		if err != nil {
 			t.Errorf("Expected CheckStatus to succeed, but got error: %v", err)
 		}
-		expectedCertResults := []*base.CertRevocationResult{
+		expectedCertResults := []*result.CertRevocationResult{
 			{
-				Result: base.ResultNonRevokable,
-				ServerResults: []*base.ServerResult{{
-					Result: base.ResultNonRevokable,
+				Result: result.ResultNonRevokable,
+				ServerResults: []*result.ServerResult{{
+					Result: result.ResultNonRevokable,
 					Error:  nil,
 				}},
 			},
@@ -496,18 +496,18 @@ func TestCheckRevocationErrors(t *testing.T) {
 		if err != nil {
 			t.Errorf("Expected CheckStatus to succeed, but got error: %v", err)
 		}
-		expectedCertResults := []*base.CertRevocationResult{
+		expectedCertResults := []*result.CertRevocationResult{
 			{
-				Result: base.ResultUnknown,
-				ServerResults: []*base.ServerResult{{
-					Result: base.ResultUnknown,
+				Result: result.ResultUnknown,
+				ServerResults: []*result.ServerResult{{
+					Result: result.ResultUnknown,
 					Error:  revocation_ocsp.TimeoutError{},
 				}},
 			},
 			{
-				Result: base.ResultUnknown,
-				ServerResults: []*base.ServerResult{{
-					Result: base.ResultUnknown,
+				Result: result.ResultUnknown,
+				ServerResults: []*result.ServerResult{{
+					Result: result.ResultUnknown,
 					Error:  revocation_ocsp.TimeoutError{},
 				}},
 			},
@@ -526,11 +526,11 @@ func TestCheckRevocationErrors(t *testing.T) {
 		if err != nil {
 			t.Errorf("Expected CheckStatus to succeed, but got error: %v", err)
 		}
-		expectedCertResults := []*base.CertRevocationResult{
+		expectedCertResults := []*result.CertRevocationResult{
 			{
-				Result: base.ResultUnknown,
-				ServerResults: []*base.ServerResult{{
-					Result: base.ResultUnknown,
+				Result: result.ResultUnknown,
+				ServerResults: []*result.ServerResult{{
+					Result: result.ResultUnknown,
 					Error:  expiredRespErr,
 				}},
 			},
@@ -551,18 +551,18 @@ func TestCheckRevocationErrors(t *testing.T) {
 		if err != nil {
 			t.Errorf("Expected CheckStatus to succeed, but got error: %v", err)
 		}
-		expectedCertResults := []*base.CertRevocationResult{
+		expectedCertResults := []*result.CertRevocationResult{
 			{
-				Result: base.ResultNonRevokable,
-				ServerResults: []*base.ServerResult{{
-					Result: base.ResultNonRevokable,
+				Result: result.ResultNonRevokable,
+				ServerResults: []*result.ServerResult{{
+					Result: result.ResultNonRevokable,
 					Error:  nil,
 				}},
 			},
 			{
-				Result: base.ResultNonRevokable,
-				ServerResults: []*base.ServerResult{{
-					Result: base.ResultNonRevokable,
+				Result: result.ResultNonRevokable,
+				ServerResults: []*result.ServerResult{{
+					Result: result.ResultNonRevokable,
 					Error:  nil,
 				}},
 			},
@@ -581,11 +581,11 @@ func TestCheckRevocationErrors(t *testing.T) {
 		if err != nil {
 			t.Errorf("Expected CheckStatus to succeed, but got error: %v", err)
 		}
-		expectedCertResults := []*base.CertRevocationResult{
+		expectedCertResults := []*result.CertRevocationResult{
 			{
-				Result: base.ResultUnknown,
-				ServerResults: []*base.ServerResult{{
-					Result: base.ResultUnknown,
+				Result: result.ResultUnknown,
+				ServerResults: []*result.ServerResult{{
+					Result: result.ResultUnknown,
 					Error:  noHTTPErr,
 				}},
 			},
@@ -615,8 +615,8 @@ func TestCheckRevocationInvalidChain(t *testing.T) {
 		}
 	}
 
-	missingIntermediateErr := base.InvalidChainError{Err: errors.New("certificate with subject \"CN=Notation Test Revokable RSA Chain Cert 4,O=Notary,L=Seattle,ST=WA,C=US\" is not issued by \"CN=Notation Test Revokable RSA Chain Cert 2,O=Notary,L=Seattle,ST=WA,C=US\"")}
-	misorderedChainErr := base.InvalidChainError{Err: errors.New("invalid certificates or certificate with subject \"CN=Notation Test Revokable RSA Chain Cert 3,O=Notary,L=Seattle,ST=WA,C=US\" is not issued by \"CN=Notation Test Revokable RSA Chain Cert 4,O=Notary,L=Seattle,ST=WA,C=US\". Error: x509: invalid signature: parent certificate cannot sign this kind of certificate")}
+	missingIntermediateErr := result.InvalidChainError{Err: errors.New("certificate with subject \"CN=Notation Test Revokable RSA Chain Cert 4,O=Notary,L=Seattle,ST=WA,C=US\" is not issued by \"CN=Notation Test Revokable RSA Chain Cert 2,O=Notary,L=Seattle,ST=WA,C=US\"")}
+	misorderedChainErr := result.InvalidChainError{Err: errors.New("invalid certificates or certificate with subject \"CN=Notation Test Revokable RSA Chain Cert 3,O=Notary,L=Seattle,ST=WA,C=US\" is not issued by \"CN=Notation Test Revokable RSA Chain Cert 4,O=Notary,L=Seattle,ST=WA,C=US\". Error: x509: invalid signature: parent certificate cannot sign this kind of certificate")}
 
 	t.Run("chain missing intermediate", func(t *testing.T) {
 		client := testhelper.MockClient(revokableTuples, []ocsp.ResponseStatus{ocsp.Good}, nil, true)

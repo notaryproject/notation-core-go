@@ -1,5 +1,5 @@
-// Package base provides general objects that are used across revocation
-package base
+// Package result provides general objects that are used across revocation
+package result
 
 import "strconv"
 
