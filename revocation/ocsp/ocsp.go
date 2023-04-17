@@ -1,4 +1,4 @@
-// Package OCSP provides methods for checking the OCSP revocation status of a
+// Package ocsp provides methods for checking the OCSP revocation status of a
 // certificate chain, as well as errors related to these checks
 package ocsp
 
@@ -40,8 +40,6 @@ const (
 // length of this array will always be equal to the length of the certificate
 // chain.
 func CheckStatus(opts Options) ([]*result.CertRevocationResult, error) {
-	certResults := make([]*result.CertRevocationResult, len(opts.CertChain))
-
 	if len(opts.CertChain) == 0 {
 		return nil, result.InvalidChainError{Err: errors.New("chain does not contain any certificates")}
 	}
@@ -50,6 +48,8 @@ func CheckStatus(opts Options) ([]*result.CertRevocationResult, error) {
 	if err := coreX509.ValidateCodeSigningCertChain(opts.CertChain, &opts.SigningTime); err != nil {
 		return nil, result.InvalidChainError{Err: err}
 	}
+
+	certResults := make([]*result.CertRevocationResult, len(opts.CertChain))
 
 	// Check status for each cert in cert chain
 	var wg sync.WaitGroup
@@ -80,14 +80,16 @@ func certCheckStatus(cert, issuer *x509.Certificate, opts Options) *result.CertR
 		// OCSP not enabled for this certificate.
 		return &result.CertRevocationResult{
 			Result:        result.ResultNonRevokable,
-			ServerResults: []*result.ServerResult{errToServerResult("", NoOCSPServerError{})},
+			ServerResults: []*result.ServerResult{toServerResult("", NoServerError{})},
 		}
 	}
 
 	serverResults := make([]*result.ServerResult, len(ocspURLs))
 	for serverIndex, server := range ocspURLs {
 		serverResult := checkStatusFromServer(cert, issuer, server, opts)
-		if serverResult.Result == result.ResultOK || serverResult.Result == result.ResultRevoked || errors.Is(serverResult.Error, UnknownStatusError{}) {
+		if serverResult.Result == result.ResultOK ||
+			serverResult.Result == result.ResultRevoked ||
+			(serverResult.Result == result.ResultUnknown && errors.Is(serverResult.Error, UnknownStatusError{})) {
 			// A valid response has been received from an OCSP server
 			// Result should be based on only this response, not any errors from
 			// other servers
@@ -100,9 +102,9 @@ func certCheckStatus(cert, issuer *x509.Certificate, opts Options) *result.CertR
 
 func checkStatusFromServer(cert, issuer *x509.Certificate, server string, opts Options) *result.ServerResult {
 	// Check valid server
-	if serverURL, err := url.Parse(server); err != nil || strings.ToLower(serverURL.Scheme) != "http" {
+	if serverURL, err := url.Parse(server); err != nil || !strings.EqualFold(serverURL.Scheme, "http") {
 		// This function is only able to check servers that are accessible via HTTP
-		return errToServerResult(server, OCSPCheckError{Err: fmt.Errorf("OCSPServer protocol %s is not supported", serverURL.Scheme)})
+		return toServerResult(server, OCSPCheckError{Err: fmt.Errorf("OCSPServer protocol %s is not supported", serverURL.Scheme)})
 	}
 
 	// Create OCSP Request
@@ -110,12 +112,12 @@ func checkStatusFromServer(cert, issuer *x509.Certificate, server string, opts O
 	if err != nil {
 		// If there is a server error, attempt all servers before determining what to return
 		// to the user
-		return errToServerResult(server, err)
+		return toServerResult(server, err)
 	}
 
 	// Validate OCSP response isn't expired
 	if time.Now().After(resp.NextUpdate) {
-		return errToServerResult(server, OCSPCheckError{Err: errors.New("expired OCSP response")})
+		return toServerResult(server, OCSPCheckError{Err: errors.New("expired OCSP response")})
 	}
 
 	// Check for presence of pkix-ocsp-no-check extension in response
@@ -137,16 +139,16 @@ func checkStatusFromServer(cert, issuer *x509.Certificate, server string, opts O
 	// No errors, valid server response
 	switch resp.Status {
 	case ocsp.Good:
-		return errToServerResult(server, nil)
+		return toServerResult(server, nil)
 	case ocsp.Revoked:
 		// Check if SigningTime was before the revocation
 		if opts.SigningTime.Before(resp.RevokedAt) {
-			return errToServerResult(server, nil)
+			return toServerResult(server, nil)
 		}
-		return errToServerResult(server, RevokedError{})
+		return toServerResult(server, RevokedError{})
 	default:
 		// ocsp.Unknown
-		return errToServerResult(server, UnknownStatusError{})
+		return toServerResult(server, UnknownStatusError{})
 	}
 }
 
@@ -182,7 +184,7 @@ func executeOCSPCheck(cert, issuer *x509.Certificate, server string, opts Option
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("failed to retrieve OSCP: response had status code %d", resp.StatusCode)
+		return nil, fmt.Errorf("failed to retrieve OCSP: response had status code %d", resp.StatusCode)
 	}
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, ocspMaxResponseSize))
@@ -192,53 +194,36 @@ func executeOCSPCheck(cert, issuer *x509.Certificate, server string, opts Option
 
 	switch {
 	case bytes.Equal(body, ocsp.UnauthorizedErrorResponse):
-		return nil, OCSPCheckError{Err: errors.New("OSCP unauthorized")}
+		return nil, OCSPCheckError{Err: errors.New("OCSP unauthorized")}
 	case bytes.Equal(body, ocsp.MalformedRequestErrorResponse):
-		return nil, OCSPCheckError{Err: errors.New("OSCP malformed")}
+		return nil, OCSPCheckError{Err: errors.New("OCSP malformed")}
 	case bytes.Equal(body, ocsp.InternalErrorErrorResponse):
-		return nil, OCSPCheckError{Err: errors.New("OSCP internal error")}
+		return nil, OCSPCheckError{Err: errors.New("OCSP internal error")}
 	case bytes.Equal(body, ocsp.TryLaterErrorResponse):
-		return nil, OCSPCheckError{Err: errors.New("OSCP try later")}
+		return nil, OCSPCheckError{Err: errors.New("OCSP try later")}
 	case bytes.Equal(body, ocsp.SigRequredErrorResponse):
-		return nil, OCSPCheckError{Err: errors.New("OSCP signature required")}
+		return nil, OCSPCheckError{Err: errors.New("OCSP signature required")}
 	}
 
 	return ocsp.ParseResponseForCert(body, cert, issuer)
 }
 
-func errToServerResult(server string, err error) *result.ServerResult {
-	if err == nil {
-		return &result.ServerResult{
-			Result: result.ResultOK,
-			Server: server,
-			Error:  nil,
-		}
-	} else if errors.Is(err, NoOCSPServerError{}) {
-		return &result.ServerResult{
-			Result: result.ResultNonRevokable,
-			Server: server,
-			Error:  nil,
-		}
-	} else if errors.Is(err, RevokedError{}) {
-		return &result.ServerResult{
-			Result: result.ResultRevoked,
-			Server: server,
-			Error:  err,
-		}
-	}
-	// Includes OCSPCheckError, UnknownStatusError, result.InvalidChainError, and
-	// TimeoutError
-	return &result.ServerResult{
-		Result: result.ResultUnknown,
-		Server: server,
-		Error:  err,
+func toServerResult(server string, err error) *result.ServerResult {
+	switch t := err.(type) {
+	case nil:
+		return result.NewServerResult(result.ResultOK, server, nil)
+	case NoServerError:
+		return result.NewServerResult(result.ResultNonRevokable, server, nil)
+	case RevokedError:
+		return result.NewServerResult(result.ResultRevoked, server, t)
+	default:
+		// Includes OCSPCheckError, UnknownStatusError, result.InvalidChainError,
+		// and TimeoutError
+		return result.NewServerResult(result.ResultUnknown, server, t)
 	}
 }
 
 func serverResultsToCertRevocationResult(serverResults []*result.ServerResult) *result.CertRevocationResult {
-	if len(serverResults) == 0 {
-		return nil
-	}
 	return &result.CertRevocationResult{
 		Result:        serverResults[len(serverResults)-1].Result,
 		ServerResults: serverResults,

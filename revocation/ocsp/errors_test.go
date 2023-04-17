@@ -45,9 +45,9 @@ func TestOCSPCheckError(t *testing.T) {
 	})
 }
 
-func TestNoOCSPServerError(t *testing.T) {
-	err := &NoOCSPServerError{}
-	expectedMsg := "no valid OCSPServer found"
+func TestNoServerError(t *testing.T) {
+	err := &NoServerError{}
+	expectedMsg := "no valid OCSP server found"
 
 	if err.Error() != expectedMsg {
 		t.Errorf("Expected %v but got %v", expectedMsg, err.Error())

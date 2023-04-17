@@ -8,16 +8,16 @@ import "strconv"
 type Result int
 
 const (
+	// ResultUnknown is a Result that indicates that some error other than a
+	// revocation was encountered during the revocation check
+	ResultUnknown Result = iota
 	// ResultOK is a Result that indicates that the revocation check resulted in no
 	// important errors
-	ResultOK Result = 1 + iota
+	ResultOK
 	// ResultNonRevokable is a Result that indicates that the certificate cannot be
 	// checked for revocation. This may be a result of no OCSP servers being
 	// specified, the cert is a root certificate, or other related situations.
 	ResultNonRevokable
-	// ResultUnknown is a Result that indicates that some error other than a
-	// revocation was encountered during the revocation check
-	ResultUnknown
 	// ResultRevoked is a Result that indicates that at least one certificate was
 	// revoked when performing a revocation check on the certificate chain
 	ResultRevoked
@@ -54,6 +54,16 @@ type ServerResult struct {
 	// Error is set if there is an error associated with the revocation check
 	// to this server
 	Error error
+}
+
+// NewServerResult creates a ServerResult object from its individual parts: a
+// Result, a string for the server, and an error
+func NewServerResult(result Result, server string, err error) *ServerResult {
+	return &ServerResult{
+		Result: result,
+		Server: server,
+		Error:  err,
+	}
 }
 
 // CertRevocationResult encapsulates the result for a single certificate in the

@@ -1,6 +1,7 @@
 package result
 
 import (
+	"errors"
 	"testing"
 )
 
@@ -26,11 +27,26 @@ func TestResultString(t *testing.T) {
 		}
 	})
 	t.Run("invalid result", func(t *testing.T) {
-		if Result(0).String() != "invalid result with value 0" {
-			t.Errorf("Expected %s but got %s", "invalid result with value 0", Result(0).String())
-		}
-		if Result(5).String() != "invalid result with value 5" {
-			t.Errorf("Expected %s but got %s", "invalid result with value 5", Result(5).String())
+		if Result(4).String() != "invalid result with value 4" {
+			t.Errorf("Expected %s but got %s", "invalid result with value 4", Result(4).String())
 		}
 	})
+}
+
+func TestNewServerResult(t *testing.T) {
+	expectedR := &ServerResult{
+		Result: ResultNonRevokable,
+		Server: "test server",
+		Error:  errors.New("test error"),
+	}
+	r := NewServerResult(expectedR.Result, expectedR.Server, expectedR.Error)
+	if r.Result != expectedR.Result {
+		t.Errorf("Expected %s but got %s", expectedR.Result, r.Result)
+	}
+	if r.Server != expectedR.Server {
+		t.Errorf("Expected %s but got %s", expectedR.Server, r.Server)
+	}
+	if r.Error != expectedR.Error {
+		t.Errorf("Expected %v but got %v", expectedR.Error, r.Error)
+	}
 }

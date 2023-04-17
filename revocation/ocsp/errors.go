@@ -1,4 +1,4 @@
-// Package OCSP provides methods for checking the OCSP revocation status of a
+// Package ocsp provides methods for checking the OCSP revocation status of a
 // certificate chain, as well as errors related to these checks
 package ocsp
 
@@ -37,11 +37,11 @@ func (e OCSPCheckError) Error() string {
 	return msg
 }
 
-// NoOCSPServerError is returned when the OCSPServer is not specified.
-type NoOCSPServerError struct{}
+// NoServerError is returned when the OCSPServer is not specified.
+type NoServerError struct{}
 
-func (e NoOCSPServerError) Error() string {
-	return "no valid OCSPServer found"
+func (e NoServerError) Error() string {
+	return "no valid OCSP server found"
 }
 
 // TimeoutError is returned when the connection attempt to an OCSP URL exceeds
