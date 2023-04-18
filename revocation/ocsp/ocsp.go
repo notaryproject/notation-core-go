@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"crypto"
 	"crypto/x509"
+	"encoding/asn1"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -29,7 +30,8 @@ type Options struct {
 }
 
 const (
-	pkixNoCheckOID string = "1.3.6.1.5.5.7.48.1.5"
+	pkixNoCheckOID    string = "1.3.6.1.5.5.7.48.1.5"
+	invalidityDateOID string = "2.5.29.24"
 	// Max size determined from https://www.ibm.com/docs/en/sva/9.0.6?topic=stanza-ocsp-max-response-size.
 	// Typical size is ~4 KB
 	ocspMaxResponseSize int64 = 20480 //bytes
@@ -120,12 +122,22 @@ func checkStatusFromServer(cert, issuer *x509.Certificate, server string, opts O
 		return toServerResult(server, OCSPCheckError{Err: errors.New("expired OCSP response")})
 	}
 
-	// Check for presence of pkix-ocsp-no-check extension in response
+	// Check for presence of pkix-ocsp-no-check and id-ce-invalidityDate
+	// extensions in response
 	foundNoCheck := false
+	foundInvalidityDate := false
+	var invalidityDate time.Time
 	for _, extension := range resp.Extensions {
 		if !foundNoCheck && extension.Id.String() == pkixNoCheckOID {
 			foundNoCheck = true
-			break
+		}
+		if !foundInvalidityDate && extension.Id.String() == invalidityDateOID {
+			foundInvalidityDate = true
+			rest, err := asn1.UnmarshalWithParams(extension.Value, &invalidityDate, "generalized")
+			if len(rest) > 0 || err != nil {
+				// invalidity date is invalid, treating as not present
+				foundInvalidityDate = false
+			}
 		}
 	}
 	//lint:ignore SA9003 // Empty body in an if branch (Remove after adding CRL)
@@ -142,7 +154,7 @@ func checkStatusFromServer(cert, issuer *x509.Certificate, server string, opts O
 		return toServerResult(server, nil)
 	case ocsp.Revoked:
 		// Check if SigningTime was before the revocation
-		if opts.SigningTime.Before(resp.RevokedAt) {
+		if foundInvalidityDate && opts.SigningTime.Before(invalidityDate) {
 			return toServerResult(server, nil)
 		}
 		return toServerResult(server, RevokedError{})

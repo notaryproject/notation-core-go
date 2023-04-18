@@ -60,13 +60,15 @@ func (s spyRoundTripper) roundTripResponse(index int, expired bool) (*http.Respo
 	if status == ocsp.Revoked {
 		if s.revokedTime != nil {
 			template.RevokedAt = *s.revokedTime
+			generalizedTime, _ := asn1.MarshalWithParams(*s.revokedTime, "generalized")
+			template.ExtraExtensions = []pkix.Extension{{Id: asn1.ObjectIdentifier{2, 5, 29, 24}, Critical: false, Value: generalizedTime}}
 		} else {
 			template.RevokedAt = time.Now().Add(-1 * time.Hour)
 		}
 		template.RevocationReason = ocsp.Unspecified
 	}
 	if s.validPKIXNoCheck {
-		template.ExtraExtensions = []pkix.Extension{{Id: asn1.ObjectIdentifier{1, 3, 6, 1, 5, 5, 7, 48, 1, 5}, Critical: false, Value: nil}}
+		template.ExtraExtensions = append(template.ExtraExtensions, pkix.Extension{Id: asn1.ObjectIdentifier{1, 3, 6, 1, 5, 5, 7, 48, 1, 5}, Critical: false, Value: nil})
 	}
 
 	// Create ocsp response
