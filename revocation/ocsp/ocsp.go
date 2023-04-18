@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"crypto"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/asn1"
 	"encoding/base64"
 	"errors"
@@ -122,30 +123,23 @@ func checkStatusFromServer(cert, issuer *x509.Certificate, server string, opts O
 		return toServerResult(server, GenericError{Err: errors.New("expired OCSP response")})
 	}
 
-	// Check for presence of pkix-ocsp-no-check and id-ce-invalidityDate
-	// extensions in response
-	foundNoCheck := false
-	foundInvalidityDate := false
-	var invalidityDate time.Time
-	for _, extension := range resp.Extensions {
-		if !foundNoCheck && extension.Id.String() == pkixNoCheckOID {
-			foundNoCheck = true
-		}
-		if !foundInvalidityDate && extension.Id.String() == invalidityDateOID {
-			foundInvalidityDate = true
-			rest, err := asn1.UnmarshalWithParams(extension.Value, &invalidityDate, "generalized")
-			if len(rest) > 0 || err != nil {
-				// invalidity date is invalid, treating as not present
-				foundInvalidityDate = false
-			}
-		}
-	}
+	// Handle pkix-ocsp-no-check and id-ce-invalidityDate extensions if present
+	// in response
+	extensionMap := extensionsToMap(resp.Extensions)
 	//lint:ignore SA9003 // Empty body in an if branch (Remove after adding CRL)
-	if !foundNoCheck {
+	//lint:ignore SA4006 // Unused value (Remove after adding CRL)
+	if _, foundNoCheck := extensionMap[pkixNoCheckOID]; !foundNoCheck {
 		// This will be ignored until CRL is implemented
 		// If it isn't found, CRL should be used to verify the OCSP response
 		// TODO: add CRL support
 		// https://github.com/notaryproject/notation-core-go/issues/125
+	}
+	if invalidityDateBytes, foundInvalidityDate := extensionMap[invalidityDateOID]; foundInvalidityDate && !opts.SigningTime.IsZero() && resp.Status == ocsp.Revoked {
+		var invalidityDate time.Time
+		rest, err := asn1.UnmarshalWithParams(invalidityDateBytes, &invalidityDate, "generalized")
+		if len(rest) == 0 && err == nil && opts.SigningTime.Before(invalidityDate) {
+			resp.Status = ocsp.Good
+		}
 	}
 
 	// No errors, valid server response
@@ -153,15 +147,19 @@ func checkStatusFromServer(cert, issuer *x509.Certificate, server string, opts O
 	case ocsp.Good:
 		return toServerResult(server, nil)
 	case ocsp.Revoked:
-		// Check if SigningTime was before the revocation
-		if foundInvalidityDate && !opts.SigningTime.IsZero() && opts.SigningTime.Before(invalidityDate) {
-			return toServerResult(server, nil)
-		}
 		return toServerResult(server, RevokedError{})
 	default:
 		// ocsp.Unknown
 		return toServerResult(server, UnknownStatusError{})
 	}
+}
+
+func extensionsToMap(extensions []pkix.Extension) map[string][]byte {
+	extensionMap := make(map[string][]byte)
+	for _, extension := range extensions {
+		extensionMap[extension.Id.String()] = extension.Value
+	}
+	return extensionMap
 }
 
 func executeOCSPCheck(cert, issuer *x509.Certificate, server string, opts Options) (*ocsp.Response, error) {

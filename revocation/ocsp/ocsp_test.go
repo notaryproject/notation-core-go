@@ -189,7 +189,7 @@ func TestCheckStatusForNonSelfSignedSingleCert(t *testing.T) {
 }
 
 func TestCheckStatusForChain(t *testing.T) {
-	zeroTime := time.Date(1, time.January, 1, 0, 0, 0, 0, time.UTC)
+	zeroTime := time.Time{}
 	testChain := testhelper.GetRevokableRSAChain(6)
 	revokableChain := make([]*x509.Certificate, 6)
 	for i, tuple := range testChain {
