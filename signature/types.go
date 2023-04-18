@@ -145,3 +145,19 @@ func (signerInfo *SignerInfo) ExtendedAttribute(key string) (Attribute, error) {
 	}
 	return Attribute{}, errors.New("key not in ExtendedAttributes")
 }
+
+// GetAuthenticSigningTime returns the authentic signing time
+func (signerInfo *SignerInfo) GetAuthenticSigningTime() (time.Time, error) {
+	switch signerInfo.SignedAttributes.SigningScheme {
+	case SigningSchemeX509SigningAuthority:
+		return signerInfo.SignedAttributes.SigningTime, nil
+	case SigningSchemeX509:
+		if len(signerInfo.UnsignedAttributes.TimestampSignature) > 0 {
+			return time.Time{}, errors.New("TSA checking for AuthenticSigningTime has not been implemented")
+		}
+		// if there is no TSA signature, then every certificate should be
+		// valid at the time of verification
+		return time.Now(), nil
+	}
+	return time.Time{}, errors.New("cannot get an AuthenticSigningTime with this information")
+}
