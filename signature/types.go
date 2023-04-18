@@ -153,11 +153,13 @@ func (signerInfo *SignerInfo) GetAuthenticSigningTime() (time.Time, error) {
 		return signerInfo.SignedAttributes.SigningTime, nil
 	case SigningSchemeX509:
 		if len(signerInfo.UnsignedAttributes.TimestampSignature) > 0 {
-			return time.Time{}, errors.New("TSA checking for AuthenticSigningTime has not been implemented")
+			// TODO: Add TSA support for AutheticSigningTime
+			// https://github.com/notaryproject/notation-core-go/issues/38
+			return time.Time{}, nil
 		}
 		// if there is no TSA signature, then every certificate should be
 		// valid at the time of verification
-		return time.Now(), nil
+		return time.Time{}, nil
 	}
 	return time.Time{}, errors.New("cannot get an AuthenticSigningTime with this information")
 }

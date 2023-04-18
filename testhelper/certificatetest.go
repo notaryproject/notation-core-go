@@ -63,14 +63,13 @@ func GetRevokableRSALeafCertificate() RSACertTuple {
 func GetRevokableRSAChain(size int) []RSACertTuple {
 	setupCertificates()
 	chain := make([]RSACertTuple, size)
-	chain[size-1].Cert, _ = x509.ParseCertificate(rsaRoot.Cert.Raw)
-	chain[size-1].PrivateKey = rsaRoot.PrivateKey
-	for i := size - 2; i >= 0; i-- {
+	chain[size-1] = getRevokableRSARootChainCertTuple("Notation Test Revokable RSA Chain Cert Root", size-1)
+	for i := size - 2; i > 0; i-- {
 		chain[i] = getRevokableRSAChainCertTuple(fmt.Sprintf("Notation Test Revokable RSA Chain Cert %d", size-i), &chain[i+1], i)
 	}
-	chain[0].Cert.IsCA = false
-	chain[0].Cert.KeyUsage = x509.KeyUsageDigitalSignature
-	chain[size-1].Cert.MaxPathLen = size - 1
+	if size > 1 {
+		chain[0] = getRevokableRSALeafChainCertTuple(fmt.Sprintf("Notation Test Revokable RSA Chain Cert %d", size), &chain[1], 0)
+	}
 	return chain
 }
 
@@ -148,6 +147,25 @@ func getRevokableRSAChainCertTuple(cn string, previous *RSACertTuple, index int)
 	template.KeyUsage = x509.KeyUsageCertSign
 	template.OCSPServer = []string{fmt.Sprintf("http://example.com/chain_ocsp/%d", index)}
 	return getRSACertTupleWithTemplate(template, previous.PrivateKey, previous)
+}
+
+func getRevokableRSARootChainCertTuple(cn string, pathLen int) RSACertTuple {
+	pk, _ := rsa.GenerateKey(rand.Reader, 3072)
+	template := getCertTemplate(true, true, cn)
+	template.BasicConstraintsValid = true
+	template.IsCA = true
+	template.KeyUsage = x509.KeyUsageCertSign
+	template.MaxPathLen = pathLen
+	return getRSACertTupleWithTemplate(template, pk, nil)
+}
+
+func getRevokableRSALeafChainCertTuple(cn string, issuer *RSACertTuple, index int) RSACertTuple {
+	template := getCertTemplate(false, true, cn)
+	template.BasicConstraintsValid = true
+	template.IsCA = false
+	template.KeyUsage = x509.KeyUsageDigitalSignature
+	template.OCSPServer = []string{fmt.Sprintf("http://example.com/chain_ocsp/%d", index)}
+	return getRSACertTupleWithTemplate(template, issuer.PrivateKey, issuer)
 }
 
 func getRSACertWithoutEKUTuple(cn string, issuer *RSACertTuple) RSACertTuple {
