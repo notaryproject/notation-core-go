@@ -189,10 +189,12 @@ func TestCheckStatusForNonSelfSignedSingleCert(t *testing.T) {
 }
 
 func TestCheckStatusForChain(t *testing.T) {
+	zeroTime := time.Date(1, time.January, 1, 0, 0, 0, 0, time.UTC)
 	testChain := testhelper.GetRevokableRSAChain(6)
 	revokableChain := make([]*x509.Certificate, 6)
 	for i, tuple := range testChain {
 		revokableChain[i] = tuple.Cert
+		revokableChain[i].NotBefore = zeroTime
 	}
 
 	t.Run("empty chain", func(t *testing.T) {
@@ -374,13 +376,46 @@ func TestCheckStatusForChain(t *testing.T) {
 		}
 		validateEquivalentCertResults(certResults, expectedCertResults, t)
 	})
-	t.Run("check OCSP with 1 revoked cert after signing time", func(t *testing.T) {
+	t.Run("check OCSP with 1 revoked cert before signing time", func(t *testing.T) {
 		client := testhelper.MockClient(testChain, []ocsp.ResponseStatus{ocsp.Good, ocsp.Good, ocsp.Revoked, ocsp.Good}, nil, true)
 		// 3rd cert will be revoked, the rest will be good
 		opts := Options{
 			CertChain:   revokableChain,
 			SigningTime: time.Now().Add(time.Hour),
 			HTTPClient:  client,
+		}
+
+		certResults, err := CheckStatus(opts)
+		if err != nil {
+			t.Errorf("Expected CheckStatus to succeed, but got error: %v", err)
+		}
+		expectedCertResults := []*result.CertRevocationResult{
+			getOKCertResult(revokableChain[0].OCSPServer[0]),
+			getOKCertResult(revokableChain[1].OCSPServer[0]),
+			{
+				Result: result.ResultRevoked,
+				ServerResults: []*result.ServerResult{
+					result.NewServerResult(result.ResultRevoked, revokableChain[2].OCSPServer[0], RevokedError{}),
+				},
+			},
+			getOKCertResult(revokableChain[3].OCSPServer[0]),
+			getOKCertResult(revokableChain[4].OCSPServer[0]),
+			getRootCertResult(),
+		}
+		validateEquivalentCertResults(certResults, expectedCertResults, t)
+	})
+	t.Run("check OCSP with 1 revoked cert after zero signing time", func(t *testing.T) {
+		revokedTime := time.Now().Add(time.Hour)
+		client := testhelper.MockClient(testChain, []ocsp.ResponseStatus{ocsp.Good, ocsp.Good, ocsp.Revoked, ocsp.Good}, &revokedTime, true)
+		// 3rd cert will be revoked, the rest will be good
+		opts := Options{
+			CertChain:   revokableChain,
+			SigningTime: zeroTime,
+			HTTPClient:  client,
+		}
+
+		if !zeroTime.IsZero() {
+			t.Errorf("exected zeroTime.IsZero() to be true")
 		}
 
 		certResults, err := CheckStatus(opts)
@@ -428,8 +463,8 @@ func TestCheckStatusErrors(t *testing.T) {
 
 	backwardsChainErr := result.InvalidChainError{Err: errors.New("leaf certificate with subject \"CN=Notation Test RSA Root,O=Notary,L=Seattle,ST=WA,C=US\" is self-signed. Certificate chain must not contain self-signed leaf certificate")}
 	chainRootErr := result.InvalidChainError{Err: errors.New("root certificate with subject \"CN=Notation Test Revokable RSA Chain Cert 2,O=Notary,L=Seattle,ST=WA,C=US\" is not self-signed. Certificate chain must end with a valid self-signed root certificate")}
-	expiredRespErr := OCSPCheckError{Err: errors.New("expired OCSP response")}
-	noHTTPErr := OCSPCheckError{Err: errors.New("OCSPServer protocol ldap is not supported")}
+	expiredRespErr := GenericError{Err: errors.New("expired OCSP response")}
+	noHTTPErr := GenericError{Err: errors.New("OCSPServer protocol ldap is not supported")}
 
 	t.Run("no OCSPServer specified", func(t *testing.T) {
 		opts := Options{

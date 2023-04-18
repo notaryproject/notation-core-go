@@ -25,9 +25,9 @@ func TestUnknownStatusError(t *testing.T) {
 	}
 }
 
-func TestOCSPCheckError(t *testing.T) {
+func TestGenericError(t *testing.T) {
 	t.Run("without_inner_error", func(t *testing.T) {
-		err := &OCSPCheckError{}
+		err := &GenericError{}
 		expectedMsg := "error checking revocation status via OCSP"
 
 		if err.Error() != expectedMsg {
@@ -36,7 +36,7 @@ func TestOCSPCheckError(t *testing.T) {
 	})
 
 	t.Run("with_inner_error", func(t *testing.T) {
-		err := &OCSPCheckError{Err: errors.New("inner error")}
+		err := &GenericError{Err: errors.New("inner error")}
 		expectedMsg := "error checking revocation status via OCSP: inner error"
 
 		if err.Error() != expectedMsg {

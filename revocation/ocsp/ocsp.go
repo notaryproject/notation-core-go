@@ -106,7 +106,7 @@ func checkStatusFromServer(cert, issuer *x509.Certificate, server string, opts O
 	// Check valid server
 	if serverURL, err := url.Parse(server); err != nil || !strings.EqualFold(serverURL.Scheme, "http") {
 		// This function is only able to check servers that are accessible via HTTP
-		return toServerResult(server, OCSPCheckError{Err: fmt.Errorf("OCSPServer protocol %s is not supported", serverURL.Scheme)})
+		return toServerResult(server, GenericError{Err: fmt.Errorf("OCSPServer protocol %s is not supported", serverURL.Scheme)})
 	}
 
 	// Create OCSP Request
@@ -119,7 +119,7 @@ func checkStatusFromServer(cert, issuer *x509.Certificate, server string, opts O
 
 	// Validate OCSP response isn't expired
 	if time.Now().After(resp.NextUpdate) {
-		return toServerResult(server, OCSPCheckError{Err: errors.New("expired OCSP response")})
+		return toServerResult(server, GenericError{Err: errors.New("expired OCSP response")})
 	}
 
 	// Check for presence of pkix-ocsp-no-check and id-ce-invalidityDate
@@ -154,7 +154,7 @@ func checkStatusFromServer(cert, issuer *x509.Certificate, server string, opts O
 		return toServerResult(server, nil)
 	case ocsp.Revoked:
 		// Check if SigningTime was before the revocation
-		if foundInvalidityDate && opts.SigningTime.Before(invalidityDate) {
+		if foundInvalidityDate && !opts.SigningTime.IsZero() && opts.SigningTime.Before(invalidityDate) {
 			return toServerResult(server, nil)
 		}
 		return toServerResult(server, RevokedError{})
@@ -169,7 +169,7 @@ func executeOCSPCheck(cert, issuer *x509.Certificate, server string, opts Option
 	// https://github.com/notaryproject/notation-core-go/issues/139
 	ocspRequest, err := ocsp.CreateRequest(cert, issuer, &ocsp.RequestOptions{Hash: crypto.SHA256})
 	if err != nil {
-		return nil, OCSPCheckError{Err: err}
+		return nil, GenericError{Err: err}
 	}
 
 	var resp *http.Response
@@ -181,7 +181,7 @@ func executeOCSPCheck(cert, issuer *x509.Certificate, server string, opts Option
 		var reqURL string
 		reqURL, err = url.JoinPath(server, encodedReq)
 		if err != nil {
-			return nil, OCSPCheckError{Err: err}
+			return nil, GenericError{Err: err}
 		}
 		resp, err = opts.HTTPClient.Get(reqURL)
 	}
@@ -191,7 +191,7 @@ func executeOCSPCheck(cert, issuer *x509.Certificate, server string, opts Option
 		if errors.As(err, &urlErr) && urlErr.Timeout() {
 			return nil, TimeoutError{}
 		}
-		return nil, OCSPCheckError{Err: err}
+		return nil, GenericError{Err: err}
 	}
 	defer resp.Body.Close()
 
@@ -201,20 +201,20 @@ func executeOCSPCheck(cert, issuer *x509.Certificate, server string, opts Option
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, ocspMaxResponseSize))
 	if err != nil {
-		return nil, OCSPCheckError{Err: err}
+		return nil, GenericError{Err: err}
 	}
 
 	switch {
 	case bytes.Equal(body, ocsp.UnauthorizedErrorResponse):
-		return nil, OCSPCheckError{Err: errors.New("OCSP unauthorized")}
+		return nil, GenericError{Err: errors.New("OCSP unauthorized")}
 	case bytes.Equal(body, ocsp.MalformedRequestErrorResponse):
-		return nil, OCSPCheckError{Err: errors.New("OCSP malformed")}
+		return nil, GenericError{Err: errors.New("OCSP malformed")}
 	case bytes.Equal(body, ocsp.InternalErrorErrorResponse):
-		return nil, OCSPCheckError{Err: errors.New("OCSP internal error")}
+		return nil, GenericError{Err: errors.New("OCSP internal error")}
 	case bytes.Equal(body, ocsp.TryLaterErrorResponse):
-		return nil, OCSPCheckError{Err: errors.New("OCSP try later")}
+		return nil, GenericError{Err: errors.New("OCSP try later")}
 	case bytes.Equal(body, ocsp.SigRequredErrorResponse):
-		return nil, OCSPCheckError{Err: errors.New("OCSP signature required")}
+		return nil, GenericError{Err: errors.New("OCSP signature required")}
 	}
 
 	return ocsp.ParseResponseForCert(body, cert, issuer)
@@ -229,7 +229,7 @@ func toServerResult(server string, err error) *result.ServerResult {
 	case RevokedError:
 		return result.NewServerResult(result.ResultRevoked, server, t)
 	default:
-		// Includes OCSPCheckError, UnknownStatusError, result.InvalidChainError,
+		// Includes GenericError, UnknownStatusError, result.InvalidChainError,
 		// and TimeoutError
 		return result.NewServerResult(result.ResultUnknown, server, t)
 	}

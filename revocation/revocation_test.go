@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	revocation_ocsp "github.com/notaryproject/notation-core-go/revocation/ocsp"
+	revocationocsp "github.com/notaryproject/notation-core-go/revocation/ocsp"
 	"github.com/notaryproject/notation-core-go/revocation/result"
 	"github.com/notaryproject/notation-core-go/testhelper"
 	"golang.org/x/crypto/ocsp"
@@ -121,7 +121,7 @@ func TestCheckRevocationStatusForSingleCert(t *testing.T) {
 			{
 				Result: result.ResultUnknown,
 				ServerResults: []*result.ServerResult{
-					result.NewServerResult(result.ResultUnknown, revokableChain[0].OCSPServer[0], revocation_ocsp.UnknownStatusError{}),
+					result.NewServerResult(result.ResultUnknown, revokableChain[0].OCSPServer[0], revocationocsp.UnknownStatusError{}),
 				},
 			},
 			getRootCertResult(),
@@ -143,7 +143,7 @@ func TestCheckRevocationStatusForSingleCert(t *testing.T) {
 			{
 				Result: result.ResultRevoked,
 				ServerResults: []*result.ServerResult{
-					result.NewServerResult(result.ResultRevoked, revokableChain[0].OCSPServer[0], revocation_ocsp.RevokedError{}),
+					result.NewServerResult(result.ResultRevoked, revokableChain[0].OCSPServer[0], revocationocsp.RevokedError{}),
 				},
 			},
 			getRootCertResult(),
@@ -204,10 +204,12 @@ func TestCheckRevocationStatusForRootCert(t *testing.T) {
 }
 
 func TestCheckRevocationStatusForChain(t *testing.T) {
+	zeroTime := time.Date(1, time.January, 1, 0, 0, 0, 0, time.UTC)
 	testChain := testhelper.GetRevokableRSAChain(6)
 	revokableChain := make([]*x509.Certificate, 6)
 	for i, tuple := range testChain {
 		revokableChain[i] = tuple.Cert
+		revokableChain[i].NotBefore = zeroTime
 	}
 
 	t.Run("empty chain", func(t *testing.T) {
@@ -263,7 +265,7 @@ func TestCheckRevocationStatusForChain(t *testing.T) {
 			{
 				Result: result.ResultUnknown,
 				ServerResults: []*result.ServerResult{
-					result.NewServerResult(result.ResultUnknown, revokableChain[2].OCSPServer[0], revocation_ocsp.UnknownStatusError{}),
+					result.NewServerResult(result.ResultUnknown, revokableChain[2].OCSPServer[0], revocationocsp.UnknownStatusError{}),
 				},
 			},
 			getOKCertResult(revokableChain[3].OCSPServer[0]),
@@ -290,7 +292,7 @@ func TestCheckRevocationStatusForChain(t *testing.T) {
 			{
 				Result: result.ResultRevoked,
 				ServerResults: []*result.ServerResult{
-					result.NewServerResult(result.ResultRevoked, revokableChain[2].OCSPServer[0], revocation_ocsp.RevokedError{}),
+					result.NewServerResult(result.ResultRevoked, revokableChain[2].OCSPServer[0], revocationocsp.RevokedError{}),
 				},
 			},
 			getOKCertResult(revokableChain[3].OCSPServer[0]),
@@ -317,14 +319,14 @@ func TestCheckRevocationStatusForChain(t *testing.T) {
 			{
 				Result: result.ResultUnknown,
 				ServerResults: []*result.ServerResult{
-					result.NewServerResult(result.ResultUnknown, revokableChain[2].OCSPServer[0], revocation_ocsp.UnknownStatusError{}),
+					result.NewServerResult(result.ResultUnknown, revokableChain[2].OCSPServer[0], revocationocsp.UnknownStatusError{}),
 				},
 			},
 			getOKCertResult(revokableChain[3].OCSPServer[0]),
 			{
 				Result: result.ResultRevoked,
 				ServerResults: []*result.ServerResult{
-					result.NewServerResult(result.ResultRevoked, revokableChain[4].OCSPServer[0], revocation_ocsp.RevokedError{}),
+					result.NewServerResult(result.ResultRevoked, revokableChain[4].OCSPServer[0], revocationocsp.RevokedError{}),
 				},
 			},
 			getRootCertResult(),
@@ -373,7 +375,7 @@ func TestCheckRevocationStatusForChain(t *testing.T) {
 			{
 				Result: result.ResultUnknown,
 				ServerResults: []*result.ServerResult{
-					result.NewServerResult(result.ResultUnknown, revokableChain[2].OCSPServer[0], revocation_ocsp.UnknownStatusError{}),
+					result.NewServerResult(result.ResultUnknown, revokableChain[2].OCSPServer[0], revocationocsp.UnknownStatusError{}),
 				},
 			},
 			getOKCertResult(revokableChain[3].OCSPServer[0]),
@@ -400,7 +402,40 @@ func TestCheckRevocationStatusForChain(t *testing.T) {
 			{
 				Result: result.ResultRevoked,
 				ServerResults: []*result.ServerResult{
-					result.NewServerResult(result.ResultRevoked, revokableChain[2].OCSPServer[0], revocation_ocsp.RevokedError{}),
+					result.NewServerResult(result.ResultRevoked, revokableChain[2].OCSPServer[0], revocationocsp.RevokedError{}),
+				},
+			},
+			getOKCertResult(revokableChain[3].OCSPServer[0]),
+			getOKCertResult(revokableChain[4].OCSPServer[0]),
+			getRootCertResult(),
+		}
+		validateEquivalentCertResults(certResults, expectedCertResults, t)
+	})
+	t.Run("check OCSP with 1 revoked cert after zero signing time", func(t *testing.T) {
+		revokedTime := time.Now().Add(time.Hour)
+		client := testhelper.MockClient(testChain, []ocsp.ResponseStatus{ocsp.Good, ocsp.Good, ocsp.Revoked, ocsp.Good}, &revokedTime, true)
+		// 3rd cert will be revoked, the rest will be good
+
+		if !zeroTime.IsZero() {
+			t.Errorf("exected zeroTime.IsZero() to be true")
+		}
+
+		r, err := New(client)
+		if err != nil {
+			t.Errorf("Expected successful creation of revocation, but received error: %v", err)
+		}
+
+		certResults, err := r.Validate(revokableChain, time.Now().Add(time.Hour))
+		if err != nil {
+			t.Errorf("Expected CheckStatus to succeed, but got error: %v", err)
+		}
+		expectedCertResults := []*result.CertRevocationResult{
+			getOKCertResult(revokableChain[0].OCSPServer[0]),
+			getOKCertResult(revokableChain[1].OCSPServer[0]),
+			{
+				Result: result.ResultRevoked,
+				ServerResults: []*result.ServerResult{
+					result.NewServerResult(result.ResultRevoked, revokableChain[2].OCSPServer[0], revocationocsp.RevokedError{}),
 				},
 			},
 			getOKCertResult(revokableChain[3].OCSPServer[0]),
@@ -435,8 +470,8 @@ func TestCheckRevocationErrors(t *testing.T) {
 
 	backwardsChainErr := result.InvalidChainError{Err: errors.New("leaf certificate with subject \"CN=Notation Test RSA Root,O=Notary,L=Seattle,ST=WA,C=US\" is self-signed. Certificate chain must not contain self-signed leaf certificate")}
 	chainRootErr := result.InvalidChainError{Err: errors.New("root certificate with subject \"CN=Notation Test Revokable RSA Chain Cert 2,O=Notary,L=Seattle,ST=WA,C=US\" is not self-signed. Certificate chain must end with a valid self-signed root certificate")}
-	expiredRespErr := revocation_ocsp.OCSPCheckError{Err: errors.New("expired OCSP response")}
-	noHTTPErr := revocation_ocsp.OCSPCheckError{Err: errors.New("OCSPServer protocol ldap is not supported")}
+	expiredRespErr := revocationocsp.GenericError{Err: errors.New("expired OCSP response")}
+	noHTTPErr := revocationocsp.GenericError{Err: errors.New("OCSPServer protocol ldap is not supported")}
 
 	r, err := New(&http.Client{Timeout: 5 * time.Second})
 	if err != nil {
@@ -494,13 +529,13 @@ func TestCheckRevocationErrors(t *testing.T) {
 			{
 				Result: result.ResultUnknown,
 				ServerResults: []*result.ServerResult{
-					result.NewServerResult(result.ResultUnknown, okChain[0].OCSPServer[0], revocation_ocsp.TimeoutError{}),
+					result.NewServerResult(result.ResultUnknown, okChain[0].OCSPServer[0], revocationocsp.TimeoutError{}),
 				},
 			},
 			{
 				Result: result.ResultUnknown,
 				ServerResults: []*result.ServerResult{
-					result.NewServerResult(result.ResultUnknown, okChain[1].OCSPServer[0], revocation_ocsp.TimeoutError{}),
+					result.NewServerResult(result.ResultUnknown, okChain[1].OCSPServer[0], revocationocsp.TimeoutError{}),
 				},
 			},
 			getRootCertResult(),
