@@ -157,9 +157,6 @@ func (signerInfo *SignerInfo) GetAuthenticSigningTime() (time.Time, error) {
 			// https://github.com/notaryproject/notation-core-go/issues/38
 			return time.Time{}, nil
 		}
-		// if there is no TSA signature, then every certificate should be
-		// valid at the time of verification
-		return time.Time{}, nil
 	}
 	return time.Time{}, errors.New("cannot get an AuthenticSigningTime with this information")
 }

@@ -141,7 +141,7 @@ func checkStatusFromServer(cert, issuer *x509.Certificate, server string, opts O
 		var invalidityDate time.Time
 		rest, err := asn1.UnmarshalWithParams(invalidityDateBytes, &invalidityDate, "generalized")
 		if len(rest) == 0 && err == nil && opts.SigningTime.Before(invalidityDate) {
-			resp.Status = ocsp.Good
+			return toServerResult(server, nil)
 		}
 	}
 
