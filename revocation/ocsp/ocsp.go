@@ -129,11 +129,10 @@ func checkStatusFromServer(cert, issuer *x509.Certificate, server string, opts O
 	// Handle pkix-ocsp-no-check and id-ce-invalidityDate extensions if present
 	// in response
 	extensionMap := extensionsToMap(resp.Extensions)
-	//lint:ignore SA9003 // Empty body in an if branch (Remove after adding CRL)
-	//lint:ignore SA4006 // Unused value (Remove after adding CRL)
 	if _, foundNoCheck := extensionMap[pkixNoCheckOID]; !foundNoCheck {
 		// This will be ignored until CRL is implemented
 		// If it isn't found, CRL should be used to verify the OCSP response
+		_ = foundNoCheck // needed to bypass linter warnings (Remove after adding CRL)
 		// TODO: add CRL support
 		// https://github.com/notaryproject/notation-core-go/issues/125
 	}
