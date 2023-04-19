@@ -158,5 +158,5 @@ func (signerInfo *SignerInfo) GetAuthenticSigningTime() (time.Time, error) {
 			return time.Time{}, errors.New("TSA checking has not been implemented")
 		}
 	}
-	return time.Time{}, errors.New("cannot get an AuthenticSigningTime with this information")
+	return time.Time{}, errors.New("authenticSigningTime not found")
 }
