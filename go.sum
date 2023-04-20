@@ -6,3 +6,5 @@ github.com/veraison/go-cose v1.0.0 h1:Jxirc0rl3gG7wUFgW+82tBQNeK8T8e2Bk1Vd298ob4
 github.com/veraison/go-cose v1.0.0/go.mod h1:7ziE85vSq4ScFTg6wyoMXjucIGOf4JkFEZi/an96Ct4=
 github.com/x448/float16 v0.8.4 h1:qLwI1I70+NjRFUR3zs1JPUCgaCXSh3SW62uAKT1mSBM=
 github.com/x448/float16 v0.8.4/go.mod h1:14CWIYCyZA/cWjXOioeEpHeN/83MdbZDRQHoFcYsOfg=
+golang.org/x/crypto v0.7.0 h1:AvwMYaRytfdeVt3u6mLaxYtErKYjxA2OXjJ1HHq6t3A=
+golang.org/x/crypto v0.7.0/go.mod h1:pYwdfH91IfpZVANVyUOhSIPZaFoJGxTFbZhFTx+dXZU=

@@ -9,6 +9,7 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"fmt"
 	"math/big"
 	mrand "math/rand"
 	"strconv"
@@ -19,6 +20,7 @@ import (
 var (
 	rsaRoot                  RSACertTuple
 	rsaLeaf                  RSACertTuple
+	revokableRSALeaf         RSACertTuple
 	rsaLeafWithoutEKU        RSACertTuple
 	ecdsaRoot                ECCertTuple
 	ecdsaLeaf                ECCertTuple
@@ -49,6 +51,26 @@ func GetRSARootCertificate() RSACertTuple {
 func GetRSALeafCertificate() RSACertTuple {
 	setupCertificates()
 	return rsaLeaf
+}
+
+// GetRevokableRSALeafCertificate returns leaf certificate that specifies a local OCSP server signed using RSA algorithm
+func GetRevokableRSALeafCertificate() RSACertTuple {
+	setupCertificates()
+	return revokableRSALeaf
+}
+
+// GetRevokableRSAChain returns a chain of certificates that specify a local OCSP server signed using RSA algorithm
+func GetRevokableRSAChain(size int) []RSACertTuple {
+	setupCertificates()
+	chain := make([]RSACertTuple, size)
+	chain[size-1] = getRevokableRSARootChainCertTuple("Notation Test Revokable RSA Chain Cert Root", size-1)
+	for i := size - 2; i > 0; i-- {
+		chain[i] = getRevokableRSAChainCertTuple(fmt.Sprintf("Notation Test Revokable RSA Chain Cert %d", size-i), &chain[i+1], i)
+	}
+	if size > 1 {
+		chain[0] = getRevokableRSALeafChainCertTuple(fmt.Sprintf("Notation Test Revokable RSA Chain Cert %d", size), &chain[1], 0)
+	}
+	return chain
 }
 
 // GetRSALeafCertificateWithoutEKU returns leaf certificate without EKU signed using RSA algorithm
@@ -93,6 +115,7 @@ func setupCertificates() {
 	setupCertificatesOnce.Do(func() {
 		rsaRoot = getRSACertTuple("Notation Test RSA Root", nil)
 		rsaLeaf = getRSACertTuple("Notation Test RSA Leaf Cert", &rsaRoot)
+		revokableRSALeaf = getRevokableRSACertTuple("Notation Test Revokable RSA Leaf Cert", &rsaRoot)
 		rsaLeafWithoutEKU = getRSACertWithoutEKUTuple("Notation Test RSA Leaf without EKU Cert", &rsaRoot)
 		ecdsaRoot = getECCertTuple("Notation Test EC Root", nil)
 		ecdsaLeaf = getECCertTuple("Notation Test EC Leaf Cert", &ecdsaRoot)
@@ -109,6 +132,40 @@ func setupCertificates() {
 func getRSACertTuple(cn string, issuer *RSACertTuple) RSACertTuple {
 	pk, _ := rsa.GenerateKey(rand.Reader, 3072)
 	return GetRSACertTupleWithPK(pk, cn, issuer)
+}
+
+func getRevokableRSACertTuple(cn string, issuer *RSACertTuple) RSACertTuple {
+	template := getCertTemplate(issuer == nil, true, cn)
+	template.OCSPServer = []string{"http://example.com/ocsp"}
+	return getRSACertTupleWithTemplate(template, issuer.PrivateKey, issuer)
+}
+
+func getRevokableRSAChainCertTuple(cn string, previous *RSACertTuple, index int) RSACertTuple {
+	template := getCertTemplate(previous == nil, true, cn)
+	template.BasicConstraintsValid = true
+	template.IsCA = true
+	template.KeyUsage = x509.KeyUsageCertSign
+	template.OCSPServer = []string{fmt.Sprintf("http://example.com/chain_ocsp/%d", index)}
+	return getRSACertTupleWithTemplate(template, previous.PrivateKey, previous)
+}
+
+func getRevokableRSARootChainCertTuple(cn string, pathLen int) RSACertTuple {
+	pk, _ := rsa.GenerateKey(rand.Reader, 3072)
+	template := getCertTemplate(true, true, cn)
+	template.BasicConstraintsValid = true
+	template.IsCA = true
+	template.KeyUsage = x509.KeyUsageCertSign
+	template.MaxPathLen = pathLen
+	return getRSACertTupleWithTemplate(template, pk, nil)
+}
+
+func getRevokableRSALeafChainCertTuple(cn string, issuer *RSACertTuple, index int) RSACertTuple {
+	template := getCertTemplate(false, true, cn)
+	template.BasicConstraintsValid = true
+	template.IsCA = false
+	template.KeyUsage = x509.KeyUsageDigitalSignature
+	template.OCSPServer = []string{fmt.Sprintf("http://example.com/chain_ocsp/%d", index)}
+	return getRSACertTupleWithTemplate(template, issuer.PrivateKey, issuer)
 }
 
 func getRSACertWithoutEKUTuple(cn string, issuer *RSACertTuple) RSACertTuple {

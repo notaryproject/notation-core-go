@@ -145,3 +145,18 @@ func (signerInfo *SignerInfo) ExtendedAttribute(key string) (Attribute, error) {
 	}
 	return Attribute{}, errors.New("key not in ExtendedAttributes")
 }
+
+// AuthenticSigningTime returns the authentic signing time
+func (signerInfo *SignerInfo) AuthenticSigningTime() (time.Time, error) {
+	switch signerInfo.SignedAttributes.SigningScheme {
+	case SigningSchemeX509SigningAuthority:
+		return signerInfo.SignedAttributes.SigningTime, nil
+	case SigningSchemeX509:
+		if len(signerInfo.UnsignedAttributes.TimestampSignature) > 0 {
+			// TODO: Add TSA support for AutheticSigningTime
+			// https://github.com/notaryproject/notation-core-go/issues/38
+			return time.Time{}, errors.New("TSA checking has not been implemented")
+		}
+	}
+	return time.Time{}, errors.New("authenticSigningTime not found")
+}
