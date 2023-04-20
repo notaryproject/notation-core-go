@@ -146,8 +146,8 @@ func (signerInfo *SignerInfo) ExtendedAttribute(key string) (Attribute, error) {
 	return Attribute{}, errors.New("key not in ExtendedAttributes")
 }
 
-// GetAuthenticSigningTime returns the authentic signing time
-func (signerInfo *SignerInfo) GetAuthenticSigningTime() (time.Time, error) {
+// AuthenticSigningTime returns the authentic signing time
+func (signerInfo *SignerInfo) AuthenticSigningTime() (time.Time, error) {
 	switch signerInfo.SignedAttributes.SigningScheme {
 	case SigningSchemeX509SigningAuthority:
 		return signerInfo.SignedAttributes.SigningTime, nil
