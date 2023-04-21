@@ -167,7 +167,7 @@ func extensionsToMap(extensions []pkix.Extension) map[string][]byte {
 func executeOCSPCheck(cert, issuer *x509.Certificate, server string, opts Options) (*ocsp.Response, error) {
 	// TODO: Look into other alternatives for specifying the Hash
 	// https://github.com/notaryproject/notation-core-go/issues/139
-	ocspRequest, err := ocsp.CreateRequest(cert, issuer, &ocsp.RequestOptions{Hash: crypto.SHA256})
+	ocspRequest, err := ocsp.CreateRequest(cert, issuer, &ocsp.RequestOptions{Hash: crypto.SHA1})
 	if err != nil {
 		return nil, GenericError{Err: err}
 	}
@@ -177,7 +177,7 @@ func executeOCSPCheck(cert, issuer *x509.Certificate, server string, opts Option
 		reader := bytes.NewReader(ocspRequest)
 		resp, err = opts.HTTPClient.Post(server, "application/ocsp-request", reader)
 	} else {
-		encodedReq := base64.URLEncoding.EncodeToString(ocspRequest)
+		encodedReq := url.QueryEscape(base64.StdEncoding.EncodeToString(ocspRequest))
 		var reqURL string
 		reqURL, err = url.JoinPath(server, encodedReq)
 		if err != nil {
