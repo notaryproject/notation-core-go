@@ -167,13 +167,21 @@ func extensionsToMap(extensions []pkix.Extension) map[string][]byte {
 func executeOCSPCheck(cert, issuer *x509.Certificate, server string, opts Options) (*ocsp.Response, error) {
 	// TODO: Look into other alternatives for specifying the Hash
 	// https://github.com/notaryproject/notation-core-go/issues/139
+	// The following do not support SHA256 hashes:
+	//  - Microsoft
+	//  - Entrust
+	//  - Let's Encrypt
+	//  - Digicert (sometimes)
+	// As this represents a large percentage of public CAs, we are using the
+	// hashing algorithm SHA1, which has been confirmed to be supported by all
+	// that were tested.
 	ocspRequest, err := ocsp.CreateRequest(cert, issuer, &ocsp.RequestOptions{Hash: crypto.SHA1})
 	if err != nil {
 		return nil, GenericError{Err: err}
 	}
 
 	var resp *http.Response
-	if base64.URLEncoding.EncodedLen(len(ocspRequest)) >= 255 {
+	if base64.StdEncoding.EncodedLen(len(ocspRequest)) >= 255 {
 		reader := bytes.NewReader(ocspRequest)
 		resp, err = opts.HTTPClient.Post(server, "application/ocsp-request", reader)
 	} else {
