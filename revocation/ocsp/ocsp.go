@@ -182,9 +182,8 @@ func executeOCSPCheck(cert, issuer *x509.Certificate, server string, opts Option
 
 	var resp *http.Response
 	postRequired := base64.StdEncoding.EncodedLen(len(ocspRequest)) >= 255
-	var encodedReq string
 	if !postRequired {
-		encodedReq = url.QueryEscape(base64.StdEncoding.EncodeToString(ocspRequest))
+		encodedReq := url.QueryEscape(base64.StdEncoding.EncodeToString(ocspRequest))
 		if len(encodedReq) < 255 {
 			var reqURL string
 			reqURL, err = url.JoinPath(server, encodedReq)
