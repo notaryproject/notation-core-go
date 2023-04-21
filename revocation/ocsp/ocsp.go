@@ -181,11 +181,16 @@ func executeOCSPCheck(cert, issuer *x509.Certificate, server string, opts Option
 	}
 
 	var resp *http.Response
-	if base64.StdEncoding.EncodedLen(len(ocspRequest)) >= 255 {
+	postRequired := base64.StdEncoding.EncodedLen(len(ocspRequest)) >= 255
+	var encodedReq string
+	if !postRequired {
+		encodedReq = url.QueryEscape(base64.StdEncoding.EncodeToString(ocspRequest))
+		postRequired = len(encodedReq) >= 255
+	}
+	if postRequired {
 		reader := bytes.NewReader(ocspRequest)
 		resp, err = opts.HTTPClient.Post(server, "application/ocsp-request", reader)
 	} else {
-		encodedReq := url.QueryEscape(base64.StdEncoding.EncodeToString(ocspRequest))
 		var reqURL string
 		reqURL, err = url.JoinPath(server, encodedReq)
 		if err != nil {
