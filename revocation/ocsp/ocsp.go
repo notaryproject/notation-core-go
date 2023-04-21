@@ -167,23 +167,35 @@ func extensionsToMap(extensions []pkix.Extension) map[string][]byte {
 func executeOCSPCheck(cert, issuer *x509.Certificate, server string, opts Options) (*ocsp.Response, error) {
 	// TODO: Look into other alternatives for specifying the Hash
 	// https://github.com/notaryproject/notation-core-go/issues/139
-	ocspRequest, err := ocsp.CreateRequest(cert, issuer, &ocsp.RequestOptions{Hash: crypto.SHA256})
+	// The following do not support SHA256 hashes:
+	//  - Microsoft
+	//  - Entrust
+	//  - Let's Encrypt
+	//  - Digicert (sometimes)
+	// As this represents a large percentage of public CAs, we are using the
+	// hashing algorithm SHA1, which has been confirmed to be supported by all
+	// that were tested.
+	ocspRequest, err := ocsp.CreateRequest(cert, issuer, &ocsp.RequestOptions{Hash: crypto.SHA1})
 	if err != nil {
 		return nil, GenericError{Err: err}
 	}
 
 	var resp *http.Response
-	if base64.URLEncoding.EncodedLen(len(ocspRequest)) >= 255 {
-		reader := bytes.NewReader(ocspRequest)
-		resp, err = opts.HTTPClient.Post(server, "application/ocsp-request", reader)
-	} else {
-		encodedReq := base64.URLEncoding.EncodeToString(ocspRequest)
-		var reqURL string
-		reqURL, err = url.JoinPath(server, encodedReq)
-		if err != nil {
-			return nil, GenericError{Err: err}
+	postRequired := base64.StdEncoding.EncodedLen(len(ocspRequest)) >= 255
+	if !postRequired {
+		encodedReq := url.QueryEscape(base64.StdEncoding.EncodeToString(ocspRequest))
+		if len(encodedReq) < 255 {
+			var reqURL string
+			reqURL, err = url.JoinPath(server, encodedReq)
+			if err != nil {
+				return nil, GenericError{Err: err}
+			}
+			resp, err = opts.HTTPClient.Get(reqURL)
+		} else {
+			resp, err = postRequest(ocspRequest, server, opts.HTTPClient)
 		}
-		resp, err = opts.HTTPClient.Get(reqURL)
+	} else {
+		resp, err = postRequest(ocspRequest, server, opts.HTTPClient)
 	}
 
 	if err != nil {
@@ -218,6 +230,11 @@ func executeOCSPCheck(cert, issuer *x509.Certificate, server string, opts Option
 	}
 
 	return ocsp.ParseResponseForCert(body, cert, issuer)
+}
+
+func postRequest(req []byte, server string, httpClient *http.Client) (*http.Response, error) {
+	reader := bytes.NewReader(req)
+	return httpClient.Post(server, "application/ocsp-request", reader)
 }
 
 func toServerResult(server string, err error) *result.ServerResult {
