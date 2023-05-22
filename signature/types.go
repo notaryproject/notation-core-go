@@ -26,7 +26,7 @@ const (
 // SignedAttributes represents signed metadata in the signature envelope.
 // Reference: https://github.com/notaryproject/notaryproject/blob/main/signature-specification.md#signed-attributes
 type SignedAttributes struct {
-	// SigningScheme defines the Notary v2 Signing Scheme used by the signature.
+	// SigningScheme defines the Notary Project Signing Scheme used by the signature.
 	SigningScheme SigningScheme
 
 	// SigningTime indicates the time at which the signature was generated.
@@ -86,7 +86,7 @@ type SignRequest struct {
 	// that produced the signature on behalf of the user.
 	SigningAgent string
 
-	// SigningScheme defines the Notary v2 Signing Scheme used by the signature.
+	// SigningScheme defines the Notary Project Signing Scheme used by the signature.
 	SigningScheme SigningScheme
 }
 
