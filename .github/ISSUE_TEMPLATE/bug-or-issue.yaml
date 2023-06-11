@@ -18,15 +18,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thank you for taking the time to fill out this issue report. 🛑 Please check existing issues first before continuing: https://github.com/notaryproject/notation/issues
-  - type: dropdown
-    id: area
-    validations:
-      required: true
-    attributes:
-      label: "What is the areas you experience the issue in?"
-      options: 
-        - Notation-Core-Go Library
+        Thank you for taking the time to fill out this issue report. 🛑 Please check existing issues first before continuing: https://github.com/notaryproject/notation-core-go/issues
   - type: textarea
     id: verbatim
     validations:
@@ -60,8 +52,8 @@ body:
     validations:
       required: true
     attributes:
-      label: What is the version of your Notation CLI or Notation Library?
-      description: "For the CLI, you can use the command `notation version` to get it. For the libraries check the `go.mod` file."
+      label: What is the version of your notation-core-go Library?
+      description: "Check the `go.mod` file for the library version"
   - type: markdown
     attributes:
       value: |
