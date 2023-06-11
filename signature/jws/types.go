@@ -43,7 +43,7 @@ type jwsProtectedHeader struct {
 	// The "best by use" time for the artifact, as defined by the signer.
 	Expiry *time.Time `json:"io.cncf.notary.expiry,omitempty"`
 
-	// Specifies the Notary v2 Signing Scheme used by the signature.
+	// Specifies the Notary Project Signing Scheme used by the signature.
 	SigningScheme signature.SigningScheme `json:"io.cncf.notary.signingScheme"`
 
 	// The time at which the signature was generated. only valid when signing
