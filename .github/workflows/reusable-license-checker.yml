@@ -11,22 +11,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: License Checker
+name: Reusable license checker
 
 on:
-  push:
-    branches:
-      - main
-      - release-*
-  pull_request:
-    branches:
-      - main
-      - release-*
-
-permissions:
-  contents: write
-  pull-requests: write
+  workflow_call:
 
 jobs:
   check-license:
-    uses: ./.github/workflows/reusable-license-checker.yml
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Check license header
+        uses: apache/skywalking-eyes/header@v0.4.0
+        with:
+          mode: check
+          config: .github/licenserc.yml
+      - name: Check dependencies license
+        uses: apache/skywalking-eyes/dependency@v0.4.0
+        with:
+          config: .github/licenserc.yml
