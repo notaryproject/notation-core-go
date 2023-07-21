@@ -126,7 +126,7 @@ func (s *localSigner) PrivateKey() crypto.PrivateKey {
 // with one of the trusted certificates and returns a certificate that matches
 // with one of the certificates in the SignerInfo.
 //
-// Reference: https://github.com/notaryproject/notaryproject/blob/main/trust-store-trust-policy-specification.md#steps
+// Reference: https://github.com/notaryproject/notaryproject/blob/main/specs/trust-store-trust-policy.md#steps
 func VerifyAuthenticity(signerInfo *SignerInfo, trustedCerts []*x509.Certificate) (*x509.Certificate, error) {
 	if len(trustedCerts) == 0 {
 		return nil, &InvalidArgumentError{Param: "trustedCerts"}

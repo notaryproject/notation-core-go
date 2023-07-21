@@ -37,7 +37,7 @@ var kuLeafCertBlockedString = "ContentCommitment, KeyEncipherment, DataEncipherm
 // ValidateCodeSigningCertChain takes an ordered code-signing certificate chain
 // and validates issuance from leaf to root
 // Validates certificates according to this spec:
-// https://github.com/notaryproject/notaryproject/blob/main/signature-specification.md#certificate-requirements
+// https://github.com/notaryproject/notaryproject/blob/main/specs/signature-specification.md#certificate-requirements
 func ValidateCodeSigningCertChain(certChain []*x509.Certificate, signingTime *time.Time) error {
 	return validateCertChain(certChain, 0, signingTime)
 }
@@ -45,7 +45,7 @@ func ValidateCodeSigningCertChain(certChain []*x509.Certificate, signingTime *ti
 // ValidateTimeStampingCertChain takes an ordered time-stamping certificate
 // chain and validates issuance from leaf to root
 // Validates certificates according to this spec:
-// https://github.com/notaryproject/notaryproject/blob/main/signature-specification.md#certificate-requirements
+// https://github.com/notaryproject/notaryproject/blob/main/specs/signature-specification.md#certificate-requirements
 func ValidateTimeStampingCertChain(certChain []*x509.Certificate, signingTime *time.Time) error {
 	return validateCertChain(certChain, x509.ExtKeyUsageTimeStamping, signingTime)
 }

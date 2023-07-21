@@ -26,7 +26,7 @@ type Algorithm int
 
 // Signature algorithms supported by this library.
 //
-// Reference: https://github.com/notaryproject/notaryproject/blob/main/signature-specification.md#algorithm-selection
+// Reference: https://github.com/notaryproject/notaryproject/blob/main/specs/signature-specification.md#algorithm-selection
 const (
 	AlgorithmPS256 Algorithm = 1 + iota // RSASSA-PSS with SHA-256
 	AlgorithmPS384                      // RSASSA-PSS with SHA-384

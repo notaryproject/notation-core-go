@@ -24,7 +24,7 @@ type SignatureMediaType string
 
 // SigningScheme formalizes the feature set (guarantees) provided by
 // the signature.
-// Reference: https://github.com/notaryproject/notaryproject/blob/main/signing-scheme.md
+// Reference: https://github.com/notaryproject/notaryproject/blob/main/specs/signing-scheme.md
 type SigningScheme string
 
 // SigningSchemes supported by notation.
@@ -37,7 +37,7 @@ const (
 )
 
 // SignedAttributes represents signed metadata in the signature envelope.
-// Reference: https://github.com/notaryproject/notaryproject/blob/main/signature-specification.md#signed-attributes
+// Reference: https://github.com/notaryproject/notaryproject/blob/main/specs/signature-specification.md#signed-attributes
 type SignedAttributes struct {
 	// SigningScheme defines the Notary Project Signing Scheme used by the signature.
 	SigningScheme SigningScheme
@@ -53,7 +53,7 @@ type SignedAttributes struct {
 }
 
 // UnsignedAttributes represents unsigned metadata in the Signature envelope.
-// Reference: https://github.com/notaryproject/notaryproject/blob/main/signature-specification.md#unsigned-attributes
+// Reference: https://github.com/notaryproject/notaryproject/blob/main/specs/signature-specification.md#unsigned-attributes
 type UnsignedAttributes struct {
 	// TimestampSignature is a counter signature providing authentic timestamp.
 	TimestampSignature []byte

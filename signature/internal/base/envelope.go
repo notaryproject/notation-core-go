@@ -33,7 +33,7 @@ type Envelope struct {
 
 // Sign generates signature in terms of given SignRequest.
 //
-// Reference: https://github.com/notaryproject/notaryproject/blob/main/signing-and-verification-workflow.md#signing-steps
+// Reference: https://github.com/notaryproject/notaryproject/blob/main/specs/signing-and-verification-workflow.md#signing-steps
 func (e *Envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 	// Canonicalize request.
 	req.SigningTime = req.SigningTime.Truncate(time.Second)
@@ -71,7 +71,7 @@ func (e *Envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 // It returns envelope content containing the payload to be signed and
 // SignerInfo object containing the information about the signature.
 //
-// Reference: https://github.com/notaryproject/notaryproject/blob/main/trust-store-trust-policy-specification.md#steps
+// Reference: https://github.com/notaryproject/notaryproject/blob/main/specs/trust-store-trust-policy.md#steps
 func (e *Envelope) Verify() (*signature.EnvelopeContent, error) {
 	// validation before the core verify process.
 	if len(e.Raw) == 0 {
