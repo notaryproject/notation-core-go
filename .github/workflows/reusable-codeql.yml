@@ -26,11 +26,11 @@ jobs:
       security-events: write
     strategy:
       matrix:
-        go-version: [1.19, "1.20"]
+        go-version: ["1.20", "1.21"]
       fail-fast: false
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Set up Go ${{ matrix.go-version }} environment
         uses: actions/setup-go@v4
         with:
