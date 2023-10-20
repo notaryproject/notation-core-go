@@ -512,7 +512,7 @@ var kuNoDigitalSignatureLeaf = parseCertificateFromString(kuNoDigitalSignatureLe
 
 func TestFailKuNoDigitalSignatureLeaf(t *testing.T) {
 	err := validateLeafCertificate(kuNoDigitalSignatureLeaf, x509.ExtKeyUsageCodeSigning)
-	assertErrorEqual("certificate with subject \"CN=Hello\": key usage must have the bit positions for digital signature set", err, t)
+	assertErrorEqual("The certificate with subject \"CN=Hello\" is invalid. The key usage must have the bit positions for \"Digital Signature\"", err, t)
 }
 
 var kuWrongValuesLeafPem = "-----BEGIN CERTIFICATE-----\n" +
@@ -536,7 +536,7 @@ var kuWrongValuesLeaf = parseCertificateFromString(kuWrongValuesLeafPem)
 
 func TestFailKuWrongValuesLeaf(t *testing.T) {
 	err := validateLeafCertificate(kuWrongValuesLeaf, x509.ExtKeyUsageCodeSigning)
-	assertErrorEqual("certificate with subject \"CN=Hello\" is invalid: key usage must be 'Digital Signature' only, found CertSign, CRLSign", err, t)
+	assertErrorEqual("The certificate with subject \"CN=Hello\" is invalid. The key usage must be \"Digital Signature\" only, but found CertSign, CRLSign", err, t)
 }
 
 var rsaKeyTooSmallLeafPem = "-----BEGIN CERTIFICATE-----\n" +
@@ -729,7 +729,7 @@ func TestValidateLeafKeyUsage(t *testing.T) {
 				KeyUsage:   x509.KeyUsageDigitalSignature | x509.KeyUsageContentCommitment,
 				Extensions: extensions,
 			},
-			expectedErrMsg: "certificate with subject \"CN=Test CN\" is invalid: key usage must be 'Digital Signature' only, found ContentCommitment",
+			expectedErrMsg: "The certificate with subject \"CN=Test CN\" is invalid. The key usage must be \"Digital Signature\" only, but found ContentCommitment",
 		},
 		{
 			name: "Missing DigitalSignature usage",
@@ -738,7 +738,7 @@ func TestValidateLeafKeyUsage(t *testing.T) {
 				KeyUsage:   x509.KeyUsageCertSign,
 				Extensions: extensions,
 			},
-			expectedErrMsg: "certificate with subject \"CN=Test CN\": key usage must have the bit positions for digital signature set",
+			expectedErrMsg: "The certificate with subject \"CN=Test CN\" is invalid. The key usage must have the bit positions for \"Digital Signature\"",
 		},
 		{
 			name: "Invalid KeyEncipherment usage",
@@ -747,7 +747,7 @@ func TestValidateLeafKeyUsage(t *testing.T) {
 				KeyUsage:   x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
 				Extensions: extensions,
 			},
-			expectedErrMsg: "certificate with subject \"CN=Test CN\" is invalid: key usage must be 'Digital Signature' only, found KeyEncipherment",
+			expectedErrMsg: "The certificate with subject \"CN=Test CN\" is invalid. The key usage must be \"Digital Signature\" only, but found KeyEncipherment",
 		},
 		{
 			name: "Multiple Invalid usages",
@@ -756,7 +756,7 @@ func TestValidateLeafKeyUsage(t *testing.T) {
 				KeyUsage:   x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment | x509.KeyUsageDataEncipherment | x509.KeyUsageKeyAgreement | x509.KeyUsageCertSign | x509.KeyUsageCRLSign | x509.KeyUsageEncipherOnly | x509.KeyUsageDecipherOnly | x509.KeyUsageEncipherOnly | x509.KeyUsageDecipherOnly,
 				Extensions: extensions,
 			},
-			expectedErrMsg: "certificate with subject \"CN=Test CN\" is invalid: key usage must be 'Digital Signature' only, found KeyEncipherment, DataEncipherment, KeyAgreement, CertSign, CRLSign, EncipherOnly, DecipherOnly",
+			expectedErrMsg: "The certificate with subject \"CN=Test CN\" is invalid. The key usage must be \"Digital Signature\" only, but found KeyEncipherment, DataEncipherment, KeyAgreement, CertSign, CRLSign, EncipherOnly, DecipherOnly",
 		},
 	}
 
