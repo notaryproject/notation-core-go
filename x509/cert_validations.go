@@ -24,17 +24,6 @@ import (
 	"time"
 )
 
-var kuLeafCertBlocked = x509.KeyUsageContentCommitment |
-	x509.KeyUsageKeyEncipherment |
-	x509.KeyUsageDataEncipherment |
-	x509.KeyUsageKeyAgreement |
-	x509.KeyUsageCertSign |
-	x509.KeyUsageCRLSign |
-	x509.KeyUsageEncipherOnly |
-	x509.KeyUsageDecipherOnly
-var kuLeafCertBlockedString = "ContentCommitment, KeyEncipherment, DataEncipherment, KeyAgreement, " +
-	"CertSign, CRLSign, EncipherOnly, DecipherOnly"
-
 // ValidateCodeSigningCertChain takes an ordered code-signing certificate chain
 // and validates issuance from leaf to root
 // Validates certificates according to this spec:
