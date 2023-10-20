@@ -203,7 +203,7 @@ func validateLeafKeyUsage(cert *x509.Certificate) error {
 		invalidKeyUsages = append(invalidKeyUsages, "DecipherOnly")
 	}
 	if len(invalidKeyUsages) > 0 {
-		return fmt.Errorf("certificate with subject %q: key usage must not have the bit positions for %s set", cert.Subject, strings.Join(invalidKeyUsages, ", "))
+		return fmt.Errorf("certificate with subject %q is invalid: key usage must be 'Digital Signature' only, found %s", cert.Subject, strings.Join(invalidKeyUsages, ", "))
 	}
 	return nil
 }
