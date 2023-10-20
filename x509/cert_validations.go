@@ -20,6 +20,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -186,8 +187,34 @@ func validateLeafKeyUsage(cert *x509.Certificate) error {
 	if cert.KeyUsage&x509.KeyUsageDigitalSignature == 0 {
 		return fmt.Errorf("certificate with subject %q: key usage must have the bit positions for digital signature set", cert.Subject)
 	}
-	if cert.KeyUsage&kuLeafCertBlocked != 0 {
-		return fmt.Errorf("certificate with subject %q: key usage must not have the bit positions for %s set", cert.Subject, kuLeafCertBlockedString)
+
+	var invalidKeyUsages []string
+	if cert.KeyUsage&x509.KeyUsageContentCommitment != 0 {
+		invalidKeyUsages = append(invalidKeyUsages, "ContentCommitment")
+	}
+	if cert.KeyUsage&x509.KeyUsageKeyEncipherment != 0 {
+		invalidKeyUsages = append(invalidKeyUsages, "KeyEncipherment")
+	}
+	if cert.KeyUsage&x509.KeyUsageDataEncipherment != 0 {
+		invalidKeyUsages = append(invalidKeyUsages, "DataEncipherment")
+	}
+	if cert.KeyUsage&x509.KeyUsageKeyAgreement != 0 {
+		invalidKeyUsages = append(invalidKeyUsages, "KeyAgreement")
+	}
+	if cert.KeyUsage&x509.KeyUsageCertSign != 0 {
+		invalidKeyUsages = append(invalidKeyUsages, "CertSign")
+	}
+	if cert.KeyUsage&x509.KeyUsageCRLSign != 0 {
+		invalidKeyUsages = append(invalidKeyUsages, "CRLSign")
+	}
+	if cert.KeyUsage&x509.KeyUsageEncipherOnly != 0 {
+		invalidKeyUsages = append(invalidKeyUsages, "EncipherOnly")
+	}
+	if cert.KeyUsage&x509.KeyUsageDecipherOnly != 0 {
+		invalidKeyUsages = append(invalidKeyUsages, "DecipherOnly")
+	}
+	if len(invalidKeyUsages) > 0 {
+		return fmt.Errorf("certificate with subject %q: key usage must not have the bit positions for %s set", cert.Subject, strings.Join(invalidKeyUsages, ", "))
 	}
 	return nil
 }
