@@ -179,28 +179,28 @@ func validateLeafKeyUsage(cert *x509.Certificate) error {
 
 	var invalidKeyUsages []string
 	if cert.KeyUsage&x509.KeyUsageContentCommitment != 0 {
-		invalidKeyUsages = append(invalidKeyUsages, "\"ContentCommitment\"")
+		invalidKeyUsages = append(invalidKeyUsages, `"ContentCommitment"`)
 	}
 	if cert.KeyUsage&x509.KeyUsageKeyEncipherment != 0 {
-		invalidKeyUsages = append(invalidKeyUsages, "\"KeyEncipherment\"")
+		invalidKeyUsages = append(invalidKeyUsages, `"KeyEncipherment"`)
 	}
 	if cert.KeyUsage&x509.KeyUsageDataEncipherment != 0 {
-		invalidKeyUsages = append(invalidKeyUsages, "\"DataEncipherment\"")
+		invalidKeyUsages = append(invalidKeyUsages, `"DataEncipherment"`)
 	}
 	if cert.KeyUsage&x509.KeyUsageKeyAgreement != 0 {
-		invalidKeyUsages = append(invalidKeyUsages, "\"KeyAgreement\"")
+		invalidKeyUsages = append(invalidKeyUsages, `"KeyAgreement"`)
 	}
 	if cert.KeyUsage&x509.KeyUsageCertSign != 0 {
-		invalidKeyUsages = append(invalidKeyUsages, "\"CertSign\"")
+		invalidKeyUsages = append(invalidKeyUsages, `"CertSign"`)
 	}
 	if cert.KeyUsage&x509.KeyUsageCRLSign != 0 {
-		invalidKeyUsages = append(invalidKeyUsages, "\"CRLSign\"")
+		invalidKeyUsages = append(invalidKeyUsages, `"CRLSign"`)
 	}
 	if cert.KeyUsage&x509.KeyUsageEncipherOnly != 0 {
-		invalidKeyUsages = append(invalidKeyUsages, "\"EncipherOnly\"")
+		invalidKeyUsages = append(invalidKeyUsages, `"EncipherOnly"`)
 	}
 	if cert.KeyUsage&x509.KeyUsageDecipherOnly != 0 {
-		invalidKeyUsages = append(invalidKeyUsages, "\"DecipherOnly\"")
+		invalidKeyUsages = append(invalidKeyUsages, `"DecipherOnly"`)
 	}
 	if len(invalidKeyUsages) > 0 {
 		return fmt.Errorf("The certificate with subject %q is invalid. The key usage must be \"Digital Signature\" only, but found %s", cert.Subject, strings.Join(invalidKeyUsages, ", "))
