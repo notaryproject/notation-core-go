@@ -23,11 +23,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
       - name: Check license header
-        uses: Two-Hearts/skywalking-eyes/header@v0.5.0
+        uses: Two-Hearts/skywalking-eyes/header@main
         with:
           mode: check
           config: .github/licenserc.yml
       - name: Check dependencies license
-        uses: Two-Hearts/skywalking-eyes/dependency@v0.5.0
+        uses: Two-Hearts/skywalking-eyes/dependency@main
         with:
           config: .github/licenserc.yml
