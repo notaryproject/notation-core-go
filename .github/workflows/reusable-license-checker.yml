@@ -32,4 +32,4 @@ jobs:
         with:
           config: .github/licenserc.yml
           flags:
-            --compatible-with-conditions=true
+            --weak-compatible=true
