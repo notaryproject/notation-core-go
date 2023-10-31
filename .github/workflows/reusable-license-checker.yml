@@ -31,3 +31,5 @@ jobs:
         uses: Two-Hearts/skywalking-eyes/dependency@compatible-with-conditions
         with:
           config: .github/licenserc.yml
+          flags:
+            --compatible-with-conditions=true
