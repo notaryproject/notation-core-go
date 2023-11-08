@@ -23,11 +23,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
       - name: Check license header
-        uses: apache/skywalking-eyes/header@v0.4.0
+        uses: apache/skywalking-eyes/header@a790ab8dd23a7f861c18bd6aaa9b012e3a234bce
+
         with:
           mode: check
           config: .github/licenserc.yml
       - name: Check dependencies license
-        uses: apache/skywalking-eyes/dependency@v0.4.0
+        uses: apache/skywalking-eyes/dependency@a790ab8dd23a7f861c18bd6aaa9b012e3a234bce
         with:
           config: .github/licenserc.yml
+          flags:
+            --weak-compatible=true
