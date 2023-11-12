@@ -20,19 +20,9 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 )
-
-var kuLeafCertBlocked = x509.KeyUsageContentCommitment |
-	x509.KeyUsageKeyEncipherment |
-	x509.KeyUsageDataEncipherment |
-	x509.KeyUsageKeyAgreement |
-	x509.KeyUsageCertSign |
-	x509.KeyUsageCRLSign |
-	x509.KeyUsageEncipherOnly |
-	x509.KeyUsageDecipherOnly
-var kuLeafCertBlockedString = "ContentCommitment, KeyEncipherment, DataEncipherment, KeyAgreement, " +
-	"CertSign, CRLSign, EncipherOnly, DecipherOnly"
 
 // ValidateCodeSigningCertChain takes an ordered code-signing certificate chain
 // and validates issuance from leaf to root
@@ -184,10 +174,36 @@ func validateLeafKeyUsage(cert *x509.Certificate) error {
 		return err
 	}
 	if cert.KeyUsage&x509.KeyUsageDigitalSignature == 0 {
-		return fmt.Errorf("certificate with subject %q: key usage must have the bit positions for digital signature set", cert.Subject)
+		return fmt.Errorf("The certificate with subject %q is invalid. The key usage must have the bit positions for \"Digital Signature\" set", cert.Subject)
 	}
-	if cert.KeyUsage&kuLeafCertBlocked != 0 {
-		return fmt.Errorf("certificate with subject %q: key usage must not have the bit positions for %s set", cert.Subject, kuLeafCertBlockedString)
+
+	var invalidKeyUsages []string
+	if cert.KeyUsage&x509.KeyUsageContentCommitment != 0 {
+		invalidKeyUsages = append(invalidKeyUsages, `"ContentCommitment"`)
+	}
+	if cert.KeyUsage&x509.KeyUsageKeyEncipherment != 0 {
+		invalidKeyUsages = append(invalidKeyUsages, `"KeyEncipherment"`)
+	}
+	if cert.KeyUsage&x509.KeyUsageDataEncipherment != 0 {
+		invalidKeyUsages = append(invalidKeyUsages, `"DataEncipherment"`)
+	}
+	if cert.KeyUsage&x509.KeyUsageKeyAgreement != 0 {
+		invalidKeyUsages = append(invalidKeyUsages, `"KeyAgreement"`)
+	}
+	if cert.KeyUsage&x509.KeyUsageCertSign != 0 {
+		invalidKeyUsages = append(invalidKeyUsages, `"CertSign"`)
+	}
+	if cert.KeyUsage&x509.KeyUsageCRLSign != 0 {
+		invalidKeyUsages = append(invalidKeyUsages, `"CRLSign"`)
+	}
+	if cert.KeyUsage&x509.KeyUsageEncipherOnly != 0 {
+		invalidKeyUsages = append(invalidKeyUsages, `"EncipherOnly"`)
+	}
+	if cert.KeyUsage&x509.KeyUsageDecipherOnly != 0 {
+		invalidKeyUsages = append(invalidKeyUsages, `"DecipherOnly"`)
+	}
+	if len(invalidKeyUsages) > 0 {
+		return fmt.Errorf("The certificate with subject %q is invalid. The key usage must be \"Digital Signature\" only, but found %s", cert.Subject, strings.Join(invalidKeyUsages, ", "))
 	}
 	return nil
 }
