@@ -15,7 +15,9 @@ package x509
 
 import (
 	"crypto/x509"
+	"crypto/x509/pkix"
 	_ "embed"
+	"encoding/asn1"
 	"testing"
 	"time"
 
@@ -510,7 +512,7 @@ var kuNoDigitalSignatureLeaf = parseCertificateFromString(kuNoDigitalSignatureLe
 
 func TestFailKuNoDigitalSignatureLeaf(t *testing.T) {
 	err := validateLeafCertificate(kuNoDigitalSignatureLeaf, x509.ExtKeyUsageCodeSigning)
-	assertErrorEqual("certificate with subject \"CN=Hello\": key usage must have the bit positions for digital signature set", err, t)
+	assertErrorEqual("The certificate with subject \"CN=Hello\" is invalid. The key usage must have the bit positions for \"Digital Signature\" set", err, t)
 }
 
 var kuWrongValuesLeafPem = "-----BEGIN CERTIFICATE-----\n" +
@@ -534,7 +536,7 @@ var kuWrongValuesLeaf = parseCertificateFromString(kuWrongValuesLeafPem)
 
 func TestFailKuWrongValuesLeaf(t *testing.T) {
 	err := validateLeafCertificate(kuWrongValuesLeaf, x509.ExtKeyUsageCodeSigning)
-	assertErrorEqual("certificate with subject \"CN=Hello\": key usage must not have the bit positions for ContentCommitment, KeyEncipherment, DataEncipherment, KeyAgreement, CertSign, CRLSign, EncipherOnly, DecipherOnly set", err, t)
+	assertErrorEqual("The certificate with subject \"CN=Hello\" is invalid. The key usage must be \"Digital Signature\" only, but found \"CertSign\", \"CRLSign\"", err, t)
 }
 
 var rsaKeyTooSmallLeafPem = "-----BEGIN CERTIFICATE-----\n" +
@@ -697,5 +699,77 @@ func parseCertificateFromString(certPem string) *x509.Certificate {
 func assertErrorEqual(expected string, err error, t *testing.T) {
 	if err == nil || expected != err.Error() {
 		t.Fatalf("Expected error \"%v\" but was \"%v\"", expected, err)
+	}
+}
+
+func TestValidateLeafKeyUsage(t *testing.T) {
+	extensions := []pkix.Extension{{
+		Id:       asn1.ObjectIdentifier{2, 5, 29, 15}, // OID for KeyUsage
+		Critical: true,
+	}}
+
+	tests := []struct {
+		name           string
+		cert           *x509.Certificate
+		expectedErrMsg string
+	}{
+		{
+			name: "Valid DigitalSignature usage",
+			cert: &x509.Certificate{
+				Subject:    pkix.Name{CommonName: "Test CN"},
+				KeyUsage:   x509.KeyUsageDigitalSignature,
+				Extensions: extensions,
+			},
+			expectedErrMsg: "",
+		},
+		{
+			name: "Valid ContentCommitment usage",
+			cert: &x509.Certificate{
+				Subject:    pkix.Name{CommonName: "Test CN"},
+				KeyUsage:   x509.KeyUsageDigitalSignature | x509.KeyUsageContentCommitment,
+				Extensions: extensions,
+			},
+			expectedErrMsg: "The certificate with subject \"CN=Test CN\" is invalid. The key usage must be \"Digital Signature\" only, but found \"ContentCommitment\"",
+		},
+		{
+			name: "Missing DigitalSignature usage",
+			cert: &x509.Certificate{
+				Subject:    pkix.Name{CommonName: "Test CN"},
+				KeyUsage:   x509.KeyUsageCertSign,
+				Extensions: extensions,
+			},
+			expectedErrMsg: "The certificate with subject \"CN=Test CN\" is invalid. The key usage must have the bit positions for \"Digital Signature\" set",
+		},
+		{
+			name: "Invalid KeyEncipherment usage",
+			cert: &x509.Certificate{
+				Subject:    pkix.Name{CommonName: "Test CN"},
+				KeyUsage:   x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
+				Extensions: extensions,
+			},
+			expectedErrMsg: "The certificate with subject \"CN=Test CN\" is invalid. The key usage must be \"Digital Signature\" only, but found \"KeyEncipherment\"",
+		},
+		{
+			name: "Multiple Invalid usages",
+			cert: &x509.Certificate{
+				Subject:    pkix.Name{CommonName: "Test CN"},
+				KeyUsage:   x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment | x509.KeyUsageDataEncipherment | x509.KeyUsageKeyAgreement | x509.KeyUsageCertSign | x509.KeyUsageCRLSign | x509.KeyUsageEncipherOnly | x509.KeyUsageDecipherOnly | x509.KeyUsageEncipherOnly | x509.KeyUsageDecipherOnly,
+				Extensions: extensions,
+			},
+			expectedErrMsg: "The certificate with subject \"CN=Test CN\" is invalid. The key usage must be \"Digital Signature\" only, but found \"KeyEncipherment\", \"DataEncipherment\", \"KeyAgreement\", \"CertSign\", \"CRLSign\", \"EncipherOnly\", \"DecipherOnly\"",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateLeafKeyUsage(tt.cert)
+			if err != nil && tt.expectedErrMsg == "" {
+				t.Fatalf("expected no error, but got: %s", err)
+			} else if err == nil && tt.expectedErrMsg != "" {
+				t.Fatalf("expected error %q, but got none", tt.expectedErrMsg)
+			} else if err != nil && err.Error() != tt.expectedErrMsg {
+				t.Fatalf("expected error %q, but got: %s", tt.expectedErrMsg, err)
+			}
+		})
 	}
 }
