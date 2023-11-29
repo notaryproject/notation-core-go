@@ -48,8 +48,8 @@ func validateCertChain(certChain []*x509.Certificate, expectedLeafEku x509.ExtKe
 	// For self-signed signing certificate (not a CA)
 	if len(certChain) == 1 {
 		cert := certChain[0]
-		if signingTime != nil && (signingTime.Before(cert.NotBefore) || signingTime.After(cert.NotAfter)) {
-			return fmt.Errorf("certificate with subject %q was not valid at signing time of %s", cert.Subject, signingTime.UTC())
+		if signedTimeError := validateSigningTime(cert, signingTime); signedTimeError != nil {
+			return signedTimeError
 		}
 		if err := cert.CheckSignature(cert.SignatureAlgorithm, cert.RawTBSCertificate, cert.Signature); err != nil {
 			return fmt.Errorf("invalid self-signed certificate. subject: %q. Error: %w", cert.Subject, err)
@@ -61,8 +61,8 @@ func validateCertChain(certChain []*x509.Certificate, expectedLeafEku x509.ExtKe
 	}
 
 	for i, cert := range certChain {
-		if signingTime != nil && (signingTime.Before(cert.NotBefore) || signingTime.After(cert.NotAfter)) {
-			return fmt.Errorf("certificate with subject %q was not valid at signing time of %s", cert.Subject, signingTime.UTC())
+		if signedTimeError := validateSigningTime(cert, signingTime); signedTimeError != nil {
+			return signedTimeError
 		}
 		if i == len(certChain)-1 {
 			selfSigned, selfSignedError := isSelfSigned(cert)
@@ -118,6 +118,14 @@ func isIssuedBy(subject *x509.Certificate, issuer *x509.Certificate) (bool, erro
 		return false, err
 	}
 	return bytes.Equal(issuer.RawSubject, subject.RawIssuer), nil
+}
+
+func validateSigningTime(cert *x509.Certificate, signingTime *time.Time) error {
+	if signingTime != nil && (signingTime.Before(cert.NotBefore) || signingTime.After(cert.NotAfter)) {
+		return fmt.Errorf("certificate with subject %q was invalid at signing time of %s. Certificate is valid from [%s] to [%s]",
+			cert.Subject, signingTime.UTC(), cert.NotBefore.UTC(), cert.NotAfter.UTC())
+	}
+	return nil
 }
 
 func validateCACertificate(cert *x509.Certificate, expectedPathLen int) error {
