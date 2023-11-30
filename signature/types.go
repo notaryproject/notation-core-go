@@ -101,6 +101,9 @@ type SignRequest struct {
 
 	// SigningScheme defines the Notary Project Signing Scheme used by the signature.
 	SigningScheme SigningScheme
+
+	// TSAServerURL denotes the tsa server url
+	TSAServerURL string
 }
 
 // EnvelopeContent represents a combination of payload to be signed and a parsed

@@ -14,6 +14,7 @@
 package cose
 
 import (
+	"context"
 	"crypto"
 	"crypto/rand"
 	"crypto/x509"
@@ -24,8 +25,10 @@ import (
 	"time"
 
 	"github.com/fxamacker/cbor/v2"
+	"github.com/notaryproject/notation-core-go/internal/crypto/pki"
 	"github.com/notaryproject/notation-core-go/signature"
 	"github.com/notaryproject/notation-core-go/signature/internal/base"
+	"github.com/notaryproject/notation-core-go/timestamp"
 	"github.com/veraison/go-cose"
 )
 
@@ -235,9 +238,9 @@ func (e *envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 	}
 
 	// generate unprotected headers of COSE envelope
-	generateUnprotectedHeaders(req, signer, msg.Headers.Unprotected)
-
-	// TODO: needs to add headerKeyTimeStampSignature.
+	if err := generateUnprotectedHeaders(req, signer, msg.Signature, msg.Headers.Unprotected); err != nil {
+		return nil, &signature.InvalidSignatureError{Msg: err.Error()}
+	}
 
 	// encode Sign1Message into COSE_Sign1_Tagged object
 	encoded, err := msg.MarshalCBOR()
@@ -368,7 +371,11 @@ func (e *envelope) signerInfo() (*signature.SignerInfo, error) {
 		signerInfo.UnsignedAttributes.SigningAgent = h
 	}
 
-	// TODO: needs to add headerKeyTimeStampSignature.
+	// populate signerInfo.UnsignedAttributes.TimestampSignature
+	if timestamepToken, ok := e.base.Headers.Unprotected[headerLabelTimeStampSignature].([]byte); ok {
+		fmt.Println("signer info: has time stamp token")
+		signerInfo.UnsignedAttributes.TimestampSignature = timestamepToken
+	}
 
 	return &signerInfo, nil
 }
@@ -473,7 +480,7 @@ func generateProtectedHeaders(req *signature.SignRequest, protected cose.Protect
 
 // generateUnprotectedHeaders creates Unprotected Headers of the COSE envelope
 // during Sign process.
-func generateUnprotectedHeaders(req *signature.SignRequest, signer signer, unprotected cose.UnprotectedHeader) {
+func generateUnprotectedHeaders(req *signature.SignRequest, signer signer, signature []byte, unprotected cose.UnprotectedHeader) error {
 	// signing agent
 	if req.SigningAgent != "" {
 		unprotected[headerLabelSigningAgent] = req.SigningAgent
@@ -486,6 +493,31 @@ func generateUnprotectedHeaders(req *signature.SignRequest, signer signer, unpro
 		certChain[i] = c.Raw
 	}
 	unprotected[cose.HeaderLabelX5Chain] = certChain
+
+	// tsa
+	if req.TSAServerURL != "" {
+		if signature == nil {
+			return fmt.Errorf("timestamping with TSA url %s, but got nil signature", req.TSAServerURL)
+		}
+		req, err := timestamp.NewRequestFromContent(signature, crypto.Hash(signer.Algorithm()))
+		if err != nil {
+			return err
+		}
+		httpTimeStamper, err := timestamp.NewHTTPTimestamper(nil, "http://timestamp.digicert.com")
+		if err != nil {
+			return err
+		}
+		resp, err := httpTimeStamper.Timestamp(context.Background(), req)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("timestamp resp is: %+v\n", resp)
+		if resp.Status.Status != pki.StatusGranted && resp.Status.Status != pki.StatusGrantedWithMods {
+			return fmt.Errorf("tsa server response status is neither granted nor granted with mods. The status received is %v", resp.Status.Status)
+		}
+		unprotected[headerLabelTimeStampSignature] = resp.TokenBytes()
+	}
+	return nil
 }
 
 // parseProtectedHeaders parses COSE envelope's protected headers and
