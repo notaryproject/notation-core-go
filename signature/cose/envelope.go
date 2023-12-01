@@ -499,15 +499,15 @@ func generateUnprotectedHeaders(req *signature.SignRequest, signer signer, signa
 		if signature == nil {
 			return fmt.Errorf("timestamping with TSA url %s, but got nil signature", req.TSAServerURL)
 		}
-		req, err := timestamp.NewRequestFromContent(signature, crypto.Hash(signer.Algorithm()))
+		tsaRequest, err := timestamp.NewRequestFromContent(signature, crypto.Hash(signer.Algorithm()))
 		if err != nil {
 			return err
 		}
-		httpTimeStamper, err := timestamp.NewHTTPTimestamper(nil, "http://timestamp.digicert.com")
+		httpTimeStamper, err := timestamp.NewHTTPTimestamper(nil, req.TSAServerURL)
 		if err != nil {
 			return err
 		}
-		resp, err := httpTimeStamper.Timestamp(context.Background(), req)
+		resp, err := httpTimeStamper.Timestamp(context.Background(), tsaRequest)
 		if err != nil {
 			return err
 		}
