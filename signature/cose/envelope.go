@@ -499,7 +499,11 @@ func generateUnprotectedHeaders(req *signature.SignRequest, signer signer, signa
 		if signature == nil {
 			return fmt.Errorf("timestamping with TSA url %s, but got nil signature", req.TSAServerURL)
 		}
-		tsaRequest, err := timestamp.NewRequestFromContent(signature, crypto.Hash(signer.Algorithm()))
+		hash := hashFunc(signer.Algorithm())
+		if hash == 0 {
+			return fmt.Errorf("got hash value 0 due to cose algorithm %d", signer.Algorithm())
+		}
+		tsaRequest, err := timestamp.NewRequestFromContent(signature, hash)
 		if err != nil {
 			return err
 		}
@@ -732,4 +736,18 @@ func generateRawProtectedCBORMap(rawProtected cbor.RawMessage) (map[any]cbor.Raw
 	}
 
 	return headerMap, nil
+}
+
+// hashFunc maps the cose algorithm supported by go-cose to hash
+func hashFunc(alg cose.Algorithm) crypto.Hash {
+	switch alg {
+	case cose.AlgorithmPS256, cose.AlgorithmES256:
+		return crypto.SHA256
+	case cose.AlgorithmPS384, cose.AlgorithmES384:
+		return crypto.SHA384
+	case cose.AlgorithmPS512, cose.AlgorithmES512:
+		return crypto.SHA512
+	default:
+		return 0
+	}
 }
