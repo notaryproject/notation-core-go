@@ -12,8 +12,14 @@
 // limitations under the License.
 
 // Package asn1 decodes BER-encoded ASN.1 data structures and encodes in DER.
-// Note: DER is a subset of BER.
-// Reference: http://luca.ntop.org/Teaching/Appunti/asn1.html
+// Note:
+// - DER is a subset of BER.
+// - Indefinite length is not supported.
+// - The length of the encoded data must fit the memory space of the int type (4 bytes).
+//
+// Reference:
+// - http://luca.ntop.org/Teaching/Appunti/asn1.html
+// - ISO/IEC 8825-1
 package asn1
 
 import (
@@ -71,11 +77,18 @@ func ConvertToDER(ber []byte) ([]byte, error) {
 }
 
 // decode decodes BER-encoded ASN.1 data structures.
-//
-// r is the input byte slice.
-// The returned value, which is the flat slice of ASN.1 values, contains the
-// nodes from a depth-first traversal. To get the DER of `r`, encode the values
+// To get the DER of `r`, encode the values
 // in the returned slice in order.
+//
+// Parameters:
+// r - The input byte slice.
+//
+// Return:
+// []value - The returned value, which is the flat slice of ASN.1 values,
+// contains the nodes from a depth-first traversal.
+// error - An error that can occur during the decoding process.
+//
+// Reference: ISO/IEC 8825-1: 8.1.1.3
 func decode(r []byte) ([]value, error) {
 	// prepare the first value
 	identifier, content, r, err := decodeMetadata(r)
@@ -150,11 +163,21 @@ func decode(r []byte) ([]value, error) {
 
 // decodeMetadata decodes the metadata of a BER-encoded ASN.1 value.
 //
-// r is the input byte slice.
-// The first return value is the identifier octets.
-// The second return value is the content octets.
-// The third return value is the subsequent octets after the value.
+// Parameters:
+// r - The input byte slice.
+//
+// Return:
+// []byte - The identifier octets.
+// []byte - The content octets.
+// []byte - The subsequent octets after the value.
+// error - An error that can occur during the decoding process.
+//
+// Reference: ISO/IEC 8825-1: 8.1.1.3
 func decodeMetadata(r []byte) ([]byte, []byte, []byte, error) {
+	// structure of an encoding (primitive or constructed)
+	// +----------------+----------------+----------------+
+	// | identifier     | length         | content        |
+	// +----------------+----------------+----------------+
 	identifier, r, err := decodeIdentifier(r)
 	if err != nil {
 		return nil, nil, nil, err
@@ -172,9 +195,15 @@ func decodeMetadata(r []byte) ([]byte, []byte, []byte, error) {
 
 // decodeIdentifier decodes decodeIdentifier octets.
 //
-// r is the input byte slice.
-// The first return value is the identifier octets.
-// The second return value is the subsequent value after the identifiers octets.
+// Parameters:
+// r - The input byte slice from which the identifier octets are to be decoded.
+//
+// Returns:
+// []byte - The identifier octets decoded from the input byte slice.
+// []byte - The remaining part of the input byte slice after the identifier octets.
+// error - An error that can occur during the decoding process.
+//
+// Reference: ISO/IEC 8825-1: 8.1.2
 func decodeIdentifier(r []byte) ([]byte, []byte, error) {
 	if len(r) < 1 {
 		return nil, nil, ErrEarlyEOF
@@ -184,6 +213,7 @@ func decodeIdentifier(r []byte) ([]byte, []byte, error) {
 	offset++
 
 	// high-tag-number form
+	// Reference: ISO/IEC 8825-1: 8.1.2.4
 	if b&0x1f == 0x1f {
 		for offset < len(r) && r[offset]&0x80 == 0x80 {
 			offset++
@@ -199,9 +229,15 @@ func decodeIdentifier(r []byte) ([]byte, []byte, error) {
 // decodeLength decodes length octets.
 // Indefinite length is not supported
 //
-// r is the input byte slice.
-// The first return value is the length.
-// The second return value is the subsequent value after the length octets.
+// Parameters:
+// r - The input byte slice from which the length octets are to be decoded.
+//
+// Returns:
+// int - The length decoded from the input byte slice.
+// []byte - The remaining part of the input byte slice after the length octets.
+// error - An error that can occur during the decoding process.
+//
+// Reference: ISO/IEC 8825-1: 8.1.3
 func decodeLength(r []byte) (int, []byte, error) {
 	if len(r) < 1 {
 		return 0, nil, ErrEarlyEOF
@@ -212,16 +248,19 @@ func decodeLength(r []byte) (int, []byte, error) {
 
 	if b < 0x80 {
 		// short form
+		// Reference: ISO/IEC 8825-1: 8.1.3.4
 		return int(b), r[offset:], nil
 	} else if b == 0x80 {
 		// Indefinite-length method is not supported.
+		// Reference: ISO/IEC 8825-1: 8.1.3.6.1
 		return 0, nil, ErrUnsupportedIndefiniteLength
 	}
 
 	// long form
+	// Reference: ISO/IEC 8825-1: 8.1.3.5
 	n := int(b & 0x7f)
 	if n > 4 {
-		// length must fit the memory space of the int type.
+		// length must fit the memory space of the int type (4 bytes).
 		return 0, nil, ErrUnsupportedLength
 	}
 	if offset+n >= len(r) {
@@ -242,6 +281,7 @@ func decodeLength(r []byte) (int, []byte, error) {
 
 // isPrimitive returns true if the first identifier octet is marked
 // as primitive.
+// Reference: ISO/IEC 8825-1: 8.1.2.5
 func isPrimitive(identifier []byte) bool {
 	return identifier[0]&0x20 == 0
 }
