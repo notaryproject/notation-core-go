@@ -20,9 +20,11 @@ import (
 
 func TestConvertToDER(t *testing.T) {
 	var testBytes = make([]byte, 0xFFFFFFFF+8)
+	// primitive identifier
 	testBytes[0] = 0x1f
 	testBytes[1] = 0xa0
 	testBytes[2] = 0x20
+	// length
 	testBytes[3] = 0x84
 	testBytes[4] = 0xFF
 	testBytes[5] = 0xFF
