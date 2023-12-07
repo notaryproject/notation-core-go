@@ -14,18 +14,28 @@
 package asn1
 
 import (
-	"fmt"
 	"reflect"
 	"testing"
 )
 
 func TestConvertToDER(t *testing.T) {
-	testData := []struct {
+	var testBytes = make([]byte, 0xFFFFFFFF)
+	testBytes[0] = 0x1f
+	testBytes[1] = 0xa0
+	testBytes[2] = 0x20
+	testBytes[3] = 0x84
+	testBytes[4] = 0xFF
+	testBytes[5] = 0xFF
+	testBytes[6] = 0xFF
+	testBytes[7] = 0xFF
+
+	type data struct {
 		name        string
 		ber         []byte
 		der         []byte
 		expectError bool
-	}{
+	}
+	testData := []data{
 		{
 			name: "Constructed value",
 			ber: []byte{
@@ -175,7 +185,7 @@ func TestConvertToDER(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name: "EOF for identifier high tag number form",
+			name: "EarlyEOF for identifier high tag number form",
 			ber: []byte{
 				// Primitive value
 				// identifier
@@ -185,7 +195,7 @@ func TestConvertToDER(t *testing.T) {
 			expectError: true,
 		},
 		{
-			name: "EOF for length",
+			name: "EarlyEOF for length",
 			ber: []byte{
 				// Primitive value
 				// identifier
@@ -219,7 +229,7 @@ func TestConvertToDER(t *testing.T) {
 			expectError: true,
 		},
 		{
-			name: "long form length EOF ",
+			name: "long form length EarlyEOF ",
 			ber: []byte{
 				// Primitive value
 				// identifier
@@ -227,18 +237,6 @@ func TestConvertToDER(t *testing.T) {
 				// length
 				0x84,
 			},
-			der:         []byte{},
-			expectError: true,
-		},
-		{
-			name: "length greater > int32",
-			ber: append([]byte{
-				// Primitive value
-				// identifier
-				0x1f, 0xa0, 0x20,
-				// length
-				0x84, 0xFF, 0xFF, 0xFF, 0xFF,
-			}, make([]byte, 0xFFFFFFFF)...),
 			der:         []byte{},
 			expectError: true,
 		},
@@ -269,7 +267,7 @@ func TestConvertToDER(t *testing.T) {
 			expectError: true,
 		},
 		{
-			name: "EOF in constructed value",
+			name: "EarlyEOF in constructed value",
 			ber: []byte{
 				// Constructed value
 				0x30,
@@ -294,11 +292,16 @@ func TestConvertToDER(t *testing.T) {
 			},
 			expectError: true,
 		},
+		{
+			name:        "length greater > int32",
+			ber:         testBytes[:],
+			der:         []byte{},
+			expectError: true,
+		},
 	}
 
 	for _, tt := range testData {
 		der, err := ConvertToDER(tt.ber)
-		fmt.Printf("DER: %x\n", der)
 		if !tt.expectError && err != nil {
 			t.Errorf("ConvertToDER() error = %v, but expect no error", err)
 			return
