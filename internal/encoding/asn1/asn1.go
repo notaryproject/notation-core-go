@@ -19,23 +19,28 @@
 //
 // Reference:
 // - http://luca.ntop.org/Teaching/Appunti/asn1.html
-// - ISO/IEC 8825-1
+// - ISO/IEC 8825-1:2021
 package asn1
 
 import (
 	"bytes"
 	"encoding/asn1"
+	"fmt"
 )
 
 // Common errors
 var (
-	ErrEarlyEOF                    = asn1.SyntaxError{Msg: "early EOF"}
-	ErrTrailingData                = asn1.SyntaxError{Msg: "trailing data"}
-	ErrUnsupportedLength           = asn1.StructuralError{Msg: "length method not supported"}
+	// ErrUnsupportedLength indicates that the length of the encoded data
+	// does not fit the memory space of the int type (4 bytes) or the length
+	// of the encoded data is negative
+	ErrUnsupportedLength = asn1.StructuralError{Msg: "length method not supported"}
+
+	// ErrUnsupportedIndefiniteLength indicates that the indefinite-length
+	// method is not supported
 	ErrUnsupportedIndefiniteLength = asn1.StructuralError{Msg: "indefinite length not supported"}
 )
 
-// value represents an ASN.1 value.
+// value is the interface for an ASN.1 value node.
 type value interface {
 	// EncodeMetadata encodes the identifier and length in DER to the buffer.
 	EncodeMetadata(*bytes.Buffer) error
@@ -50,8 +55,8 @@ type value interface {
 	Content() []byte
 }
 
-// ConvertToDER converts BER-encoded ASN.1 data structures to DER-encoded.
-func ConvertToDER(ber []byte) ([]byte, error) {
+// ConvertBERToDER converts BER-encoded ASN.1 data structures to DER-encoded.
+func ConvertBERToDER(ber []byte) ([]byte, error) {
 	flatValues, err := decode(ber)
 	if err != nil {
 		return nil, err
@@ -91,26 +96,26 @@ func ConvertToDER(ber []byte) ([]byte, error) {
 // Reference: ISO/IEC 8825-1: 8.1.1.3
 func decode(r []byte) ([]value, error) {
 	// prepare the first value
-	identifier, content, r, err := decodeMetadata(r)
+	identifier, contentLen, r, err := decodeMetadata(r)
 	if err != nil {
 		return nil, err
 	}
-	if len(r) != 0 {
-		return nil, ErrTrailingData
+	if len(r) != contentLen {
+		return nil, asn1.StructuralError{Msg: fmt.Sprintf("length octets value %d does not match with content length %d", contentLen, len(r))}
 	}
 
 	// primitive value
 	if isPrimitive(identifier) {
 		return []value{&primitiveValue{
 			identifier: identifier,
-			content:    content,
+			content:    r,
 		}}, nil
 	}
 
 	// constructed value
 	rootConstructed := &constructedValue{
 		identifier: identifier,
-		rawContent: content,
+		rawContent: r,
 	}
 	flatValues := []value{rootConstructed}
 
@@ -133,23 +138,26 @@ func decode(r []byte) ([]value, error) {
 		}
 
 		// decode the next member of the constructed value
-		identifier, content, node.rawContent, err = decodeMetadata(node.rawContent)
+		nextNodeIdentifier, nextNodeContentLen, remainingContent, err := decodeMetadata(node.rawContent)
 		if err != nil {
 			return nil, err
 		}
-		if isPrimitive(identifier) {
+		nextNodeContent := remainingContent[:nextNodeContentLen]
+		node.rawContent = remainingContent[nextNodeContentLen:]
+
+		if isPrimitive(nextNodeIdentifier) {
 			// primitive value
 			primitiveNode := &primitiveValue{
-				identifier: identifier,
-				content:    content,
+				identifier: nextNodeIdentifier,
+				content:    nextNodeContent,
 			}
 			node.members = append(node.members, primitiveNode)
 			flatValues = append(flatValues, primitiveNode)
 		} else {
 			// constructed value
 			constructedNode := &constructedValue{
-				identifier: identifier,
-				rawContent: content,
+				identifier: nextNodeIdentifier,
+				rawContent: nextNodeContent,
 			}
 			node.members = append(node.members, constructedNode)
 
@@ -168,29 +176,27 @@ func decode(r []byte) ([]value, error) {
 //
 // Return:
 // []byte - The identifier octets.
-// []byte - The content octets.
-// []byte - The subsequent octets after the value.
+// int - The length octets value.
+// []byte - The subsequent octets after the length octets.
 // error - An error that can occur during the decoding process.
 //
 // Reference: ISO/IEC 8825-1: 8.1.1.3
-func decodeMetadata(r []byte) ([]byte, []byte, []byte, error) {
+func decodeMetadata(r []byte) ([]byte, int, []byte, error) {
 	// structure of an encoding (primitive or constructed)
 	// +----------------+----------------+----------------+
 	// | identifier     | length         | content        |
 	// +----------------+----------------+----------------+
 	identifier, r, err := decodeIdentifier(r)
 	if err != nil {
-		return nil, nil, nil, err
-	}
-	contentLen, r, err := decodeLength(r)
-	if err != nil {
-		return nil, nil, nil, err
+		return nil, -1, nil, err
 	}
 
-	if contentLen > len(r) {
-		return nil, nil, nil, ErrEarlyEOF
+	contentLen, r, err := decodeLength(r)
+	if err != nil {
+		return nil, -1, nil, err
 	}
-	return identifier, r[:contentLen], r[contentLen:], nil
+
+	return identifier, contentLen, r, nil
 }
 
 // decodeIdentifier decodes decodeIdentifier octets.
@@ -206,7 +212,7 @@ func decodeMetadata(r []byte) ([]byte, []byte, []byte, error) {
 // Reference: ISO/IEC 8825-1: 8.1.2
 func decodeIdentifier(r []byte) ([]byte, []byte, error) {
 	if len(r) < 1 {
-		return nil, nil, ErrEarlyEOF
+		return nil, nil, asn1.SyntaxError{Msg: "decoding BER identifier octets: identifier octets is empty"}
 	}
 	offset := 0
 	b := r[offset]
@@ -219,9 +225,13 @@ func decodeIdentifier(r []byte) ([]byte, []byte, error) {
 			offset++
 		}
 		if offset >= len(r) {
-			return nil, nil, ErrEarlyEOF
+			return nil, nil, asn1.SyntaxError{Msg: "decoding BER identifier octets: high-tag-number form with early EOF"}
 		}
 		offset++
+	}
+
+	if offset >= len(r) {
+		return nil, nil, asn1.SyntaxError{Msg: "decoding BER identifier octets: early EOF due to missing length and content octets"}
 	}
 	return r[:offset], r[offset:], nil
 }
@@ -240,7 +250,7 @@ func decodeIdentifier(r []byte) ([]byte, []byte, error) {
 // Reference: ISO/IEC 8825-1: 8.1.3
 func decodeLength(r []byte) (int, []byte, error) {
 	if len(r) < 1 {
-		return 0, nil, ErrEarlyEOF
+		return 0, nil, asn1.SyntaxError{Msg: "decoding BER length octets: length octets is empty"}
 	}
 	offset := 0
 	b := r[offset]
@@ -249,7 +259,12 @@ func decodeLength(r []byte) (int, []byte, error) {
 	if b < 0x80 {
 		// short form
 		// Reference: ISO/IEC 8825-1: 8.1.3.4
-		return int(b), r[offset:], nil
+		contentLen := int(b)
+		subsequentOctets := r[offset:]
+		if contentLen > len(subsequentOctets) {
+			return 0, nil, asn1.SyntaxError{Msg: "decoding BER length octets: short form length octets value should be less or equal to the subsequent octets length"}
+		}
+		return contentLen, subsequentOctets, nil
 	} else if b == 0x80 {
 		// Indefinite-length method is not supported.
 		// Reference: ISO/IEC 8825-1: 8.1.3.6.1
@@ -264,7 +279,7 @@ func decodeLength(r []byte) (int, []byte, error) {
 		return 0, nil, ErrUnsupportedLength
 	}
 	if offset+n >= len(r) {
-		return 0, nil, ErrEarlyEOF
+		return 0, nil, asn1.StructuralError{Msg: "decoding BER length octets: the long form length octets is not complete"}
 	}
 	var length uint64
 	for i := 0; i < n; i++ {
@@ -274,9 +289,15 @@ func decodeLength(r []byte) (int, []byte, error) {
 
 	// length must fit the memory space of the int32.
 	if (length >> 31) > 0 {
-		return 0, nil, ErrUnsupportedLength
+		return 0, nil, asn1.StructuralError{Msg: fmt.Sprintf("length %d does not fit the memory space of int32", length)}
 	}
-	return int(length), r[offset:], nil
+
+	contentLen := int(length)
+	subsequentOctets := r[offset:]
+	if contentLen > len(subsequentOctets) {
+		return 0, nil, asn1.SyntaxError{Msg: "decoding BER length octets: long form length octets value should be less or equal to the subsequent octets length"}
+	}
+	return contentLen, subsequentOctets, nil
 }
 
 // isPrimitive returns true if the first identifier octet is marked
