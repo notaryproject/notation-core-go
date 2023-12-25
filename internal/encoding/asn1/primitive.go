@@ -15,14 +15,15 @@ package asn1
 
 import "bytes"
 
-// primitiveValue represents a value in primitive encoding.
-type primitiveValue struct {
+// primitive represents a value in primitive encoding.
+type primitive struct {
 	identifier []byte
 	content    []byte
 }
 
-// EncodeMetadata encodes the primitive value to the value writer in DER.
-func (v *primitiveValue) EncodeMetadata(w *bytes.Buffer) error {
+// EncodeMetadata encodes the identifier and length octets of primitive to
+// the value writer in DER.
+func (v *primitive) EncodeMetadata(w *bytes.Buffer) error {
 	_, err := w.Write(v.identifier)
 	if err != nil {
 		return err
@@ -30,12 +31,12 @@ func (v *primitiveValue) EncodeMetadata(w *bytes.Buffer) error {
 	return encodeLength(w, len(v.content))
 }
 
-// EncodedLen returns the length in bytes of the encoded data.
-func (v *primitiveValue) EncodedLen() int {
+// EncodedLen returns the length in bytes of the primitive when encoded in DER.
+func (v *primitive) EncodedLen() int {
 	return len(v.identifier) + encodedLengthSize(len(v.content)) + len(v.content)
 }
 
 // Content returns the content of the value.
-func (v *primitiveValue) Content() []byte {
+func (v *primitive) Content() []byte {
 	return v.content
 }

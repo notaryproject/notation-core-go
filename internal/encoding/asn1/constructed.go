@@ -15,16 +15,17 @@ package asn1
 
 import "bytes"
 
-// constructedValue represents a value in constructed encoding.
-type constructedValue struct {
+// constructed represents a value in constructed.
+type constructed struct {
 	identifier []byte
-	length     int
+	length     int // length of this constructed value's memebers in bytes when encoded in DER
 	members    []value
 	rawContent []byte // the raw content of BER
 }
 
-// EncodeMetadata encodes the constructed value to the value writer in DER.
-func (v *constructedValue) EncodeMetadata(w *bytes.Buffer) error {
+// EncodeMetadata encodes the identifier and length octets of constructed
+// to the value writer in DER.
+func (v *constructed) EncodeMetadata(w *bytes.Buffer) error {
 	_, err := w.Write(v.identifier)
 	if err != nil {
 		return err
@@ -32,12 +33,13 @@ func (v *constructedValue) EncodeMetadata(w *bytes.Buffer) error {
 	return encodeLength(w, v.length)
 }
 
-// EncodedLen returns the length in bytes of the encoded data.
-func (v *constructedValue) EncodedLen() int {
+// EncodedLen returns the length in bytes of the constructed when encoded
+// in DER.
+func (v *constructed) EncodedLen() int {
 	return len(v.identifier) + encodedLengthSize(v.length) + v.length
 }
 
 // Content returns the content of the value.
-func (v *constructedValue) Content() []byte {
+func (v *constructed) Content() []byte {
 	return nil
 }
