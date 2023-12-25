@@ -29,13 +29,6 @@ import (
 	"fmt"
 )
 
-// Common errors
-var (
-	// ErrUnsupportedIndefiniteLength indicates that the indefinite-length
-	// method is not supported
-	ErrUnsupportedIndefiniteLength = asn1.StructuralError{Msg: "indefinite length not supported"}
-)
-
 // value is the interface for an ASN.1 value node.
 type value interface {
 	// EncodeMetadata encodes the identifier and length in DER to the buffer.
@@ -268,7 +261,7 @@ func decodeLength(r []byte) (int, []byte, error) {
 	} else if b == 0x80 {
 		// Indefinite-length method is not supported.
 		// Reference: ISO/IEC 8825-1: 8.1.3.6.1
-		return 0, nil, ErrUnsupportedIndefiniteLength
+		return 0, nil, asn1.StructuralError{Msg: "indefinite length not supported"}
 	}
 
 	// long form
