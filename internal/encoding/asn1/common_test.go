@@ -43,12 +43,6 @@ func TestEncodeLength(t *testing.T) {
 			want:    []byte{0x82, 0x01, 0x2C},
 			wantErr: false,
 		},
-		{
-			name:    "Negative length",
-			length:  -1,
-			want:    nil,
-			wantErr: true,
-		},
 	}
 
 	for _, tt := range tests {

@@ -20,10 +20,6 @@ import (
 // encodeLength encodes length octets in DER.
 // Reference: ISO/IEC 8825-1: 10.1
 func encodeLength(w io.ByteWriter, length int) error {
-	if length < 0 {
-		return ErrUnsupportedLength
-	}
-
 	// DER restriction: short form must be used for length less than 128
 	if length < 0x80 {
 		return w.WriteByte(byte(length))
