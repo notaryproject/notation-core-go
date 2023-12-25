@@ -31,11 +31,6 @@ import (
 
 // Common errors
 var (
-	// ErrUnsupportedLength indicates that the length of the encoded data
-	// does not fit the memory space of the int type (4 bytes) or the length
-	// of the encoded data is negative
-	ErrUnsupportedLength = asn1.StructuralError{Msg: "length method not supported"}
-
 	// ErrUnsupportedIndefiniteLength indicates that the indefinite-length
 	// method is not supported
 	ErrUnsupportedIndefiniteLength = asn1.StructuralError{Msg: "indefinite length not supported"}
