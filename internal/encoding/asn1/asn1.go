@@ -13,9 +13,10 @@
 
 // Package asn1 decodes BER-encoded ASN.1 data structures and encodes in DER.
 // Note:
-// - DER is a subset of BER.
-// - Indefinite length is not supported.
-// - The length of the encoded data must fit the memory space of the int type (4 bytes).
+//   - DER is a subset of BER.
+//   - Indefinite length is not supported.
+//   - The length of the encoded data must fit the memory space of the int type
+//     (4 bytes).
 //
 // Reference:
 // - http://luca.ntop.org/Teaching/Appunti/asn1.html
@@ -57,6 +58,10 @@ type value interface {
 
 // ConvertBERToDER converts BER-encoded ASN.1 data structures to DER-encoded.
 func ConvertBERToDER(ber []byte) ([]byte, error) {
+	if ber == nil || len(ber) == 0 {
+		return nil, asn1.SyntaxError{Msg: "BER-encoded ASN.1 data structures is empty"}
+	}
+
 	flatValues, err := decode(ber)
 	if err != nil {
 		return nil, err
@@ -106,21 +111,21 @@ func decode(r []byte) ([]value, error) {
 
 	// primitive value
 	if isPrimitive(identifier) {
-		return []value{&primitiveValue{
+		return []value{&primitive{
 			identifier: identifier,
 			content:    r,
 		}}, nil
 	}
 
 	// constructed value
-	rootConstructed := &constructedValue{
+	rootConstructed := &constructed{
 		identifier: identifier,
 		rawContent: r,
 	}
 	flatValues := []value{rootConstructed}
 
 	// start depth-first decoding with stack
-	valueStack := []*constructedValue{rootConstructed}
+	valueStack := []*constructed{rootConstructed}
 	for len(valueStack) > 0 {
 		stackLen := len(valueStack)
 		// top
@@ -147,7 +152,7 @@ func decode(r []byte) ([]value, error) {
 
 		if isPrimitive(nextNodeIdentifier) {
 			// primitive value
-			primitiveNode := &primitiveValue{
+			primitiveNode := &primitive{
 				identifier: nextNodeIdentifier,
 				content:    nextNodeContent,
 			}
@@ -155,7 +160,7 @@ func decode(r []byte) ([]value, error) {
 			flatValues = append(flatValues, primitiveNode)
 		} else {
 			// constructed value
-			constructedNode := &constructedValue{
+			constructedNode := &constructed{
 				identifier: nextNodeIdentifier,
 				rawContent: nextNodeContent,
 			}
@@ -188,12 +193,12 @@ func decodeMetadata(r []byte) ([]byte, int, []byte, error) {
 	// +----------------+----------------+----------------+
 	identifier, r, err := decodeIdentifier(r)
 	if err != nil {
-		return nil, -1, nil, err
+		return nil, 0, nil, err
 	}
 
 	contentLen, r, err := decodeLength(r)
 	if err != nil {
-		return nil, -1, nil, err
+		return nil, 0, nil, err
 	}
 
 	return identifier, contentLen, r, nil
@@ -276,10 +281,10 @@ func decodeLength(r []byte) (int, []byte, error) {
 	n := int(b & 0x7f)
 	if n > 4 {
 		// length must fit the memory space of the int type (4 bytes).
-		return 0, nil, ErrUnsupportedLength
+		return 0, nil, asn1.StructuralError{Msg: fmt.Sprintf("length of encoded data (%d bytes) cannot exceed 4 bytes", n)}
 	}
 	if offset+n >= len(r) {
-		return 0, nil, asn1.StructuralError{Msg: "decoding BER length octets: the long form length octets is not complete"}
+		return 0, nil, asn1.StructuralError{Msg: "decoding BER length octets: long form length octets with early EOF"}
 	}
 	var length uint64
 	for i := 0; i < n; i++ {

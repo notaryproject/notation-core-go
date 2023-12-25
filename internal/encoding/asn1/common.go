@@ -43,7 +43,8 @@ func encodeLength(w io.ByteWriter, length int) error {
 	return nil
 }
 
-// encodedLengthSize gives the number of octets used for encoding the length.
+// encodedLengthSize gives the number of octets used for encoding the length
+// in DER.
 // Reference: ISO/IEC 8825-1: 10.1
 func encodedLengthSize(length int) int {
 	if length < 0x80 {
