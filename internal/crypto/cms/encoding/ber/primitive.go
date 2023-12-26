@@ -11,35 +11,32 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package asn1
+package ber
 
 import "bytes"
 
-// constructed represents a value in constructed.
-type constructed struct {
+// primitive represents a value in primitive encoding.
+type primitive struct {
 	identifier []byte
-	length     int // length of this constructed value's memebers in bytes when encoded in DER
-	members    []value
-	rawContent []byte // the raw content of BER
+	content    []byte
 }
 
-// EncodeMetadata encodes the identifier and length octets of constructed
-// to the value writer in DER.
-func (v *constructed) EncodeMetadata(w *bytes.Buffer) error {
+// EncodeMetadata encodes the identifier and length octets of primitive to
+// the value writer in DER.
+func (v *primitive) EncodeMetadata(w *bytes.Buffer) error {
 	_, err := w.Write(v.identifier)
 	if err != nil {
 		return err
 	}
-	return encodeLength(w, v.length)
+	return encodeLength(w, len(v.content))
 }
 
-// EncodedLen returns the length in bytes of the constructed when encoded
-// in DER.
-func (v *constructed) EncodedLen() int {
-	return len(v.identifier) + encodedLengthSize(v.length) + v.length
+// EncodedLen returns the length in bytes of the primitive when encoded in DER.
+func (v *primitive) EncodedLen() int {
+	return len(v.identifier) + encodedLengthSize(len(v.content)) + len(v.content)
 }
 
 // Content returns the content of the value.
-func (v *constructed) Content() []byte {
-	return nil
+func (v *primitive) Content() []byte {
+	return v.content
 }
