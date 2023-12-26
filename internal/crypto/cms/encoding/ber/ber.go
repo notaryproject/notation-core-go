@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package asn1 decodes BER-encoded ASN.1 data structures and encodes in DER.
+// Package ber decodes BER-encoded ASN.1 data structures and encodes in DER.
 // Note:
 //   - DER is a subset of BER.
 //   - Indefinite length is not supported.
@@ -21,7 +21,7 @@
 // Reference:
 // - http://luca.ntop.org/Teaching/Appunti/asn1.html
 // - ISO/IEC 8825-1:2021
-package asn1
+package ber
 
 import (
 	"bytes"
