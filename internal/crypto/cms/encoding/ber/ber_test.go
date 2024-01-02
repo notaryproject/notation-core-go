@@ -303,7 +303,7 @@ func TestConvertToDER(t *testing.T) {
 	}
 
 	for _, tt := range testData {
-		der, err := ConvertBERToDER(tt.ber)
+		der, err := ConvertToDER(tt.ber)
 		if !tt.expectError && err != nil {
 			t.Errorf("ConvertToDER() error = %v, but expect no error", err)
 			return
