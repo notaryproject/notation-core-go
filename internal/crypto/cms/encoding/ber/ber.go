@@ -34,7 +34,7 @@ type value interface {
 	// EncodeMetadata encodes the identifier and length in DER to the buffer.
 	EncodeMetadata(*bytes.Buffer) error
 
-	// EncodedLen returns the length in bytes of the encoded data.
+	// EncodedLen returns the length in bytes of the data when encoding in DER.
 	EncodedLen() int
 
 	// Content returns the content of the value.
@@ -44,8 +44,8 @@ type value interface {
 	Content() []byte
 }
 
-// ConvertBERToDER converts BER-encoded ASN.1 data structures to DER-encoded.
-func ConvertBERToDER(ber []byte) ([]byte, error) {
+// ConvertToDER converts BER-encoded ASN.1 data structures to DER-encoded.
+func ConvertToDER(ber []byte) ([]byte, error) {
 	if ber == nil || len(ber) == 0 {
 		return nil, asn1.SyntaxError{Msg: "BER-encoded ASN.1 data structures is empty"}
 	}
@@ -94,7 +94,7 @@ func decode(r []byte) ([]value, error) {
 		return nil, err
 	}
 	if len(r) != contentLen {
-		return nil, asn1.StructuralError{Msg: fmt.Sprintf("length octets value %d does not match with content length %d", contentLen, len(r))}
+		return nil, asn1.SyntaxError{Msg: fmt.Sprintf("decoding BER: length octets value %d does not match with content length %d", contentLen, len(r))}
 	}
 
 	// primitive value
@@ -113,11 +113,11 @@ func decode(r []byte) ([]value, error) {
 	flatValues := []value{rootConstructed}
 
 	// start depth-first decoding with stack
-	valueStack := []*constructed{rootConstructed}
-	for len(valueStack) > 0 {
-		stackLen := len(valueStack)
+	contructedStack := []*constructed{rootConstructed}
+	for len(contructedStack) > 0 {
+		stackLen := len(contructedStack)
 		// top
-		node := valueStack[stackLen-1]
+		node := contructedStack[stackLen-1]
 
 		// check that the constructed value is fully decoded
 		if len(node.rawContent) == 0 {
@@ -126,7 +126,7 @@ func decode(r []byte) ([]value, error) {
 				node.length += m.EncodedLen()
 			}
 			// pop
-			valueStack = valueStack[:stackLen-1]
+			contructedStack = contructedStack[:stackLen-1]
 			continue
 		}
 
@@ -155,7 +155,7 @@ func decode(r []byte) ([]value, error) {
 			node.members = append(node.members, constructedNode)
 
 			// add a new constructed node to the stack
-			valueStack = append(valueStack, constructedNode)
+			contructedStack = append(contructedStack, constructedNode)
 			flatValues = append(flatValues, constructedNode)
 		}
 	}
@@ -261,7 +261,7 @@ func decodeLength(r []byte) (int, []byte, error) {
 	} else if b == 0x80 {
 		// Indefinite-length method is not supported.
 		// Reference: ISO/IEC 8825-1: 8.1.3.6.1
-		return 0, nil, asn1.StructuralError{Msg: "indefinite length not supported"}
+		return 0, nil, asn1.StructuralError{Msg: "decoding BER length octets: indefinite length not supported"}
 	}
 
 	// long form
@@ -269,10 +269,10 @@ func decodeLength(r []byte) (int, []byte, error) {
 	n := int(b & 0x7f)
 	if n > 4 {
 		// length must fit the memory space of the int type (4 bytes).
-		return 0, nil, asn1.StructuralError{Msg: fmt.Sprintf("length of encoded data (%d bytes) cannot exceed 4 bytes", n)}
+		return 0, nil, asn1.StructuralError{Msg: fmt.Sprintf("decoding BER length octets: length of encoded data (%d bytes) cannot exceed 4 bytes", n)}
 	}
 	if offset+n >= len(r) {
-		return 0, nil, asn1.StructuralError{Msg: "decoding BER length octets: long form length octets with early EOF"}
+		return 0, nil, asn1.SyntaxError{Msg: "decoding BER length octets: long form length octets with early EOF"}
 	}
 	var length uint64
 	for i := 0; i < n; i++ {
@@ -282,7 +282,7 @@ func decodeLength(r []byte) (int, []byte, error) {
 
 	// length must fit the memory space of the int32.
 	if (length >> 31) > 0 {
-		return 0, nil, asn1.StructuralError{Msg: fmt.Sprintf("length %d does not fit the memory space of int32", length)}
+		return 0, nil, asn1.StructuralError{Msg: fmt.Sprintf("decoding BER length octets: length %d does not fit the memory space of int32", length)}
 	}
 
 	contentLen := int(length)
