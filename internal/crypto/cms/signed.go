@@ -46,7 +46,7 @@ type ParsedSignedData struct {
 
 // ParseSignedData parses ASN.1 BER-encoded SignedData structure to golang friendly types.
 func ParseSignedData(data []byte) (*ParsedSignedData, error) {
-	data, err := ber.ConvertBERToDER(data)
+	data, err := ber.ConvertToDER(data)
 	if err != nil {
 		return nil, SyntaxError{Message: "invalid signed data", Detail: err}
 	}
