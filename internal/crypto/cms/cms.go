@@ -13,6 +13,9 @@
 
 // Package cms verifies signatures in Cryptographic Message Syntax (CMS) / PKCS7
 // defined in RFC 5652.
+//
+// References:
+// - RFC 5652 Cryptographic Message Syntax (CMS): https://datatracker.ietf.org/doc/html/rfc5652
 package cms
 
 import (

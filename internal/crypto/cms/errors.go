@@ -15,9 +15,9 @@ package cms
 
 import "errors"
 
-// ErrExpectSignedData is returned if wrong content is provided when signed
+// ErrNotSignedData is returned if wrong content is provided when signed
 // data is expected.
-var ErrExpectSignedData = errors.New("cms: signed data expected")
+var ErrNotSignedData = errors.New("cms: content type is not signed-data")
 
 // ErrAttributeNotFound is returned if attribute is not found in a given set.
 var ErrAttributeNotFound = errors.New("attribute not found")

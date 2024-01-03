@@ -36,7 +36,7 @@ func TestVerifySignedData(t *testing.T) {
 	if got := len(signed.Certificates); got != 4 {
 		t.Fatalf("len(Certificates) = %v, want %v", got, 4)
 	}
-	if got := len(signed.Signers); got != 1 {
+	if got := len(signed.SignerInfos); got != 1 {
 		t.Fatalf("len(Signers) = %v, want %v", got, 1)
 	}
 

@@ -40,22 +40,23 @@ type ParsedSignedData struct {
 	// CRLs is the list of certificate revocation lists in the SignedData.
 	CRLs []x509.RevocationList
 
-	// Signers is the list of signer information in the SignedData.
-	Signers []SignerInfo
+	// SignerInfos is the list of signer information in the SignedData.
+	SignerInfos []SignerInfo
 }
 
-// ParseSignedData parses ASN.1 BER-encoded SignedData structure to golang friendly types.
-func ParseSignedData(data []byte) (*ParsedSignedData, error) {
-	data, err := ber.ConvertToDER(data)
+// ParseSignedData parses ASN.1 BER-encoded SignedData structure to golang
+// friendly types.
+func ParseSignedData(berData []byte) (*ParsedSignedData, error) {
+	data, err := ber.ConvertToDER(berData)
 	if err != nil {
-		return nil, SyntaxError{Message: "invalid signed data", Detail: err}
+		return nil, SyntaxError{Message: "invalid signed data: failed to convert from BER to DER", Detail: err}
 	}
 	var contentInfo ContentInfo
 	if _, err := asn1.Unmarshal(data, &contentInfo); err != nil {
-		return nil, SyntaxError{Message: "invalid content info", Detail: err}
+		return nil, SyntaxError{Message: "invalid content info: failed to unmarshal DER to ContentInfo", Detail: err}
 	}
 	if !oid.SignedData.Equal(contentInfo.ContentType) {
-		return nil, ErrExpectSignedData
+		return nil, ErrNotSignedData
 	}
 
 	var signedData SignedData
@@ -64,7 +65,7 @@ func ParseSignedData(data []byte) (*ParsedSignedData, error) {
 	}
 	certs, err := x509.ParseCertificates(signedData.Certificates.Bytes)
 	if err != nil {
-		return nil, SyntaxError{Message: "invalid signed data", Detail: err}
+		return nil, SyntaxError{Message: "failed to parse X509 certificates from signed data", Detail: err}
 	}
 
 	return &ParsedSignedData{
@@ -72,7 +73,7 @@ func ParseSignedData(data []byte) (*ParsedSignedData, error) {
 		ContentType:  signedData.EncapsulatedContentInfo.ContentType,
 		Certificates: certs,
 		CRLs:         signedData.CRLs,
-		Signers:      signedData.SignerInfos,
+		SignerInfos:  signedData.SignerInfos,
 	}, nil
 }
 
@@ -92,7 +93,7 @@ func ParseSignedData(data []byte) (*ParsedSignedData, error) {
 //
 // WARNING: this function doesn't do any revocation checking.
 func (d *ParsedSignedData) Verify(opts x509.VerifyOptions) ([]*x509.Certificate, error) {
-	if len(d.Signers) == 0 {
+	if len(d.SignerInfos) == 0 {
 		return nil, ErrSignerNotFound
 	}
 	if len(d.Certificates) == 0 {
@@ -106,7 +107,7 @@ func (d *ParsedSignedData) Verify(opts x509.VerifyOptions) ([]*x509.Certificate,
 	opts.Intermediates = intermediates
 	verifiedSignerMap := map[string]*x509.Certificate{}
 	var lastErr error
-	for _, signer := range d.Signers {
+	for _, signer := range d.SignerInfos {
 		cert, err := d.verify(&signer, &opts)
 		if err != nil {
 			lastErr = err
