@@ -110,6 +110,11 @@ func (d *ParsedSignedData) Verify(opts x509.VerifyOptions) ([]*x509.Certificate,
 	verifiedSignerMap := map[string]*x509.Certificate{}
 	var lastErr error
 	for _, signerInfo := range d.SignerInfos {
+		if signerInfo.Version != 1 {
+			// Only IssuerAndSerialNumber is supported currently
+			return nil, VerificationError{Message: fmt.Sprintf("invalid signer info version: only version 1 is supported; got %d", signerInfo.Version)}
+		}
+
 		cert, err := d.verify(&signerInfo, &opts)
 		if err != nil {
 			lastErr = err
@@ -204,7 +209,7 @@ func (d *ParsedSignedData) verifyAttributes(signerInfo *SignerInfo, chians [][]*
 		return VerificationError{Message: "invalid content type", Detail: err}
 	}
 	if !d.ContentType.Equal(contentType) {
-		return VerificationError{Message: fmt.Sprintf("mismatch content type: got %q in signer info, want %q in signed data", contentType, d.ContentType)}
+		return VerificationError{Message: fmt.Sprintf("mismatch content type: found %q in signer info, and %q in signed data", contentType, d.ContentType)}
 	}
 
 	var expectedDigest []byte
@@ -220,7 +225,7 @@ func (d *ParsedSignedData) verifyAttributes(signerInfo *SignerInfo, chians [][]*
 		return VerificationError{Message: "hash failure", Detail: err}
 	}
 	if !bytes.Equal(expectedDigest, actualDigest) {
-		return VerificationError{Message: "mismatch message digest"}
+		return VerificationError{Message: fmt.Sprintf("mismatch message digest: found %x in signer attributes, and %x in signed data", expectedDigest, actualDigest)}
 	}
 
 	// sanity check on signing time
