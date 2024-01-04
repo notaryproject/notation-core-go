@@ -19,6 +19,8 @@ import (
 	"crypto/x509"
 	"encoding/asn1"
 	"encoding/hex"
+	"errors"
+	"fmt"
 	"time"
 
 	"github.com/notaryproject/notation-core-go/internal/crypto/cms/encoding/ber"
@@ -94,7 +96,7 @@ func ParseSignedData(berData []byte) (*ParsedSignedData, error) {
 // WARNING: this function doesn't do any revocation checking.
 func (d *ParsedSignedData) Verify(opts x509.VerifyOptions) ([]*x509.Certificate, error) {
 	if len(d.SignerInfos) == 0 {
-		return nil, ErrSignerNotFound
+		return nil, ErrSignerInfoNotFound
 	}
 	if len(d.Certificates) == 0 {
 		return nil, ErrCertificateNotFound
@@ -107,8 +109,8 @@ func (d *ParsedSignedData) Verify(opts x509.VerifyOptions) ([]*x509.Certificate,
 	opts.Intermediates = intermediates
 	verifiedSignerMap := map[string]*x509.Certificate{}
 	var lastErr error
-	for _, signer := range d.SignerInfos {
-		cert, err := d.verify(&signer, &opts)
+	for _, signerInfo := range d.SignerInfos {
+		cert, err := d.verify(&signerInfo, &opts)
 		if err != nil {
 			lastErr = err
 			continue
@@ -123,11 +125,11 @@ func (d *ParsedSignedData) Verify(opts x509.VerifyOptions) ([]*x509.Certificate,
 		return nil, lastErr
 	}
 
-	verifiedSigners := make([]*x509.Certificate, 0, len(verifiedSignerMap))
+	verifiedSigningCertificates := make([]*x509.Certificate, 0, len(verifiedSignerMap))
 	for _, cert := range verifiedSignerMap {
-		verifiedSigners = append(verifiedSigners, cert)
+		verifiedSigningCertificates = append(verifiedSigningCertificates, cert)
 	}
-	return verifiedSigners, nil
+	return verifiedSigningCertificates, nil
 }
 
 // verify verifies the trust in a top-down manner.
@@ -135,25 +137,26 @@ func (d *ParsedSignedData) Verify(opts x509.VerifyOptions) ([]*x509.Certificate,
 // References:
 //   - RFC 5652 5.4 Message Digest Calculation Process
 //   - RFC 5652 5.6 Signature Verification Process
-func (d *ParsedSignedData) verify(signer *SignerInfo, opts *x509.VerifyOptions) (*x509.Certificate, error) {
+func (d *ParsedSignedData) verify(signerInfo *SignerInfo, opts *x509.VerifyOptions) (*x509.Certificate, error) {
 	// find signer certificate
-	cert := d.getCertificate(&signer.SignerIdentifier)
+	cert := d.getCertificate(signerInfo.SignerIdentifier)
 	if cert == nil {
 		return nil, ErrCertificateNotFound
 	}
 
 	// verify signer certificate
-	if _, err := cert.Verify(*opts); err != nil {
+	certChains, err := cert.Verify(*opts)
+	if err != nil {
 		return cert, VerificationError{Detail: err}
 	}
 
 	// verify signature
-	if err := d.verifySignature(signer, cert); err != nil {
+	if err := d.verifySignature(signerInfo, cert); err != nil {
 		return nil, err
 	}
 
 	// verify attribute
-	return cert, d.verifyAttributes(signer, cert)
+	return cert, d.verifyAttributes(signerInfo, certChains)
 }
 
 // verifySignature verifies the signature with a trusted certificate.
@@ -161,26 +164,26 @@ func (d *ParsedSignedData) verify(signer *SignerInfo, opts *x509.VerifyOptions) 
 // References:
 //   - RFC 5652 5.4 Message Digest Calculation Process
 //   - RFC 5652 5.6 Signature Verification Process
-func (d *ParsedSignedData) verifySignature(signer *SignerInfo, cert *x509.Certificate) error {
+func (d *ParsedSignedData) verifySignature(signerInfo *SignerInfo, cert *x509.Certificate) error {
 	// verify signature
 	algorithm := oid.ToSignatureAlgorithm(
-		signer.DigestAlgorithm.Algorithm,
-		signer.SignatureAlgorithm.Algorithm,
+		signerInfo.DigestAlgorithm.Algorithm,
+		signerInfo.SignatureAlgorithm.Algorithm,
 	)
 	if algorithm == x509.UnknownSignatureAlgorithm {
 		return VerificationError{Message: "unknown signature algorithm"}
 	}
 
 	signed := d.Content
-	if len(signer.SignedAttributes) > 0 {
-		encoded, err := asn1.MarshalWithParams(signer.SignedAttributes, "set")
+	if len(signerInfo.SignedAttributes) > 0 {
+		encoded, err := asn1.MarshalWithParams(signerInfo.SignedAttributes, "set")
 		if err != nil {
 			return VerificationError{Message: "invalid signed attributes", Detail: err}
 		}
 		signed = encoded
 	}
 
-	if err := cert.CheckSignature(algorithm, signed, signer.Signature); err != nil {
+	if err := cert.CheckSignature(algorithm, signed, signerInfo.Signature); err != nil {
 		return VerificationError{Detail: err}
 	}
 	return nil
@@ -190,25 +193,25 @@ func (d *ParsedSignedData) verifySignature(signer *SignerInfo, cert *x509.Certif
 //
 // References:
 //   - RFC 5652 5.6 Signature Verification Process
-func (d *ParsedSignedData) verifyAttributes(signer *SignerInfo, cert *x509.Certificate) error {
+func (d *ParsedSignedData) verifyAttributes(signerInfo *SignerInfo, chians [][]*x509.Certificate) error {
 	// verify attributes if present
-	if len(signer.SignedAttributes) == 0 {
+	if len(signerInfo.SignedAttributes) == 0 {
 		return nil
 	}
 
 	var contentType asn1.ObjectIdentifier
-	if err := signer.SignedAttributes.TryGet(oid.ContentType, &contentType); err != nil {
+	if err := signerInfo.SignedAttributes.TryGet(oid.ContentType, &contentType); err != nil {
 		return VerificationError{Message: "invalid content type", Detail: err}
 	}
 	if !d.ContentType.Equal(contentType) {
-		return VerificationError{Message: "mismatch content type"}
+		return VerificationError{Message: fmt.Sprintf("mismatch content type: got %q in signer info, want %q in signed data", contentType, d.ContentType)}
 	}
 
 	var expectedDigest []byte
-	if err := signer.SignedAttributes.TryGet(oid.MessageDigest, &expectedDigest); err != nil {
+	if err := signerInfo.SignedAttributes.TryGet(oid.MessageDigest, &expectedDigest); err != nil {
 		return VerificationError{Message: "invalid message digest", Detail: err}
 	}
-	hash, ok := oid.ToHash(signer.DigestAlgorithm.Algorithm)
+	hash, ok := oid.ToHash(signerInfo.DigestAlgorithm.Algorithm)
 	if !ok {
 		return VerificationError{Message: "unsupported digest algorithm"}
 	}
@@ -222,14 +225,18 @@ func (d *ParsedSignedData) verifyAttributes(signer *SignerInfo, cert *x509.Certi
 
 	// sanity check on signing time
 	var signingTime time.Time
-	if err := signer.SignedAttributes.TryGet(oid.SigningTime, &signingTime); err != nil {
-		if err == ErrAttributeNotFound {
+	if err := signerInfo.SignedAttributes.TryGet(oid.SigningTime, &signingTime); err != nil {
+		if errors.Is(err, ErrAttributeNotFound) {
 			return nil
 		}
 		return VerificationError{Message: "invalid signing time", Detail: err}
 	}
-	if signingTime.Before(cert.NotBefore) || signingTime.After(cert.NotAfter) {
-		return VerificationError{Message: "signature signed when cert is inactive"}
+	for _, chain := range chians {
+		for _, cert := range chain {
+			if signingTime.Before(cert.NotBefore) || signingTime.After(cert.NotAfter) {
+				return VerificationError{Message: fmt.Sprintf("signature was generated outside certificate's validity period for certificate %q", cert.Subject.CommonName)}
+			}
+		}
 	}
 	return nil
 }
@@ -237,7 +244,7 @@ func (d *ParsedSignedData) verifyAttributes(signer *SignerInfo, cert *x509.Certi
 // getCertificate finds the certificate by issuer name and issuer-specific
 // serial number.
 // Reference: RFC 5652 5 Signed-data Content Type
-func (d *ParsedSignedData) getCertificate(ref *IssuerAndSerialNumber) *x509.Certificate {
+func (d *ParsedSignedData) getCertificate(ref IssuerAndSerialNumber) *x509.Certificate {
 	for _, cert := range d.Certificates {
 		if bytes.Equal(cert.RawIssuer, ref.Issuer.FullBytes) && cert.SerialNumber.Cmp(ref.SerialNumber) == 0 {
 			return cert

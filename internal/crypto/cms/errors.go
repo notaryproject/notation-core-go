@@ -24,7 +24,7 @@ var ErrAttributeNotFound = errors.New("attribute not found")
 
 // Verification errors
 var (
-	ErrSignerNotFound      = VerificationError{Message: "signer not found"}
+	ErrSignerInfoNotFound  = VerificationError{Message: "signerInfo not found"}
 	ErrCertificateNotFound = VerificationError{Message: "certificate not found"}
 )
 
