@@ -198,7 +198,7 @@ func (d *ParsedSignedData) verifySignature(signerInfo *SignerInfo, cert *x509.Ce
 //
 // References:
 //   - RFC 5652 5.6 Signature Verification Process
-func (d *ParsedSignedData) verifyAttributes(signerInfo *SignerInfo, chians [][]*x509.Certificate) error {
+func (d *ParsedSignedData) verifyAttributes(signerInfo *SignerInfo, chains [][]*x509.Certificate) error {
 	// verify attributes if present
 	if len(signerInfo.SignedAttributes) == 0 {
 		return nil
@@ -225,7 +225,7 @@ func (d *ParsedSignedData) verifyAttributes(signerInfo *SignerInfo, chians [][]*
 		return VerificationError{Message: "hash failure", Detail: err}
 	}
 	if !bytes.Equal(expectedDigest, actualDigest) {
-		return VerificationError{Message: fmt.Sprintf("mismatch message digest: found %x in signer attributes, and %x in signed data", expectedDigest, actualDigest)}
+		return VerificationError{Message: "mismatch message digest"}
 	}
 
 	// sanity check on signing time
@@ -236,14 +236,27 @@ func (d *ParsedSignedData) verifyAttributes(signerInfo *SignerInfo, chians [][]*
 		}
 		return VerificationError{Message: "invalid signing time", Detail: err}
 	}
-	for _, chain := range chians {
-		for _, cert := range chain {
-			if signingTime.Before(cert.NotBefore) || signingTime.After(cert.NotAfter) {
-				return VerificationError{Message: fmt.Sprintf("signature was generated outside certificate's validity period for certificate %q", cert.Subject.CommonName)}
-			}
+
+	// verify signing time is within the validity period of all certificates
+	// in the chain. As long as one chain is valid, the signature is valid.
+	for _, chain := range chains {
+		if isSigningTimeValid(chain, signingTime) {
+			return nil
 		}
 	}
-	return nil
+
+	return VerificationError{Message: "signature was generated outside certificate's validity period"}
+}
+
+// isSigningTimeValid helpes to check if signingTime is within the validity
+// period of all certificates in the chain
+func isSigningTimeValid(chain []*x509.Certificate, signingTime time.Time) bool {
+	for _, cert := range chain {
+		if signingTime.Before(cert.NotBefore) || signingTime.After(cert.NotAfter) {
+			return false
+		}
+	}
+	return true
 }
 
 // getCertificate finds the certificate by issuer name and issuer-specific
