@@ -15,6 +15,7 @@ package ber
 
 import (
 	"bytes"
+	"errors"
 	"testing"
 )
 
@@ -90,4 +91,36 @@ func TestEncodedLengthSize(t *testing.T) {
 			}
 		})
 	}
+}
+
+type secondErrorWriter struct {
+	count int
+}
+
+func (ew *secondErrorWriter) WriteByte(p byte) (err error) {
+	ew.count += 1
+	if ew.count == 2 {
+		return errors.New("write error")
+	}
+	return nil
+}
+
+func TestEncodeLengthFailed(t *testing.T) {
+	t.Run("byte write error 1", func(t *testing.T) {
+		buf := &errorWriter{}
+		err := encodeLength(buf, 128)
+		if err == nil {
+			t.Error("encodeLength() error = nil, want Error")
+			return
+		}
+	})
+
+	t.Run("byte write error 2", func(t *testing.T) {
+		buf := &secondErrorWriter{}
+		err := encodeLength(buf, 128)
+		if err == nil {
+			t.Error("encodeLength() error = nil, want Error")
+			return
+		}
+	})
 }
