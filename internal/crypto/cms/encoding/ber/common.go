@@ -17,6 +17,12 @@ import (
 	"io"
 )
 
+// Writer is the interface that wraps the basic Write and WriteByte methods.
+type Writer interface {
+	io.Writer
+	io.ByteWriter
+}
+
 // encodeLength encodes length octets in DER.
 // Reference: ISO/IEC 8825-1: 10.1
 func encodeLength(w io.ByteWriter, length int) error {
