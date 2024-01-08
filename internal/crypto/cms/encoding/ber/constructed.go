@@ -13,8 +13,6 @@
 
 package ber
 
-import "bytes"
-
 // constructed represents a value in constructed.
 type constructed struct {
 	identifier []byte
@@ -25,7 +23,7 @@ type constructed struct {
 
 // EncodeMetadata encodes the identifier and length octets of constructed
 // to the value writer in DER.
-func (v *constructed) EncodeMetadata(w *bytes.Buffer) error {
+func (v *constructed) EncodeMetadata(w Writer) error {
 	_, err := w.Write(v.identifier)
 	if err != nil {
 		return err

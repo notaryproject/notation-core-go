@@ -32,7 +32,7 @@ import (
 // value is the interface for an ASN.1 value node.
 type value interface {
 	// EncodeMetadata encodes the identifier and length in DER to the buffer.
-	EncodeMetadata(*bytes.Buffer) error
+	EncodeMetadata(Writer) error
 
 	// EncodedLen returns the length in bytes of the data when encoding in DER.
 	EncodedLen() int

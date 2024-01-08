@@ -300,6 +300,20 @@ func TestConvertToDER(t *testing.T) {
 			der:         []byte{},
 			expectError: true,
 		},
+		{
+			name: "long form length greather than subsequent octets length ",
+			ber: []byte{
+				// Primitive value
+				// identifier
+				0x1f, 0xa0, 0x20,
+				// length
+				0x81, 0x09,
+				// content
+				0x01,
+			},
+			der:         []byte{},
+			expectError: true,
+		},
 	}
 
 	for _, tt := range testData {
@@ -316,4 +330,22 @@ func TestConvertToDER(t *testing.T) {
 			t.Errorf("got = %v, want %v", der, tt.der)
 		}
 	}
+}
+
+func TestDecodeIdentifier(t *testing.T) {
+	t.Run("identifier is empty", func(t *testing.T) {
+		_, _, err := decodeIdentifier([]byte{})
+		if err == nil {
+			t.Errorf("decodeIdentifier() error = nil, but expect error")
+		}
+	})
+}
+
+func TestDecodeLength(t *testing.T) {
+	t.Run("length is empty", func(t *testing.T) {
+		_, _, err := decodeLength([]byte{})
+		if err == nil {
+			t.Errorf("decodeLength() error = nil, but expect error")
+		}
+	})
 }

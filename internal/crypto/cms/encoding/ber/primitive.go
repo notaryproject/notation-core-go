@@ -13,8 +13,6 @@
 
 package ber
 
-import "bytes"
-
 // primitive represents a value in primitive encoding.
 type primitive struct {
 	identifier []byte
@@ -23,7 +21,7 @@ type primitive struct {
 
 // EncodeMetadata encodes the identifier and length octets of primitive to
 // the value writer in DER.
-func (v *primitive) EncodeMetadata(w *bytes.Buffer) error {
+func (v *primitive) EncodeMetadata(w Writer) error {
 	_, err := w.Write(v.identifier)
 	if err != nil {
 		return err
