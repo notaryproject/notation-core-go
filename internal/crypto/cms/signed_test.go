@@ -121,7 +121,6 @@ func TestParseSignedData(t *testing.T) {
 }
 
 func TestVerify(t *testing.T) {
-
 	testData := []struct {
 		name     string
 		filePath string
@@ -142,6 +141,26 @@ func TestVerify(t *testing.T) {
 			filePath: "testdata/TimeStampTokenWithSignerVersion2.p7s",
 			wantErr:  true,
 		},
+		{
+			name:     "unknown signer issuer",
+			filePath: "testdata/TimeStampTokenWithUnknownSignerIssuer.p7s",
+			wantErr:  true,
+		},
+		{
+			name:     "sha1 leaf cert",
+			filePath: "testdata/Sha1SignedData.p7s",
+			wantErr:  true,
+		},
+		{
+			name:     "invalid signature",
+			filePath: "testdata/TimeStampTokenWithInvalidSignature.p7s",
+			wantErr:  true,
+		},
+		{
+			name:     "without signed attributes",
+			filePath: "testdata/SignedDataWithoutSignedAttributes.p7s",
+			wantErr:  false,
+		},
 	}
 
 	for _, testcase := range testData {
@@ -158,13 +177,96 @@ func TestVerify(t *testing.T) {
 
 			// verify with no root CAs and should fail
 			roots := x509.NewCertPool()
+			certLen := len(signed.Certificates)
+			if certLen > 0 {
+				roots.AddCert(signed.Certificates[certLen-1])
+			}
 			opts := x509.VerifyOptions{
 				Roots:       roots,
 				KeyUsages:   []x509.ExtKeyUsage{x509.ExtKeyUsageTimeStamping},
-				CurrentTime: time.Date(2022, 1, 1, 0, 0, 0, 0, time.UTC),
+				CurrentTime: time.Date(2024, 1, 9, 0, 0, 0, 0, time.UTC),
 			}
-			if _, err := signed.Verify(opts); err == nil {
+			_, err = signed.Verify(opts)
+			if testcase.wantErr && err == nil {
 				t.Errorf("ParseSignedData.Verify() error = %v, wantErr %v", err, true)
+			} else if !testcase.wantErr && err != nil {
+				t.Errorf("ParseSignedData.Verify() error = %v, wantErr %v", err, false)
+			}
+		})
+	}
+}
+
+func TestVerifyAttributes(t *testing.T) {
+	testData := []struct {
+		name     string
+		filePath string
+		wantErr  bool
+	}{
+		{
+			name:     "without content type",
+			filePath: "testdata/TimeStampTokenWithoutSignedAttributeContentType.p7s",
+			wantErr:  true,
+		},
+		{
+			name:     "with invalid content type",
+			filePath: "testdata/TimeStampTokenInvalidSignedAttributeContentType.p7s",
+			wantErr:  true,
+		},
+		{
+			name:     "without signed attributes digest",
+			filePath: "testdata/TimeStampTokenWithoutSignedAttributeDigest.p7s",
+			wantErr:  true,
+		},
+		{
+			name:     "with SHA1 hash",
+			filePath: "testdata/TimeStampTokenWithSignedAttributeSHA1.p7s",
+			wantErr:  true,
+		},
+		{
+			name:     "with invalid signing time",
+			filePath: "testdata/TimeStampTokenWithSigingTime.p7s",
+			wantErr:  true,
+		},
+		{
+			name:     "valid signing time",
+			filePath: "testdata/TimeStampTokenWithSigningTime.p7s",
+			wantErr:  false,
+		},
+		{
+			name:     "signing time before expected",
+			filePath: "testdata/TimeStampTokenWithSigningTimeBeforeExpected.p7s",
+			wantErr:  true,
+		},
+	}
+
+	for _, testcase := range testData {
+		t.Run(testcase.name, func(t *testing.T) {
+			// parse signed data
+			sigBytes, err := os.ReadFile(testcase.filePath)
+			if err != nil {
+				t.Fatal("failed to read test signature:", err)
+			}
+			signed, err := ParseSignedData(sigBytes)
+			if err != nil {
+				t.Fatal("ParseSignedData() error =", err)
+			}
+
+			// verify with no root CAs and should fail
+			// roots := x509.NewCertPool()
+			// certLen := len(signed.Certificates)
+			// if certLen > 0 {
+			// 	roots.AddCert(signed.Certificates[certLen-1])
+			// }
+			// opts := x509.VerifyOptions{
+			// 	Roots:       roots,
+			// 	KeyUsages:   []x509.ExtKeyUsage{x509.ExtKeyUsageTimeStamping},
+			// 	CurrentTime: time.Date(2024, 1, 9, 0, 0, 0, 0, time.UTC),
+			// }
+			err = signed.verifyAttributes(&signed.SignerInfos[0], [][]*x509.Certificate{signed.Certificates})
+			if testcase.wantErr && err == nil {
+				t.Errorf("ParseSignedData.Verify() error = %v, wantErr %v", err, true)
+			} else if !testcase.wantErr && err != nil {
+				t.Errorf("ParseSignedData.Verify() error = %v, wantErr %v", err, false)
 			}
 		})
 	}
