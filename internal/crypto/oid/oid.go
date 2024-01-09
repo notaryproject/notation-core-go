@@ -1,16 +1,3 @@
-// Copyright The Notary Project Authors.
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 // Package oid collects object identifiers for crypto algorithms.
 package oid
 
@@ -18,6 +5,9 @@ import "encoding/asn1"
 
 // OIDs for hash algorithms
 var (
+	// SHA1 (id-sha1) is defined in RFC 8017 B.1 Hash Functions
+	SHA1 = asn1.ObjectIdentifier{1, 3, 14, 3, 2, 26}
+
 	// SHA256 (id-sha256) is defined in RFC 8017 B.1 Hash Functions
 	SHA256 = asn1.ObjectIdentifier{2, 16, 840, 1, 101, 3, 4, 2, 1}
 
@@ -33,6 +23,9 @@ var (
 	// RSA is defined in RFC 8017 C ASN.1 Module
 	RSA = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 1, 1}
 
+	// SHA1WithRSA is defined in RFC 8017 C ASN.1 Module
+	SHA1WithRSA = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 1, 5}
+
 	// SHA256WithRSA is defined in RFC 8017 C ASN.1 Module
 	SHA256WithRSA = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 1, 11}
 
@@ -41,6 +34,9 @@ var (
 
 	// SHA512WithRSA is defined in RFC 8017 C ASN.1 Module
 	SHA512WithRSA = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 1, 13}
+
+	// ECDSAWithSHA1 is defined in ANSI X9.62
+	ECDSAWithSHA1 = asn1.ObjectIdentifier{1, 2, 840, 10045, 4, 1}
 
 	// ECDSAWithSHA256 is defined in RFC 5758 3.2 ECDSA Signature Algorithm
 	ECDSAWithSHA256 = asn1.ObjectIdentifier{1, 2, 840, 10045, 4, 3, 2}

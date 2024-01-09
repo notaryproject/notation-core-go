@@ -8,10 +8,9 @@ import (
 )
 
 // Response is a time-stamping response.
-//
-//	TimeStampResp ::= SEQUENCE {
-//	 status          PKIStatusInfo,
-//	 timeStampToken  TimeStampToken  OPTIONAL }
+// TimeStampResp ::= SEQUENCE {
+//  status          PKIStatusInfo,
+//  timeStampToken  TimeStampToken  OPTIONAL }
 type Response struct {
 	Status         pki.StatusInfo
 	TimeStampToken asn1.RawValue `asn1:"optional"`
@@ -19,7 +18,6 @@ type Response struct {
 
 // MarshalBinary encodes the response to binary form.
 // This method implements encoding.BinaryMarshaler
-// Reference: https://pkg.go.dev/encoding#BinaryMarshaler
 func (r *Response) MarshalBinary() ([]byte, error) {
 	if r == nil {
 		return nil, errors.New("nil response")
@@ -29,7 +27,6 @@ func (r *Response) MarshalBinary() ([]byte, error) {
 
 // UnmarshalBinary decodes the response from binary form.
 // This method implements encoding.BinaryUnmarshaler
-// Reference: https://pkg.go.dev/encoding#BinaryUnmarshaler
 func (r *Response) UnmarshalBinary(data []byte) error {
 	_, err := asn1.Unmarshal(data, r)
 	return err
