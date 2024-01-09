@@ -11,14 +11,29 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package timestamp generates timestamping requests to TSA servers,
-// and fetches the responses according to RFC 3161: https://datatracker.ietf.org/doc/html/rfc3161
-package timestamp
+// Package hashutil provides utilities for hash.
+package hashutil
 
-import "context"
+import (
+	"crypto"
+	"crypto/sha256"
+	"testing"
+)
 
-// Timestamper stamps the time.
-type Timestamper interface {
-	// Timestamp stamps the time with the given request.
-	Timestamp(context.Context, *Request) (*Response, error)
+type mockHash struct {
+	crypto.Hash
+}
+
+func TestComputeHash(t *testing.T) {
+	message := []byte("test message")
+	expectedHash := sha256.Sum256(message)
+
+	hash, err := ComputeHash(crypto.SHA256, message)
+	if err != nil {
+		t.Fatalf("ComputeHash returned an error: %v", err)
+	}
+
+	if string(hash) != string(expectedHash[:]) {
+		t.Errorf("ComputeHash returned incorrect hash: got %x, want %x", hash, expectedHash)
+	}
 }

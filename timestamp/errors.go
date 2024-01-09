@@ -6,5 +6,8 @@ type MalformedRequestError struct {
 }
 
 func (e MalformedRequestError) Error() string {
-	return e.msg
+	if e.msg != "" {
+		return e.msg
+	}
+	return "malformed timestamping request"
 }

@@ -35,14 +35,17 @@ const (
 )
 
 // StatusInfo contains status codes and failure information for PKI messages.
-// PKIStatusInfo ::= SEQUENCE {
-//  status          PKIStatus,
-//  statusString    PKIFreeText     OPTIONAL,
-//  failInfo        PKIFailureInfo  OPTIONAL }
+//
+//	PKIStatusInfo ::= SEQUENCE {
+//	 status          PKIStatus,
+//	 statusString    PKIFreeText     OPTIONAL,
+//	 failInfo        PKIFailureInfo  OPTIONAL }
+//
 // PKIStatus        ::= INTEGER
 // PKIFreeText      ::= SEQUENCE SIZE (1..MAX) OF UTF8String
 // PKIFailureInfo   ::= BIT STRING
-// Reference: RFC 2510 3.2.3 Status codes and Failure Information for PKI messages.
+// Reference: RFC 2510 3.2.3 Status codes and Failure Information for
+// PKI messages.
 type StatusInfo struct {
 	Status       int
 	StatusString []string       `asn1:"optional,utf8"`
