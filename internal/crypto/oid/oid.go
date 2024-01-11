@@ -54,6 +54,9 @@ var (
 
 // OIDs defined in RFC 5652 Cryptographic Message Syntax (CMS)
 var (
+	// Data (id-data) is defined in RFC 5652 4 Data Content Type
+	Data = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 7, 1}
+
 	// SignedData (id-signedData) is defined in RFC 5652 5.1 SignedData Type
 	SignedData = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 7, 2}
 

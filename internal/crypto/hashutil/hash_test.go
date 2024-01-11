@@ -20,10 +20,6 @@ import (
 	"testing"
 )
 
-type mockHash struct {
-	crypto.Hash
-}
-
 func TestComputeHash(t *testing.T) {
 	message := []byte("test message")
 	expectedHash := sha256.Sum256(message)

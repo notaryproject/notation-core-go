@@ -115,7 +115,12 @@ func (d *ParsedSignedData) Verify(opts x509.VerifyOptions) ([]*x509.Certificate,
 			return nil, VerificationError{Message: fmt.Sprintf("invalid signer info version: only version 1 is supported; got %d", signerInfo.Version)}
 		}
 
-		cert, err := d.verify(&signerInfo, &opts)
+		signingCertificate := d.getCertificate(signerInfo.SignerIdentifier)
+		if signingCertificate == nil {
+			return nil, ErrCertificateNotFound
+		}
+
+		cert, err := d.verify(&signerInfo, signingCertificate, &opts)
 		if err != nil {
 			lastErr = err
 			continue
@@ -137,18 +142,58 @@ func (d *ParsedSignedData) Verify(opts x509.VerifyOptions) ([]*x509.Certificate,
 	return verifiedSigningCertificates, nil
 }
 
+// VerifySigner verifies the signerInfo against the signingCertificate.
+//
+// SignedData's certificates field is optional, so this function can be used
+// to verify the signerInfo without the certificates field. Or the user doesn't
+// trust the certificates of SignedData and the signer identifier of
+// the SignerInfo (they are unsigned fields), this function can be used to
+// verify the signerInfo against the user provided signingCertificate.
+//
+// References:
+//   - RFC 5652 5   Signed-data Content Type
+//   - RFC 5652 5.4 Message Digest Calculation Process
+//   - RFC 5652 5.6 Signature Verification Process
+//
+// WARNING: this function doesn't do any revocation checking.
+func (d *ParsedSignedData) VerifySigner(signerInfo *SignerInfo, signingCertificate *x509.Certificate, opts x509.VerifyOptions) (*x509.Certificate, error) {
+	if signerInfo.Version != 1 {
+		// Only IssuerAndSerialNumber is supported currently
+		return nil, VerificationError{Message: fmt.Sprintf("invalid signer info version: only version 1 is supported; got %d", signerInfo.Version)}
+	}
+
+	intermediates := x509.NewCertPool()
+	for _, cert := range d.Certificates {
+		intermediates.AddCert(cert)
+	}
+	opts.Intermediates = intermediates
+
+	if signingCertificate == nil {
+		// user didn't provide signing certificate, find it from the signed data
+		// certificates
+		signingCertificate := d.getCertificate(signerInfo.SignerIdentifier)
+		if signingCertificate == nil {
+			return nil, ErrCertificateNotFound
+		}
+	} else {
+		// user provided signing certificate must match the one in signer info
+		if !bytes.Equal(signingCertificate.RawIssuer, signerInfo.SignerIdentifier.Issuer.FullBytes) || signingCertificate.SerialNumber.Cmp(signerInfo.SignerIdentifier.SerialNumber) != 0 {
+			return nil, SyntaxError{Message: "signing certificate does not match signer info"}
+		}
+	}
+
+	return d.verify(signerInfo, signingCertificate, &opts)
+}
+
 // verify verifies the trust in a top-down manner.
 //
 // References:
 //   - RFC 5652 5.4 Message Digest Calculation Process
 //   - RFC 5652 5.6 Signature Verification Process
-func (d *ParsedSignedData) verify(signerInfo *SignerInfo, opts *x509.VerifyOptions) (*x509.Certificate, error) {
-	// find signer certificate
-	cert := d.getCertificate(signerInfo.SignerIdentifier)
+func (d *ParsedSignedData) verify(signerInfo *SignerInfo, cert *x509.Certificate, opts *x509.VerifyOptions) (*x509.Certificate, error) {
 	if cert == nil {
 		return nil, ErrCertificateNotFound
 	}
-
 	// verify signer certificate
 	certChains, err := cert.Verify(*opts)
 	if err != nil {
@@ -197,11 +242,17 @@ func (d *ParsedSignedData) verifySignature(signerInfo *SignerInfo, cert *x509.Ce
 // verifyAttributes verifies the signed attributes.
 //
 // References:
+//   - RFC 5652 5.3 SignerInfo Type
 //   - RFC 5652 5.6 Signature Verification Process
 func (d *ParsedSignedData) verifyAttributes(signerInfo *SignerInfo, chains [][]*x509.Certificate) error {
 	// verify attributes if present
 	if len(signerInfo.SignedAttributes) == 0 {
-		return nil
+		if d.ContentType.Equal(oid.Data) {
+			return nil
+		}
+		// signed attributes MUST be present if the content type of the
+		// EncapsulatedContentInfo value being signed is not id-data.
+		return VerificationError{Message: "missing signed attributes"}
 	}
 
 	var contentType asn1.ObjectIdentifier
