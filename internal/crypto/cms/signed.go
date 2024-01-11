@@ -171,7 +171,7 @@ func (d *ParsedSignedData) VerifySigner(signerInfo *SignerInfo, signingCertifica
 	if signingCertificate == nil {
 		// user didn't provide signing certificate, find it from the signed data
 		// certificates
-		signingCertificate := d.getCertificate(signerInfo.SignerIdentifier)
+		signingCertificate = d.getCertificate(signerInfo.SignerIdentifier)
 		if signingCertificate == nil {
 			return nil, ErrCertificateNotFound
 		}

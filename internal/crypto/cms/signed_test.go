@@ -187,10 +187,8 @@ func TestVerify(t *testing.T) {
 				CurrentTime: time.Date(2024, 1, 9, 0, 0, 0, 0, time.UTC),
 			}
 			_, err = signed.Verify(opts)
-			if testcase.wantErr && err == nil {
+			if testcase.wantErr != (err != nil) {
 				t.Errorf("ParseSignedData.Verify() error = %v, wantErr %v", err, true)
-			} else if !testcase.wantErr && err != nil {
-				t.Errorf("ParseSignedData.Verify() error = %v, wantErr %v", err, false)
 			}
 		})
 	}
@@ -242,10 +240,9 @@ func TestVerifySigner(t *testing.T) {
 				CurrentTime: time.Date(2024, 1, 9, 0, 0, 0, 0, time.UTC),
 			}
 			_, err = signed.VerifySigner(&signed.SignerInfos[0], nil, opts)
-			if testcase.wantErr && err == nil {
-				t.Errorf("ParseSignedData.Verify() error = %v, wantErr %v", err, true)
-			} else if !testcase.wantErr && err != nil {
-				t.Errorf("ParseSignedData.Verify() error = %v, wantErr %v", err, false)
+			// err = err , err == nil, false, want error == false
+			if testcase.wantErr != (err != nil) {
+				t.Errorf("ParseSignedData.Verify() error = %v, wantErr %v", err, testcase.wantErr)
 			}
 		})
 	}
@@ -277,15 +274,15 @@ func TestVerifySignerWithUserProvidedCertificate(t *testing.T) {
 		// verify with no root CAs and should fail
 		_, err = signed.VerifySigner(&signed.SignerInfos[0], signed.Certificates[0], opts)
 		if err != nil {
-			t.Errorf("ParseSignedData.Verify() error = %v, wantErr %v", err, false)
+			t.Errorf("ParseSignedData.Verify() error = %v, want nil", err)
 		}
 	})
 
 	t.Run("invalid user provided signing certificate", func(t *testing.T) {
 		// verify with no root CAs and should fail
 		_, err = signed.VerifySigner(&signed.SignerInfos[0], signed.Certificates[1], opts)
-		if err != nil {
-			t.Errorf("ParseSignedData.Verify() error = %v, wantErr %v", err, false)
+		if err == nil {
+			t.Errorf("ParseSignedData.Verify() error = %v, want error", err)
 		}
 	})
 }
