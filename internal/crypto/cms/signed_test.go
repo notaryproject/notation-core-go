@@ -161,6 +161,11 @@ func TestVerify(t *testing.T) {
 			filePath: "testdata/SignedDataWithoutSignedAttributes.p7s",
 			wantErr:  false,
 		},
+		{
+			name:     "an invalid and a valid signer info",
+			filePath: "testdata/TimeStampTokenWithAnInvalidAndAValidSignerInfo.p7s",
+			wantErr:  false,
+		},
 	}
 
 	for _, testcase := range testData {
