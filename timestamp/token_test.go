@@ -13,14 +13,22 @@
 
 package timestamp
 
-// MalformedRequestError is used when timestamping request is malformed.
-type MalformedRequestError struct {
-	msg string
-}
+import (
+	"fmt"
+	"os"
+	"testing"
 
-func (e MalformedRequestError) Error() string {
-	if e.msg != "" {
-		return e.msg
+	"github.com/notaryproject/notation-core-go/internal/crypto/oid"
+)
+
+func TestParseSignedToken(t *testing.T) {
+	timestampToken, err := os.ReadFile("testdata/TimestampTokenWithInvalideContentType.p7s")
+	if err != nil {
+		t.Fatal("failed to read test timestamp token:", err)
 	}
-	return "malformed timestamping request"
+	expectedErrMsg := fmt.Sprintf("unexpected content type: %v", oid.Data)
+	_, err = ParseSignedToken(timestampToken)
+	if err == nil || err.Error() != expectedErrMsg {
+		t.Fatalf("expected error %s, but got %v", expectedErrMsg, err)
+	}
 }

@@ -4,12 +4,17 @@ import (
 	"context"
 	"crypto"
 	"crypto/x509"
+	"encoding/asn1"
 	"testing"
 	"time"
 
-	"github.com/notaryproject/notation-core-go/internal/crypto/oid"
 	"github.com/notaryproject/notation-core-go/internal/crypto/pki"
 	"github.com/notaryproject/notation-core-go/timestamp"
+)
+
+var (
+	// SHA1WithRSA is defined in RFC 8017 C ASN.1 Module; bad algorithm
+	SHA1WithRSA = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 1, 5}
 )
 
 func TestTSATimestampGranted(t *testing.T) {
@@ -83,7 +88,7 @@ func TestTSATimestampRejection(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewRequestFromContent() error = %v", err)
 	}
-	req.MessageImprint.HashAlgorithm.Algorithm = oid.SHA1WithRSA // set bad algorithm
+	req.MessageImprint.HashAlgorithm.Algorithm = SHA1WithRSA // set bad algorithm
 	ctx := context.Background()
 	resp, err := tsa.Timestamp(ctx, req)
 	if err != nil {

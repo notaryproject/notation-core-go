@@ -1,3 +1,16 @@
+// Copyright The Notary Project Authors.
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package timestamp
 
 import (
@@ -58,10 +71,10 @@ func (ts *httpTimestamper) Timestamp(ctx context.Context, req *Request) (*Respon
 
 	// verify HTTP response
 	if hResp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status: %s", hResp.Status)
+		return nil, fmt.Errorf("%s %q: https response bad status: %s", http.MethodPost, ts.endpoint, hResp.Status)
 	}
 	if contentType := hResp.Header.Get("Content-Type"); contentType != "application/timestamp-reply" {
-		return nil, fmt.Errorf("unexpected response content type: %s", contentType)
+		return nil, fmt.Errorf("%s %q: unexpected response content type: %s", http.MethodPost, ts.endpoint, contentType)
 	}
 
 	// read response

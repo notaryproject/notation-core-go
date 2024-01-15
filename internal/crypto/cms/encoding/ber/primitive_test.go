@@ -11,16 +11,34 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package timestamp
+package ber
 
-// MalformedRequestError is used when timestamping request is malformed.
-type MalformedRequestError struct {
-	msg string
-}
+import (
+	"testing"
+)
 
-func (e MalformedRequestError) Error() string {
-	if e.msg != "" {
-		return e.msg
+func TestPrimitiveEncodeMetadata(t *testing.T) {
+	tests := []struct {
+		name      string
+		v         primitive
+		wantError bool
+	}{
+		{
+			name: "Error case",
+			v: primitive{
+				identifier: []byte{0x30},
+			},
+			wantError: true,
+		},
 	}
-	return "malformed timestamping request"
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := &errorWriter{}
+			err := tt.v.EncodeMetadata(w)
+			if (err != nil) != tt.wantError {
+				t.Errorf("EncodeMetadata() error = %v, wantError %v", err, tt.wantError)
+			}
+		})
+	}
 }

@@ -1,3 +1,16 @@
+// Copyright The Notary Project Authors.
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package timestamp
 
 import (
@@ -13,22 +26,24 @@ import (
 )
 
 // MessageImprint contains the hash of the datum to be time-stamped.
-// MessageImprint ::= SEQUENCE {
-//  hashAlgorithm   AlgorithmIdentifier,
-//  hashedMessage   OCTET STRING }
+//
+//	MessageImprint ::= SEQUENCE {
+//	 hashAlgorithm   AlgorithmIdentifier,
+//	 hashedMessage   OCTET STRING }
 type MessageImprint struct {
 	HashAlgorithm pkix.AlgorithmIdentifier
 	HashedMessage []byte
 }
 
 // Request is a time-stamping request.
-// TimeStampReq ::= SEQUENCE {
-//  version         INTEGER                 { v1(1) },
-//  messageImprint  MessageImprint,
-//  reqPolicy       TSAPolicyID              OPTIONAL,
-//  nonce           INTEGER                  OPTIONAL,
-//  certReq         BOOLEAN                  DEFAULT FALSE,
-//  extensions      [0] IMPLICIT Extensions  OPTIONAL }
+//
+//	TimeStampReq ::= SEQUENCE {
+//	 version         INTEGER                 { v1(1) },
+//	 messageImprint  MessageImprint,
+//	 reqPolicy       TSAPolicyID              OPTIONAL,
+//	 nonce           INTEGER                  OPTIONAL,
+//	 certReq         BOOLEAN                  DEFAULT FALSE,
+//	 extensions      [0] IMPLICIT Extensions  OPTIONAL }
 type Request struct {
 	Version        int // fixed to 1 as defined in RFC 3161 2.4.1 Request Format
 	MessageImprint MessageImprint
@@ -38,16 +53,19 @@ type Request struct {
 	Extensions     []pkix.Extension      `asn1:"optional,tag:0"`
 }
 
-// NewRequest creates a request based on the given digest and hash algorithm.
+// NewRequest creates a request sent to TSA based on the given digest and
+// hash algorithm.
+//
+// Parameters:
+// digest - hashedMessage of timestamping request's messageImprint
+// alg - hashing algorithm. Supported values are SHA256, SHA384, and SHA512
 func NewRequest(digest []byte, alg crypto.Hash) (*Request, error) {
-	err := validate(digest, alg)
+	hashAlg, err := oid.FromHash(alg)
 	if err != nil {
-		return nil, err
+		return nil, MalformedRequestError{msg: err.Error()}
 	}
-
-	hashAlg, err := getOID(alg)
-	if err != nil {
-		return nil, err
+	if len(digest) != alg.Size() {
+		return nil, MalformedRequestError{msg: fmt.Sprintf("digest is of incorrect size: %d", len(digest))}
 	}
 	return &Request{
 		Version: 1,
@@ -61,7 +79,8 @@ func NewRequest(digest []byte, alg crypto.Hash) (*Request, error) {
 	}, nil
 }
 
-// NewRequestFromContent creates a request based on the given data and hash algorithm.
+// NewRequestFromContent creates a request based on the given data
+// and hash algorithm.
 func NewRequestFromContent(content []byte, alg crypto.Hash) (*Request, error) {
 	digest, err := hashutil.ComputeHash(alg, content)
 	if err != nil {
@@ -72,7 +91,9 @@ func NewRequestFromContent(content []byte, alg crypto.Hash) (*Request, error) {
 }
 
 // MarshalBinary encodes the request to binary form.
-// This method implements encoding.BinaryMarshaler
+// This method implements encoding.BinaryMarshaler.
+//
+// Reference: https://pkg.go.dev/encoding#BinaryMarshaler
 func (r *Request) MarshalBinary() ([]byte, error) {
 	if r == nil {
 		return nil, errors.New("nil request")
@@ -81,32 +102,10 @@ func (r *Request) MarshalBinary() ([]byte, error) {
 }
 
 // UnmarshalBinary decodes the request from binary form.
-// This method implements encoding.BinaryUnmarshaler
+// This method implements encoding.BinaryUnmarshaler.
+//
+// Reference: https://pkg.go.dev/encoding#BinaryUnmarshaler
 func (r *Request) UnmarshalBinary(data []byte) error {
 	_, err := asn1.Unmarshal(data, r)
 	return err
-}
-
-// getOID returns corresponding ASN.1 OID for the given Hash algorithm.
-func getOID(alg crypto.Hash) (asn1.ObjectIdentifier, error) {
-	switch alg {
-	case crypto.SHA256:
-		return oid.SHA256, nil
-	case crypto.SHA384:
-		return oid.SHA384, nil
-	case crypto.SHA512:
-		return oid.SHA512, nil
-	}
-	return nil, MalformedRequestError{msg: fmt.Sprintf("unsupported hashing algorithm: %s", alg)}
-}
-
-func validate(digest []byte, alg crypto.Hash) error {
-	if !(alg == crypto.SHA256 || alg == crypto.SHA384 || alg == crypto.SHA512) {
-		return MalformedRequestError{msg: fmt.Sprintf("unsupported hashing algorithm: %s", alg)}
-	}
-
-	if len(digest) != alg.Size() {
-		return MalformedRequestError{msg: fmt.Sprintf("digest is of incorrect size: %d", len(digest))}
-	}
-	return nil
 }

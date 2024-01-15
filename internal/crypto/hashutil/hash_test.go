@@ -11,16 +11,29 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package timestamp
+// Package hashutil provides utilities for hash.
+package hashutil
 
-// MalformedRequestError is used when timestamping request is malformed.
-type MalformedRequestError struct {
-	msg string
+import (
+	"crypto"
+	"crypto/sha256"
+	"testing"
+)
+
+type mockHash struct {
+	crypto.Hash
 }
 
-func (e MalformedRequestError) Error() string {
-	if e.msg != "" {
-		return e.msg
+func TestComputeHash(t *testing.T) {
+	message := []byte("test message")
+	expectedHash := sha256.Sum256(message)
+
+	hash, err := ComputeHash(crypto.SHA256, message)
+	if err != nil {
+		t.Fatalf("ComputeHash returned an error: %v", err)
 	}
-	return "malformed timestamping request"
+
+	if string(hash) != string(expectedHash[:]) {
+		t.Errorf("ComputeHash returned incorrect hash: got %x, want %x", hash, expectedHash)
+	}
 }

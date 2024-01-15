@@ -519,7 +519,7 @@ func generateUnprotectedHeaders(req *signature.SignRequest, signer signer, signa
 		if resp.Status.Status != pki.StatusGranted && resp.Status.Status != pki.StatusGrantedWithMods {
 			return fmt.Errorf("tsa server response status is neither granted nor granted with mods. The status received is %v", resp.Status.Status)
 		}
-		unprotected[headerLabelTimeStampSignature] = resp.TokenBytes()
+		unprotected[headerLabelTimeStampSignature] = resp.TimeStampToken.FullBytes
 	}
 	return nil
 }

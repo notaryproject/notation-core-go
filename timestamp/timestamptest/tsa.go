@@ -90,7 +90,7 @@ func (tsa *TSA) Timestamp(_ context.Context, req *timestamp.Request) (*timestamp
 	if req.Version != 1 {
 		return responseRejection, nil
 	}
-	hash, ok := oid.ConvertToHash(req.MessageImprint.HashAlgorithm.Algorithm)
+	hash, ok := oid.ToHash(req.MessageImprint.HashAlgorithm.Algorithm)
 	if !ok {
 		return responseRejection, nil
 	}
@@ -188,6 +188,21 @@ func (tsa *TSA) generateSignedData(infoBytes []byte, requestCert bool) (cms.Sign
 	if err != nil {
 		return cms.SignedData{}, err
 	}
+	certHash, err := hashutil.ComputeHash(crypto.SHA256, tsa.cert.Raw)
+	if err != nil {
+		return cms.SignedData{}, err
+	}
+	signingCertificateV2 := timestamp.SigningCertificateV2{
+		Certificates: []timestamp.ESSCertIDv2{
+			{
+				CertHash: certHash,
+			},
+		},
+	}
+	signingCertificateV2Raw, err := convertToRawASN1([]interface{}{signingCertificateV2}, "set")
+	if err != nil {
+		return cms.SignedData{}, err
+	}
 	signed := cms.SignedData{
 		Version: 3,
 		DigestAlgorithmIdentifiers: []pkix.AlgorithmIdentifier{
@@ -221,6 +236,10 @@ func (tsa *TSA) generateSignedData(infoBytes []byte, requestCert bool) (cms.Sign
 					{
 						Type:   oid.SigningTime,
 						Values: signingTime,
+					},
+					{
+						Type:   oid.SigningCertificateV2,
+						Values: signingCertificateV2Raw,
 					},
 				},
 				SignatureAlgorithm: pkix.AlgorithmIdentifier{
