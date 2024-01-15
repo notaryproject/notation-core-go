@@ -115,7 +115,7 @@ func (d *ParsedSignedData) Verify(opts x509.VerifyOptions) ([]*x509.Certificate,
 			return nil, VerificationError{Message: fmt.Sprintf("invalid signer info version: only version 1 is supported; got %d", signerInfo.Version)}
 		}
 
-		signingCertificate := d.getCertificate(signerInfo.SignerIdentifier)
+		signingCertificate := d.GetCertificate(signerInfo.SignerIdentifier)
 		if signingCertificate == nil {
 			return nil, ErrCertificateNotFound
 		}
@@ -171,7 +171,7 @@ func (d *ParsedSignedData) VerifySigner(signerInfo *SignerInfo, signingCertifica
 	if signingCertificate == nil {
 		// user didn't provide signing certificate, find it from the signed data
 		// certificates
-		signingCertificate = d.getCertificate(signerInfo.SignerIdentifier)
+		signingCertificate = d.GetCertificate(signerInfo.SignerIdentifier)
 		if signingCertificate == nil {
 			return nil, ErrCertificateNotFound
 		}
@@ -310,10 +310,10 @@ func isSigningTimeValid(chain []*x509.Certificate, signingTime time.Time) bool {
 	return true
 }
 
-// getCertificate finds the certificate by issuer name and issuer-specific
+// GetCertificate finds the certificate by issuer name and issuer-specific
 // serial number.
 // Reference: RFC 5652 5 Signed-data Content Type
-func (d *ParsedSignedData) getCertificate(ref IssuerAndSerialNumber) *x509.Certificate {
+func (d *ParsedSignedData) GetCertificate(ref IssuerAndSerialNumber) *x509.Certificate {
 	for _, cert := range d.Certificates {
 		if bytes.Equal(cert.RawIssuer, ref.Issuer.FullBytes) && cert.SerialNumber.Cmp(ref.SerialNumber) == 0 {
 			return cert
