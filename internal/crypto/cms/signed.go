@@ -110,23 +110,18 @@ func (d *ParsedSignedData) Verify(opts x509.VerifyOptions) ([]*x509.Certificate,
 	verifiedSignerMap := map[string]*x509.Certificate{}
 	var lastErr error
 	for _, signerInfo := range d.SignerInfos {
-		if signerInfo.Version != 1 {
-			// Only IssuerAndSerialNumber is supported currently
-			lastErr = VerificationError{Message: fmt.Sprintf("invalid signer info version: only version 1 is supported; got %d", signerInfo.Version)}
-			continue
-		}
-
 		signingCertificate := d.GetCertificate(signerInfo.SignerIdentifier)
 		if signingCertificate == nil {
 			lastErr = ErrCertificateNotFound
 			continue
 		}
 
-		cert, err := d.verify(&signerInfo, signingCertificate, &opts)
+		cert, err := d.VerifySigner(&signerInfo, signingCertificate, &opts)
 		if err != nil {
 			lastErr = err
 			continue
 		}
+
 		thumbprint, err := hashutil.ComputeHash(crypto.SHA256, cert.Raw)
 		if err != nil {
 			lastErr = err
@@ -153,39 +148,36 @@ func (d *ParsedSignedData) Verify(opts x509.VerifyOptions) ([]*x509.Certificate,
 // the SignerInfo (they are unsigned fields), this function can be used to
 // verify the signerInfo against the user provided signingCertificate.
 //
+// Note: the intermediate certificates and root certificates in the verify
+// options should be set by the user. The certificates in the SignedData
+// will be ignored.
+//
 // References:
 //   - RFC 5652 5   Signed-data Content Type
 //   - RFC 5652 5.4 Message Digest Calculation Process
 //   - RFC 5652 5.6 Signature Verification Process
 //
 // WARNING: this function doesn't do any revocation checking.
-func (d *ParsedSignedData) VerifySigner(signerInfo *SignerInfo, signingCertificate *x509.Certificate, opts x509.VerifyOptions) (*x509.Certificate, error) {
+func (d *ParsedSignedData) VerifySigner(signerInfo *SignerInfo, signingCertificate *x509.Certificate, opts *x509.VerifyOptions) (*x509.Certificate, error) {
+	if signerInfo == nil {
+		return nil, VerificationError{Message: "VerifySigner failed: signer info is required"}
+	}
+
+	if signingCertificate == nil {
+		return nil, VerificationError{Message: "VerifySigner failed: signing certificate is required"}
+	}
+
 	if signerInfo.Version != 1 {
 		// Only IssuerAndSerialNumber is supported currently
 		return nil, VerificationError{Message: fmt.Sprintf("invalid signer info version: only version 1 is supported; got %d", signerInfo.Version)}
 	}
 
-	intermediates := x509.NewCertPool()
-	for _, cert := range d.Certificates {
-		intermediates.AddCert(cert)
-	}
-	opts.Intermediates = intermediates
-
-	if signingCertificate == nil {
-		// user didn't provide signing certificate, find it from the signed data
-		// certificates
-		signingCertificate = d.GetCertificate(signerInfo.SignerIdentifier)
-		if signingCertificate == nil {
-			return nil, ErrCertificateNotFound
-		}
-	} else {
-		// user provided signing certificate must match the one in signer info
-		if !bytes.Equal(signingCertificate.RawIssuer, signerInfo.SignerIdentifier.Issuer.FullBytes) || signingCertificate.SerialNumber.Cmp(signerInfo.SignerIdentifier.SerialNumber) != 0 {
-			return nil, SyntaxError{Message: "signing certificate does not match signer info"}
-		}
+	// user provided signing certificate must match the one in signer info
+	if !bytes.Equal(signingCertificate.RawIssuer, signerInfo.SignerIdentifier.Issuer.FullBytes) || signingCertificate.SerialNumber.Cmp(signerInfo.SignerIdentifier.SerialNumber) != 0 {
+		return nil, SyntaxError{Message: "signing certificate does not match signer info"}
 	}
 
-	return d.verify(signerInfo, signingCertificate, &opts)
+	return d.verify(signerInfo, signingCertificate, opts)
 }
 
 // verify verifies the trust in a top-down manner.
@@ -194,9 +186,6 @@ func (d *ParsedSignedData) VerifySigner(signerInfo *SignerInfo, signingCertifica
 //   - RFC 5652 5.4 Message Digest Calculation Process
 //   - RFC 5652 5.6 Signature Verification Process
 func (d *ParsedSignedData) verify(signerInfo *SignerInfo, cert *x509.Certificate, opts *x509.VerifyOptions) (*x509.Certificate, error) {
-	if cert == nil {
-		return nil, ErrCertificateNotFound
-	}
 	// verify signer certificate
 	certChains, err := cert.Verify(*opts)
 	if err != nil {
