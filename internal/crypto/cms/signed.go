@@ -112,12 +112,14 @@ func (d *ParsedSignedData) Verify(opts x509.VerifyOptions) ([]*x509.Certificate,
 	for _, signerInfo := range d.SignerInfos {
 		if signerInfo.Version != 1 {
 			// Only IssuerAndSerialNumber is supported currently
-			return nil, VerificationError{Message: fmt.Sprintf("invalid signer info version: only version 1 is supported; got %d", signerInfo.Version)}
+			lastErr = VerificationError{Message: fmt.Sprintf("invalid signer info version: only version 1 is supported; got %d", signerInfo.Version)}
+			continue
 		}
 
 		signingCertificate := d.GetCertificate(signerInfo.SignerIdentifier)
 		if signingCertificate == nil {
-			return nil, ErrCertificateNotFound
+			lastErr = ErrCertificateNotFound
+			continue
 		}
 
 		cert, err := d.verify(&signerInfo, signingCertificate, &opts)
@@ -127,7 +129,8 @@ func (d *ParsedSignedData) Verify(opts x509.VerifyOptions) ([]*x509.Certificate,
 		}
 		thumbprint, err := hashutil.ComputeHash(crypto.SHA256, cert.Raw)
 		if err != nil {
-			return nil, err
+			lastErr = err
+			continue
 		}
 		verifiedSignerMap[hex.EncodeToString(thumbprint)] = cert
 	}
