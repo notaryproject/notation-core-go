@@ -367,17 +367,6 @@ func TestVerifyAttributes(t *testing.T) {
 				t.Fatal("ParseSignedData() error =", err)
 			}
 
-			// verify with no root CAs and should fail
-			// roots := x509.NewCertPool()
-			// certLen := len(signed.Certificates)
-			// if certLen > 0 {
-			// 	roots.AddCert(signed.Certificates[certLen-1])
-			// }
-			// opts := x509.VerifyOptions{
-			// 	Roots:       roots,
-			// 	KeyUsages:   []x509.ExtKeyUsage{x509.ExtKeyUsageTimeStamping},
-			// 	CurrentTime: time.Date(2024, 1, 9, 0, 0, 0, 0, time.UTC),
-			// }
 			err = signed.verifyAttributes(&signed.SignerInfos[0], [][]*x509.Certificate{signed.Certificates})
 			if testcase.wantErr && err == nil {
 				t.Errorf("ParseSignedData.Verify() error = %v, wantErr %v", err, true)
