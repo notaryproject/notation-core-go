@@ -15,6 +15,7 @@ package cms
 
 import (
 	"bytes"
+	"context"
 	"crypto"
 	"crypto/x509"
 	"encoding/asn1"
@@ -94,7 +95,7 @@ func ParseSignedData(berData []byte) (*ParsedSignedData, error) {
 //   - RFC 5652 5.6 Signature Verification Process
 //
 // WARNING: this function doesn't do any revocation checking.
-func (d *ParsedSignedData) Verify(opts x509.VerifyOptions) ([]*x509.Certificate, error) {
+func (d *ParsedSignedData) Verify(ctx context.Context, opts x509.VerifyOptions) ([]*x509.Certificate, error) {
 	if len(d.SignerInfos) == 0 {
 		return nil, ErrSignerInfoNotFound
 	}
@@ -116,7 +117,7 @@ func (d *ParsedSignedData) Verify(opts x509.VerifyOptions) ([]*x509.Certificate,
 			continue
 		}
 
-		cert, err := d.VerifySigner(&signerInfo, signingCertificate, &opts)
+		cert, err := d.VerifySigner(ctx, &signerInfo, signingCertificate, opts)
 		if err != nil {
 			lastErr = err
 			continue
@@ -158,7 +159,7 @@ func (d *ParsedSignedData) Verify(opts x509.VerifyOptions) ([]*x509.Certificate,
 //   - RFC 5652 5.6 Signature Verification Process
 //
 // WARNING: this function doesn't do any revocation checking.
-func (d *ParsedSignedData) VerifySigner(signerInfo *SignerInfo, signingCertificate *x509.Certificate, opts *x509.VerifyOptions) (*x509.Certificate, error) {
+func (d *ParsedSignedData) VerifySigner(ctx context.Context, signerInfo *SignerInfo, signingCertificate *x509.Certificate, opts x509.VerifyOptions) (*x509.Certificate, error) {
 	if signerInfo == nil {
 		return nil, VerificationError{Message: "VerifySigner failed: signer info is required"}
 	}
@@ -177,7 +178,7 @@ func (d *ParsedSignedData) VerifySigner(signerInfo *SignerInfo, signingCertifica
 		return nil, SyntaxError{Message: "signing certificate does not match signer info"}
 	}
 
-	return d.verify(signerInfo, signingCertificate, opts)
+	return d.verify(signerInfo, signingCertificate, &opts)
 }
 
 // verify verifies the trust in a top-down manner.
