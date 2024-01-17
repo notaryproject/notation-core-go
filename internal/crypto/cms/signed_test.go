@@ -397,7 +397,6 @@ func TestVerifyCorruptedSignedData(t *testing.T) {
 	// corrupt the content
 	signed.Content = []byte("corrupted data")
 
-	// verify with no root CAs and should fail
 	roots := x509.NewCertPool()
 	rootCABytes, err := os.ReadFile("testdata/GlobalSignRootCA.crt")
 	if err != nil {
