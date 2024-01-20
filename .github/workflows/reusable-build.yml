@@ -15,13 +15,19 @@ name: Reusable build
 
 on:
   workflow_call:
+    inputs:
+      run-e2e-tests:
+        description: "determines whether to execute end-to-end tests or not"
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   build:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        go-version: ["1.20", "1.21"]
+        go-version: [ "1.20", "1.21" ]
       fail-fast: true
     steps:
       - name: Checkout
@@ -33,5 +39,8 @@ jobs:
           check-latest: true
       - name: Run unit tests
         run: make test
+      - name: Run e2e tests
+        if: inputs.run-e2e-tests
+        run: make e2e
       - name: Upload coverage to codecov.io
         uses: codecov/codecov-action@v3
