@@ -25,10 +25,9 @@ import (
 	"time"
 
 	"github.com/fxamacker/cbor/v2"
-	"github.com/notaryproject/notation-core-go/internal/crypto/pki"
 	"github.com/notaryproject/notation-core-go/signature"
 	"github.com/notaryproject/notation-core-go/signature/internal/base"
-	"github.com/notaryproject/notation-core-go/timestamp"
+	"github.com/notaryproject/tspclient-go"
 	"github.com/veraison/go-cose"
 )
 
@@ -503,11 +502,11 @@ func generateUnprotectedHeaders(req *signature.SignRequest, signer signer, signa
 		if hash == 0 {
 			return fmt.Errorf("got hash value 0 due to cose algorithm %d", signer.Algorithm())
 		}
-		tsaRequest, err := timestamp.NewRequestFromContent(signature, hash)
+		tsaRequest, err := tspclient.NewRequestFromContent(signature, hash)
 		if err != nil {
 			return err
 		}
-		httpTimeStamper, err := timestamp.NewHTTPTimestamper(nil, req.TSAServerURL)
+		httpTimeStamper, err := tspclient.NewHTTPTimestamper(nil, req.TSAServerURL)
 		if err != nil {
 			return err
 		}
@@ -516,8 +515,8 @@ func generateUnprotectedHeaders(req *signature.SignRequest, signer signer, signa
 			return err
 		}
 		fmt.Printf("timestamp resp is: %+v\n", resp)
-		if resp.Status.Status != pki.StatusGranted && resp.Status.Status != pki.StatusGrantedWithMods {
-			return fmt.Errorf("tsa server response status is neither granted nor granted with mods. The status received is %v", resp.Status.Status)
+		if err := resp.ValidateStatus(); err != nil {
+			return err
 		}
 		unprotected[headerLabelTimeStampSignature] = resp.TimeStampToken.FullBytes
 	}
