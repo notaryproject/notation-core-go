@@ -514,7 +514,6 @@ func generateUnprotectedHeaders(req *signature.SignRequest, signer signer, signa
 		if err != nil {
 			return err
 		}
-		fmt.Printf("timestamp resp is: %+v\n", resp)
 		if err := resp.ValidateStatus(); err != nil {
 			return err
 		}
