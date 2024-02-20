@@ -232,7 +232,37 @@ func TestFailInvalidSigningTime(t *testing.T) {
 
 	st := time.Unix(1625690922, 0)
 	err := ValidateCodeSigningCertChain(certChain, &st)
-	assertErrorEqual("certificate with subject \"CN=CodeSigningLeaf\" was not valid at signing time of 2021-07-07 20:48:42 +0000 UTC", err, t)
+	assertErrorEqual("certificate with subject \"CN=CodeSigningLeaf\" was invalid at signing time of 2021-07-07 20:48:42 +0000 UTC. Certificate is valid from [2022-06-30 19:20:03 +0000 UTC] to [3021-10-31 19:20:03 +0000 UTC]", err, t)
+}
+
+func TestValidateSigningTime(t *testing.T) {
+	// codeSigningCert is valid from 2022-06-30 19:20:03 +0000 UTC to 3021-10-31 19:20:03 +0000 UTC
+	testCases := []struct {
+		name        string
+		certChain   *x509.Certificate
+		signingTime time.Time
+		expectErr   string
+	}{
+		{"invalid before certificate period",
+			codeSigningCert,
+			time.Date(2022, 6, 29, 0, 0, 0, 0, time.UTC),
+			"certificate with subject \"CN=CodeSigningLeaf\" was invalid at signing time of 2022-06-29 00:00:00 +0000 UTC. Certificate is valid from [2022-06-30 19:20:03 +0000 UTC] to [3021-10-31 19:20:03 +0000 UTC]"},
+		{"invalid after certificate period",
+			codeSigningCert,
+			time.Date(3021, 11, 1, 0, 0, 0, 0, time.UTC),
+			"certificate with subject \"CN=CodeSigningLeaf\" was invalid at signing time of 3021-11-01 00:00:00 +0000 UTC. Certificate is valid from [2022-06-30 19:20:03 +0000 UTC] to [3021-10-31 19:20:03 +0000 UTC]"},
+		{"valid in certificate period",
+			codeSigningCert,
+			time.Date(2023, 10, 10, 0, 0, 0, 0, time.UTC),
+			""},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			if err := validateSigningTime(tc.certChain, &tc.signingTime); err != nil {
+				assertErrorEqual(tc.expectErr, err, t)
+			}
+		})
+	}
 }
 
 func TestFailChainNotEndingInRoot(t *testing.T) {
