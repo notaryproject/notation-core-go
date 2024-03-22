@@ -60,6 +60,7 @@ func TestSign(t *testing.T) {
 						t.Fatalf("newSignRequest() failed. Error = %s", err)
 					}
 					encoded, err := env.Sign(signRequest)
+					fmt.Println(err)
 					if err != nil || len(encoded) == 0 {
 						t.Fatalf("Sign() failed. Error = %s", err)
 					}

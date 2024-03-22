@@ -100,7 +100,11 @@ func (e *envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 		return nil, &signature.InvalidSignatureError{Msg: err.Error()}
 	}
 	e.base = env
-	return encoded, timestampErr
+
+	if timestampErr != nil {
+		return encoded, timestampErr
+	}
+	return encoded, nil
 }
 
 // Verify verifies the envelope and returns its enclosed payload and signer info.

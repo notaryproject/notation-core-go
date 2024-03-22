@@ -252,7 +252,10 @@ func (e *envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 	}
 	e.base = msg
 
-	return encoded, timestampErr
+	if timestampErr != nil {
+		return encoded, timestampErr
+	}
+	return encoded, nil
 }
 
 // Verify implements signature.Envelope interface.

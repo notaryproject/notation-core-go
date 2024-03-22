@@ -65,8 +65,13 @@ func (e *Envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 		return nil, err
 	}
 
+	// store the raw signature
 	e.Raw = raw
-	return e.Raw, timestampErr
+
+	if timestampErr != nil {
+		return e.Raw, timestampErr
+	}
+	return e.Raw, nil
 }
 
 // Verify performs integrity and other signature specification related

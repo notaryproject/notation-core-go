@@ -585,7 +585,7 @@ var rsaKeyTooSmallLeaf = parseCertificateFromString(rsaKeyTooSmallLeafPem)
 
 func TestFailRsaKeyTooSmallLeaf(t *testing.T) {
 	err := validateLeafCertificate(rsaKeyTooSmallLeaf, x509.ExtKeyUsageCodeSigning)
-	assertErrorEqual("certificate with subject \"CN=Hello\": rsa public key length must be 2048 bits or higher", err, t)
+	assertErrorEqual("certificate with subject \"CN=Hello\": rsa key size 1024 bits is not supported", err, t)
 }
 
 var ecdsaKeyTooSmallLeafPem = "-----BEGIN CERTIFICATE-----\n" +
@@ -601,7 +601,7 @@ var ecdsaKeyTooSmallLeaf = parseCertificateFromString(ecdsaKeyTooSmallLeafPem)
 
 func TestFailEcdsaKeyTooSmallLeaf(t *testing.T) {
 	err := validateLeafCertificate(ecdsaKeyTooSmallLeaf, x509.ExtKeyUsageCodeSigning)
-	assertErrorEqual("certificate with subject \"CN=Hello\": ecdsa public key length must be 256 bits or higher", err, t)
+	assertErrorEqual("certificate with subject \"CN=Hello\": ecdsa key size 224 bits is not supported", err, t)
 }
 
 // ---------------- Code-Signing Leaf Validations ----------------
@@ -634,7 +634,7 @@ var ekuWrongValuesCodeLeaf = parseCertificateFromString(ekuWrongValuesCodeLeafPe
 
 func TestFailEkuWrongValuesCodeLeaf(t *testing.T) {
 	err := validateLeafCertificate(ekuWrongValuesCodeLeaf, x509.ExtKeyUsageCodeSigning)
-	assertErrorEqual("certificate with subject \"CN=Hello\": extended key usage must not contain ServerAuth eku", err, t)
+	assertErrorEqual("timestamp signing certificate with subject \"CN=Hello\" MUST have and only have ExtKeyUsageTimeStamping as extended key usage", err, t)
 }
 
 var ekuMissingCodeSigningLeafPem = "-----BEGIN CERTIFICATE-----\n" +
@@ -691,7 +691,7 @@ var ekuWrongValuesTimeLeaf = parseCertificateFromString(ekuWrongValuesTimeLeafPe
 
 func TestFailEkuWrongValuesTimeLeaf(t *testing.T) {
 	err := validateLeafCertificate(ekuWrongValuesTimeLeaf, x509.ExtKeyUsageTimeStamping)
-	assertErrorEqual("certificate with subject \"CN=Hello\": extended key usage must not contain ServerAuth eku", err, t)
+	assertErrorEqual("timestamp signing certificate with subject \"CN=Hello\" MUST have and only have ExtKeyUsageTimeStamping as extended key usage", err, t)
 }
 
 var ekuMissingTimeStampingLeafPem = "-----BEGIN CERTIFICATE-----\n" +
