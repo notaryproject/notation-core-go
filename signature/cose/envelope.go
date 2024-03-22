@@ -509,12 +509,12 @@ func generateUnprotectedHeaders(req *signature.SignRequest, signer signer, sig [
 		if hash == 0 {
 			return &signature.TimestampError{Msg: fmt.Sprintf("got hash value 0 due to cose algorithm %d", signer.Algorithm())}
 		}
-		timestamp, err := timestamp.Timestamp(context.Background(), req.TSAServerURL, sig, hash)
+		timestampToken, err := timestamp.Timestamp(context.Background(), req.TSAServerURL, sig, hash)
 		if err != nil {
 			return &signature.TimestampError{Detail: err}
 		}
 		// on success, embed the timestamp token to headerLabelTimeStampSignature
-		unprotected[headerLabelTimeStampSignature] = timestamp
+		unprotected[headerLabelTimeStampSignature] = timestampToken
 	}
 	return nil
 }

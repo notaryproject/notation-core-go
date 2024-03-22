@@ -212,12 +212,12 @@ func generateJWS(compact string, req *signature.SignRequest, signingScheme strin
 		if hash == 0 {
 			return jwsEnvelope, &signature.TimestampError{Msg: fmt.Sprintf("got hash value 0 from key spec %+v", ks)}
 		}
-		timestamp, err := timestamp.Timestamp(context.Background(), req.TSAServerURL, []byte(sig), hash)
+		timestampToken, err := timestamp.Timestamp(context.Background(), req.TSAServerURL, []byte(sig), hash)
 		if err != nil {
 			return jwsEnvelope, &signature.TimestampError{Detail: err}
 		}
 		// on success, embed the timestamp token to TimestampSignature
-		jwsEnvelope.Header.TimestampSignature = timestamp
+		jwsEnvelope.Header.TimestampSignature = timestampToken
 	}
 	return jwsEnvelope, nil
 }
