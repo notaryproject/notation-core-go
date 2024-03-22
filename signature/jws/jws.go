@@ -204,6 +204,10 @@ func generateJWS(compact string, req *signature.SignRequest, signingScheme strin
 		if sig == "" {
 			return jwsEnvelope, &signature.TimestampError{Msg: "empty signature"}
 		}
+		primitiveSignature, err := base64.RawURLEncoding.DecodeString(sig)
+		if err != nil {
+			return nil, &signature.TimestampError{Detail: err}
+		}
 		ks, err := req.Signer.KeySpec()
 		if err != nil {
 			return jwsEnvelope, &signature.TimestampError{Detail: err}
@@ -212,7 +216,7 @@ func generateJWS(compact string, req *signature.SignRequest, signingScheme strin
 		if hash == 0 {
 			return jwsEnvelope, &signature.TimestampError{Msg: fmt.Sprintf("got hash value 0 from key spec %+v", ks)}
 		}
-		timestampToken, err := timestamp.Timestamp(context.Background(), req.TSAServerURL, []byte(sig), hash)
+		timestampToken, err := timestamp.Timestamp(context.Background(), req.TSAServerURL, primitiveSignature, hash)
 		if err != nil {
 			return jwsEnvelope, &signature.TimestampError{Detail: err}
 		}

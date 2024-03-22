@@ -379,7 +379,6 @@ func (e *envelope) signerInfo() (*signature.SignerInfo, error) {
 
 	// populate signerInfo.UnsignedAttributes.TimestampSignature
 	if timestamepToken, ok := e.base.Headers.Unprotected[headerLabelTimeStampSignature].([]byte); ok {
-		fmt.Println("signer info: has time stamp token")
 		signerInfo.UnsignedAttributes.TimestampSignature = timestamepToken
 	}
 
