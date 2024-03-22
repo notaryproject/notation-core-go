@@ -27,7 +27,7 @@ import (
 	"github.com/fxamacker/cbor/v2"
 	"github.com/notaryproject/notation-core-go/signature"
 	"github.com/notaryproject/notation-core-go/signature/internal/base"
-	"github.com/notaryproject/tspclient-go"
+	"github.com/notaryproject/notation-core-go/signature/internal/timestamp"
 	"github.com/veraison/go-cose"
 )
 
@@ -237,7 +237,11 @@ func (e *envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 	}
 
 	// generate unprotected headers of COSE envelope
-	if err := generateUnprotectedHeaders(req, signer, msg.Signature, msg.Headers.Unprotected); err != nil {
+	var timestampErr *signature.TimestampError
+	err = generateUnprotectedHeaders(req, signer, msg.Signature, msg.Headers.Unprotected)
+	// ignore any timestamping error, because it SHOULD not block the
+	// signing process
+	if err != nil && !errors.As(err, &timestampErr) {
 		return nil, &signature.InvalidSignatureError{Msg: err.Error()}
 	}
 
@@ -248,7 +252,7 @@ func (e *envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 	}
 	e.base = msg
 
-	return encoded, nil
+	return encoded, timestampErr
 }
 
 // Verify implements signature.Envelope interface.
@@ -479,7 +483,7 @@ func generateProtectedHeaders(req *signature.SignRequest, protected cose.Protect
 
 // generateUnprotectedHeaders creates Unprotected Headers of the COSE envelope
 // during Sign process.
-func generateUnprotectedHeaders(req *signature.SignRequest, signer signer, signature []byte, unprotected cose.UnprotectedHeader) error {
+func generateUnprotectedHeaders(req *signature.SignRequest, signer signer, sig []byte, unprotected cose.UnprotectedHeader) error {
 	// signing agent
 	if req.SigningAgent != "" {
 		unprotected[headerLabelSigningAgent] = req.SigningAgent
@@ -495,29 +499,19 @@ func generateUnprotectedHeaders(req *signature.SignRequest, signer signer, signa
 
 	// tsa
 	if req.TSAServerURL != "" {
-		if signature == nil {
-			return fmt.Errorf("timestamping with TSA url %s, but got nil signature", req.TSAServerURL)
+		if sig == nil {
+			return &signature.TimestampError{Msg: "nil signature"}
 		}
 		hash := hashFunc(signer.Algorithm())
 		if hash == 0 {
-			return fmt.Errorf("got hash value 0 due to cose algorithm %d", signer.Algorithm())
+			return &signature.TimestampError{Msg: fmt.Sprintf("got hash value 0 due to cose algorithm %d", signer.Algorithm())}
 		}
-		tsaRequest, err := tspclient.NewRequestFromContent(signature, hash)
+		timestamp, err := timestamp.Timestamp(context.Background(), req.TSAServerURL, sig, hash)
 		if err != nil {
-			return err
+			return &signature.TimestampError{Detail: err}
 		}
-		httpTimeStamper, err := tspclient.NewHTTPTimestamper(nil, req.TSAServerURL)
-		if err != nil {
-			return err
-		}
-		resp, err := httpTimeStamper.Timestamp(context.Background(), tsaRequest)
-		if err != nil {
-			return err
-		}
-		if err := resp.ValidateStatus(); err != nil {
-			return err
-		}
-		unprotected[headerLabelTimeStampSignature] = resp.TimeStampToken.FullBytes
+		// on success, embed the timestamp token to headerLabelTimeStampSignature
+		unprotected[headerLabelTimeStampSignature] = timestamp
 	}
 	return nil
 }

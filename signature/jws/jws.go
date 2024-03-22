@@ -14,6 +14,7 @@
 package jws
 
 import (
+	"context"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
@@ -21,6 +22,7 @@ import (
 	"strings"
 
 	"github.com/notaryproject/notation-core-go/signature"
+	"github.com/notaryproject/notation-core-go/signature/internal/timestamp"
 )
 
 func parseProtectedHeaders(encoded string) (*jwsProtectedHeader, error) {
@@ -178,21 +180,46 @@ func generateJWS(compact string, req *signature.SignRequest, certs []*x509.Certi
 		return nil, fmt.Errorf(
 			"unexpected error occurred while generating a JWS-JSON serialization from compact serialization. want: len(parts) == 3, got: len(parts) == %d", len(parts))
 	}
+	protected := parts[0]
+	payload := parts[1]
+	sig := parts[2]
 
 	rawCerts := make([][]byte, len(certs))
 	for i, cert := range certs {
 		rawCerts[i] = cert.Raw
 	}
 
-	return &jwsEnvelope{
-		Protected: parts[0],
-		Payload:   parts[1],
-		Signature: parts[2],
+	jwsEnvelope := &jwsEnvelope{
+		Protected: protected,
+		Payload:   payload,
+		Signature: sig,
 		Header: jwsUnprotectedHeader{
 			CertChain:    rawCerts,
 			SigningAgent: req.SigningAgent,
 		},
-	}, nil
+	}
+
+	// tsa
+	if req.TSAServerURL != "" {
+		if sig == "" {
+			return jwsEnvelope, &signature.TimestampError{Msg: "empty signature"}
+		}
+		ks, err := req.Signer.KeySpec()
+		if err != nil {
+			return jwsEnvelope, &signature.TimestampError{Detail: err}
+		}
+		hash := ks.SignatureAlgorithm().Hash()
+		if hash == 0 {
+			return jwsEnvelope, &signature.TimestampError{Msg: fmt.Sprintf("got hash value 0 from key spec %+v", ks)}
+		}
+		timestamp, err := timestamp.Timestamp(context.Background(), req.TSAServerURL, []byte(sig), hash)
+		if err != nil {
+			return jwsEnvelope, &signature.TimestampError{Detail: err}
+		}
+		// on success, embed the timestamp token to TimestampSignature
+		jwsEnvelope.Header.TimestampSignature = timestamp
+	}
+	return jwsEnvelope, nil
 }
 
 // getSignerAttributes merge extended signed attributes and protected header to be signed attributes.

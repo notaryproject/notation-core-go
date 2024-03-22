@@ -43,8 +43,11 @@ func (e *Envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 		return nil, err
 	}
 
+	var timestampErr *signature.TimestampError
 	raw, err := e.Envelope.Sign(req)
-	if err != nil {
+	// ignore any timestamping error, because it SHOULD not block the
+	// signing process.
+	if err != nil && !errors.As(err, &timestampErr) {
 		return nil, err
 	}
 
@@ -63,7 +66,7 @@ func (e *Envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 	}
 
 	e.Raw = raw
-	return e.Raw, nil
+	return e.Raw, timestampErr
 }
 
 // Verify performs integrity and other signature specification related

@@ -15,13 +15,13 @@ package x509
 
 import (
 	"bytes"
-	"crypto/ecdsa"
-	"crypto/rsa"
 	"crypto/x509"
 	"errors"
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/notaryproject/notation-core-go/signature"
 )
 
 // ValidateCodeSigningCertChain takes an ordered code-signing certificate chain
@@ -38,6 +38,13 @@ func ValidateCodeSigningCertChain(certChain []*x509.Certificate, signingTime *ti
 // https://github.com/notaryproject/notaryproject/blob/main/specs/signature-specification.md#certificate-requirements
 func ValidateTimeStampingCertChain(certChain []*x509.Certificate, signingTime *time.Time) error {
 	return validateCertChain(certChain, x509.ExtKeyUsageTimeStamping, signingTime)
+}
+
+// ValidateTimestampingSigningCeritifcate validates the signing certificate of
+// a timestamp token.
+// Reference: https://github.com/notaryproject/specifications/blob/v1.0.0/specs/signature-specification.md#leaf-certificates
+func ValidateTimestampingSigningCeritifcate(signingCert *x509.Certificate) error {
+	return validateLeafCertificate(signingCert, x509.ExtKeyUsageTimeStamping)
 }
 
 func validateCertChain(certChain []*x509.Certificate, expectedLeafEku x509.ExtKeyUsage, signingTime *time.Time) error {
@@ -145,7 +152,7 @@ func validateLeafCertificate(cert *x509.Certificate, expectedEku x509.ExtKeyUsag
 	if err := validateExtendedKeyUsage(cert, expectedEku); err != nil {
 		return err
 	}
-	return validateKeyLength(cert)
+	return validateSignatureAlgorithm(cert)
 }
 
 func validateCABasicConstraints(cert *x509.Certificate, expectedPathLen int) error {
@@ -182,7 +189,7 @@ func validateLeafKeyUsage(cert *x509.Certificate) error {
 		return err
 	}
 	if cert.KeyUsage&x509.KeyUsageDigitalSignature == 0 {
-		return fmt.Errorf("The certificate with subject %q is invalid. The key usage must have the bit positions for \"Digital Signature\" set", cert.Subject)
+		return fmt.Errorf("the certificate with subject %q is invalid. The key usage must have the bit positions for \"Digital Signature\" set", cert.Subject)
 	}
 
 	var invalidKeyUsages []string
@@ -211,7 +218,7 @@ func validateLeafKeyUsage(cert *x509.Certificate) error {
 		invalidKeyUsages = append(invalidKeyUsages, `"DecipherOnly"`)
 	}
 	if len(invalidKeyUsages) > 0 {
-		return fmt.Errorf("The certificate with subject %q is invalid. The key usage must be \"Digital Signature\" only, but found %s", cert.Subject, strings.Join(invalidKeyUsages, ", "))
+		return fmt.Errorf("the certificate with subject %q is invalid. The key usage must be \"Digital Signature\" only, but found %s", cert.Subject, strings.Join(invalidKeyUsages, ", "))
 	}
 	return nil
 }
@@ -240,6 +247,17 @@ func validateExtendedKeyUsage(cert *x509.Certificate, expectedEku x509.ExtKeyUsa
 		return nil
 	}
 
+	// RFC 3161 2.3: The corresponding certificate MUST contain only one
+	// instance of the extended key usage field extension.
+	if expectedEku == x509.ExtKeyUsageTimeStamping {
+		if len(cert.ExtKeyUsage) != 1 ||
+			cert.ExtKeyUsage[0] != x509.ExtKeyUsageTimeStamping ||
+			len(cert.UnknownExtKeyUsage) != 0 {
+			return fmt.Errorf("timestamp signing certificate with subject %q MUST have and only have ExtKeyUsageTimeStamping as extended key usage", cert.Subject)
+		}
+		return nil
+	}
+
 	excludedEkus := []x509.ExtKeyUsage{
 		x509.ExtKeyUsageAny,
 		x509.ExtKeyUsageServerAuth,
@@ -250,8 +268,6 @@ func validateExtendedKeyUsage(cert *x509.Certificate, expectedEku x509.ExtKeyUsa
 
 	if expectedEku == 0 {
 		excludedEkus = append(excludedEkus, x509.ExtKeyUsageTimeStamping)
-	} else if expectedEku == x509.ExtKeyUsageTimeStamping {
-		excludedEkus = append(excludedEkus, x509.ExtKeyUsageCodeSigning)
 	}
 
 	var hasExpectedEku bool
@@ -273,16 +289,13 @@ func validateExtendedKeyUsage(cert *x509.Certificate, expectedEku x509.ExtKeyUsa
 	return nil
 }
 
-func validateKeyLength(cert *x509.Certificate) error {
-	switch key := cert.PublicKey.(type) {
-	case *rsa.PublicKey:
-		if key.N.BitLen() < 2048 {
-			return fmt.Errorf("certificate with subject %q: rsa public key length must be 2048 bits or higher", cert.Subject)
-		}
-	case *ecdsa.PublicKey:
-		if key.Params().N.BitLen() < 256 {
-			return fmt.Errorf("certificate with subject %q: ecdsa public key length must be 256 bits or higher", cert.Subject)
-		}
+func validateSignatureAlgorithm(cert *x509.Certificate) error {
+	keySpec, err := signature.ExtractKeySpec(cert)
+	if err != nil {
+		return fmt.Errorf("certificate with subject %q: %w", cert.Subject, err)
+	}
+	if keySpec.SignatureAlgorithm() == 0 {
+		return fmt.Errorf("certificate with subject %q: unsupported signature algorithm with key spec %+v", cert.Subject, keySpec)
 	}
 	return nil
 }

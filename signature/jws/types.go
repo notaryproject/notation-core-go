@@ -73,7 +73,7 @@ type jwsProtectedHeader struct {
 
 // jwsUnprotectedHeader contains the set of unprotected headers.
 type jwsUnprotectedHeader struct {
-	// RFC3161 time stamp token Base64-encoded.
+	// RFC3161 timestamp token Base64-encoded.
 	TimestampSignature []byte `json:"io.cncf.notary.timestampSignature,omitempty"`
 
 	// List of X.509 Base64-DER-encoded certificates

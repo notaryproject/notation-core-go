@@ -17,6 +17,7 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/golang-jwt/jwt/v4"
@@ -86,8 +87,11 @@ func (e *envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 	}
 
 	// generate envelope
+	var timestampErr *signature.TimestampError
 	env, err := generateJWS(compact, req, certs)
-	if err != nil {
+	// ignore any timestamping error, because it SHOULD not block the
+	// signing process
+	if err != nil && !errors.As(err, &timestampErr) {
 		return nil, &signature.InvalidSignatureError{Msg: err.Error()}
 	}
 
@@ -96,7 +100,7 @@ func (e *envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 		return nil, &signature.InvalidSignatureError{Msg: err.Error()}
 	}
 	e.base = env
-	return encoded, nil
+	return encoded, timestampErr
 }
 
 // Verify verifies the envelope and returns its enclosed payload and signer info.

@@ -1,5 +1,5 @@
-github.com/Two-Hearts/tspclient-go v0.0.0-20240131082004-ba595813cc9d h1:RaFc+6Xkky04Y9DHb4BVhq9M1u3yhdoyccgDzcXwSgw=
-github.com/Two-Hearts/tspclient-go v0.0.0-20240131082004-ba595813cc9d/go.mod h1:Pgt9nPf69t08eVXdxjcfxZalElbQocRuP1DGSKZDpMs=
+github.com/Two-Hearts/tspclient-go v0.0.0-20240322031047-c33159600668 h1:DwEjNM07LP9yYT17LMWEgv4g0UnjmORuyX2aqUgnURE=
+github.com/Two-Hearts/tspclient-go v0.0.0-20240322031047-c33159600668/go.mod h1:Pgt9nPf69t08eVXdxjcfxZalElbQocRuP1DGSKZDpMs=
 github.com/fxamacker/cbor/v2 v2.6.0 h1:sU6J2usfADwWlYDAFhZBQ6TnLFBHxgesMrQfQgk1tWA=
 github.com/fxamacker/cbor/v2 v2.6.0/go.mod h1:pxXPTn3joSm21Gbwsv0w9OSA2y1HFR9qXEeXQVeNoDQ=
 github.com/golang-jwt/jwt/v4 v4.5.0 h1:7cYmW1XlMY7h7ii7UhUyChSgS5wUJEnm9uZVTGqOWzg=
