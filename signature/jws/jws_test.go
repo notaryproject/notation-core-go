@@ -58,7 +58,7 @@ func Test_convertToMap(t *testing.T) {
 }
 
 func Test_generateJWSError(t *testing.T) {
-	_, err := generateJWS("", nil, nil)
+	_, err := generateJWS("", nil, "", nil)
 	checkErrorEqual(t, "unexpected error occurred while generating a JWS-JSON serialization from compact serialization", err.Error())
 }
 

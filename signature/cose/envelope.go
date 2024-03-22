@@ -238,7 +238,7 @@ func (e *envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 
 	// generate unprotected headers of COSE envelope
 	var timestampErr *signature.TimestampError
-	err = generateUnprotectedHeaders(req, signer, msg.Signature, msg.Headers.Unprotected)
+	err = generateUnprotectedHeaders(req, signer, msg.Signature, msg.Headers.Protected[headerLabelSigningScheme].(string), msg.Headers.Unprotected)
 	// ignore any timestamping error, because it SHOULD not block the
 	// signing process
 	if err != nil && !errors.As(err, &timestampErr) {
@@ -486,7 +486,7 @@ func generateProtectedHeaders(req *signature.SignRequest, protected cose.Protect
 
 // generateUnprotectedHeaders creates Unprotected Headers of the COSE envelope
 // during Sign process.
-func generateUnprotectedHeaders(req *signature.SignRequest, signer signer, sig []byte, unprotected cose.UnprotectedHeader) error {
+func generateUnprotectedHeaders(req *signature.SignRequest, signer signer, sig []byte, signingScheme string, unprotected cose.UnprotectedHeader) error {
 	// signing agent
 	if req.SigningAgent != "" {
 		unprotected[headerLabelSigningAgent] = req.SigningAgent
@@ -501,7 +501,7 @@ func generateUnprotectedHeaders(req *signature.SignRequest, signer signer, sig [
 	unprotected[cose.HeaderLabelX5Chain] = certChain
 
 	// tsa
-	if req.TSAServerURL != "" {
+	if signingScheme == string(signature.SigningSchemeX509) && req.TSAServerURL != "" {
 		if sig == nil {
 			return &signature.TimestampError{Msg: "nil signature"}
 		}

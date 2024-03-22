@@ -88,7 +88,7 @@ func (e *envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 
 	// generate envelope
 	var timestampErr *signature.TimestampError
-	env, err := generateJWS(compact, req, certs)
+	env, err := generateJWS(compact, req, signedAttrs[headerKeySigningScheme].(signature.SigningScheme), certs)
 	// ignore any timestamping error, because it SHOULD not block the
 	// signing process
 	if err != nil && !errors.As(err, &timestampErr) {

@@ -173,7 +173,7 @@ func contains(s []string, e string) bool {
 	return false
 }
 
-func generateJWS(compact string, req *signature.SignRequest, certs []*x509.Certificate) (*jwsEnvelope, error) {
+func generateJWS(compact string, req *signature.SignRequest, signingScheme signature.SigningScheme, certs []*x509.Certificate) (*jwsEnvelope, error) {
 	parts := strings.Split(compact, ".")
 	if len(parts) != 3 {
 		// this should never happen
@@ -200,7 +200,7 @@ func generateJWS(compact string, req *signature.SignRequest, certs []*x509.Certi
 	}
 
 	// tsa
-	if req.TSAServerURL != "" {
+	if signingScheme == signature.SigningSchemeX509 && req.TSAServerURL != "" {
 		if sig == "" {
 			return jwsEnvelope, &signature.TimestampError{Msg: "empty signature"}
 		}
