@@ -634,7 +634,7 @@ var ekuWrongValuesCodeLeaf = parseCertificateFromString(ekuWrongValuesCodeLeafPe
 
 func TestFailEkuWrongValuesCodeLeaf(t *testing.T) {
 	err := validateLeafCertificate(ekuWrongValuesCodeLeaf, x509.ExtKeyUsageCodeSigning)
-	assertErrorEqual("timestamp signing certificate with subject \"CN=Hello\" MUST have and only have ExtKeyUsageTimeStamping as extended key usage", err, t)
+	assertErrorEqual("certificate with subject \"CN=Hello\": extended key usage must not contain ServerAuth eku", err, t)
 }
 
 var ekuMissingCodeSigningLeafPem = "-----BEGIN CERTIFICATE-----\n" +
@@ -715,7 +715,7 @@ var ekuMissingTimeStampingLeaf = parseCertificateFromString(ekuMissingTimeStampi
 
 func TestFailEkuMissingTimeStampingLeaf(t *testing.T) {
 	err := validateLeafCertificate(ekuMissingTimeStampingLeaf, x509.ExtKeyUsageTimeStamping)
-	assertErrorEqual("certificate with subject \"CN=Hello\": extended key usage must not contain OCSPSigning eku", err, t)
+	assertErrorEqual("timestamp signing certificate with subject \"CN=Hello\" MUST have and only have ExtKeyUsageTimeStamping as extended key usage", err, t)
 }
 
 // ---------------- Utility Methods ----------------
