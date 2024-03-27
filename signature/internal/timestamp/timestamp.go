@@ -30,7 +30,12 @@ import (
 //
 // Reference: https://github.com/notaryproject/specifications/blob/v1.0.0/specs/signature-specification.md#leaf-certificates
 func Timestamp(ctx context.Context, tsaURL string, signature []byte, hash crypto.Hash) ([]byte, error) {
-	tsaRequest, err := tspclient.NewRequestFromContent(signature, hash)
+	opts := tspclient.RequestOptions{
+		Content:       signature,
+		HashAlgorithm: hash,
+		CertReq:       true,
+	}
+	tsaRequest, err := tspclient.NewRequest(opts)
 	if err != nil {
 		return nil, err
 	}
@@ -42,9 +47,6 @@ func Timestamp(ctx context.Context, tsaURL string, signature []byte, hash crypto
 	if err != nil {
 		return nil, err
 	}
-	if err := resp.ValidateStatus(); err != nil {
-		return nil, err
-	}
 	token, err := resp.SignedToken()
 	if err != nil {
 		return nil, err
@@ -52,7 +54,7 @@ func Timestamp(ctx context.Context, tsaURL string, signature []byte, hash crypto
 	// there should be at least one valid TSA signing certificate in the
 	// timestamp token
 	for _, signerInfo := range token.SignerInfos {
-		signingCertificate, err := token.GetSigningCertificate(ctx, &signerInfo)
+		signingCertificate, err := token.GetSigningCertificate(&signerInfo)
 		if err != nil || nx509.ValidateTimestampingSigningCeritifcate(signingCertificate) != nil {
 			continue
 		}
