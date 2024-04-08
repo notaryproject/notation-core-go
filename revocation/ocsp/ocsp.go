@@ -39,6 +39,7 @@ import (
 // Options specifies values that are needed to check OCSP revocation
 type Options struct {
 	CertChain   []*x509.Certificate
+	Timestamp   bool
 	SigningTime time.Time
 	HTTPClient  *http.Client
 }
@@ -64,8 +65,14 @@ func CheckStatus(opts Options) ([]*result.CertRevocationResult, error) {
 	// Since this is using authentic signing time, signing time may be zero.
 	// Thus, it is better to pass nil here than fail for a cert's NotBefore
 	// being after zero time
-	if err := coreX509.ValidateCodeSigningCertChain(opts.CertChain, nil); err != nil {
-		return nil, result.InvalidChainError{Err: err}
+	if opts.Timestamp {
+		if err := coreX509.ValidateTimeStampingCertChain(opts.CertChain, nil); err != nil {
+			return nil, result.InvalidChainError{Err: err}
+		}
+	} else {
+		if err := coreX509.ValidateCodeSigningCertChain(opts.CertChain, nil); err != nil {
+			return nil, result.InvalidChainError{Err: err}
+		}
 	}
 
 	certResults := make([]*result.CertRevocationResult, len(opts.CertChain))
