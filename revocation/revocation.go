@@ -71,12 +71,12 @@ func (r *revocation) Validate(certChain []*x509.Certificate, signingTime time.Ti
 //
 // TODO: add CRL support
 // https://github.com/notaryproject/notation-core-go/issues/125
-func (r *revocation) ValidateTimestampCertChain(certChain []*x509.Certificate, signingTime time.Time) ([]*result.CertRevocationResult, error) {
+func ValidateTimestampCertChain(certChain []*x509.Certificate, signingTime time.Time) ([]*result.CertRevocationResult, error) {
 	return ocsp.CheckStatus(ocsp.Options{
 		CertChain:   certChain,
 		Timestamp:   true,
 		SigningTime: signingTime,
-		HTTPClient:  r.httpClient,
+		HTTPClient:  &http.Client{Timeout: 2 * time.Second},
 	})
 	// TODO: add CRL support
 	// https://github.com/notaryproject/notation-core-go/issues/125
