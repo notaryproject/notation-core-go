@@ -59,8 +59,8 @@ func Timestamp(ctx context.Context, tsaURL string, opts tspclient.RequestOptions
 	return nil, errors.New("no valid timestamp signing certificate was found in timestamp token")
 }
 
-// GenearteNonce generates a nonce for TSA request
-func GenearteNonce() (*big.Int, error) {
+// GenerateNonce generates a nonce for TSA request
+func GenerateNonce() (*big.Int, error) {
 	// Pick a random number from 0 to 2^159
 	nonce, err := rand.Int(rand.Reader, (&big.Int{}).Exp(big.NewInt(2), big.NewInt(159), nil))
 	if err != nil {

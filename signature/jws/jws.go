@@ -217,7 +217,7 @@ func generateJWS(compact string, req *signature.SignRequest, signingScheme strin
 		if hash == 0 {
 			return jwsEnvelope, &signature.TimestampError{Msg: fmt.Sprintf("got hash value 0 from key spec %+v", ks)}
 		}
-		nonce, err := timestamp.GenearteNonce()
+		nonce, err := timestamp.GenerateNonce()
 		if err != nil {
 			return jwsEnvelope, &signature.TimestampError{Detail: err}
 		}

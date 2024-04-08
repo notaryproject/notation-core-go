@@ -509,7 +509,7 @@ func generateUnprotectedHeaders(req *signature.SignRequest, signer signer, sig [
 		if hash == 0 {
 			return &signature.TimestampError{Msg: fmt.Sprintf("got hash value 0 due to cose algorithm %d", signer.Algorithm())}
 		}
-		nonce, err := timestamp.GenearteNonce()
+		nonce, err := timestamp.GenerateNonce()
 		if err != nil {
 			return &signature.TimestampError{Detail: err}
 		}
