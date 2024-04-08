@@ -57,6 +57,24 @@ func New(httpClient *http.Client) (Revocation, error) {
 func (r *revocation) Validate(certChain []*x509.Certificate, signingTime time.Time) ([]*result.CertRevocationResult, error) {
 	return ocsp.CheckStatus(ocsp.Options{
 		CertChain:   certChain,
+		Timestamp:   false,
+		SigningTime: signingTime,
+		HTTPClient:  r.httpClient,
+	})
+	// TODO: add CRL support
+	// https://github.com/notaryproject/notation-core-go/issues/125
+}
+
+// ValidateTimestampCertChain checks the revocation status for a TSA certificate
+// chain using OCSP and returns an array of CertRevocationResults that contain
+// the results and any errors that are encountered during the process
+//
+// TODO: add CRL support
+// https://github.com/notaryproject/notation-core-go/issues/125
+func (r *revocation) ValidateTimestampCertChain(certChain []*x509.Certificate, signingTime time.Time) ([]*result.CertRevocationResult, error) {
+	return ocsp.CheckStatus(ocsp.Options{
+		CertChain:   certChain,
+		Timestamp:   true,
 		SigningTime: signingTime,
 		HTTPClient:  r.httpClient,
 	})
