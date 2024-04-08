@@ -16,6 +16,7 @@ package jws
 import (
 	"context"
 	"crypto/x509"
+	"encoding/asn1"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -200,7 +201,7 @@ func generateJWS(compact string, req *signature.SignRequest, signingScheme strin
 		},
 	}
 
-	// tsa
+	// timestamping
 	if signingScheme == string(signature.SigningSchemeX509) && req.TSAServerURL != "" {
 		if sig == "" {
 			return jwsEnvelope, &signature.TimestampError{Msg: "empty signature"}
@@ -222,10 +223,11 @@ func generateJWS(compact string, req *signature.SignRequest, signingScheme strin
 			return jwsEnvelope, &signature.TimestampError{Detail: err}
 		}
 		timestampOpts := tspclient.RequestOptions{
-			Content:       primitiveSignature,
-			HashAlgorithm: hash,
-			Nonce:         nonce,
-			CertReq:       true,
+			Content:                 primitiveSignature,
+			HashAlgorithm:           hash,
+			HashAlgorithmParameters: asn1.NullRawValue,
+			Nonce:                   nonce,
+			CertReq:                 true,
 		}
 		timestampToken, err := timestamp.Timestamp(context.Background(), req.TSAServerURL, timestampOpts)
 		if err != nil {

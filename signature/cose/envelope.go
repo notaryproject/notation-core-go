@@ -18,6 +18,7 @@ import (
 	"crypto"
 	"crypto/rand"
 	"crypto/x509"
+	"encoding/asn1"
 	"errors"
 	"fmt"
 	"io"
@@ -500,7 +501,7 @@ func generateUnprotectedHeaders(req *signature.SignRequest, signer signer, sig [
 	}
 	unprotected[cose.HeaderLabelX5Chain] = certChain
 
-	// tsa
+	// timestamping
 	if signingScheme == string(signature.SigningSchemeX509) && req.TSAServerURL != "" {
 		if sig == nil {
 			return &signature.TimestampError{Msg: "nil signature"}
@@ -514,10 +515,11 @@ func generateUnprotectedHeaders(req *signature.SignRequest, signer signer, sig [
 			return &signature.TimestampError{Detail: err}
 		}
 		timeStampOpts := tspclient.RequestOptions{
-			Content:       sig,
-			HashAlgorithm: hash,
-			Nonce:         nonce,
-			CertReq:       true,
+			Content:                 sig,
+			HashAlgorithm:           hash,
+			HashAlgorithmParameters: asn1.NullRawValue,
+			Nonce:                   nonce,
+			CertReq:                 true,
 		}
 		timestampToken, err := timestamp.Timestamp(context.Background(), req.TSAServerURL, timeStampOpts)
 		if err != nil {
