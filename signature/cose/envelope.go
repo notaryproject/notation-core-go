@@ -28,6 +28,7 @@ import (
 	"github.com/notaryproject/notation-core-go/signature"
 	"github.com/notaryproject/notation-core-go/signature/internal/base"
 	"github.com/notaryproject/notation-core-go/signature/internal/timestamp"
+	"github.com/notaryproject/tspclient-go"
 	"github.com/veraison/go-cose"
 )
 
@@ -508,7 +509,17 @@ func generateUnprotectedHeaders(req *signature.SignRequest, signer signer, sig [
 		if hash == 0 {
 			return &signature.TimestampError{Msg: fmt.Sprintf("got hash value 0 due to cose algorithm %d", signer.Algorithm())}
 		}
-		timestampToken, err := timestamp.Timestamp(context.Background(), req.TSAServerURL, sig, hash)
+		nonce, err := timestamp.GenearteNonce()
+		if err != nil {
+			return &signature.TimestampError{Detail: err}
+		}
+		timeStampOpts := tspclient.RequestOptions{
+			Content:       sig,
+			HashAlgorithm: hash,
+			Nonce:         nonce,
+			CertReq:       true,
+		}
+		timestampToken, err := timestamp.Timestamp(context.Background(), req.TSAServerURL, timeStampOpts)
 		if err != nil {
 			return &signature.TimestampError{Detail: err}
 		}

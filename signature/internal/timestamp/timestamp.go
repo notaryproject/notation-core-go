@@ -15,8 +15,9 @@ package timestamp
 
 import (
 	"context"
-	"crypto"
+	"crypto/rand"
 	"errors"
+	"math/big"
 
 	nx509 "github.com/notaryproject/notation-core-go/x509"
 	"github.com/notaryproject/tspclient-go"
@@ -29,12 +30,7 @@ import (
 // TSA.
 //
 // Reference: https://github.com/notaryproject/specifications/blob/v1.0.0/specs/signature-specification.md#leaf-certificates
-func Timestamp(ctx context.Context, tsaURL string, signature []byte, hash crypto.Hash) ([]byte, error) {
-	opts := tspclient.RequestOptions{
-		Content:       signature,
-		HashAlgorithm: hash,
-		CertReq:       true,
-	}
+func Timestamp(ctx context.Context, tsaURL string, opts tspclient.RequestOptions) ([]byte, error) {
 	tsaRequest, err := tspclient.NewRequest(opts)
 	if err != nil {
 		return nil, err
@@ -61,4 +57,14 @@ func Timestamp(ctx context.Context, tsaURL string, signature []byte, hash crypto
 		return resp.TimeStampToken.FullBytes, nil
 	}
 	return nil, errors.New("no valid timestamp signing certificate was found in timestamp token")
+}
+
+// GenearteNonce generates a nonce for TSA request
+func GenearteNonce() (*big.Int, error) {
+	// Pick a random number from 0 to 2^159
+	nonce, err := rand.Int(rand.Reader, (&big.Int{}).Exp(big.NewInt(2), big.NewInt(159), nil))
+	if err != nil {
+		return nil, errors.New("error generating nonce")
+	}
+	return nonce, nil
 }

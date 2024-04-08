@@ -23,6 +23,7 @@ import (
 
 	"github.com/notaryproject/notation-core-go/signature"
 	"github.com/notaryproject/notation-core-go/signature/internal/timestamp"
+	"github.com/notaryproject/tspclient-go"
 )
 
 func parseProtectedHeaders(encoded string) (*jwsProtectedHeader, error) {
@@ -216,7 +217,17 @@ func generateJWS(compact string, req *signature.SignRequest, signingScheme strin
 		if hash == 0 {
 			return jwsEnvelope, &signature.TimestampError{Msg: fmt.Sprintf("got hash value 0 from key spec %+v", ks)}
 		}
-		timestampToken, err := timestamp.Timestamp(context.Background(), req.TSAServerURL, primitiveSignature, hash)
+		nonce, err := timestamp.GenearteNonce()
+		if err != nil {
+			return jwsEnvelope, &signature.TimestampError{Detail: err}
+		}
+		timestampOpts := tspclient.RequestOptions{
+			Content:       primitiveSignature,
+			HashAlgorithm: hash,
+			Nonce:         nonce,
+			CertReq:       true,
+		}
+		timestampToken, err := timestamp.Timestamp(context.Background(), req.TSAServerURL, timestampOpts)
 		if err != nil {
 			return jwsEnvelope, &signature.TimestampError{Detail: err}
 		}
