@@ -340,13 +340,13 @@ func TestInvalidSelfSignedSigningCertificate(t *testing.T) {
 // ---------------- CA Validations ----------------
 
 func TestValidCa(t *testing.T) {
-	if err := validateCACertificate(rootCert, 2); err != nil {
+	if err := validateCACertificate(rootCert, 2, false); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestFailInvalidPathLenCa(t *testing.T) {
-	err := validateCACertificate(rootCert, 3)
+	err := validateCACertificate(rootCert, 3, false)
 	assertErrorEqual("certificate with subject \"CN=Root\": expected path length of 3 but certificate has path length 2 instead", err, t)
 }
 
@@ -370,7 +370,7 @@ var noBasicConstraintsCaPem = "-----BEGIN CERTIFICATE-----\n" +
 var noBasicConstraintsCa = parseCertificateFromString(noBasicConstraintsCaPem)
 
 func TestFailNoBasicConstraintsCa(t *testing.T) {
-	err := validateCACertificate(noBasicConstraintsCa, 3)
+	err := validateCACertificate(noBasicConstraintsCa, 3, false)
 	assertErrorEqual("certificate with subject \"CN=Hello\": ca field in basic constraints must be present, critical, and set to true", err, t)
 }
 
@@ -394,7 +394,7 @@ var basicConstraintsNotCaPem = "-----BEGIN CERTIFICATE-----\n" +
 var basicConstraintsNotCa = parseCertificateFromString(basicConstraintsNotCaPem)
 
 func TestFailBasicConstraintsNotCa(t *testing.T) {
-	err := validateCACertificate(basicConstraintsNotCa, 3)
+	err := validateCACertificate(basicConstraintsNotCa, 3, false)
 	assertErrorEqual("certificate with subject \"CN=Hello\": ca field in basic constraints must be present, critical, and set to true", err, t)
 }
 
@@ -418,7 +418,7 @@ var kuNotCriticalCertSignCaPem = "-----BEGIN CERTIFICATE-----\n" +
 var kuNotCriticalCertSignCa = parseCertificateFromString(kuNotCriticalCertSignCaPem)
 
 func TestFailKuNotCriticalCertSignCa(t *testing.T) {
-	err := validateCACertificate(kuNotCriticalCertSignCa, 3)
+	err := validateCACertificate(kuNotCriticalCertSignCa, 3, false)
 	assertErrorEqual("certificate with subject \"CN=Hello\": key usage extension must be marked critical", err, t)
 }
 
@@ -442,7 +442,7 @@ var kuMissingCaPem = "-----BEGIN CERTIFICATE-----\n" +
 var kuMissingCa = parseCertificateFromString(kuMissingCaPem)
 
 func TestFailKuMissingCa(t *testing.T) {
-	err := validateCACertificate(kuMissingCa, 3)
+	err := validateCACertificate(kuMissingCa, 3, false)
 	assertErrorEqual("certificate with subject \"CN=Hello\": key usage extension must be present", err, t)
 }
 
@@ -466,7 +466,7 @@ var kuNotCertSignCaPem = "-----BEGIN CERTIFICATE-----\n" +
 var kuNotCertSignCa = parseCertificateFromString(kuNotCertSignCaPem)
 
 func TestFailKuNotCertSignCa(t *testing.T) {
-	err := validateCACertificate(kuNotCertSignCa, 3)
+	err := validateCACertificate(kuNotCertSignCa, 3, false)
 	assertErrorEqual("certificate with subject \"CN=Hello\": key usage must have the bit positions for key cert sign set", err, t)
 }
 
@@ -792,7 +792,7 @@ func TestValidateLeafKeyUsage(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateLeafKeyUsage(tt.cert)
+			err := validateLeafKeyUsage(tt.cert, false)
 			if err != nil && tt.expectedErrMsg == "" {
 				t.Fatalf("expected no error, but got: %s", err)
 			} else if err == nil && tt.expectedErrMsg != "" {
