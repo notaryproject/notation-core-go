@@ -753,6 +753,15 @@ func TestValidateLeafKeyUsage(t *testing.T) {
 			expectedErrMsg: "",
 		},
 		{
+			name: "Valid ContentCommitment usage",
+			cert: &x509.Certificate{
+				Subject:    pkix.Name{CommonName: "Test CN"},
+				KeyUsage:   x509.KeyUsageDigitalSignature | x509.KeyUsageContentCommitment,
+				Extensions: extensions,
+			},
+			expectedErrMsg: "",
+		},
+		{
 			name: "Missing DigitalSignature usage",
 			cert: &x509.Certificate{
 				Subject:    pkix.Name{CommonName: "Test CN"},
