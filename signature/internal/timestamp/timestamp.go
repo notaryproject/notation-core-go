@@ -18,6 +18,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"math/big"
+	"time"
 
 	nx509 "github.com/notaryproject/notation-core-go/x509"
 	"github.com/notaryproject/tspclient-go"
@@ -30,7 +31,7 @@ import (
 // TSA.
 //
 // Reference: https://github.com/notaryproject/specifications/blob/v1.0.0/specs/signature-specification.md#leaf-certificates
-func Timestamp(ctx context.Context, tsaURL string, opts tspclient.RequestOptions) ([]byte, error) {
+func Timestamp(ctx context.Context, tsaURL string, signingTime *time.Time, opts tspclient.RequestOptions) ([]byte, error) {
 	tsaRequest, err := tspclient.NewRequest(opts)
 	if err != nil {
 		return nil, err
@@ -51,7 +52,7 @@ func Timestamp(ctx context.Context, tsaURL string, opts tspclient.RequestOptions
 	// timestamp token
 	for _, signerInfo := range token.SignerInfos {
 		signingCertificate, err := token.GetSigningCertificate(&signerInfo)
-		if err != nil || nx509.ValidateTimestampingSigningCeritifcate(signingCertificate) != nil {
+		if err != nil || nx509.ValidateTimestampingSigningCeritifcate(signingCertificate, signingTime) != nil {
 			continue
 		}
 		return resp.TimeStampToken.FullBytes, nil

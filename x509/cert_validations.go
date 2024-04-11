@@ -43,7 +43,10 @@ func ValidateTimeStampingCertChain(certChain []*x509.Certificate, signingTime *t
 // ValidateTimestampingSigningCeritifcate validates the signing certificate of
 // a timestamp token.
 // Reference: https://github.com/notaryproject/specifications/blob/v1.0.0/specs/signature-specification.md#leaf-certificates
-func ValidateTimestampingSigningCeritifcate(signingCert *x509.Certificate) error {
+func ValidateTimestampingSigningCeritifcate(signingCert *x509.Certificate, signingTime *time.Time) error {
+	if signedTimeError := validateSigningTime(signingCert, signingTime); signedTimeError != nil {
+		return signedTimeError
+	}
 	return validateLeafCertificate(signingCert, x509.ExtKeyUsageTimeStamping)
 }
 
