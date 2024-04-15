@@ -16,6 +16,7 @@ package x509
 import (
 	"bytes"
 	"crypto/x509"
+	"encoding/asn1"
 	"errors"
 	"fmt"
 	"strings"
@@ -227,7 +228,7 @@ func validateLeafKeyUsage(cert *x509.Certificate, timestamp bool) error {
 }
 
 func validateKeyUsagePresent(cert *x509.Certificate, timestamp bool) error {
-	keyUsageExtensionOid := []int{2, 5, 29, 15}
+	keyUsageExtensionOid := asn1.ObjectIdentifier{2, 5, 29, 15}
 
 	var hasKeyUsageExtension bool
 	for _, ext := range cert.Extensions {
@@ -246,18 +247,33 @@ func validateKeyUsagePresent(cert *x509.Certificate, timestamp bool) error {
 }
 
 func validateExtendedKeyUsage(cert *x509.Certificate, expectedEku x509.ExtKeyUsage) error {
-	if len(cert.ExtKeyUsage) <= 0 {
-		return nil
-	}
+	extKeyUsageExtensionOid := asn1.ObjectIdentifier{2, 5, 29, 37}
 
+	// cert is a timestamping certificate
+	//
 	// RFC 3161 2.3: The corresponding certificate MUST contain only one
-	// instance of the extended key usage field extension.
+	// instance of the extended key usage field extension. And it MUST be
+	// marked as critical.
 	if expectedEku == x509.ExtKeyUsageTimeStamping {
 		if len(cert.ExtKeyUsage) != 1 ||
 			cert.ExtKeyUsage[0] != x509.ExtKeyUsageTimeStamping ||
 			len(cert.UnknownExtKeyUsage) != 0 {
-			return fmt.Errorf("timestamp signing certificate with subject %q MUST have and only have ExtKeyUsageTimeStamping as extended key usage", cert.Subject)
+			return fmt.Errorf("timestamp signing certificate with subject %q must have and only have %s as extended key usage", cert.Subject, ekuToString(expectedEku))
 		}
+		// check if marked as critical
+		for _, ext := range cert.Extensions {
+			if ext.Id.Equal(extKeyUsageExtensionOid) {
+				if !ext.Critical {
+					return fmt.Errorf("timestamp signing certificate with subject %q must have extended key usage extension marked as critical", cert.Subject)
+				}
+				break
+			}
+		}
+		return nil
+	}
+
+	// cert is a codesigning certificate
+	if len(cert.ExtKeyUsage) <= 0 {
 		return nil
 	}
 
