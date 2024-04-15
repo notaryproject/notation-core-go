@@ -715,7 +715,7 @@ var ekuMissingTimeStampingLeaf = parseCertificateFromString(ekuMissingTimeStampi
 
 func TestFailEkuMissingTimeStampingLeaf(t *testing.T) {
 	err := validateLeafCertificate(ekuMissingTimeStampingLeaf, x509.ExtKeyUsageTimeStamping)
-	assertErrorEqual("timestamp signing certificate with subject \"CN=Hello\" MUST have and only have ExtKeyUsageTimeStamping as extended key usage", err, t)
+	assertErrorEqual("timestamp signing certificate with subject \"CN=Hello\" MUST have and only have TimeStamping as extended key usage", err, t)
 }
 
 // ---------------- Utility Methods ----------------
