@@ -100,7 +100,7 @@ var codeSigningLeafPem = "-----BEGIN CERTIFICATE-----\n" +
 	"cwtsQn/iENuvFcfRHcFhvRjEFrIP+Ugx\n" +
 	"-----END CERTIFICATE-----"
 
-var timeStampingLeafPem = "-----BEGIN CERTIFICATE-----\n" +
+var invalidTimeStampingLeafPem = "-----BEGIN CERTIFICATE-----\n" +
 	"MIIC5TCCAc2gAwIBAgIBATANBgkqhkiG9w0BAQsFADAYMRYwFAYDVQQDDA1JbnRl\n" +
 	"cm1lZGlhdGUyMCAXDTIyMDYzMDE5MjAwNFoYDzMwMjExMDMxMTkyMDA0WjAbMRkw\n" +
 	"FwYDVQQDDBBUaW1lU3RhbXBpbmdMZWFmMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8A\n" +
@@ -183,7 +183,7 @@ var rootCert = parseCertificateFromString(rootCertPem)
 var intermediateCert1 = parseCertificateFromString(intermediateCertPem1)
 var intermediateCert2 = parseCertificateFromString(intermediateCertPem2)
 var codeSigningCert = parseCertificateFromString(codeSigningLeafPem)
-var timeStampingCert = parseCertificateFromString(timeStampingLeafPem)
+var invalidTimeStampingCert = parseCertificateFromString(invalidTimeStampingLeafPem)
 var unrelatedCert = parseCertificateFromString(unrelatedCertPem)
 var intermediateCertInvalidPathLen = parseCertificateFromString(intermediateCertInvalidPathLenPem)
 var codeSigningLeafInvalidPathLen = parseCertificateFromString(codeSigningLeafInvalidPathLenPem)
@@ -211,13 +211,13 @@ func TestValidCodeSigningChain(t *testing.T) {
 	}
 }
 
-func TestValidTimeStampingChain(t *testing.T) {
-	certChain := []*x509.Certificate{timeStampingCert, intermediateCert2, intermediateCert1, rootCert}
+func TestInvalidTimeStampingChain(t *testing.T) {
+	certChain := []*x509.Certificate{invalidTimeStampingCert, intermediateCert2, intermediateCert1, rootCert}
 	signingTime := time.Now()
 
-	if err := ValidateTimeStampingCertChain(certChain, &signingTime); err != nil {
-		t.Fatal(err)
-	}
+	expectedErr := "timestamp signing certificate with subject \"CN=TimeStampingLeaf\" must have extended key usage extension marked as critical"
+	err := ValidateTimeStampingCertChain(certChain, &signingTime)
+	assertErrorEqual(expectedErr, err, t)
 }
 
 func TestFailEmptyChain(t *testing.T) {
@@ -663,10 +663,10 @@ func TestFailEkuMissingCodeSigningLeaf(t *testing.T) {
 
 // ---------------- Time-Stamping Leaf Validations ----------------
 
-func TestValidFullOptionsTimeLeaf(t *testing.T) {
-	if err := validateLeafCertificate(timeStampingCert, x509.ExtKeyUsageTimeStamping); err != nil {
-		t.Fatal(err)
-	}
+func TestInvalidTimestampLeaf(t *testing.T) {
+	expectedErr := "timestamp signing certificate with subject \"CN=TimeStampingLeaf\" must have extended key usage extension marked as critical"
+	err := validateLeafCertificate(invalidTimeStampingCert, x509.ExtKeyUsageTimeStamping)
+	assertErrorEqual(expectedErr, err, t)
 }
 
 var ekuWrongValuesTimeLeafPem = "-----BEGIN CERTIFICATE-----\n" +
@@ -691,7 +691,7 @@ var ekuWrongValuesTimeLeaf = parseCertificateFromString(ekuWrongValuesTimeLeafPe
 
 func TestFailEkuWrongValuesTimeLeaf(t *testing.T) {
 	err := validateLeafCertificate(ekuWrongValuesTimeLeaf, x509.ExtKeyUsageTimeStamping)
-	assertErrorEqual("timestamp signing certificate with subject \"CN=Hello\" MUST have and only have ExtKeyUsageTimeStamping as extended key usage", err, t)
+	assertErrorEqual("timestamp signing certificate with subject \"CN=Hello\" must have and only have TimeStamping as extended key usage", err, t)
 }
 
 var ekuMissingTimeStampingLeafPem = "-----BEGIN CERTIFICATE-----\n" +
