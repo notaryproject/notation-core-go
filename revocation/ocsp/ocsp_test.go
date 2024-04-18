@@ -93,7 +93,7 @@ func TestCheckStatus(t *testing.T) {
 			HTTPClient:  client,
 		}
 
-		certResult := certCheckStatus(revokableChain[0], revokableChain[1], opts)
+		certResult := CertCheckStatus(revokableChain[0], revokableChain[1], opts)
 		expectedCertResults := []*result.CertRevocationResult{getOKCertResult(ocspServer)}
 		validateEquivalentCertResults([]*result.CertRevocationResult{certResult}, expectedCertResults, t)
 	})
@@ -105,7 +105,7 @@ func TestCheckStatus(t *testing.T) {
 			HTTPClient:  client,
 		}
 
-		certResult := certCheckStatus(revokableChain[0], revokableChain[1], opts)
+		certResult := CertCheckStatus(revokableChain[0], revokableChain[1], opts)
 		expectedCertResults := []*result.CertRevocationResult{{
 			Result: result.ResultUnknown,
 			ServerResults: []*result.ServerResult{
@@ -122,7 +122,7 @@ func TestCheckStatus(t *testing.T) {
 			HTTPClient:  client,
 		}
 
-		certResult := certCheckStatus(revokableChain[0], revokableChain[1], opts)
+		certResult := CertCheckStatus(revokableChain[0], revokableChain[1], opts)
 		expectedCertResults := []*result.CertRevocationResult{{
 			Result: result.ResultRevoked,
 			ServerResults: []*result.ServerResult{
@@ -140,7 +140,7 @@ func TestCheckStatus(t *testing.T) {
 			HTTPClient:  client,
 		}
 
-		certResult := certCheckStatus(revokableChain[0], revokableChain[1], opts)
+		certResult := CertCheckStatus(revokableChain[0], revokableChain[1], opts)
 		expectedCertResults := []*result.CertRevocationResult{getOKCertResult(ocspServer)}
 		validateEquivalentCertResults([]*result.CertRevocationResult{certResult}, expectedCertResults, t)
 	})

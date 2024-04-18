@@ -77,7 +77,7 @@ func CheckStatus(opts Options) ([]*result.CertRevocationResult, error) {
 		// Assume cert chain is accurate and next cert in chain is the issuer
 		go func(i int, cert *x509.Certificate) {
 			defer wg.Done()
-			certResults[i] = certCheckStatus(cert, opts.CertChain[i+1], opts)
+			certResults[i] = CertCheckStatus(cert, opts.CertChain[i+1], opts)
 		}(i, cert)
 	}
 	// Last is root cert, which will never be revoked by OCSP
@@ -93,15 +93,15 @@ func CheckStatus(opts Options) ([]*result.CertRevocationResult, error) {
 	return certResults, nil
 }
 
-func certCheckStatus(cert, issuer *x509.Certificate, opts Options) *result.CertRevocationResult {
-	ocspURLs := cert.OCSPServer
-	if len(ocspURLs) == 0 {
+func CertCheckStatus(cert, issuer *x509.Certificate, opts Options) *result.CertRevocationResult {
+	if !HasOCSP(cert) {
 		// OCSP not enabled for this certificate.
 		return &result.CertRevocationResult{
 			Result:        result.ResultNonRevokable,
 			ServerResults: []*result.ServerResult{toServerResult("", NoServerError{})},
 		}
 	}
+	ocspURLs := cert.OCSPServer
 
 	serverResults := make([]*result.ServerResult, len(ocspURLs))
 	for serverIndex, server := range ocspURLs {
@@ -270,4 +270,9 @@ func serverResultsToCertRevocationResult(serverResults []*result.ServerResult) *
 		Result:        serverResults[len(serverResults)-1].Result,
 		ServerResults: serverResults,
 	}
+}
+
+// HasOCSP returns true if the certificate supports OCSP.
+func HasOCSP(cert *x509.Certificate) bool {
+	return len(cert.OCSPServer) > 0
 }

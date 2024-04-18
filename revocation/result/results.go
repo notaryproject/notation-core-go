@@ -100,4 +100,6 @@ type CertRevocationResult struct {
 	// Otherwise, every server specified had some error that prevented the
 	// status from being retrieved. These are all contained here for evaluation
 	ServerResults []*ServerResult
+
+	Err error
 }
