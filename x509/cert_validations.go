@@ -197,9 +197,6 @@ func validateLeafKeyUsage(cert *x509.Certificate, timestamp bool) error {
 	}
 
 	var invalidKeyUsages []string
-	if cert.KeyUsage&x509.KeyUsageContentCommitment != 0 {
-		invalidKeyUsages = append(invalidKeyUsages, `"ContentCommitment"`)
-	}
 	if cert.KeyUsage&x509.KeyUsageKeyEncipherment != 0 {
 		invalidKeyUsages = append(invalidKeyUsages, `"KeyEncipherment"`)
 	}
