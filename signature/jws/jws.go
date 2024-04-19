@@ -23,7 +23,7 @@ import (
 	"strings"
 
 	"github.com/notaryproject/notation-core-go/signature"
-	"github.com/notaryproject/notation-core-go/signature/internal/timestamp"
+	"github.com/notaryproject/notation-core-go/timestamp"
 	"github.com/notaryproject/tspclient-go"
 )
 

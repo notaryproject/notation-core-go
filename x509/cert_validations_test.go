@@ -18,6 +18,8 @@ import (
 	"crypto/x509/pkix"
 	_ "embed"
 	"encoding/asn1"
+	"errors"
+	"os"
 	"testing"
 	"time"
 
@@ -100,25 +102,6 @@ var codeSigningLeafPem = "-----BEGIN CERTIFICATE-----\n" +
 	"cwtsQn/iENuvFcfRHcFhvRjEFrIP+Ugx\n" +
 	"-----END CERTIFICATE-----"
 
-var invalidTimeStampingLeafPem = "-----BEGIN CERTIFICATE-----\n" +
-	"MIIC5TCCAc2gAwIBAgIBATANBgkqhkiG9w0BAQsFADAYMRYwFAYDVQQDDA1JbnRl\n" +
-	"cm1lZGlhdGUyMCAXDTIyMDYzMDE5MjAwNFoYDzMwMjExMDMxMTkyMDA0WjAbMRkw\n" +
-	"FwYDVQQDDBBUaW1lU3RhbXBpbmdMZWFmMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8A\n" +
-	"MIIBCgKCAQEAyx2ispY5C5sQCiLAuCUTp4wv+fpgHwzE4an8eqi+Jrm0tEabTdzP\n" +
-	"IdZFRYPZbgRx+D9DKeN76f+rt51G9gOX77fYWyIXgnVL4UAYNlQj58hqZ0IO22vT\n" +
-	"nIFiDbJoSPuamQaLZNuluiirUwJv1uqSQiEnWHC4LhKwNOo4UHH5S3XkkYRpdFBF\n" +
-	"Tm4uOTaQJA9dfCh+0wbe7ZlEjDiuk1GTSQu69EPIl4IK7aEWqdvk2z1Pg4YkgJZX\n" +
-	"mWzkECNayUiBeHj7lL5ZnyZeki2l77WzXe/j5dgQ9E2+63hfBew+O/XeS/Tm/TyQ\n" +
-	"0P8bQre6vbn9820Cpyg82fd1+5bwYedwVwIDAQABozUwMzAOBgNVHQ8BAf8EBAMC\n" +
-	"B4AwDAYDVR0TAQH/BAIwADATBgNVHSUEDDAKBggrBgEFBQcDCDANBgkqhkiG9w0B\n" +
-	"AQsFAAOCAQEAB9Z80K17p4J3VCqVcKyhgkzzYPoKiBWFThVwxS2+TKY0x4zezSAT\n" +
-	"69Nmf7NkVH4XyvCEUfgdWYst4t41rH3b5MTMOc5/nPeMccDWT0eZRivodF5hFWZd\n" +
-	"2QSFiMHmfUhnglY0ocLbfKeI/QoSGiPyBWO0SK6qOszRi14lP0TpgvgNDtMY/Jj5\n" +
-	"AyINT6o0tyYJvYE23/7ysT3U6pq50M4vOZiSuRys83As/qvlDIDKe8OVlDt6xRvr\n" +
-	"fqdMFWSk6Iay2OCfYcjUbTutMzSI7dvhDivn5FKnNA6M7QD1lqb7V9fymgrQTsth\n" +
-	"We9tUxypXgMjYN74QEHYxEAIfNOTeBppWw==\n" +
-	"-----END CERTIFICATE-----"
-
 var unrelatedCertPem = "-----BEGIN CERTIFICATE-----\n" +
 	"MIIC6jCCAdKgAwIBAgIJAJOlT2AUbsZiMA0GCSqGSIb3DQEBCwUAMBAxDjAMBgNV\n" +
 	"BAMMBUhlbGxvMCAXDTIyMDYyNTAzMTcyM1oYDzIxMjIwNjAxMDMxNzIzWjAQMQ4w\n" +
@@ -183,7 +166,6 @@ var rootCert = parseCertificateFromString(rootCertPem)
 var intermediateCert1 = parseCertificateFromString(intermediateCertPem1)
 var intermediateCert2 = parseCertificateFromString(intermediateCertPem2)
 var codeSigningCert = parseCertificateFromString(codeSigningLeafPem)
-var invalidTimeStampingCert = parseCertificateFromString(invalidTimeStampingLeafPem)
 var unrelatedCert = parseCertificateFromString(unrelatedCertPem)
 var intermediateCertInvalidPathLen = parseCertificateFromString(intermediateCertInvalidPathLenPem)
 var codeSigningLeafInvalidPathLen = parseCertificateFromString(codeSigningLeafInvalidPathLenPem)
@@ -211,12 +193,39 @@ func TestValidCodeSigningChain(t *testing.T) {
 	}
 }
 
-func TestInvalidTimeStampingChain(t *testing.T) {
-	certChain := []*x509.Certificate{invalidTimeStampingCert, intermediateCert2, intermediateCert1, rootCert}
+func TestValidTimeStampingChain(t *testing.T) {
+	timestamp_leaf, err := readSingleCertificate("testdata/timestamp_leaf.crt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	timestamp_intermediate, err := readSingleCertificate("testdata/timestamp_intermediate.crt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	timestamp_root, err := readSingleCertificate("testdata/timestamp_root.crt")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	certChain := []*x509.Certificate{timestamp_leaf, timestamp_intermediate, timestamp_root}
 	signingTime := time.Now()
 
-	expectedErr := "timestamp signing certificate with subject \"CN=TimeStampingLeaf\" must have extended key usage extension marked as critical"
-	err := ValidateTimeStampingCertChain(certChain, &signingTime)
+	err = ValidateTimeStampingCertChain(certChain, &signingTime)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestInvalidTimeStampingChain(t *testing.T) {
+	timestamp_leaf, err := readSingleCertificate("testdata/timestamp_leaf.crt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	certChain := []*x509.Certificate{timestamp_leaf, intermediateCert2, intermediateCert1, rootCert}
+	signingTime := time.Now()
+
+	expectedErr := "invalid certificates or certificate with subject \"CN=DigiCert Timestamp 2023,O=DigiCert\\\\, Inc.,C=US\" is not issued by \"CN=Intermediate2\". Error: crypto/rsa: verification error"
+	err = ValidateTimeStampingCertChain(certChain, &signingTime)
 	assertErrorEqual(expectedErr, err, t)
 }
 
@@ -612,126 +621,6 @@ func TestValidFullOptionsCodeLeaf(t *testing.T) {
 	}
 }
 
-var ekuWrongValuesCodeLeafPem = "-----BEGIN CERTIFICATE-----\n" +
-	"MIIC6jCCAdKgAwIBAgIJAKZJHdWFNYPlMA0GCSqGSIb3DQEBCwUAMBAxDjAMBgNV\n" +
-	"BAMMBUhlbGxvMCAXDTIyMDYyNTAzMDEwM1oYDzIxMjIwNjAxMDMwMTAzWjAQMQ4w\n" +
-	"DAYDVQQDDAVIZWxsbzCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAK2t\n" +
-	"EFpNOJkX7B78d9ahTl5MXGWyKIjgfg1PhkYwHKHJWBiqHa1OUewfUG4ouVuaAvJ+\n" +
-	"GPzcxt23/J3jK+3/szrzpBNv1f0vgIa+mqaRQDW2m/wfWw3kpcwxlRcL7GnCeHbv\n" +
-	"gRFDXQW6MhKgGgKdQ5ezV+p01eF+CzMhUe+bZO+mvgxj36MJHzLMFHyh3x4/+z4x\n" +
-	"qRKmj4uUqJ2FJLlQEk92vPE/N3r7rEWa6gd4mBZ+DsZSrCbVPXchS2mCkeg70qxA\n" +
-	"4840qVLZ5eFxtqnTEUNytu3ug/8ydV9VmuT+C5fQYUp3Fl7D1QxHxWYTVTKdenCY\n" +
-	"jxcJHW1cUWZQlgPTLq8CAwEAAaNFMEMwDgYDVR0PAQH/BAQDAgeAMDEGA1UdJQQq\n" +
-	"MCgGCCsGAQUFBwMDBggrBgEFBQcDAQYIKwYBBQUHAwQGCCsGAQUFBwMIMA0GCSqG\n" +
-	"SIb3DQEBCwUAA4IBAQBRfpNRu79i47yp73LWTKrnZRiLC4JAI3I3w5TTx8m2tYkq\n" +
-	"tkSCP3Sn4y6VjKqo9Xtlt/bBLypw7XAOZOUZLEaoCjwRmAwq74VHAxDZO1LfFlKd\n" +
-	"au8G3xhKjc5prOMJ2g4DELOcyDoLDlwYqQ/jfG/t8b0P37yakFVffSzIA7D0BjmS\n" +
-	"OnWrGOJO/IJZjiaTdQkg+n5jk4FNqhwW91em64/M3MOmib3plnl89MgR90kuvQOV\n" +
-	"ctDBylt8M61MgnbzeunAq4aKYJc4IeeIH++g4F3/pqyoC95sAZP+A6+LkmBDOcyE\n" +
-	"5wUmNtUsL9xxKIUCvPR1JtiLNxHrfendWiuJnW1M\n" +
-	"-----END CERTIFICATE-----"
-var ekuWrongValuesCodeLeaf = parseCertificateFromString(ekuWrongValuesCodeLeafPem)
-
-func TestFailEkuWrongValuesCodeLeaf(t *testing.T) {
-	err := validateLeafCertificate(ekuWrongValuesCodeLeaf, x509.ExtKeyUsageCodeSigning)
-	assertErrorEqual("certificate with subject \"CN=Hello\": extended key usage must not contain ServerAuth eku", err, t)
-}
-
-var ekuMissingCodeSigningLeafPem = "-----BEGIN CERTIFICATE-----\n" +
-	"MIICzDCCAbSgAwIBAgIJAJtYOfTu82KRMA0GCSqGSIb3DQEBCwUAMBAxDjAMBgNV\n" +
-	"BAMMBUhlbGxvMCAXDTIyMDYyNTAzMTMxM1oYDzIxMjIwNjAxMDMxMzEzWjAQMQ4w\n" +
-	"DAYDVQQDDAVIZWxsbzCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBALQN\n" +
-	"GJKHE6cdcmrHkxXOTawWgYEF1X42IOK7gAXFg+KBPHPw4npDjUclLX0sY3XjBuhT\n" +
-	"wI5DRATSNTV2ba3+DpFuH3D+Hbfjil91AG8XzormUPOOCbZqJxSKYAIZfPQGdUvV\n" +
-	"UBulnbDsije00HoNZ03IvdjxbB/9y6a3qQEvIUaEjaZBH3s/YYQIiEmKu6eDpj3R\n" +
-	"PnUcrP5b7jBMA/Vb8joLM0InzqGPRLPFAPf5womAjxZSsrgyVeA1xSm+6KtXMmaA\n" +
-	"IKYwNVAOnhfqgUk0tlaRyXXji2T1M9w9l5XUA1iNOMcjTUTfFa5KW7c0TLTcK6vW\n" +
-	"Eq1BEXUEw7HP7DQUjycCAwEAAaMnMCUwDgYDVR0PAQH/BAQDAgeAMBMGA1UdJQQM\n" +
-	"MAoGCCsGAQUFBwMJMA0GCSqGSIb3DQEBCwUAA4IBAQCSr6A/YAMd6lisgipR0UCA\n" +
-	"4Ye/1kl0jglT7stLTfftSeXgCKXYlwus9VSpZBtg+RvJkihlLNT6vtsiTMfJUBBc\n" +
-	"jALLKYUQuCw9sReAbfvecIfc2bUve6X8isLWDVnxlC1udx2WG3lIfW2Sgs/dYeZW\n" +
-	"yqLTagK5GLlDfg9gBpHLmQYOmshhI85ObOioUAiWTW+S6mx4Bphgl7dlcUabJxEJ\n" +
-	"MpJJiGPkUUUCuYkp31E7S4JRbSXSkaHefZxB5fvhlbnACeqnOtMG/IKaTjCUemkK\n" +
-	"ZRmJ0Al1PTWs+Dn8zLzexP/LkmQZU/FUMxeat/dAnc2blDbVnAsvcvnutXGHoZH5\n" +
-	"-----END CERTIFICATE-----"
-var ekuMissingCodeSigningLeaf = parseCertificateFromString(ekuMissingCodeSigningLeafPem)
-
-func TestFailEkuMissingCodeSigningLeaf(t *testing.T) {
-	err := validateLeafCertificate(ekuMissingCodeSigningLeaf, x509.ExtKeyUsageCodeSigning)
-	assertErrorEqual("certificate with subject \"CN=Hello\": extended key usage must not contain OCSPSigning eku", err, t)
-}
-
-// ---------------- Time-Stamping Leaf Validations ----------------
-
-func TestInvalidTimestampLeaf(t *testing.T) {
-	expectedErr := "timestamp signing certificate with subject \"CN=TimeStampingLeaf\" must have extended key usage extension marked as critical"
-	err := validateLeafCertificate(invalidTimeStampingCert, x509.ExtKeyUsageTimeStamping)
-	assertErrorEqual(expectedErr, err, t)
-}
-
-var ekuWrongValuesTimeLeafPem = "-----BEGIN CERTIFICATE-----\n" +
-	"MIIC6jCCAdKgAwIBAgIJAJOlT2AUbsZiMA0GCSqGSIb3DQEBCwUAMBAxDjAMBgNV\n" +
-	"BAMMBUhlbGxvMCAXDTIyMDYyNTAzMTcyM1oYDzIxMjIwNjAxMDMxNzIzWjAQMQ4w\n" +
-	"DAYDVQQDDAVIZWxsbzCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAOZe\n" +
-	"9zjKWNlFD/HGrkaAI9mh9Fw1gF8S2tphQD/aPd9IS4HJJEQRkKz5oeHj2g1Y6TEk\n" +
-	"plODrKlnoLe+ZFNFFD4xMVV55aQSJDTljCLPwIZt2VewlaAhIImYihOJvJFST1zW\n" +
-	"K2NW4eLxt0awbE/YzL6beH4A6UsrcXcnN0KKiu6YD1/d5TezJoTQBMo6fboltuce\n" +
-	"P/+RMxyqpvip7nyFF3Yrmhumb7DKJrmSfSjdziI5QoUqzqVgqJ8pXMRb3ZOKb499\n" +
-	"d9RRxGkox93iOdSSlaP3FEl8VK9KqnD+MNhjVZbeYTfjm9UVdp91VLP1E/yfMXz+\n" +
-	"fZhYkublK6v3GWSEcb0CAwEAAaNFMEMwDgYDVR0PAQH/BAQDAgeAMDEGA1UdJQQq\n" +
-	"MCgGCCsGAQUFBwMIBggrBgEFBQcDAQYIKwYBBQUHAwQGCCsGAQUFBwMIMA0GCSqG\n" +
-	"SIb3DQEBCwUAA4IBAQCaQZ+ws93F1azT6SKBYvBRBCj07+2DtNI83Q53GxrVy2vU\n" +
-	"rP1ULX7beY87amy6kQcqnQ0QSaoLK+CDL88pPxR2PBzCauz70rMRY8O/KrrLcfwd\n" +
-	"D5HM9DcbneqXQyfh0ZQpt0wK5wux0MFh2sAEv76jgYBMHq2zc+19skAW/oBtTUty\n" +
-	"i/IdOVeO589KXwJzEJmKiswN9zKo9KGgAlKS05zohjv40AOCAs+8Q2lOJjRMq4Ji\n" +
-	"z21qor5e/5+NnGY+2p4A7PbN+QnDdRC3y16dESRN50o5x6CwUWQO74+uRjrAWYCm\n" +
-	"f/Y7qdOf5zZbY21n8KnLcFOsKhwv4t40Y/LQqN/L\n" +
-	"-----END CERTIFICATE-----"
-var ekuWrongValuesTimeLeaf = parseCertificateFromString(ekuWrongValuesTimeLeafPem)
-
-func TestFailEkuWrongValuesTimeLeaf(t *testing.T) {
-	err := validateLeafCertificate(ekuWrongValuesTimeLeaf, x509.ExtKeyUsageTimeStamping)
-	assertErrorEqual("timestamp signing certificate with subject \"CN=Hello\" must have and only have TimeStamping as extended key usage", err, t)
-}
-
-var ekuMissingTimeStampingLeafPem = "-----BEGIN CERTIFICATE-----\n" +
-	"MIICzDCCAbSgAwIBAgIJAJtYOfTu82KRMA0GCSqGSIb3DQEBCwUAMBAxDjAMBgNV\n" +
-	"BAMMBUhlbGxvMCAXDTIyMDYyNTAzMTMxM1oYDzIxMjIwNjAxMDMxMzEzWjAQMQ4w\n" +
-	"DAYDVQQDDAVIZWxsbzCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBALQN\n" +
-	"GJKHE6cdcmrHkxXOTawWgYEF1X42IOK7gAXFg+KBPHPw4npDjUclLX0sY3XjBuhT\n" +
-	"wI5DRATSNTV2ba3+DpFuH3D+Hbfjil91AG8XzormUPOOCbZqJxSKYAIZfPQGdUvV\n" +
-	"UBulnbDsije00HoNZ03IvdjxbB/9y6a3qQEvIUaEjaZBH3s/YYQIiEmKu6eDpj3R\n" +
-	"PnUcrP5b7jBMA/Vb8joLM0InzqGPRLPFAPf5womAjxZSsrgyVeA1xSm+6KtXMmaA\n" +
-	"IKYwNVAOnhfqgUk0tlaRyXXji2T1M9w9l5XUA1iNOMcjTUTfFa5KW7c0TLTcK6vW\n" +
-	"Eq1BEXUEw7HP7DQUjycCAwEAAaMnMCUwDgYDVR0PAQH/BAQDAgeAMBMGA1UdJQQM\n" +
-	"MAoGCCsGAQUFBwMJMA0GCSqGSIb3DQEBCwUAA4IBAQCSr6A/YAMd6lisgipR0UCA\n" +
-	"4Ye/1kl0jglT7stLTfftSeXgCKXYlwus9VSpZBtg+RvJkihlLNT6vtsiTMfJUBBc\n" +
-	"jALLKYUQuCw9sReAbfvecIfc2bUve6X8isLWDVnxlC1udx2WG3lIfW2Sgs/dYeZW\n" +
-	"yqLTagK5GLlDfg9gBpHLmQYOmshhI85ObOioUAiWTW+S6mx4Bphgl7dlcUabJxEJ\n" +
-	"MpJJiGPkUUUCuYkp31E7S4JRbSXSkaHefZxB5fvhlbnACeqnOtMG/IKaTjCUemkK\n" +
-	"ZRmJ0Al1PTWs+Dn8zLzexP/LkmQZU/FUMxeat/dAnc2blDbVnAsvcvnutXGHoZH5\n" +
-	"-----END CERTIFICATE-----"
-var ekuMissingTimeStampingLeaf = parseCertificateFromString(ekuMissingTimeStampingLeafPem)
-
-func TestFailEkuMissingTimeStampingLeaf(t *testing.T) {
-	err := validateLeafCertificate(ekuMissingTimeStampingLeaf, x509.ExtKeyUsageTimeStamping)
-	assertErrorEqual("timestamp signing certificate with subject \"CN=Hello\" must have and only have TimeStamping as extended key usage", err, t)
-}
-
-// ---------------- Utility Methods ----------------
-
-func parseCertificateFromString(certPem string) *x509.Certificate {
-	stringAsBytes := []byte(certPem)
-	cert, _ := parseCertificates(stringAsBytes)
-	return cert[0]
-}
-
-func assertErrorEqual(expected string, err error, t *testing.T) {
-	if err == nil || expected != err.Error() {
-		t.Fatalf("Expected error \"%v\" but was \"%v\"", expected, err)
-	}
-}
-
 func TestValidateLeafKeyUsage(t *testing.T) {
 	extensions := []pkix.Extension{{
 		Id:       asn1.ObjectIdentifier{2, 5, 29, 15}, // OID for KeyUsage
@@ -802,4 +691,182 @@ func TestValidateLeafKeyUsage(t *testing.T) {
 			}
 		})
 	}
+}
+
+var ekuWrongValuesCodeLeafPem = "-----BEGIN CERTIFICATE-----\n" +
+	"MIIC6jCCAdKgAwIBAgIJAKZJHdWFNYPlMA0GCSqGSIb3DQEBCwUAMBAxDjAMBgNV\n" +
+	"BAMMBUhlbGxvMCAXDTIyMDYyNTAzMDEwM1oYDzIxMjIwNjAxMDMwMTAzWjAQMQ4w\n" +
+	"DAYDVQQDDAVIZWxsbzCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAK2t\n" +
+	"EFpNOJkX7B78d9ahTl5MXGWyKIjgfg1PhkYwHKHJWBiqHa1OUewfUG4ouVuaAvJ+\n" +
+	"GPzcxt23/J3jK+3/szrzpBNv1f0vgIa+mqaRQDW2m/wfWw3kpcwxlRcL7GnCeHbv\n" +
+	"gRFDXQW6MhKgGgKdQ5ezV+p01eF+CzMhUe+bZO+mvgxj36MJHzLMFHyh3x4/+z4x\n" +
+	"qRKmj4uUqJ2FJLlQEk92vPE/N3r7rEWa6gd4mBZ+DsZSrCbVPXchS2mCkeg70qxA\n" +
+	"4840qVLZ5eFxtqnTEUNytu3ug/8ydV9VmuT+C5fQYUp3Fl7D1QxHxWYTVTKdenCY\n" +
+	"jxcJHW1cUWZQlgPTLq8CAwEAAaNFMEMwDgYDVR0PAQH/BAQDAgeAMDEGA1UdJQQq\n" +
+	"MCgGCCsGAQUFBwMDBggrBgEFBQcDAQYIKwYBBQUHAwQGCCsGAQUFBwMIMA0GCSqG\n" +
+	"SIb3DQEBCwUAA4IBAQBRfpNRu79i47yp73LWTKrnZRiLC4JAI3I3w5TTx8m2tYkq\n" +
+	"tkSCP3Sn4y6VjKqo9Xtlt/bBLypw7XAOZOUZLEaoCjwRmAwq74VHAxDZO1LfFlKd\n" +
+	"au8G3xhKjc5prOMJ2g4DELOcyDoLDlwYqQ/jfG/t8b0P37yakFVffSzIA7D0BjmS\n" +
+	"OnWrGOJO/IJZjiaTdQkg+n5jk4FNqhwW91em64/M3MOmib3plnl89MgR90kuvQOV\n" +
+	"ctDBylt8M61MgnbzeunAq4aKYJc4IeeIH++g4F3/pqyoC95sAZP+A6+LkmBDOcyE\n" +
+	"5wUmNtUsL9xxKIUCvPR1JtiLNxHrfendWiuJnW1M\n" +
+	"-----END CERTIFICATE-----"
+var ekuWrongValuesCodeLeaf = parseCertificateFromString(ekuWrongValuesCodeLeafPem)
+
+func TestFailEkuWrongValuesCodeLeaf(t *testing.T) {
+	err := validateLeafCertificate(ekuWrongValuesCodeLeaf, x509.ExtKeyUsageCodeSigning)
+	assertErrorEqual("certificate with subject \"CN=Hello\": extended key usage must not contain ServerAuth eku", err, t)
+}
+
+var ekuMissingCodeSigningLeafPem = "-----BEGIN CERTIFICATE-----\n" +
+	"MIICzDCCAbSgAwIBAgIJAJtYOfTu82KRMA0GCSqGSIb3DQEBCwUAMBAxDjAMBgNV\n" +
+	"BAMMBUhlbGxvMCAXDTIyMDYyNTAzMTMxM1oYDzIxMjIwNjAxMDMxMzEzWjAQMQ4w\n" +
+	"DAYDVQQDDAVIZWxsbzCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBALQN\n" +
+	"GJKHE6cdcmrHkxXOTawWgYEF1X42IOK7gAXFg+KBPHPw4npDjUclLX0sY3XjBuhT\n" +
+	"wI5DRATSNTV2ba3+DpFuH3D+Hbfjil91AG8XzormUPOOCbZqJxSKYAIZfPQGdUvV\n" +
+	"UBulnbDsije00HoNZ03IvdjxbB/9y6a3qQEvIUaEjaZBH3s/YYQIiEmKu6eDpj3R\n" +
+	"PnUcrP5b7jBMA/Vb8joLM0InzqGPRLPFAPf5womAjxZSsrgyVeA1xSm+6KtXMmaA\n" +
+	"IKYwNVAOnhfqgUk0tlaRyXXji2T1M9w9l5XUA1iNOMcjTUTfFa5KW7c0TLTcK6vW\n" +
+	"Eq1BEXUEw7HP7DQUjycCAwEAAaMnMCUwDgYDVR0PAQH/BAQDAgeAMBMGA1UdJQQM\n" +
+	"MAoGCCsGAQUFBwMJMA0GCSqGSIb3DQEBCwUAA4IBAQCSr6A/YAMd6lisgipR0UCA\n" +
+	"4Ye/1kl0jglT7stLTfftSeXgCKXYlwus9VSpZBtg+RvJkihlLNT6vtsiTMfJUBBc\n" +
+	"jALLKYUQuCw9sReAbfvecIfc2bUve6X8isLWDVnxlC1udx2WG3lIfW2Sgs/dYeZW\n" +
+	"yqLTagK5GLlDfg9gBpHLmQYOmshhI85ObOioUAiWTW+S6mx4Bphgl7dlcUabJxEJ\n" +
+	"MpJJiGPkUUUCuYkp31E7S4JRbSXSkaHefZxB5fvhlbnACeqnOtMG/IKaTjCUemkK\n" +
+	"ZRmJ0Al1PTWs+Dn8zLzexP/LkmQZU/FUMxeat/dAnc2blDbVnAsvcvnutXGHoZH5\n" +
+	"-----END CERTIFICATE-----"
+var ekuMissingCodeSigningLeaf = parseCertificateFromString(ekuMissingCodeSigningLeafPem)
+
+func TestFailEkuMissingCodeSigningLeaf(t *testing.T) {
+	err := validateLeafCertificate(ekuMissingCodeSigningLeaf, x509.ExtKeyUsageCodeSigning)
+	assertErrorEqual("certificate with subject \"CN=Hello\": extended key usage must not contain OCSPSigning eku", err, t)
+}
+
+// ---------------- Time-Stamping Leaf Validations ----------------
+
+func TestValidTimestampLeaf(t *testing.T) {
+	timestamp_leaf, err := readSingleCertificate("testdata/timestamp_leaf.crt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	signingTime := time.Now()
+	err = ValidateTimestampingSigningCeritifcate(timestamp_leaf, &signingTime)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestExpiredTimestampLeaf(t *testing.T) {
+	timestamp_leaf, err := readSingleCertificate("testdata/timestamp_leaf.crt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	signingTime := time.Date(2035, 1, 1, 0, 0, 0, 0, time.UTC)
+	expectedErr := "certificate with subject \"CN=DigiCert Timestamp 2023,O=DigiCert\\\\, Inc.,C=US\" was invalid at signing time of 2035-01-01 00:00:00 +0000 UTC. Certificate is valid from [2023-07-14 00:00:00 +0000 UTC] to [2034-10-13 23:59:59 +0000 UTC]"
+	err = ValidateTimestampingSigningCeritifcate(timestamp_leaf, &signingTime)
+	assertErrorEqual(expectedErr, err, t)
+}
+
+var ekuNonCriticalTimeLeafPem = "-----BEGIN CERTIFICATE-----\n" +
+	"MIIC5TCCAc2gAwIBAgIBATANBgkqhkiG9w0BAQsFADAYMRYwFAYDVQQDDA1JbnRl\n" +
+	"cm1lZGlhdGUyMCAXDTIyMDYzMDE5MjAwNFoYDzMwMjExMDMxMTkyMDA0WjAbMRkw\n" +
+	"FwYDVQQDDBBUaW1lU3RhbXBpbmdMZWFmMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8A\n" +
+	"MIIBCgKCAQEAyx2ispY5C5sQCiLAuCUTp4wv+fpgHwzE4an8eqi+Jrm0tEabTdzP\n" +
+	"IdZFRYPZbgRx+D9DKeN76f+rt51G9gOX77fYWyIXgnVL4UAYNlQj58hqZ0IO22vT\n" +
+	"nIFiDbJoSPuamQaLZNuluiirUwJv1uqSQiEnWHC4LhKwNOo4UHH5S3XkkYRpdFBF\n" +
+	"Tm4uOTaQJA9dfCh+0wbe7ZlEjDiuk1GTSQu69EPIl4IK7aEWqdvk2z1Pg4YkgJZX\n" +
+	"mWzkECNayUiBeHj7lL5ZnyZeki2l77WzXe/j5dgQ9E2+63hfBew+O/XeS/Tm/TyQ\n" +
+	"0P8bQre6vbn9820Cpyg82fd1+5bwYedwVwIDAQABozUwMzAOBgNVHQ8BAf8EBAMC\n" +
+	"B4AwDAYDVR0TAQH/BAIwADATBgNVHSUEDDAKBggrBgEFBQcDCDANBgkqhkiG9w0B\n" +
+	"AQsFAAOCAQEAB9Z80K17p4J3VCqVcKyhgkzzYPoKiBWFThVwxS2+TKY0x4zezSAT\n" +
+	"69Nmf7NkVH4XyvCEUfgdWYst4t41rH3b5MTMOc5/nPeMccDWT0eZRivodF5hFWZd\n" +
+	"2QSFiMHmfUhnglY0ocLbfKeI/QoSGiPyBWO0SK6qOszRi14lP0TpgvgNDtMY/Jj5\n" +
+	"AyINT6o0tyYJvYE23/7ysT3U6pq50M4vOZiSuRys83As/qvlDIDKe8OVlDt6xRvr\n" +
+	"fqdMFWSk6Iay2OCfYcjUbTutMzSI7dvhDivn5FKnNA6M7QD1lqb7V9fymgrQTsth\n" +
+	"We9tUxypXgMjYN74QEHYxEAIfNOTeBppWw==\n" +
+	"-----END CERTIFICATE-----"
+var ekuNonCriticalTimeLeafCert = parseCertificateFromString(ekuNonCriticalTimeLeafPem)
+
+func TestTimestampLeafWithNonCriticalEKU(t *testing.T) {
+	expectedErr := "timestamp signing certificate with subject \"CN=TimeStampingLeaf\" must have extended key usage extension marked as critical"
+	err := validateLeafCertificate(ekuNonCriticalTimeLeafCert, x509.ExtKeyUsageTimeStamping)
+	assertErrorEqual(expectedErr, err, t)
+}
+
+var ekuWrongValuesTimeLeafPem = "-----BEGIN CERTIFICATE-----\n" +
+	"MIIC6jCCAdKgAwIBAgIJAJOlT2AUbsZiMA0GCSqGSIb3DQEBCwUAMBAxDjAMBgNV\n" +
+	"BAMMBUhlbGxvMCAXDTIyMDYyNTAzMTcyM1oYDzIxMjIwNjAxMDMxNzIzWjAQMQ4w\n" +
+	"DAYDVQQDDAVIZWxsbzCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAOZe\n" +
+	"9zjKWNlFD/HGrkaAI9mh9Fw1gF8S2tphQD/aPd9IS4HJJEQRkKz5oeHj2g1Y6TEk\n" +
+	"plODrKlnoLe+ZFNFFD4xMVV55aQSJDTljCLPwIZt2VewlaAhIImYihOJvJFST1zW\n" +
+	"K2NW4eLxt0awbE/YzL6beH4A6UsrcXcnN0KKiu6YD1/d5TezJoTQBMo6fboltuce\n" +
+	"P/+RMxyqpvip7nyFF3Yrmhumb7DKJrmSfSjdziI5QoUqzqVgqJ8pXMRb3ZOKb499\n" +
+	"d9RRxGkox93iOdSSlaP3FEl8VK9KqnD+MNhjVZbeYTfjm9UVdp91VLP1E/yfMXz+\n" +
+	"fZhYkublK6v3GWSEcb0CAwEAAaNFMEMwDgYDVR0PAQH/BAQDAgeAMDEGA1UdJQQq\n" +
+	"MCgGCCsGAQUFBwMIBggrBgEFBQcDAQYIKwYBBQUHAwQGCCsGAQUFBwMIMA0GCSqG\n" +
+	"SIb3DQEBCwUAA4IBAQCaQZ+ws93F1azT6SKBYvBRBCj07+2DtNI83Q53GxrVy2vU\n" +
+	"rP1ULX7beY87amy6kQcqnQ0QSaoLK+CDL88pPxR2PBzCauz70rMRY8O/KrrLcfwd\n" +
+	"D5HM9DcbneqXQyfh0ZQpt0wK5wux0MFh2sAEv76jgYBMHq2zc+19skAW/oBtTUty\n" +
+	"i/IdOVeO589KXwJzEJmKiswN9zKo9KGgAlKS05zohjv40AOCAs+8Q2lOJjRMq4Ji\n" +
+	"z21qor5e/5+NnGY+2p4A7PbN+QnDdRC3y16dESRN50o5x6CwUWQO74+uRjrAWYCm\n" +
+	"f/Y7qdOf5zZbY21n8KnLcFOsKhwv4t40Y/LQqN/L\n" +
+	"-----END CERTIFICATE-----"
+var ekuWrongValuesTimeLeaf = parseCertificateFromString(ekuWrongValuesTimeLeafPem)
+
+func TestFailEkuWrongValuesTimeLeaf(t *testing.T) {
+	err := validateLeafCertificate(ekuWrongValuesTimeLeaf, x509.ExtKeyUsageTimeStamping)
+	assertErrorEqual("timestamp signing certificate with subject \"CN=Hello\" must have and only have TimeStamping as extended key usage", err, t)
+}
+
+var ekuMissingTimeStampingLeafPem = "-----BEGIN CERTIFICATE-----\n" +
+	"MIICzDCCAbSgAwIBAgIJAJtYOfTu82KRMA0GCSqGSIb3DQEBCwUAMBAxDjAMBgNV\n" +
+	"BAMMBUhlbGxvMCAXDTIyMDYyNTAzMTMxM1oYDzIxMjIwNjAxMDMxMzEzWjAQMQ4w\n" +
+	"DAYDVQQDDAVIZWxsbzCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBALQN\n" +
+	"GJKHE6cdcmrHkxXOTawWgYEF1X42IOK7gAXFg+KBPHPw4npDjUclLX0sY3XjBuhT\n" +
+	"wI5DRATSNTV2ba3+DpFuH3D+Hbfjil91AG8XzormUPOOCbZqJxSKYAIZfPQGdUvV\n" +
+	"UBulnbDsije00HoNZ03IvdjxbB/9y6a3qQEvIUaEjaZBH3s/YYQIiEmKu6eDpj3R\n" +
+	"PnUcrP5b7jBMA/Vb8joLM0InzqGPRLPFAPf5womAjxZSsrgyVeA1xSm+6KtXMmaA\n" +
+	"IKYwNVAOnhfqgUk0tlaRyXXji2T1M9w9l5XUA1iNOMcjTUTfFa5KW7c0TLTcK6vW\n" +
+	"Eq1BEXUEw7HP7DQUjycCAwEAAaMnMCUwDgYDVR0PAQH/BAQDAgeAMBMGA1UdJQQM\n" +
+	"MAoGCCsGAQUFBwMJMA0GCSqGSIb3DQEBCwUAA4IBAQCSr6A/YAMd6lisgipR0UCA\n" +
+	"4Ye/1kl0jglT7stLTfftSeXgCKXYlwus9VSpZBtg+RvJkihlLNT6vtsiTMfJUBBc\n" +
+	"jALLKYUQuCw9sReAbfvecIfc2bUve6X8isLWDVnxlC1udx2WG3lIfW2Sgs/dYeZW\n" +
+	"yqLTagK5GLlDfg9gBpHLmQYOmshhI85ObOioUAiWTW+S6mx4Bphgl7dlcUabJxEJ\n" +
+	"MpJJiGPkUUUCuYkp31E7S4JRbSXSkaHefZxB5fvhlbnACeqnOtMG/IKaTjCUemkK\n" +
+	"ZRmJ0Al1PTWs+Dn8zLzexP/LkmQZU/FUMxeat/dAnc2blDbVnAsvcvnutXGHoZH5\n" +
+	"-----END CERTIFICATE-----"
+var ekuMissingTimeStampingLeaf = parseCertificateFromString(ekuMissingTimeStampingLeafPem)
+
+func TestFailEkuMissingTimeStampingLeaf(t *testing.T) {
+	err := validateLeafCertificate(ekuMissingTimeStampingLeaf, x509.ExtKeyUsageTimeStamping)
+	assertErrorEqual("timestamp signing certificate with subject \"CN=Hello\" must have and only have TimeStamping as extended key usage", err, t)
+}
+
+// ---------------- Utility Methods ----------------
+
+func parseCertificateFromString(certPem string) *x509.Certificate {
+	stringAsBytes := []byte(certPem)
+	cert, _ := parseCertificates(stringAsBytes)
+	return cert[0]
+}
+
+func assertErrorEqual(expected string, err error, t *testing.T) {
+	if err == nil || expected != err.Error() {
+		t.Fatalf("Expected error \"%v\" but was \"%v\"", expected, err)
+	}
+}
+
+func readSingleCertificate(path string) (*x509.Certificate, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	certs, err := parseCertificates(data)
+	if err != nil {
+		return nil, err
+	}
+	if len(certs) == 0 {
+		return nil, errors.New("no certificate in file")
+	}
+	return certs[0], nil
 }
