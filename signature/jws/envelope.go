@@ -88,11 +88,10 @@ func (e *envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 
 	// generate envelope
 	var timestampErr *signature.TimestampError
-	env, err := generateJWS(compact, req, signedAttrs[headerKeySigningScheme].(string), certs)
-	// ignore any timestamping error, because it SHOULD not block the
-	// signing process
-	if err != nil && !errors.As(err, &timestampErr) {
-		return nil, &signature.InvalidSignatureError{Msg: err.Error()}
+	env, generateJWSErr := generateJWS(compact, req, signedAttrs[headerKeySigningScheme].(string), certs)
+	// timestampErr does NOT fail the signing process
+	if generateJWSErr != nil && !errors.As(generateJWSErr, &timestampErr) {
+		return nil, &signature.InvalidSignatureError{Msg: generateJWSErr.Error()}
 	}
 
 	encoded, err := json.Marshal(env)
@@ -101,10 +100,7 @@ func (e *envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 	}
 	e.base = env
 
-	if timestampErr != nil {
-		return encoded, timestampErr
-	}
-	return encoded, nil
+	return encoded, generateJWSErr
 }
 
 // Verify verifies the envelope and returns its enclosed payload and signer info.

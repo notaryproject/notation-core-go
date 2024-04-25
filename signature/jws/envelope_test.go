@@ -14,6 +14,7 @@
 package jws
 
 import (
+	"context"
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/rand"
@@ -32,7 +33,10 @@ import (
 	"github.com/notaryproject/notation-core-go/signature"
 	"github.com/notaryproject/notation-core-go/signature/internal/signaturetest"
 	"github.com/notaryproject/notation-core-go/testhelper"
+	"github.com/notaryproject/tspclient-go"
 )
+
+const rfc3161TSAurl = "http://timestamp.digicert.com"
 
 // remoteMockSigner is used to mock remote signer
 type remoteMockSigner struct {
@@ -226,8 +230,8 @@ func TestNewEnvelope(t *testing.T) {
 	}
 }
 
-// Test the same key exists both in extended signed attributes and protected header
 func TestSignFailed(t *testing.T) {
+	// Test the same key exists both in extended signed attributes and protected header
 	t.Run("extended attribute conflict with protected header keys", func(t *testing.T) {
 		_, err := getEncodedMessage(signature.SigningSchemeX509, true, extSignedAttrRepeated)
 		checkErrorEqual(t, "attribute key:cty repeated", err.Error())
@@ -252,6 +256,29 @@ func TestSignFailed(t *testing.T) {
 		e := envelope{}
 		_, err = e.Sign(signReq)
 		checkErrorEqual(t, `signature algorithm "#0" is not supported`, err.Error())
+	})
+
+	t.Run("invalid tsa url", func(t *testing.T) {
+		env := envelope{}
+		signer, err := signaturetest.GetTestLocalSigner(signature.KeyTypeRSA, 3072)
+		checkNoError(t, err)
+
+		signReq, err := getSignReq(signature.SigningSchemeX509, signer, nil)
+		checkNoError(t, err)
+
+		signReq.TSAServerURL = "invalid"
+		expected := errors.New("timestamp: unsupported protocol scheme \"\"")
+		encoded, err := env.Sign(signReq)
+		if !isErrEqual(expected, err) {
+			t.Fatalf("Sign() expects error: %v, but got: %v.", expected, err)
+		}
+		var timestampErr *signature.TimestampError
+		if !errors.As(err, &timestampErr) {
+			t.Fatal("expected signature.TimestampError")
+		}
+		if encoded == nil {
+			t.Fatal("expected non-nil signature envelope")
+		}
 	})
 }
 
@@ -297,6 +324,52 @@ func TestSignVerify(t *testing.T) {
 
 				_, err = verifyCore(encoded)
 				checkNoError(t, err)
+			})
+		}
+	}
+}
+
+func TestSignWithTimestamp(t *testing.T) {
+	for _, keyType := range signaturetest.KeyTypes {
+		keyName := map[signature.KeyType]string{
+			signature.KeyTypeEC:  "ECDSA",
+			signature.KeyTypeRSA: "RSA",
+		}[keyType]
+		for _, size := range signaturetest.GetKeySizes(keyType) {
+			t.Run(fmt.Sprintf("%s %d", keyName, size), func(t *testing.T) {
+				signer, err := signaturetest.GetTestLocalSigner(keyType, size)
+				checkNoError(t, err)
+
+				signReq, err := getSignReq(signature.SigningSchemeX509, signer, nil)
+				checkNoError(t, err)
+
+				signReq.TSAServerURL = rfc3161TSAurl
+				env := envelope{}
+				encoded, err := env.Sign(signReq)
+				if err != nil || encoded == nil {
+					t.Fatalf("Sign() failed. Error = %s", err)
+				}
+				content, err := env.Content()
+				if err != nil {
+					t.Fatal(err)
+				}
+				timestampToken := content.SignerInfo.UnsignedAttributes.TimestampSignature
+				if len(timestampToken) == 0 {
+					t.Fatal("expected timestamp token to be present")
+				}
+				ctx := context.Background()
+				signedToken, err := tspclient.ParseSignedToken(ctx, timestampToken)
+				if err != nil {
+					t.Fatal(err)
+				}
+				info, err := signedToken.Info()
+				if err != nil {
+					t.Fatal(err)
+				}
+				_, _, err = info.Timestamp(content.SignerInfo.Signature)
+				if err != nil {
+					t.Fatal(err)
+				}
 			})
 		}
 	}
@@ -600,4 +673,14 @@ func TestEmptyEnvelope(t *testing.T) {
 			t.Fatalf("want: %v, got: %v", wantErr, err)
 		}
 	})
+}
+
+func isErrEqual(wanted, got error) bool {
+	if wanted == nil && got == nil {
+		return true
+	}
+	if wanted != nil && got != nil {
+		return wanted.Error() == got.Error()
+	}
+	return false
 }

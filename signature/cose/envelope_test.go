@@ -14,6 +14,7 @@
 package cose
 
 import (
+	"context"
 	"crypto"
 	"crypto/x509"
 	"errors"
@@ -25,11 +26,14 @@ import (
 	"github.com/notaryproject/notation-core-go/signature"
 	"github.com/notaryproject/notation-core-go/signature/internal/signaturetest"
 	"github.com/notaryproject/notation-core-go/testhelper"
+	"github.com/notaryproject/tspclient-go"
 	"github.com/veraison/go-cose"
 )
 
 const (
 	payloadString = "{\"targetArtifact\":{\"mediaType\":\"application/vnd.oci.image.manifest.v1+json\",\"digest\":\"sha256:73c803930ea3ba1e54bc25c2bdc53edd0284c62ed651fe7b00369da519a3c333\",\"size\":16724,\"annotations\":{\"io.wabbit-networks.buildId\":\"123\"}}}"
+
+	rfc3161TSAurl = "http://timestamp.digicert.com"
 )
 
 var (
@@ -60,7 +64,6 @@ func TestSign(t *testing.T) {
 						t.Fatalf("newSignRequest() failed. Error = %s", err)
 					}
 					encoded, err := env.Sign(signRequest)
-					fmt.Println(err)
 					if err != nil || len(encoded) == 0 {
 						t.Fatalf("Sign() failed. Error = %s", err)
 					}
@@ -122,6 +125,43 @@ func TestSign(t *testing.T) {
 					}
 				})
 			}
+		}
+	}
+
+	for _, keyType := range signaturetest.KeyTypes {
+		for _, size := range signaturetest.GetKeySizes(keyType) {
+			t.Run(fmt.Sprintf("with %s scheme, %v keyType, %v keySize with timestmap countersignature request", "notary.x509", keyType, size), func(t *testing.T) {
+				signRequest, err := newSignRequest("notary.x509", keyType, size)
+				if err != nil {
+					t.Fatalf("newSignRequest() failed. Error = %s", err)
+				}
+				signRequest.TSAServerURL = rfc3161TSAurl
+				encoded, err := env.Sign(signRequest)
+				if err != nil || encoded == nil {
+					t.Fatalf("Sign() failed. Error = %s", err)
+				}
+				content, err := env.Content()
+				if err != nil {
+					t.Fatal(err)
+				}
+				timestampToken := content.SignerInfo.UnsignedAttributes.TimestampSignature
+				if len(timestampToken) == 0 {
+					t.Fatal("expected timestamp token to be present")
+				}
+				ctx := context.Background()
+				signedToken, err := tspclient.ParseSignedToken(ctx, timestampToken)
+				if err != nil {
+					t.Fatal(err)
+				}
+				info, err := signedToken.Info()
+				if err != nil {
+					t.Fatal(err)
+				}
+				_, _, err = info.Timestamp(content.SignerInfo.Signature)
+				if err != nil {
+					t.Fatal(err)
+				}
+			})
 		}
 	}
 }
@@ -287,6 +327,26 @@ func TestSignErrors(t *testing.T) {
 		expected := errors.New("intended CertificateChain() error")
 		if !isErrEqual(expected, err) {
 			t.Fatalf("Sign() expects error: %v, but got: %v.", expected, err)
+		}
+	})
+
+	t.Run("when invalid tsa url is provided", func(t *testing.T) {
+		signRequest, err := getSignRequest()
+		if err != nil {
+			t.Fatalf("getSignRequest() failed. Error = %v", err)
+		}
+		signRequest.TSAServerURL = "invalid"
+		expected := errors.New("timestamp: unsupported protocol scheme \"\"")
+		encoded, err := env.Sign(signRequest)
+		if !isErrEqual(expected, err) {
+			t.Fatalf("Sign() expects error: %v, but got: %v.", expected, err)
+		}
+		var timestampErr *signature.TimestampError
+		if !errors.As(err, &timestampErr) {
+			t.Fatal("expected signature.TimestampError")
+		}
+		if encoded == nil {
+			t.Fatal("expected non-nil signature envelope")
 		}
 	})
 }

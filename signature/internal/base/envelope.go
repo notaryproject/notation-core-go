@@ -44,11 +44,11 @@ func (e *Envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 	}
 
 	var timestampErr *signature.TimestampError
-	raw, err := e.Envelope.Sign(req)
+	raw, signErr := e.Envelope.Sign(req)
 	// ignore any timestamping error, because it SHOULD not block the
 	// signing process.
-	if err != nil && !errors.As(err, &timestampErr) {
-		return nil, err
+	if signErr != nil && !errors.As(signErr, &timestampErr) {
+		return nil, signErr
 	}
 
 	// validate certificate chain
@@ -67,10 +67,7 @@ func (e *Envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 	// store the raw signature
 	e.Raw = raw
 
-	if timestampErr != nil {
-		return e.Raw, timestampErr
-	}
-	return e.Raw, nil
+	return e.Raw, signErr
 }
 
 // Verify performs integrity and other signature specification related

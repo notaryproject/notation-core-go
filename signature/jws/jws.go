@@ -203,9 +203,6 @@ func generateJWS(compact string, req *signature.SignRequest, signingScheme strin
 
 	// timestamping
 	if signingScheme == string(signature.SigningSchemeX509) && req.TSAServerURL != "" {
-		if sig == "" {
-			return jwsEnvelope, &signature.TimestampError{Msg: "empty signature"}
-		}
 		primitiveSignature, err := base64.RawURLEncoding.DecodeString(sig)
 		if err != nil {
 			return nil, &signature.TimestampError{Detail: err}

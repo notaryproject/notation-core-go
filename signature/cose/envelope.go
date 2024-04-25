@@ -238,14 +238,9 @@ func (e *envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 		return nil, &signature.InvalidSignRequestError{Msg: err.Error()}
 	}
 
-	// generate unprotected headers of COSE envelope
-	var timestampErr *signature.TimestampError
-	err = generateUnprotectedHeaders(req, signer, msg.Signature, msg.Headers.Protected[headerLabelSigningScheme].(string), msg.Headers.Unprotected)
-	// ignore any timestamping error, because it SHOULD not block the
-	// signing process
-	if err != nil && !errors.As(err, &timestampErr) {
-		return nil, &signature.InvalidSignatureError{Msg: err.Error()}
-	}
+	// generate unprotected headers of COSE envelope.
+	// timestampErr does NOT fail the signing process.
+	timestampErr := generateUnprotectedHeaders(req, signer, msg.Signature, msg.Headers.Protected[headerLabelSigningScheme].(string), msg.Headers.Unprotected)
 
 	// encode Sign1Message into COSE_Sign1_Tagged object
 	encoded, err := msg.MarshalCBOR()
@@ -254,10 +249,7 @@ func (e *envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 	}
 	e.base = msg
 
-	if timestampErr != nil {
-		return encoded, timestampErr
-	}
-	return encoded, nil
+	return encoded, timestampErr
 }
 
 // Verify implements signature.Envelope interface.
@@ -503,9 +495,6 @@ func generateUnprotectedHeaders(req *signature.SignRequest, signer signer, sig [
 
 	// timestamping
 	if signingScheme == string(signature.SigningSchemeX509) && req.TSAServerURL != "" {
-		if sig == nil {
-			return &signature.TimestampError{Msg: "nil signature"}
-		}
 		hash := hashFunc(signer.Algorithm())
 		if hash == 0 {
 			return &signature.TimestampError{Msg: fmt.Sprintf("got hash value 0 due to cose algorithm %d", signer.Algorithm())}
