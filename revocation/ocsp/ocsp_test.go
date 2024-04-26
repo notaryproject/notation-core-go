@@ -474,6 +474,7 @@ func TestCheckStatusErrors(t *testing.T) {
 	noHTTPLeaf.OCSPServer = []string{"ldap://ds.example.com:123/chain_ocsp/0"}
 	noHTTPChain := []*x509.Certificate{noHTTPLeaf, revokableTuples[1].Cert, revokableTuples[2].Cert}
 
+	timestampSigningCertErr := result.InvalidChainError{Err: errors.New("timestamp signing certificate with subject \"CN=Notation Test Revokable RSA Chain Cert 3,O=Notary,L=Seattle,ST=WA,C=US\" must have and only have TimeStamping as extended key usage")}
 	backwardsChainErr := result.InvalidChainError{Err: errors.New("leaf certificate with subject \"CN=Notation Test Revokable RSA Chain Cert Root,O=Notary,L=Seattle,ST=WA,C=US\" is self-signed. Certificate chain must not contain self-signed leaf certificate")}
 	chainRootErr := result.InvalidChainError{Err: errors.New("root certificate with subject \"CN=Notation Test Revokable RSA Chain Cert 2,O=Notary,L=Seattle,ST=WA,C=US\" is not self-signed. Certificate chain must end with a valid self-signed root certificate")}
 	expiredRespErr := GenericError{Err: errors.New("expired OCSP response")}
@@ -525,6 +526,22 @@ func TestCheckStatusErrors(t *testing.T) {
 		certResults, err := CheckStatus(opts)
 		if err == nil || err.Error() != backwardsChainErr.Error() {
 			t.Errorf("Expected CheckStatus to fail with %v, but got: %v", backwardsChainErr, err)
+		}
+		if certResults != nil {
+			t.Error("Expected certResults to be nil when there is an error")
+		}
+	})
+
+	t.Run("check codesigning cert with timestamp set to true", func(t *testing.T) {
+		opts := Options{
+			CertChain:   okChain,
+			Timestamp:   true,
+			SigningTime: time.Now(),
+			HTTPClient:  http.DefaultClient,
+		}
+		certResults, err := CheckStatus(opts)
+		if err == nil || err.Error() != timestampSigningCertErr.Error() {
+			t.Errorf("Expected CheckStatus to fail with %v, but got: %v", timestampSigningCertErr, err)
 		}
 		if certResults != nil {
 			t.Error("Expected certResults to be nil when there is an error")

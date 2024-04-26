@@ -16,12 +16,12 @@ package x509
 import (
 	"bytes"
 	"crypto/x509"
-	"encoding/asn1"
 	"errors"
 	"fmt"
 	"strings"
 	"time"
 
+	oid "github.com/notaryproject/notation-core-go/internal"
 	"github.com/notaryproject/notation-core-go/signature"
 )
 
@@ -225,11 +225,9 @@ func validateLeafKeyUsage(cert *x509.Certificate, timestamp bool) error {
 }
 
 func validateKeyUsagePresent(cert *x509.Certificate, timestamp bool) error {
-	keyUsageExtensionOid := asn1.ObjectIdentifier{2, 5, 29, 15}
-
 	var hasKeyUsageExtension bool
 	for _, ext := range cert.Extensions {
-		if ext.Id.Equal(keyUsageExtensionOid) {
+		if ext.Id.Equal(oid.KeyUsage) {
 			if !ext.Critical && !timestamp {
 				return fmt.Errorf("certificate with subject %q: key usage extension must be marked critical", cert.Subject)
 			}
@@ -244,8 +242,6 @@ func validateKeyUsagePresent(cert *x509.Certificate, timestamp bool) error {
 }
 
 func validateExtendedKeyUsage(cert *x509.Certificate, expectedEku x509.ExtKeyUsage) error {
-	extKeyUsageExtensionOid := asn1.ObjectIdentifier{2, 5, 29, 37}
-
 	// cert is a timestamping certificate
 	//
 	// RFC 3161 2.3: The corresponding certificate MUST contain only one
@@ -257,9 +253,9 @@ func validateExtendedKeyUsage(cert *x509.Certificate, expectedEku x509.ExtKeyUsa
 			len(cert.UnknownExtKeyUsage) != 0 {
 			return fmt.Errorf("timestamp signing certificate with subject %q must have and only have %s as extended key usage", cert.Subject, ekuToString(expectedEku))
 		}
-		// check if marked as critical
+		// check if Extended Key Usage extension is marked critical
 		for _, ext := range cert.Extensions {
-			if ext.Id.Equal(extKeyUsageExtensionOid) {
+			if ext.Id.Equal(oid.ExtKeyUsage) {
 				if !ext.Critical {
 					return fmt.Errorf("timestamp signing certificate with subject %q must have extended key usage extension marked as critical", cert.Subject)
 				}

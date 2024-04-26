@@ -22,12 +22,15 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/asn1"
 	"fmt"
 	"math/big"
 	mrand "math/rand"
 	"strconv"
 	"sync"
 	"time"
+
+	oid "github.com/notaryproject/notation-core-go/internal"
 )
 
 var (
@@ -81,7 +84,22 @@ func GetRevokableRSAChain(size int) []RSACertTuple {
 		chain[i] = getRevokableRSAChainCertTuple(fmt.Sprintf("Notation Test Revokable RSA Chain Cert %d", size-i), &chain[i+1], i)
 	}
 	if size > 1 {
-		chain[0] = getRevokableRSALeafChainCertTuple(fmt.Sprintf("Notation Test Revokable RSA Chain Cert %d", size), &chain[1], 0)
+		chain[0] = getRevokableRSALeafChainCertTuple(fmt.Sprintf("Notation Test Revokable RSA Chain Cert %d", size), &chain[1], 0, true, false)
+	}
+	return chain
+}
+
+// GetRevokableRSATimestampChain returns a chain of certificates that specify a local OCSP server signed using RSA algorithm.
+// The leaf certificate is a timestamp certificate.
+func GetRevokableRSATimestampChain(size int) []RSACertTuple {
+	setupCertificates()
+	chain := make([]RSACertTuple, size)
+	chain[size-1] = getRevokableRSARootChainCertTuple("Notation Test Revokable RSA Chain Cert Root", size-1)
+	for i := size - 2; i > 0; i-- {
+		chain[i] = getRevokableRSAChainCertTuple(fmt.Sprintf("Notation Test Revokable RSA Chain Cert %d", size-i), &chain[i+1], i)
+	}
+	if size > 1 {
+		chain[0] = getRevokableRSALeafChainCertTuple(fmt.Sprintf("Notation Test Revokable RSA Chain Cert %d", size), &chain[1], 0, false, true)
 	}
 	return chain
 }
@@ -148,13 +166,13 @@ func getRSACertTuple(cn string, issuer *RSACertTuple) RSACertTuple {
 }
 
 func getRevokableRSACertTuple(cn string, issuer *RSACertTuple) RSACertTuple {
-	template := getCertTemplate(issuer == nil, true, cn)
+	template := getCertTemplate(issuer == nil, true, false, cn)
 	template.OCSPServer = []string{"http://example.com/ocsp"}
 	return getRSACertTupleWithTemplate(template, issuer.PrivateKey, issuer)
 }
 
 func getRevokableRSAChainCertTuple(cn string, previous *RSACertTuple, index int) RSACertTuple {
-	template := getCertTemplate(previous == nil, true, cn)
+	template := getCertTemplate(previous == nil, true, false, cn)
 	template.BasicConstraintsValid = true
 	template.IsCA = true
 	template.KeyUsage = x509.KeyUsageCertSign
@@ -164,7 +182,7 @@ func getRevokableRSAChainCertTuple(cn string, previous *RSACertTuple, index int)
 
 func getRevokableRSARootChainCertTuple(cn string, pathLen int) RSACertTuple {
 	pk, _ := rsa.GenerateKey(rand.Reader, 3072)
-	template := getCertTemplate(true, true, cn)
+	template := getCertTemplate(true, true, false, cn)
 	template.BasicConstraintsValid = true
 	template.IsCA = true
 	template.KeyUsage = x509.KeyUsageCertSign
@@ -172,8 +190,8 @@ func getRevokableRSARootChainCertTuple(cn string, pathLen int) RSACertTuple {
 	return getRSACertTupleWithTemplate(template, pk, nil)
 }
 
-func getRevokableRSALeafChainCertTuple(cn string, issuer *RSACertTuple, index int) RSACertTuple {
-	template := getCertTemplate(false, true, cn)
+func getRevokableRSALeafChainCertTuple(cn string, issuer *RSACertTuple, index int, codesign, timestamp bool) RSACertTuple {
+	template := getCertTemplate(false, codesign, timestamp, cn)
 	template.BasicConstraintsValid = true
 	template.IsCA = false
 	template.KeyUsage = x509.KeyUsageDigitalSignature
@@ -183,7 +201,7 @@ func getRevokableRSALeafChainCertTuple(cn string, issuer *RSACertTuple, index in
 
 func getRSACertWithoutEKUTuple(cn string, issuer *RSACertTuple) RSACertTuple {
 	pk, _ := rsa.GenerateKey(rand.Reader, 3072)
-	template := getCertTemplate(issuer == nil, false, cn)
+	template := getCertTemplate(issuer == nil, false, false, cn)
 	return getRSACertTupleWithTemplate(template, pk, issuer)
 }
 
@@ -200,18 +218,18 @@ func getECCertTuple(cn string, issuer *ECCertTuple) ECCertTuple {
 func GetRSASelfSignedSigningCertTuple(cn string) RSACertTuple {
 	// Even though we are creating self-signed root, we are using false for 'isRoot' to not
 	// add root CA's basic constraint, KU and EKU.
-	template := getCertTemplate(false, true, cn)
+	template := getCertTemplate(false, true, false, cn)
 	privKey, _ := rsa.GenerateKey(rand.Reader, 3072)
 	return getRSACertTupleWithTemplate(template, privKey, nil)
 }
 
 func GetRSACertTupleWithPK(privKey *rsa.PrivateKey, cn string, issuer *RSACertTuple) RSACertTuple {
-	template := getCertTemplate(issuer == nil, true, cn)
+	template := getCertTemplate(issuer == nil, true, false, cn)
 	return getRSACertTupleWithTemplate(template, privKey, issuer)
 }
 
 func GetRSASelfSignedCertTupleWithPK(privKey *rsa.PrivateKey, cn string) RSACertTuple {
-	template := getCertTemplate(false, true, cn)
+	template := getCertTemplate(false, true, false, cn)
 	return getRSACertTupleWithTemplate(template, privKey, nil)
 }
 
@@ -231,7 +249,7 @@ func getRSACertTupleWithTemplate(template *x509.Certificate, privKey *rsa.Privat
 }
 
 func GetECDSACertTupleWithPK(privKey *ecdsa.PrivateKey, cn string, issuer *ECCertTuple) ECCertTuple {
-	template := getCertTemplate(issuer == nil, true, cn)
+	template := getCertTemplate(issuer == nil, true, false, cn)
 
 	var certBytes []byte
 	if issuer != nil {
@@ -247,7 +265,7 @@ func GetECDSACertTupleWithPK(privKey *ecdsa.PrivateKey, cn string, issuer *ECCer
 	}
 }
 
-func getCertTemplate(isRoot bool, setCodeSignEKU bool, cn string) *x509.Certificate {
+func getCertTemplate(isRoot bool, setCodeSignEKU, setTimestampEKU bool, cn string) *x509.Certificate {
 	template := &x509.Certificate{
 		Subject: pkix.Name{
 			Organization: []string{"Notary"},
@@ -262,6 +280,15 @@ func getCertTemplate(isRoot bool, setCodeSignEKU bool, cn string) *x509.Certific
 
 	if setCodeSignEKU {
 		template.ExtKeyUsage = []x509.ExtKeyUsage{x509.ExtKeyUsageCodeSigning}
+	} else if setTimestampEKU {
+		ekuValue, _ := asn1.Marshal([]asn1.ObjectIdentifier{oid.TimeStamping})
+		template.ExtraExtensions = []pkix.Extension{
+			{
+				Id:       oid.ExtKeyUsage,
+				Critical: true,
+				Value:    ekuValue,
+			},
+		}
 	}
 
 	if isRoot {
@@ -277,7 +304,6 @@ func getCertTemplate(isRoot bool, setCodeSignEKU bool, cn string) *x509.Certific
 		// template.NotAfter = time.Now().AddDate(0, 0, 1)
 		template.NotAfter = time.Now().Add(10 * time.Minute)
 	}
-
 	return template
 }
 

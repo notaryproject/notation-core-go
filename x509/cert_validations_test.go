@@ -17,12 +17,12 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	_ "embed"
-	"encoding/asn1"
 	"errors"
 	"os"
 	"testing"
 	"time"
 
+	oid "github.com/notaryproject/notation-core-go/internal"
 	"github.com/notaryproject/notation-core-go/testhelper"
 )
 
@@ -623,7 +623,7 @@ func TestValidFullOptionsCodeLeaf(t *testing.T) {
 
 func TestValidateLeafKeyUsage(t *testing.T) {
 	extensions := []pkix.Extension{{
-		Id:       asn1.ObjectIdentifier{2, 5, 29, 15}, // OID for KeyUsage
+		Id:       oid.KeyUsage,
 		Critical: true,
 	}}
 

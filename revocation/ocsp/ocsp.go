@@ -39,7 +39,7 @@ import (
 // Options specifies values that are needed to check OCSP revocation
 type Options struct {
 	CertChain   []*x509.Certificate
-	Timestamp   bool
+	Timestamp   bool // when set to true, check revocation of a timestamp certificate chain
 	SigningTime time.Time
 	HTTPClient  *http.Client
 }
