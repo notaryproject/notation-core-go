@@ -14,7 +14,12 @@
 // Package result provides general objects that are used across revocation
 package result
 
-import "strconv"
+import (
+	"crypto/x509"
+	"fmt"
+	"strconv"
+	"time"
+)
 
 // Result is a type of enumerated value to help characterize errors. It can be
 // OK, Unknown, or Revoked
@@ -52,7 +57,7 @@ func (r Result) String() string {
 	}
 }
 
-// ServerResult encapsulates the result for a single server for a single
+// ServerResult encapsulates the OCSP result for a single server for a single
 // certificate in the chain
 type ServerResult struct {
 	// Result of revocation for this server (Unknown if there is an error which
@@ -79,6 +84,68 @@ func NewServerResult(result Result, server string, err error) *ServerResult {
 	}
 }
 
+// ReasonCode is CRL reason code
+type ReasonCode int
+
+const (
+	Unspecified ReasonCode = iota
+	KeyCompromise
+	CACompromise
+	AffiliationChanged
+	Superseded
+	CessationOfOperation
+	CertificateHold
+	// value 7 is not used
+	RemoveFromCRL ReasonCode = iota + 1
+	PrivilegeWithdrawn
+	AACompromise
+)
+
+// String provides a conversion from a ReasonCode to a string
+func (r ReasonCode) String() string {
+	switch r {
+	case Unspecified:
+		return "Unspecified"
+	case KeyCompromise:
+		return "KeyCompromise"
+	case CACompromise:
+		return "CACompromise"
+	case AffiliationChanged:
+		return "AffiliationChanged"
+	case Superseded:
+		return "Superseded"
+	case CessationOfOperation:
+		return "CessationOfOperation"
+	case CertificateHold:
+		return "CertificateHold"
+	case RemoveFromCRL:
+		return "RemoveFromCRL"
+	case PrivilegeWithdrawn:
+		return "PrivilegeWithdrawn"
+	case AACompromise:
+		return "AACompromise"
+	default:
+		return fmt.Sprintf("invalid reason code with value: %d", r)
+	}
+}
+
+// CRLStatus encapsulates the result of a CRL check
+type CRLStatus struct {
+	// ReasonCode is the reason code for the CRL status
+	ReasonCode ReasonCode
+
+	// RevocationTime is the time at which the certificate was revoked
+	RevocationTime time.Time
+}
+
+// NewCRLStatus creates a CRLStatus object
+func NewCRLStatus(entity x509.RevocationListEntry) *CRLStatus {
+	return &CRLStatus{
+		ReasonCode:     ReasonCode(entity.ReasonCode),
+		RevocationTime: entity.RevocationTime,
+	}
+}
+
 // CertRevocationResult encapsulates the result for a single certificate in the
 // chain as well as the results from individual servers associated with this
 // certificate
@@ -101,5 +168,9 @@ type CertRevocationResult struct {
 	// status from being retrieved. These are all contained here for evaluation
 	ServerResults []*ServerResult
 
-	Err error
+	// CRLStatus is the result of the CRL check for this certificate
+	CRLStatus *CRLStatus
+
+	// Error is set if there is an error associated with the revocation check
+	Error error
 }

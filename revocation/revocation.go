@@ -40,7 +40,7 @@ type Revocation interface {
 type revocation struct {
 	httpClient *http.Client
 
-	// CRLCache caches the CRL files, the default one is memory cache
+	// CRLCache caches the CRL files; the default one is memory cache
 	CRLCache crl.Cache
 }
 

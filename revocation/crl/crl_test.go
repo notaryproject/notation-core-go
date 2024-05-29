@@ -30,7 +30,7 @@ func TestValidCert(t *testing.T) {
 	}
 
 	r := CertCheckStatus(intermediateCert, rootCert, opts)
-	if r.Err != nil {
+	if r.Error != nil {
 		t.Fatal(err)
 	}
 	if r.Result != result.ResultOK {
@@ -58,7 +58,7 @@ func TestRevoked(t *testing.T) {
 	}
 
 	r := CertCheckStatus(intermediateCert, rootCert, opts)
-	if r.Err != nil {
+	if r.Error != nil {
 		t.Fatal(err)
 	}
 	if r.Result != result.ResultRevoked {
@@ -86,7 +86,7 @@ func TestMSCert(t *testing.T) {
 	}
 
 	r := CertCheckStatus(intermediateCert, rootCert, opts)
-	if r.Err != nil {
+	if r.Error != nil {
 		t.Fatal(err)
 	}
 	if r.Result != result.ResultOK {
