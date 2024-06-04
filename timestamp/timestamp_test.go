@@ -42,6 +42,7 @@ func TestTimestamp(t *testing.T) {
 		Content:                 []byte("notation"),
 		HashAlgorithm:           crypto.SHA256,
 		HashAlgorithmParameters: asn1.NullRawValue,
+		NoNonce:                 true,
 	}
 	mockValidTSA := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		const wantContentType = tspclient.TimestampQuery
@@ -113,6 +114,7 @@ func TestTimestamp(t *testing.T) {
 		Content:                 []byte("notation"),
 		HashAlgorithm:           crypto.SHA256,
 		HashAlgorithmParameters: asn1.NullRawValue,
+		NoNonce:                 true,
 	}
 	mockInvalidTSA = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		const wantContentType = tspclient.TimestampQuery
@@ -146,7 +148,7 @@ func TestTimestamp(t *testing.T) {
 		}
 	}))
 	defer mockInvalidTSA.Close()
-	expectedErr = "no valid timestamp signing certificate was found in timestamp token"
+	expectedErr = "invalid timestamping response: certReq is True in request, but did not find any TSA signing certificate in the response"
 	_, err = Timestamp(ctx, mockInvalidTSA.URL, nil, opts)
 	assertErrorEqual(expectedErr, err, t)
 
@@ -154,6 +156,7 @@ func TestTimestamp(t *testing.T) {
 		Content:                 []byte("notation"),
 		HashAlgorithm:           crypto.SHA256,
 		HashAlgorithmParameters: asn1.NullRawValue,
+		NoNonce:                 true,
 	}
 	mockInvalidTSA = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		const wantContentType = tspclient.TimestampQuery
