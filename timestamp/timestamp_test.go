@@ -42,7 +42,6 @@ func TestTimestamp(t *testing.T) {
 		Content:                 []byte("notation"),
 		HashAlgorithm:           crypto.SHA256,
 		HashAlgorithmParameters: asn1.NullRawValue,
-		CertReq:                 true,
 	}
 	mockValidTSA := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		const wantContentType = tspclient.TimestampQuery
@@ -78,7 +77,6 @@ func TestTimestamp(t *testing.T) {
 		Content:                 []byte("notation"),
 		HashAlgorithm:           crypto.SHA256,
 		HashAlgorithmParameters: asn1.NullRawValue,
-		CertReq:                 true,
 	}
 	bs, err := hex.DecodeString("7f")
 	if err != nil {
@@ -156,7 +154,6 @@ func TestTimestamp(t *testing.T) {
 		Content:                 []byte("notation"),
 		HashAlgorithm:           crypto.SHA256,
 		HashAlgorithmParameters: asn1.NullRawValue,
-		CertReq:                 true,
 	}
 	mockInvalidTSA = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		const wantContentType = tspclient.TimestampQuery

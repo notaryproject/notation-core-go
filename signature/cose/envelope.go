@@ -508,7 +508,6 @@ func generateUnprotectedHeaders(req *signature.SignRequest, signer signer, sig [
 			HashAlgorithm:           hash,
 			HashAlgorithmParameters: asn1.NullRawValue,
 			Nonce:                   nonce,
-			CertReq:                 true,
 		}
 		timestampToken, err := timestamp.Timestamp(context.Background(), req.TSAServerURL, &req.SigningTime, timeStampOpts)
 		if err != nil {

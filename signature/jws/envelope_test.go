@@ -14,7 +14,6 @@
 package jws
 
 import (
-	"context"
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/rand"
@@ -357,8 +356,7 @@ func TestSignWithTimestamp(t *testing.T) {
 				if len(timestampToken) == 0 {
 					t.Fatal("expected timestamp token to be present")
 				}
-				ctx := context.Background()
-				signedToken, err := tspclient.ParseSignedToken(ctx, timestampToken)
+				signedToken, err := tspclient.ParseSignedToken(timestampToken)
 				if err != nil {
 					t.Fatal(err)
 				}

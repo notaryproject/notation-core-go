@@ -224,7 +224,6 @@ func generateJWS(compact string, req *signature.SignRequest, signingScheme strin
 			HashAlgorithm:           hash,
 			HashAlgorithmParameters: asn1.NullRawValue,
 			Nonce:                   nonce,
-			CertReq:                 true,
 		}
 		timestampToken, err := timestamp.Timestamp(context.Background(), req.TSAServerURL, &req.SigningTime, timestampOpts)
 		if err != nil {
