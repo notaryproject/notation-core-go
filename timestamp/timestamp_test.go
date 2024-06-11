@@ -175,7 +175,7 @@ func TestTimestamp(t *testing.T) {
 	}))
 	defer mockInvalidTSA.Close()
 	signingTime := time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC)
-	expectedErr = "no valid timestamp signing certificate was found in timestamp token"
+	expectedErr = "certificate with subject \"CN=Globalsign TSA for Advanced - G4,O=GlobalSign nv-sa,C=BE\" was invalid at signing time of 2100-01-01 00:00:00 +0000 UTC. Certificate is valid from [2021-05-27 09:55:23 +0000 UTC] to [2032-06-28 09:55:22 +0000 UTC]"
 	_, err = Timestamp(ctx, mockInvalidTSA.URL, &signingTime, opts)
 	assertErrorEqual(expectedErr, err, t)
 }
