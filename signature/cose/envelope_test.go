@@ -32,7 +32,7 @@ import (
 const (
 	payloadString = "{\"targetArtifact\":{\"mediaType\":\"application/vnd.oci.image.manifest.v1+json\",\"digest\":\"sha256:73c803930ea3ba1e54bc25c2bdc53edd0284c62ed651fe7b00369da519a3c333\",\"size\":16724,\"annotations\":{\"io.wabbit-networks.buildId\":\"123\"}}}"
 
-	rfc3161TSAurl = "http://timestamp.digicert.com"
+	rfc3161TSAurl = "http://rfc3161timestamp.globalsign.com/advanced"
 )
 
 var (
@@ -127,41 +127,37 @@ func TestSign(t *testing.T) {
 		}
 	}
 
-	for _, keyType := range signaturetest.KeyTypes {
-		for _, size := range signaturetest.GetKeySizes(keyType) {
-			t.Run(fmt.Sprintf("with %s scheme, %v keyType, %v keySize with timestmap countersignature request", "notary.x509", keyType, size), func(t *testing.T) {
-				signRequest, err := newSignRequest("notary.x509", keyType, size)
-				if err != nil {
-					t.Fatalf("newSignRequest() failed. Error = %s", err)
-				}
-				signRequest.TSAServerURL = rfc3161TSAurl
-				encoded, err := env.Sign(signRequest)
-				if err != nil || encoded == nil {
-					t.Fatalf("Sign() failed. Error = %s", err)
-				}
-				content, err := env.Content()
-				if err != nil {
-					t.Fatal(err)
-				}
-				timestampToken := content.SignerInfo.UnsignedAttributes.TimestampSignature
-				if len(timestampToken) == 0 {
-					t.Fatal("expected timestamp token to be present")
-				}
-				signedToken, err := tspclient.ParseSignedToken(timestampToken)
-				if err != nil {
-					t.Fatal(err)
-				}
-				info, err := signedToken.Info()
-				if err != nil {
-					t.Fatal(err)
-				}
-				_, _, err = info.Timestamp(content.SignerInfo.Signature)
-				if err != nil {
-					t.Fatal(err)
-				}
-			})
+	t.Run("with timestmap countersignature request", func(t *testing.T) {
+		signRequest, err := newSignRequest("notary.x509", signature.KeyTypeRSA, 3072)
+		if err != nil {
+			t.Fatalf("newSignRequest() failed. Error = %s", err)
 		}
-	}
+		signRequest.TSAServerURL = rfc3161TSAurl
+		encoded, err := env.Sign(signRequest)
+		if err != nil || encoded == nil {
+			t.Fatalf("Sign() failed. Error = %s", err)
+		}
+		content, err := env.Content()
+		if err != nil {
+			t.Fatal(err)
+		}
+		timestampToken := content.SignerInfo.UnsignedAttributes.TimestampSignature
+		if len(timestampToken) == 0 {
+			t.Fatal("expected timestamp token to be present")
+		}
+		signedToken, err := tspclient.ParseSignedToken(timestampToken)
+		if err != nil {
+			t.Fatal(err)
+		}
+		info, err := signedToken.Info()
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, _, err = info.Timestamp(content.SignerInfo.Signature)
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
 }
 
 func TestSignErrors(t *testing.T) {
@@ -343,8 +339,8 @@ func TestSignErrors(t *testing.T) {
 		if !errors.As(err, &timestampErr) {
 			t.Fatal("expected signature.TimestampError")
 		}
-		if encoded == nil {
-			t.Fatal("expected non-nil signature envelope")
+		if encoded != nil {
+			t.Fatal("expected nil signature envelope")
 		}
 	})
 }

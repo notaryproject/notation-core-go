@@ -57,6 +57,7 @@ func Timestamp(ctx context.Context, tsaURL string, signingTime *time.Time, opts 
 	if err := nx509.ValidateTimeStampingCertChain(tsaCertChain, signingTime); err != nil {
 		return nil, err
 	}
+	// found a valid cert chain
 	return resp.TimeStampToken.FullBytes, nil
 	// // there should be at least one valid TSA signing certificate in the
 	// // timestamp token

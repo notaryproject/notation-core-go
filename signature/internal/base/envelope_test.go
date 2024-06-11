@@ -260,7 +260,7 @@ func TestSign(t *testing.T) {
 			expectErr: false,
 		},
 		{
-			name: "failed to timestamp but signed successfully",
+			name: "failed to timestamp",
 			req:  reqWithInvalidTSAurl,
 			env: &Envelope{
 				Raw: validBytes,
@@ -287,7 +287,7 @@ func TestSign(t *testing.T) {
 				t.Errorf("expect %+v, got %+v", tt.expect, sig)
 			}
 
-			if tt.name == "failed to timestamp but signed successfully" {
+			if tt.name == "failed to timestamp" {
 				var timestampErr *signature.TimestampError
 				if !errors.As(err, &timestampErr) {
 					t.Fatal("expecting error to be signature.TimestampError")

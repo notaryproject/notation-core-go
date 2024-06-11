@@ -209,15 +209,15 @@ func generateJWS(compact string, req *signature.SignRequest, signingScheme strin
 		}
 		ks, err := req.Signer.KeySpec()
 		if err != nil {
-			return jwsEnvelope, &signature.TimestampError{Detail: err}
+			return nil, &signature.TimestampError{Detail: err}
 		}
 		hash := ks.SignatureAlgorithm().Hash()
 		if hash == 0 {
-			return jwsEnvelope, &signature.TimestampError{Msg: fmt.Sprintf("got hash value 0 from key spec %+v", ks)}
+			return nil, &signature.TimestampError{Msg: fmt.Sprintf("got hash value 0 from key spec %+v", ks)}
 		}
 		nonce, err := timestamp.GenerateNonce()
 		if err != nil {
-			return jwsEnvelope, &signature.TimestampError{Detail: err}
+			return nil, &signature.TimestampError{Detail: err}
 		}
 		timestampOpts := tspclient.RequestOptions{
 			Content:                 primitiveSignature,
@@ -227,7 +227,7 @@ func generateJWS(compact string, req *signature.SignRequest, signingScheme strin
 		}
 		timestampToken, err := timestamp.Timestamp(context.Background(), req.TSAServerURL, &req.SigningTime, timestampOpts)
 		if err != nil {
-			return jwsEnvelope, &signature.TimestampError{Detail: err}
+			return nil, &signature.TimestampError{Detail: err}
 		}
 		// on success, embed the timestamp token to TimestampSignature
 		jwsEnvelope.Header.TimestampSignature = timestampToken

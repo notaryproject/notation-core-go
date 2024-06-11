@@ -239,8 +239,9 @@ func (e *envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 	}
 
 	// generate unprotected headers of COSE envelope.
-	// timestampErr does NOT fail the signing process.
-	timestampErr := generateUnprotectedHeaders(req, signer, msg.Signature, msg.Headers.Protected[headerLabelSigningScheme].(string), msg.Headers.Unprotected)
+	if err := generateUnprotectedHeaders(req, signer, msg.Signature, msg.Headers.Protected[headerLabelSigningScheme].(string), msg.Headers.Unprotected); err != nil {
+		return nil, err
+	}
 
 	// encode Sign1Message into COSE_Sign1_Tagged object
 	encoded, err := msg.MarshalCBOR()
@@ -249,7 +250,7 @@ func (e *envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 	}
 	e.base = msg
 
-	return encoded, timestampErr
+	return encoded, nil
 }
 
 // Verify implements signature.Envelope interface.

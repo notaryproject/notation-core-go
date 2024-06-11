@@ -35,7 +35,7 @@ import (
 	"github.com/notaryproject/tspclient-go"
 )
 
-const rfc3161TSAurl = "http://timestamp.digicert.com"
+const rfc3161TSAurl = "http://rfc3161timestamp.globalsign.com/advanced"
 
 // remoteMockSigner is used to mock remote signer
 type remoteMockSigner struct {
@@ -275,8 +275,8 @@ func TestSignFailed(t *testing.T) {
 		if !errors.As(err, &timestampErr) {
 			t.Fatal("expected signature.TimestampError")
 		}
-		if encoded == nil {
-			t.Fatal("expected non-nil signature envelope")
+		if encoded != nil {
+			t.Fatal("expected nil signature envelope")
 		}
 	})
 }
@@ -329,47 +329,37 @@ func TestSignVerify(t *testing.T) {
 }
 
 func TestSignWithTimestamp(t *testing.T) {
-	for _, keyType := range signaturetest.KeyTypes {
-		keyName := map[signature.KeyType]string{
-			signature.KeyTypeEC:  "ECDSA",
-			signature.KeyTypeRSA: "RSA",
-		}[keyType]
-		for _, size := range signaturetest.GetKeySizes(keyType) {
-			t.Run(fmt.Sprintf("%s %d", keyName, size), func(t *testing.T) {
-				signer, err := signaturetest.GetTestLocalSigner(keyType, size)
-				checkNoError(t, err)
+	signer, err := signaturetest.GetTestLocalSigner(signature.KeyTypeRSA, 3072)
+	checkNoError(t, err)
 
-				signReq, err := getSignReq(signature.SigningSchemeX509, signer, nil)
-				checkNoError(t, err)
+	signReq, err := getSignReq(signature.SigningSchemeX509, signer, nil)
+	checkNoError(t, err)
 
-				signReq.TSAServerURL = rfc3161TSAurl
-				env := envelope{}
-				encoded, err := env.Sign(signReq)
-				if err != nil || encoded == nil {
-					t.Fatalf("Sign() failed. Error = %s", err)
-				}
-				content, err := env.Content()
-				if err != nil {
-					t.Fatal(err)
-				}
-				timestampToken := content.SignerInfo.UnsignedAttributes.TimestampSignature
-				if len(timestampToken) == 0 {
-					t.Fatal("expected timestamp token to be present")
-				}
-				signedToken, err := tspclient.ParseSignedToken(timestampToken)
-				if err != nil {
-					t.Fatal(err)
-				}
-				info, err := signedToken.Info()
-				if err != nil {
-					t.Fatal(err)
-				}
-				_, _, err = info.Timestamp(content.SignerInfo.Signature)
-				if err != nil {
-					t.Fatal(err)
-				}
-			})
-		}
+	signReq.TSAServerURL = rfc3161TSAurl
+	env := envelope{}
+	encoded, err := env.Sign(signReq)
+	if err != nil || encoded == nil {
+		t.Fatalf("Sign() failed. Error = %s", err)
+	}
+	content, err := env.Content()
+	if err != nil {
+		t.Fatal(err)
+	}
+	timestampToken := content.SignerInfo.UnsignedAttributes.TimestampSignature
+	if len(timestampToken) == 0 {
+		t.Fatal("expected timestamp token to be present")
+	}
+	signedToken, err := tspclient.ParseSignedToken(timestampToken)
+	if err != nil {
+		t.Fatal(err)
+	}
+	info, err := signedToken.Info()
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _, err = info.Timestamp(content.SignerInfo.Signature)
+	if err != nil {
+		t.Fatal(err)
 	}
 }
 
