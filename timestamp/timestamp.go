@@ -17,6 +17,7 @@ package timestamp
 import (
 	"context"
 	"crypto/rand"
+	"crypto/x509"
 	"errors"
 	"math/big"
 	"time"
@@ -49,16 +50,24 @@ func Timestamp(ctx context.Context, tsaURL string, signingTime *time.Time, opts 
 	if err != nil {
 		return nil, err
 	}
-	// there should be at least one valid TSA signing certificate in the
-	// timestamp token
-	for _, signerInfo := range token.SignerInfos {
-		signingCertificate, err := token.GetSigningCertificate(&signerInfo)
-		if err != nil || nx509.ValidateTimestampingSigningCeritifcate(signingCertificate, signingTime) != nil {
-			continue
-		}
-		return resp.TimeStampToken.FullBytes, nil
+	tsaCertChain, err := token.Verify(ctx, x509.VerifyOptions{})
+	if err != nil {
+		return nil, err
 	}
-	return nil, errors.New("no valid timestamp signing certificate was found in timestamp token")
+	if err := nx509.ValidateTimeStampingCertChain(tsaCertChain, signingTime); err != nil {
+		return nil, err
+	}
+	return resp.TimeStampToken.FullBytes, nil
+	// // there should be at least one valid TSA signing certificate in the
+	// // timestamp token
+	// for _, signerInfo := range token.SignerInfos {
+	// 	signingCertificate, err := token.GetSigningCertificate(&signerInfo)
+	// 	if err != nil || nx509.ValidateTimestampingSigningCeritifcate(signingCertificate, signingTime) != nil {
+	// 		continue
+	// 	}
+	// 	return resp.TimeStampToken.FullBytes, nil
+	// }
+	// return nil, errors.New("no valid timestamp signing certificate was found in timestamp token")
 }
 
 // GenerateNonce generates a nonce for TSA request

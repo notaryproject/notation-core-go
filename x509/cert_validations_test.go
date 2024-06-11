@@ -744,28 +744,28 @@ func TestFailEkuMissingCodeSigningLeaf(t *testing.T) {
 
 // ---------------- Time-Stamping Leaf Validations ----------------
 
-func TestValidTimestampLeaf(t *testing.T) {
-	timestamp_leaf, err := readSingleCertificate("testdata/timestamp_leaf.crt")
-	if err != nil {
-		t.Fatal(err)
-	}
-	signingTime := time.Now()
-	err = ValidateTimestampingSigningCeritifcate(timestamp_leaf, &signingTime)
-	if err != nil {
-		t.Fatal(err)
-	}
-}
+// func TestValidTimestampLeaf(t *testing.T) {
+// 	timestamp_leaf, err := readSingleCertificate("testdata/timestamp_leaf.crt")
+// 	if err != nil {
+// 		t.Fatal(err)
+// 	}
+// 	signingTime := time.Now()
+// 	err = ValidateTimestampingSigningCeritifcate(timestamp_leaf, &signingTime)
+// 	if err != nil {
+// 		t.Fatal(err)
+// 	}
+// }
 
-func TestExpiredTimestampLeaf(t *testing.T) {
-	timestamp_leaf, err := readSingleCertificate("testdata/timestamp_leaf.crt")
-	if err != nil {
-		t.Fatal(err)
-	}
-	signingTime := time.Date(2035, 1, 1, 0, 0, 0, 0, time.UTC)
-	expectedErr := "certificate with subject \"CN=DigiCert Timestamp 2023,O=DigiCert\\\\, Inc.,C=US\" was invalid at signing time of 2035-01-01 00:00:00 +0000 UTC. Certificate is valid from [2023-07-14 00:00:00 +0000 UTC] to [2034-10-13 23:59:59 +0000 UTC]"
-	err = ValidateTimestampingSigningCeritifcate(timestamp_leaf, &signingTime)
-	assertErrorEqual(expectedErr, err, t)
-}
+// func TestExpiredTimestampLeaf(t *testing.T) {
+// 	timestamp_leaf, err := readSingleCertificate("testdata/timestamp_leaf.crt")
+// 	if err != nil {
+// 		t.Fatal(err)
+// 	}
+// 	signingTime := time.Date(2035, 1, 1, 0, 0, 0, 0, time.UTC)
+// 	expectedErr := "certificate with subject \"CN=DigiCert Timestamp 2023,O=DigiCert\\\\, Inc.,C=US\" was invalid at signing time of 2035-01-01 00:00:00 +0000 UTC. Certificate is valid from [2023-07-14 00:00:00 +0000 UTC] to [2034-10-13 23:59:59 +0000 UTC]"
+// 	err = ValidateTimestampingSigningCeritifcate(timestamp_leaf, &signingTime)
+// 	assertErrorEqual(expectedErr, err, t)
+// }
 
 var ekuNonCriticalTimeLeafPem = "-----BEGIN CERTIFICATE-----\n" +
 	"MIIC5TCCAc2gAwIBAgIBATANBgkqhkiG9w0BAQsFADAYMRYwFAYDVQQDDA1JbnRl\n" +

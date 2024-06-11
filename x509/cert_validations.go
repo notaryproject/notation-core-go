@@ -41,15 +41,15 @@ func ValidateTimeStampingCertChain(certChain []*x509.Certificate, signingTime *t
 	return validateCertChain(certChain, x509.ExtKeyUsageTimeStamping, signingTime, true)
 }
 
-// ValidateTimestampingSigningCeritifcate validates the signing certificate of
-// a timestamp token.
-// Reference: https://github.com/notaryproject/specifications/blob/v1.0.0/specs/signature-specification.md#leaf-certificates
-func ValidateTimestampingSigningCeritifcate(signingCert *x509.Certificate, signingTime *time.Time) error {
-	if signedTimeError := validateSigningTime(signingCert, signingTime); signedTimeError != nil {
-		return signedTimeError
-	}
-	return validateLeafCertificate(signingCert, x509.ExtKeyUsageTimeStamping)
-}
+// // ValidateTimestampingSigningCeritifcate validates the signing certificate of
+// // a timestamp token.
+// // Reference: https://github.com/notaryproject/specifications/blob/v1.0.0/specs/signature-specification.md#leaf-certificates
+// func ValidateTimestampingSigningCeritifcate(signingCert *x509.Certificate, signingTime *time.Time) error {
+// 	if signedTimeError := validateSigningTime(signingCert, signingTime); signedTimeError != nil {
+// 		return signedTimeError
+// 	}
+// 	return validateLeafCertificate(signingCert, x509.ExtKeyUsageTimeStamping)
+// }
 
 func validateCertChain(certChain []*x509.Certificate, expectedLeafEku x509.ExtKeyUsage, signingTime *time.Time, timestamp bool) error {
 	if len(certChain) < 1 {
