@@ -271,7 +271,7 @@ func TestSign(t *testing.T) {
 					failTimestamp: true,
 				},
 			},
-			expect:    validBytes,
+			expect:    nil,
 			expectErr: true,
 		},
 	}
