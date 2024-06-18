@@ -57,24 +57,13 @@ func Timestamp(ctx context.Context, tsaURL string, signingTime *time.Time, opts 
 	if err := nx509.ValidateTimeStampingCertChain(tsaCertChain, signingTime); err != nil {
 		return nil, err
 	}
-	// found a valid cert chain
 	return resp.TimeStampToken.FullBytes, nil
-	// // there should be at least one valid TSA signing certificate in the
-	// // timestamp token
-	// for _, signerInfo := range token.SignerInfos {
-	// 	signingCertificate, err := token.GetSigningCertificate(&signerInfo)
-	// 	if err != nil || nx509.ValidateTimestampingSigningCeritifcate(signingCertificate, signingTime) != nil {
-	// 		continue
-	// 	}
-	// 	return resp.TimeStampToken.FullBytes, nil
-	// }
-	// return nil, errors.New("no valid timestamp signing certificate was found in timestamp token")
 }
 
 // GenerateNonce generates a nonce for TSA request
 func GenerateNonce() (*big.Int, error) {
 	// Pick a random number from 0 to 2^159
-	nonce, err := rand.Int(rand.Reader, (&big.Int{}).Exp(big.NewInt(2), big.NewInt(159), nil))
+	nonce, err := rand.Int(rand.Reader, (&big.Int{}).Lsh(big.NewInt(1), 159))
 	if err != nil {
 		return nil, errors.New("error generating nonce")
 	}

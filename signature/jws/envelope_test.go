@@ -266,7 +266,7 @@ func TestSignFailed(t *testing.T) {
 		checkNoError(t, err)
 
 		signReq.TSAServerURL = "invalid"
-		expected := errors.New("timestamp: unsupported protocol scheme \"\"")
+		expected := errors.New("timestamp: Post \"invalid\": unsupported protocol scheme \"\"")
 		encoded, err := env.Sign(signReq)
 		if !isErrEqual(expected, err) {
 			t.Fatalf("Sign() expects error: %v, but got: %v.", expected, err)
@@ -357,7 +357,7 @@ func TestSignWithTimestamp(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, _, err = info.Timestamp(content.SignerInfo.Signature)
+	_, _, err = info.Validate(content.SignerInfo.Signature)
 	if err != nil {
 		t.Fatal(err)
 	}

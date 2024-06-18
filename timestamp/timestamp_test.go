@@ -45,7 +45,7 @@ func TestTimestamp(t *testing.T) {
 		NoNonce:                 true,
 	}
 	mockValidTSA := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		const wantContentType = tspclient.TimestampQuery
+		const wantContentType = tspclient.MediaTypeTimestampQuery
 		if got := r.Header.Get("Content-Type"); got != wantContentType {
 			t.Fatalf("TimeStampRequest.ContentType = %v, want %v", err, wantContentType)
 		}
@@ -54,7 +54,7 @@ func TestTimestamp(t *testing.T) {
 		}
 
 		// write reply
-		w.Header().Set("Content-Type", tspclient.TimestampReply)
+		w.Header().Set("Content-Type", tspclient.MediaTypeTimestampReply)
 		if _, err := w.Write(testResp); err != nil {
 			t.Error("failed to write response:", err)
 		}
@@ -88,7 +88,7 @@ func TestTimestamp(t *testing.T) {
 	assertErrorEqual(expectedErr, err, t)
 
 	mockInvalidTSA := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		const wantContentType = tspclient.TimestampQuery
+		const wantContentType = tspclient.MediaTypeTimestampQuery
 		if got := r.Header.Get("Content-Type"); got != wantContentType {
 			t.Fatalf("TimeStampRequest.ContentType = %v, want %v", err, wantContentType)
 		}
@@ -97,7 +97,7 @@ func TestTimestamp(t *testing.T) {
 		}
 
 		// write reply
-		w.Header().Set("Content-Type", tspclient.TimestampReply)
+		w.Header().Set("Content-Type", tspclient.MediaTypeTimestampReply)
 		w.WriteHeader(http.StatusInternalServerError)
 		if _, err := w.Write(testResp); err != nil {
 			t.Error("failed to write response:", err)
@@ -117,7 +117,7 @@ func TestTimestamp(t *testing.T) {
 		NoNonce:                 true,
 	}
 	mockInvalidTSA = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		const wantContentType = tspclient.TimestampQuery
+		const wantContentType = tspclient.MediaTypeTimestampQuery
 		if got := r.Header.Get("Content-Type"); got != wantContentType {
 			t.Fatalf("TimeStampRequest.ContentType = %v, want %v", err, wantContentType)
 		}
@@ -142,7 +142,7 @@ func TestTimestamp(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		w.Header().Set("Content-Type", tspclient.TimestampReply)
+		w.Header().Set("Content-Type", tspclient.MediaTypeTimestampReply)
 		if _, err := w.Write(respBytes); err != nil {
 			t.Error("failed to write response:", err)
 		}
@@ -159,7 +159,7 @@ func TestTimestamp(t *testing.T) {
 		NoNonce:                 true,
 	}
 	mockInvalidTSA = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		const wantContentType = tspclient.TimestampQuery
+		const wantContentType = tspclient.MediaTypeTimestampQuery
 		if got := r.Header.Get("Content-Type"); got != wantContentType {
 			t.Fatalf("TimeStampRequest.ContentType = %v, want %v", err, wantContentType)
 		}
@@ -168,7 +168,7 @@ func TestTimestamp(t *testing.T) {
 		}
 
 		// write reply
-		w.Header().Set("Content-Type", tspclient.TimestampReply)
+		w.Header().Set("Content-Type", tspclient.MediaTypeTimestampReply)
 		if _, err := w.Write(testResp); err != nil {
 			t.Error("failed to write response:", err)
 		}
