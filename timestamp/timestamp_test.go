@@ -18,6 +18,7 @@ import (
 	"crypto"
 	"encoding/asn1"
 	"encoding/hex"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -29,6 +30,8 @@ import (
 	"github.com/notaryproject/tspclient-go"
 	"github.com/notaryproject/tspclient-go/pki"
 )
+
+const rfc3161TSAurl = "http://rfc3161timestamp.globalsign.com/advanced"
 
 func TestTimestamp(t *testing.T) {
 	ctx := context.Background()
@@ -42,25 +45,8 @@ func TestTimestamp(t *testing.T) {
 		Content:                 []byte("notation"),
 		HashAlgorithm:           crypto.SHA256,
 		HashAlgorithmParameters: asn1.NullRawValue,
-		NoNonce:                 true,
 	}
-	mockValidTSA := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		const wantContentType = tspclient.MediaTypeTimestampQuery
-		if got := r.Header.Get("Content-Type"); got != wantContentType {
-			t.Fatalf("TimeStampRequest.ContentType = %v, want %v", err, wantContentType)
-		}
-		if _, err := io.ReadAll(r.Body); err != nil {
-			t.Fatalf("TimeStampRequest.Body read error = %v", err)
-		}
-
-		// write reply
-		w.Header().Set("Content-Type", tspclient.MediaTypeTimestampReply)
-		if _, err := w.Write(testResp); err != nil {
-			t.Error("failed to write response:", err)
-		}
-	}))
-	defer mockValidTSA.Close()
-	_, err = Timestamp(ctx, mockValidTSA.URL, nil, opts)
+	_, err = Timestamp(ctx, rfc3161TSAurl, nil, opts)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -178,11 +164,60 @@ func TestTimestamp(t *testing.T) {
 	expectedErr = "certificate with subject \"CN=Globalsign TSA for Advanced - G4,O=GlobalSign nv-sa,C=BE\" was invalid at signing time of 2100-01-01 00:00:00 +0000 UTC. Certificate is valid from [2021-05-27 09:55:23 +0000 UTC] to [2032-06-28 09:55:22 +0000 UTC]"
 	_, err = Timestamp(ctx, mockInvalidTSA.URL, &signingTime, opts)
 	assertErrorEqual(expectedErr, err, t)
+
+	opts = tspclient.RequestOptions{
+		Content:                 []byte("notation"),
+		HashAlgorithm:           crypto.SHA256,
+		HashAlgorithmParameters: asn1.NullRawValue,
+		NoNonce:                 true,
+	}
+	mockInvalidTSA = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		const wantContentType = tspclient.MediaTypeTimestampQuery
+		if got := r.Header.Get("Content-Type"); got != wantContentType {
+			t.Fatalf("TimeStampRequest.ContentType = %v, want %v", err, wantContentType)
+		}
+		if _, err := io.ReadAll(r.Body); err != nil {
+			t.Fatalf("TimeStampRequest.Body read error = %v", err)
+		}
+
+		// write reply
+		token, err := os.ReadFile("testdata/TimeStampTokenWithInvalidSignature.p7s")
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp := &tspclient.Response{
+			Status: pki.StatusInfo{
+				Status: pki.StatusGranted,
+			},
+			TimeStampToken: asn1.RawValue{
+				FullBytes: token,
+			},
+		}
+		respBytes, err := resp.MarshalBinary()
+		if err != nil {
+			t.Fatal(err)
+		}
+		w.Header().Set("Content-Type", tspclient.MediaTypeTimestampReply)
+		if _, err := w.Write(respBytes); err != nil {
+			t.Error("failed to write response:", err)
+		}
+	}))
+	defer mockInvalidTSA.Close()
+	expectedErr = "failed to verify signed token: cms verification failure: crypto/rsa: verification error"
+	_, err = Timestamp(ctx, mockInvalidTSA.URL, nil, opts)
+	assertErrorEqual(expectedErr, err, t)
 }
 
 func TestGenerateNonce(t *testing.T) {
 	if _, err := GenerateNonce(); err != nil {
 		t.Fatal(err)
+	}
+
+	NonceReader = dummyReader{}
+	_, err := GenerateNonce()
+	expectedErrMsg := "error generating nonce: failed to read"
+	if err == nil || err.Error() != expectedErrMsg {
+		t.Fatalf("expected %s, but got %s", expectedErrMsg, err.Error())
 	}
 }
 
@@ -190,4 +225,10 @@ func assertErrorEqual(expected string, err error, t *testing.T) {
 	if err == nil || expected != err.Error() {
 		t.Fatalf("Expected error \"%v\" but was \"%v\"", expected, err)
 	}
+}
+
+type dummyReader struct{}
+
+func (r dummyReader) Read(p []byte) (n int, err error) {
+	return 0, errors.New("failed to read")
 }
