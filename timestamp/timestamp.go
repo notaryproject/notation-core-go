@@ -27,7 +27,7 @@ import (
 )
 
 // Timestamp generates a timestamp request and sends to TSA. It also validates
-// the TSA signing certificate against Notary Project certificate and signature
+// the TSA certificate chain against Notary Project certificate and signature
 // algorithm requirements.
 // On success, it returns the full bytes of the timestamp token received from
 // TSA.

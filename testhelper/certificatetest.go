@@ -300,9 +300,7 @@ func getCertTemplate(isRoot bool, setCodeSignEKU, setTimestampEKU bool, cn strin
 		template.IsCA = true
 	} else {
 		template.SerialNumber = big.NewInt(int64(mrand.Intn(200)))
-		// TODO: for test purpose only, change it back when ready
-		// template.NotAfter = time.Now().AddDate(0, 0, 1)
-		template.NotAfter = time.Now().Add(10 * time.Minute)
+		template.NotAfter = time.Now().AddDate(0, 0, 1)
 	}
 	return template
 }
