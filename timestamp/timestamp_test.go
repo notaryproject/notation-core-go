@@ -16,6 +16,7 @@ package timestamp
 import (
 	"context"
 	"crypto"
+	"crypto/rand"
 	"encoding/asn1"
 	"encoding/hex"
 	"errors"
@@ -209,12 +210,11 @@ func TestTimestamp(t *testing.T) {
 }
 
 func TestGenerateNonce(t *testing.T) {
-	if _, err := GenerateNonce(); err != nil {
+	if _, err := GenerateNonce(rand.Reader); err != nil {
 		t.Fatal(err)
 	}
 
-	NonceReader = dummyReader{}
-	_, err := GenerateNonce()
+	_, err := GenerateNonce(dummyReader{})
 	expectedErrMsg := "error generating nonce: failed to read"
 	if err == nil || err.Error() != expectedErrMsg {
 		t.Fatalf("expected %s, but got %s", expectedErrMsg, err.Error())

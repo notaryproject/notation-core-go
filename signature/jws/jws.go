@@ -15,6 +15,7 @@ package jws
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/x509"
 	"encoding/asn1"
 	"encoding/base64"
@@ -215,7 +216,7 @@ func generateJWS(compact string, req *signature.SignRequest, signingScheme strin
 		if hash == 0 {
 			return nil, &signature.TimestampError{Msg: fmt.Sprintf("got hash value 0 from key spec %+v", ks)}
 		}
-		nonce, err := timestamp.GenerateNonce()
+		nonce, err := timestamp.GenerateNonce(rand.Reader)
 		if err != nil {
 			return nil, &signature.TimestampError{Detail: err}
 		}

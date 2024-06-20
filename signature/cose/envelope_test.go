@@ -25,7 +25,6 @@ import (
 	"github.com/notaryproject/notation-core-go/signature"
 	"github.com/notaryproject/notation-core-go/signature/internal/signaturetest"
 	"github.com/notaryproject/notation-core-go/testhelper"
-	"github.com/notaryproject/notation-core-go/timestamp"
 	"github.com/notaryproject/tspclient-go"
 	"github.com/veraison/go-cose"
 )
@@ -342,20 +341,6 @@ func TestSignErrors(t *testing.T) {
 		}
 		if encoded != nil {
 			t.Fatal("expected nil signature envelope")
-		}
-	})
-
-	t.Run("when failed to generate nonce during timestamping", func(t *testing.T) {
-		signRequest, err := newSignRequest("notary.x509", signature.KeyTypeRSA, 3072)
-		if err != nil {
-			t.Fatalf("newSignRequest() failed. Error = %s", err)
-		}
-		signRequest.TSAServerURL = rfc3161TSAurl
-		timestamp.NonceReader = dummyReader{}
-		expectedErrMsg := "timestamp: error generating nonce: failed to read"
-		_, err = env.Sign(signRequest)
-		if err == nil || err.Error() != expectedErrMsg {
-			t.Fatalf("expected %s, but got %s", expectedErrMsg, err)
 		}
 	})
 }
@@ -1099,10 +1084,4 @@ func generateTestRawMessage(raw cbor.RawMessage, label string, unmarshalError bo
 	}
 
 	return resRaw
-}
-
-type dummyReader struct{}
-
-func (r dummyReader) Read(p []byte) (n int, err error) {
-	return 0, errors.New("failed to read")
 }

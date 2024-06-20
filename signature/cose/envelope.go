@@ -497,7 +497,7 @@ func generateUnprotectedHeaders(req *signature.SignRequest, signer signer, sig [
 	// timestamping
 	if signingScheme == string(signature.SigningSchemeX509) && req.TSAServerURL != "" {
 		hash := hashFunc(signer.Algorithm())
-		nonce, err := timestamp.GenerateNonce()
+		nonce, err := timestamp.GenerateNonce(rand.Reader)
 		if err != nil {
 			return &signature.TimestampError{Detail: err}
 		}

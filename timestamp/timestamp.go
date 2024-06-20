@@ -19,15 +19,13 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"fmt"
+	"io"
 	"math/big"
 	"time"
 
 	nx509 "github.com/notaryproject/notation-core-go/x509"
 	"github.com/notaryproject/tspclient-go"
 )
-
-// NonceReader is used to generate nonce.
-var NonceReader = rand.Reader
 
 // Timestamp generates a timestamp request and sends to TSA. It also validates
 // the TSA certificate chain against Notary Project certificate and signature
@@ -64,9 +62,9 @@ func Timestamp(ctx context.Context, tsaURL string, signingTime *time.Time, opts 
 }
 
 // GenerateNonce generates a nonce for TSA request
-func GenerateNonce() (*big.Int, error) {
+func GenerateNonce(r io.Reader) (*big.Int, error) {
 	// Pick a random number from 0 to 2^159
-	nonce, err := rand.Int(NonceReader, (&big.Int{}).Lsh(big.NewInt(1), 159))
+	nonce, err := rand.Int(r, (&big.Int{}).Lsh(big.NewInt(1), 159))
 	if err != nil {
 		return nil, fmt.Errorf("error generating nonce: %w", err)
 	}
