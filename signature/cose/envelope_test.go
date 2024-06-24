@@ -139,7 +139,7 @@ func TestSign(t *testing.T) {
 			t.Fatal("failed to read root CA certificate:", err)
 		}
 		rootCert := rootCerts[0]
-		signRequest.TsaRootCertificate = rootCert
+		signRequest.TSARootCertificate = rootCert
 		encoded, err := env.Sign(signRequest)
 		if err != nil || encoded == nil {
 			t.Fatalf("Sign() failed. Error = %s", err)

@@ -342,7 +342,7 @@ func TestSignWithTimestamp(t *testing.T) {
 		t.Fatal("failed to read root CA certificate:", err)
 	}
 	rootCert := rootCerts[0]
-	signReq.TsaRootCertificate = rootCert
+	signReq.TSARootCertificate = rootCert
 	env := envelope{}
 	encoded, err := env.Sign(signReq)
 	if err != nil || encoded == nil {
