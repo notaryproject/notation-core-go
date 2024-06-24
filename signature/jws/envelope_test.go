@@ -32,6 +32,7 @@ import (
 	"github.com/notaryproject/notation-core-go/signature"
 	"github.com/notaryproject/notation-core-go/signature/internal/signaturetest"
 	"github.com/notaryproject/notation-core-go/testhelper"
+	nx509 "github.com/notaryproject/notation-core-go/x509"
 	"github.com/notaryproject/tspclient-go"
 )
 
@@ -336,6 +337,12 @@ func TestSignWithTimestamp(t *testing.T) {
 	checkNoError(t, err)
 
 	signReq.TSAServerURL = rfc3161TSAurl
+	rootCerts, err := nx509.ReadCertificateFile("../../timestamp/testdata/tsaRootCert.crt")
+	if err != nil || len(rootCerts) == 0 {
+		t.Fatal("failed to read root CA certificate:", err)
+	}
+	rootCert := rootCerts[0]
+	signReq.TsaRootCertificate = rootCert
 	env := envelope{}
 	encoded, err := env.Sign(signReq)
 	if err != nil || encoded == nil {

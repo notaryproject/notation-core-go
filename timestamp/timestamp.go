@@ -34,7 +34,7 @@ import (
 // TSA.
 //
 // Reference: https://github.com/notaryproject/specifications/blob/v1.0.0/specs/signature-specification.md#leaf-certificates
-func Timestamp(ctx context.Context, tsaURL string, signingTime *time.Time, opts tspclient.RequestOptions) ([]byte, error) {
+func Timestamp(ctx context.Context, tsaURL string, signingTime *time.Time, tsaRootCert *x509.Certificate, opts tspclient.RequestOptions) ([]byte, error) {
 	tsaRequest, err := tspclient.NewRequest(opts)
 	if err != nil {
 		return nil, err
@@ -51,7 +51,11 @@ func Timestamp(ctx context.Context, tsaURL string, signingTime *time.Time, opts 
 	if err != nil {
 		return nil, err
 	}
-	tsaCertChain, err := token.Verify(ctx, x509.VerifyOptions{})
+	rootCertPool := x509.NewCertPool()
+	rootCertPool.AddCert(tsaRootCert)
+	tsaCertChain, err := token.Verify(ctx, x509.VerifyOptions{
+		Roots: rootCertPool,
+	})
 	if err != nil {
 		return nil, err
 	}

@@ -28,6 +28,7 @@ import (
 	"testing"
 	"time"
 
+	nx509 "github.com/notaryproject/notation-core-go/x509"
 	"github.com/notaryproject/tspclient-go"
 	"github.com/notaryproject/tspclient-go/pki"
 )
@@ -40,6 +41,11 @@ func TestTimestamp(t *testing.T) {
 	if err != nil {
 		t.Fatal("failed to read test response:", err)
 	}
+	rootCerts, err := nx509.ReadCertificateFile("testdata/tsaRootCert.crt")
+	if err != nil || len(rootCerts) == 0 {
+		t.Fatal("failed to read root CA certificate:", err)
+	}
+	rootCert := rootCerts[0]
 
 	// --------------- Success case ----------------------------------
 	opts := tspclient.RequestOptions{
@@ -47,7 +53,7 @@ func TestTimestamp(t *testing.T) {
 		HashAlgorithm:           crypto.SHA256,
 		HashAlgorithmParameters: asn1.NullRawValue,
 	}
-	_, err = Timestamp(ctx, rfc3161TSAurl, nil, opts)
+	_, err = Timestamp(ctx, rfc3161TSAurl, nil, rootCert, opts)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,7 +64,7 @@ func TestTimestamp(t *testing.T) {
 		HashAlgorithm: crypto.SHA1,
 	}
 	expectedErr := "malformed timestamping request: unsupported hashing algorithm: SHA-1"
-	_, err = Timestamp(ctx, "", nil, opts)
+	_, err = Timestamp(ctx, "", nil, rootCert, opts)
 	assertErrorEqual(expectedErr, err, t)
 
 	opts = tspclient.RequestOptions{
@@ -71,7 +77,7 @@ func TestTimestamp(t *testing.T) {
 		t.Fatal(err)
 	}
 	expectedErr = "parse \"http://\\x7f\": net/url: invalid control character in URL"
-	_, err = Timestamp(ctx, "http://"+string(bs), nil, opts)
+	_, err = Timestamp(ctx, "http://"+string(bs), nil, rootCert, opts)
 	assertErrorEqual(expectedErr, err, t)
 
 	mockInvalidTSA := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -92,7 +98,7 @@ func TestTimestamp(t *testing.T) {
 	}))
 	defer mockInvalidTSA.Close()
 	expectedErr = "https response bad status: 500 Internal Server Error"
-	_, err = Timestamp(ctx, mockInvalidTSA.URL, nil, opts)
+	_, err = Timestamp(ctx, mockInvalidTSA.URL, nil, rootCert, opts)
 	if err == nil || !strings.Contains(err.Error(), expectedErr) {
 		t.Fatalf("expected error message to contain %s, but got %v", expectedErr, err)
 	}
@@ -136,7 +142,7 @@ func TestTimestamp(t *testing.T) {
 	}))
 	defer mockInvalidTSA.Close()
 	expectedErr = "invalid timestamping response: certReq is True in request, but did not find any TSA signing certificate in the response"
-	_, err = Timestamp(ctx, mockInvalidTSA.URL, nil, opts)
+	_, err = Timestamp(ctx, mockInvalidTSA.URL, nil, rootCert, opts)
 	assertErrorEqual(expectedErr, err, t)
 
 	opts = tspclient.RequestOptions{
@@ -163,7 +169,7 @@ func TestTimestamp(t *testing.T) {
 	defer mockInvalidTSA.Close()
 	signingTime := time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC)
 	expectedErr = "certificate with subject \"CN=Globalsign TSA for Advanced - G4,O=GlobalSign nv-sa,C=BE\" was invalid at signing time of 2100-01-01 00:00:00 +0000 UTC. Certificate is valid from [2021-05-27 09:55:23 +0000 UTC] to [2032-06-28 09:55:22 +0000 UTC]"
-	_, err = Timestamp(ctx, mockInvalidTSA.URL, &signingTime, opts)
+	_, err = Timestamp(ctx, mockInvalidTSA.URL, &signingTime, rootCert, opts)
 	assertErrorEqual(expectedErr, err, t)
 
 	opts = tspclient.RequestOptions{
@@ -205,7 +211,7 @@ func TestTimestamp(t *testing.T) {
 	}))
 	defer mockInvalidTSA.Close()
 	expectedErr = "failed to verify signed token: cms verification failure: crypto/rsa: verification error"
-	_, err = Timestamp(ctx, mockInvalidTSA.URL, nil, opts)
+	_, err = Timestamp(ctx, mockInvalidTSA.URL, nil, rootCert, opts)
 	assertErrorEqual(expectedErr, err, t)
 }
 
