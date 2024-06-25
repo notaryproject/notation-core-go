@@ -30,7 +30,7 @@ import (
 // Validates certificates according to this spec:
 // https://github.com/notaryproject/notaryproject/blob/main/specs/signature-specification.md#certificate-requirements
 func ValidateCodeSigningCertChain(certChain []*x509.Certificate, signingTime *time.Time) error {
-	return validateCertChain(certChain, 0, signingTime, false)
+	return validateCertChain(certChain, 0, signingTime)
 }
 
 // ValidateTimeStampingCertChain takes an ordered time-stamping certificate
@@ -38,20 +38,10 @@ func ValidateCodeSigningCertChain(certChain []*x509.Certificate, signingTime *ti
 // Validates certificates according to this spec:
 // https://github.com/notaryproject/notaryproject/blob/main/specs/signature-specification.md#certificate-requirements
 func ValidateTimeStampingCertChain(certChain []*x509.Certificate, signingTime *time.Time) error {
-	return validateCertChain(certChain, x509.ExtKeyUsageTimeStamping, signingTime, true)
+	return validateCertChain(certChain, x509.ExtKeyUsageTimeStamping, signingTime)
 }
 
-// // ValidateTimestampingSigningCeritifcate validates the signing certificate of
-// // a timestamp token.
-// // Reference: https://github.com/notaryproject/specifications/blob/v1.0.0/specs/signature-specification.md#leaf-certificates
-// func ValidateTimestampingSigningCeritifcate(signingCert *x509.Certificate, signingTime *time.Time) error {
-// 	if signedTimeError := validateSigningTime(signingCert, signingTime); signedTimeError != nil {
-// 		return signedTimeError
-// 	}
-// 	return validateLeafCertificate(signingCert, x509.ExtKeyUsageTimeStamping)
-// }
-
-func validateCertChain(certChain []*x509.Certificate, expectedLeafEku x509.ExtKeyUsage, signingTime *time.Time, timestamp bool) error {
+func validateCertChain(certChain []*x509.Certificate, expectedLeafEku x509.ExtKeyUsage, signingTime *time.Time) error {
 	if len(certChain) < 1 {
 		return errors.New("certificate chain must contain at least one certificate")
 	}
@@ -112,7 +102,7 @@ func validateCertChain(certChain []*x509.Certificate, expectedLeafEku x509.ExtKe
 				return err
 			}
 		} else {
-			if err := validateCACertificate(cert, i-1, timestamp); err != nil {
+			if err := validateCACertificate(cert, i-1, expectedLeafEku == x509.ExtKeyUsageTimeStamping); err != nil {
 				return err
 			}
 		}
@@ -139,11 +129,11 @@ func validateSigningTime(cert *x509.Certificate, signingTime *time.Time) error {
 	return nil
 }
 
-func validateCACertificate(cert *x509.Certificate, expectedPathLen int, timestamp bool) error {
+func validateCACertificate(cert *x509.Certificate, expectedPathLen int, isTimestamp bool) error {
 	if err := validateCABasicConstraints(cert, expectedPathLen); err != nil {
 		return err
 	}
-	return validateCAKeyUsage(cert, timestamp)
+	return validateCAKeyUsage(cert, isTimestamp)
 }
 
 func validateLeafCertificate(cert *x509.Certificate, expectedEku x509.ExtKeyUsage) error {
@@ -178,8 +168,8 @@ func validateLeafBasicConstraints(cert *x509.Certificate) error {
 	return nil
 }
 
-func validateCAKeyUsage(cert *x509.Certificate, timestamp bool) error {
-	if err := validateKeyUsagePresent(cert, timestamp); err != nil {
+func validateCAKeyUsage(cert *x509.Certificate, isTimestamp bool) error {
+	if err := validateKeyUsagePresent(cert, isTimestamp); err != nil {
 		return err
 	}
 	if cert.KeyUsage&x509.KeyUsageCertSign == 0 {
@@ -188,8 +178,8 @@ func validateCAKeyUsage(cert *x509.Certificate, timestamp bool) error {
 	return nil
 }
 
-func validateLeafKeyUsage(cert *x509.Certificate, timestamp bool) error {
-	if err := validateKeyUsagePresent(cert, timestamp); err != nil {
+func validateLeafKeyUsage(cert *x509.Certificate, isTimestamp bool) error {
+	if err := validateKeyUsagePresent(cert, isTimestamp); err != nil {
 		return err
 	}
 	if cert.KeyUsage&x509.KeyUsageDigitalSignature == 0 {
@@ -224,11 +214,11 @@ func validateLeafKeyUsage(cert *x509.Certificate, timestamp bool) error {
 	return nil
 }
 
-func validateKeyUsagePresent(cert *x509.Certificate, timestamp bool) error {
+func validateKeyUsagePresent(cert *x509.Certificate, isTimestamp bool) error {
 	var hasKeyUsageExtension bool
 	for _, ext := range cert.Extensions {
 		if ext.Id.Equal(oid.KeyUsage) {
-			if !ext.Critical && !timestamp {
+			if !ext.Critical && !isTimestamp {
 				return fmt.Errorf("certificate with subject %q: key usage extension must be marked critical", cert.Subject)
 			}
 			hasKeyUsageExtension = true
@@ -266,7 +256,7 @@ func validateExtendedKeyUsage(cert *x509.Certificate, expectedEku x509.ExtKeyUsa
 	}
 
 	// cert is a codesigning certificate
-	if len(cert.ExtKeyUsage) <= 0 {
+	if len(cert.ExtKeyUsage) == 0 {
 		return nil
 	}
 
@@ -275,11 +265,8 @@ func validateExtendedKeyUsage(cert *x509.Certificate, expectedEku x509.ExtKeyUsa
 		x509.ExtKeyUsageServerAuth,
 		x509.ExtKeyUsageClientAuth,
 		x509.ExtKeyUsageEmailProtection,
+		x509.ExtKeyUsageTimeStamping,
 		x509.ExtKeyUsageOCSPSigning,
-	}
-
-	if expectedEku == 0 {
-		excludedEkus = append(excludedEkus, x509.ExtKeyUsageTimeStamping)
 	}
 
 	var hasExpectedEku bool

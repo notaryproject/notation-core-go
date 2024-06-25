@@ -27,7 +27,7 @@ import (
 	"github.com/notaryproject/tspclient-go"
 )
 
-// Timestamp generates a timestamp request and sends to TSA. It also validates
+// Timestamp generates a timestamp request and sends to TSA. It then validates
 // the TSA certificate chain against Notary Project certificate and signature
 // algorithm requirements.
 // On success, it returns the full bytes of the timestamp token received from
