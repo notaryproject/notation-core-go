@@ -214,3 +214,21 @@ func TestValidateTimestampingLeafCertificate(t *testing.T) {
 	err = validateTimestampingLeafCertificate(cert)
 	assertErrorEqual("certificate with subject \"CN=Test CN\": key usage extension must be present", err, t)
 }
+
+func TestEkuToString(t *testing.T) {
+	if ekuToString(x509.ExtKeyUsageAny) != "Any" {
+		t.Fatalf("expected Any")
+	}
+	if ekuToString(x509.ExtKeyUsageClientAuth) != "ClientAuth" {
+		t.Fatalf("expected ClientAuth")
+	}
+	if ekuToString(x509.ExtKeyUsageEmailProtection) != "EmailProtection" {
+		t.Fatalf("expected EmailProtection")
+	}
+	if ekuToString(x509.ExtKeyUsageCodeSigning) != "CodeSigning" {
+		t.Fatalf("expected CodeSigning")
+	}
+	if ekuToString(x509.ExtKeyUsageIPSECUser) != "7" {
+		t.Fatalf("expected 7")
+	}
+}
