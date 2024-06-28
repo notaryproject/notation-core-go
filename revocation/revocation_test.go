@@ -99,6 +99,14 @@ func TestNew(t *testing.T) {
 	}
 }
 
+func TestNewTimestamp(t *testing.T) {
+	expectedErrMsg := "invalid input: a non-nil httpClient must be specified"
+	_, err := NewTimestamp(nil)
+	if err == nil || err.Error() != expectedErrMsg {
+		t.Fatalf("expected %s, but got %s", expectedErrMsg, err)
+	}
+}
+
 func TestCheckRevocationStatusForSingleCert(t *testing.T) {
 	revokableCertTuple := testhelper.GetRevokableRSALeafCertificate()
 	revokableIssuerTuple := testhelper.GetRSARootCertificate()
