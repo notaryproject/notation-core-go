@@ -160,7 +160,7 @@ func TestSign(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, _, err = info.Validate(content.SignerInfo.Signature)
+		_, err = info.Validate(content.SignerInfo.Signature)
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -11,3 +11,5 @@ require (
 )
 
 require github.com/x448/float16 v0.8.4 // indirect
+
+replace github.com/notaryproject/tspclient-go => github.com/Two-Hearts/tspclient-go v0.0.0-20240628012608-458ec160a79c
