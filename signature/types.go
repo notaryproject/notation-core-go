@@ -105,8 +105,8 @@ type SignRequest struct {
 	// TSAServerURL denotes the tsa server url
 	TSAServerURL string
 
-	// TSARootCertificate is the user provided TSA trust anchor
-	TSARootCertificate *x509.Certificate
+	// TSARootCAs is the set of caller trusted TSA root certificates
+	TSARootCAs *x509.CertPool
 }
 
 // EnvelopeContent represents a combination of payload to be signed and a parsed

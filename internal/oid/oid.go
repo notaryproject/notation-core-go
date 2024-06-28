@@ -25,7 +25,7 @@ var KeyUsage = asn1.ObjectIdentifier{2, 5, 29, 15}
 // Reference: https://www.rfc-editor.org/rfc/rfc5280.html#section-4.2.1.12
 var ExtKeyUsage = asn1.ObjectIdentifier{2, 5, 29, 37}
 
-// TimeStamping (id-kp-timeStamping) is defined in RFC 3161 2.3
+// Timestamping (id-kp-timeStamping) is defined in RFC 3161 2.3
 //
 // Reference: https://datatracker.ietf.org/doc/html/rfc3161#section-2.3
-var TimeStamping = asn1.ObjectIdentifier{1, 3, 6, 1, 5, 5, 7, 3, 8}
+var Timestamping = asn1.ObjectIdentifier{1, 3, 6, 1, 5, 5, 7, 3, 8}

@@ -134,12 +134,14 @@ func TestSign(t *testing.T) {
 			t.Fatalf("newSignRequest() failed. Error = %s", err)
 		}
 		signRequest.TSAServerURL = rfc3161TSAurl
-		rootCerts, err := nx509.ReadCertificateFile("../../timestamp/testdata/tsaRootCert.crt")
+		rootCerts, err := nx509.ReadCertificateFile("../../internal/timestamp/testdata/tsaRootCert.crt")
 		if err != nil || len(rootCerts) == 0 {
 			t.Fatal("failed to read root CA certificate:", err)
 		}
 		rootCert := rootCerts[0]
-		signRequest.TSARootCertificate = rootCert
+		rootCAs := x509.NewCertPool()
+		rootCAs.AddCert(rootCert)
+		signRequest.TSARootCAs = rootCAs
 		encoded, err := env.Sign(signRequest)
 		if err != nil || encoded == nil {
 			t.Fatalf("Sign() failed. Error = %s", err)
@@ -864,37 +866,37 @@ func TestGenerateExtendedAttributesError(t *testing.T) {
 }
 
 func TestHashFunc(t *testing.T) {
-	hash := hashFunc(cose.AlgorithmPS256)
+	hash := hashFromCoseAlgorithm(cose.AlgorithmPS256)
 	if hash.String() != "SHA-256" {
 		t.Fatalf("expected SHA-256, but got %s", hash)
 	}
 
-	hash = hashFunc(cose.AlgorithmPS384)
+	hash = hashFromCoseAlgorithm(cose.AlgorithmPS384)
 	if hash.String() != "SHA-384" {
 		t.Fatalf("expected SHA-384, but got %s", hash)
 	}
 
-	hash = hashFunc(cose.AlgorithmPS512)
+	hash = hashFromCoseAlgorithm(cose.AlgorithmPS512)
 	if hash.String() != "SHA-512" {
 		t.Fatalf("expected SHA-512, but got %s", hash)
 	}
 
-	hash = hashFunc(cose.AlgorithmES256)
+	hash = hashFromCoseAlgorithm(cose.AlgorithmES256)
 	if hash.String() != "SHA-256" {
 		t.Fatalf("expected SHA-256, but got %s", hash)
 	}
 
-	hash = hashFunc(cose.AlgorithmES384)
+	hash = hashFromCoseAlgorithm(cose.AlgorithmES384)
 	if hash.String() != "SHA-384" {
 		t.Fatalf("expected SHA-384, but got %s", hash)
 	}
 
-	hash = hashFunc(cose.AlgorithmES512)
+	hash = hashFromCoseAlgorithm(cose.AlgorithmES512)
 	if hash.String() != "SHA-512" {
 		t.Fatalf("expected SHA-512, but got %s", hash)
 	}
 
-	hash = hashFunc(cose.AlgorithmEd25519)
+	hash = hashFromCoseAlgorithm(cose.AlgorithmEd25519)
 	if hash.String() != "unknown hash value 0" {
 		t.Fatalf("expected unknown hash value 0, but got %s", hash)
 	}

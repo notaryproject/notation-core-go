@@ -30,7 +30,7 @@ import (
 	"sync"
 	"time"
 
-	oid "github.com/notaryproject/notation-core-go/internal"
+	"github.com/notaryproject/notation-core-go/internal/oid"
 )
 
 var (
@@ -281,7 +281,7 @@ func getCertTemplate(isRoot bool, setCodeSignEKU, setTimestampEKU bool, cn strin
 	if setCodeSignEKU {
 		template.ExtKeyUsage = []x509.ExtKeyUsage{x509.ExtKeyUsageCodeSigning}
 	} else if setTimestampEKU {
-		ekuValue, _ := asn1.Marshal([]asn1.ObjectIdentifier{oid.TimeStamping})
+		ekuValue, _ := asn1.Marshal([]asn1.ObjectIdentifier{oid.Timestamping})
 		template.ExtraExtensions = []pkix.Extension{
 			{
 				Id:       oid.ExtKeyUsage,

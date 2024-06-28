@@ -16,11 +16,7 @@ package timestamp
 
 import (
 	"context"
-	"crypto/rand"
 	"crypto/x509"
-	"fmt"
-	"io"
-	"math/big"
 	"time"
 
 	nx509 "github.com/notaryproject/notation-core-go/x509"
@@ -34,16 +30,16 @@ import (
 // TSA.
 //
 // Reference: https://github.com/notaryproject/specifications/blob/v1.0.0/specs/signature-specification.md#leaf-certificates
-func Timestamp(ctx context.Context, tsaURL string, signingTime *time.Time, tsaRootCert *x509.Certificate, opts tspclient.RequestOptions) ([]byte, error) {
+func Timestamp(ctx context.Context, tsaURL string, signingTime *time.Time, tsaRootCAs *x509.CertPool, opts tspclient.RequestOptions) ([]byte, error) {
 	tsaRequest, err := tspclient.NewRequest(opts)
 	if err != nil {
 		return nil, err
 	}
-	httpTimeStamper, err := tspclient.NewHTTPTimestamper(nil, tsaURL)
+	httpTimestamper, err := tspclient.NewHTTPTimestamper(nil, tsaURL)
 	if err != nil {
 		return nil, err
 	}
-	resp, err := httpTimeStamper.Timestamp(ctx, tsaRequest)
+	resp, err := httpTimestamper.Timestamp(ctx, tsaRequest)
 	if err != nil {
 		return nil, err
 	}
@@ -51,26 +47,14 @@ func Timestamp(ctx context.Context, tsaURL string, signingTime *time.Time, tsaRo
 	if err != nil {
 		return nil, err
 	}
-	rootCertPool := x509.NewCertPool()
-	rootCertPool.AddCert(tsaRootCert)
 	tsaCertChain, err := token.Verify(ctx, x509.VerifyOptions{
-		Roots: rootCertPool,
+		Roots: tsaRootCAs,
 	})
 	if err != nil {
 		return nil, err
 	}
-	if err := nx509.ValidateTimeStampingCertChain(tsaCertChain, signingTime); err != nil {
+	if err := nx509.ValidateTimestampingCertChain(tsaCertChain, signingTime); err != nil {
 		return nil, err
 	}
-	return resp.TimeStampToken.FullBytes, nil
-}
-
-// GenerateNonce generates a nonce for TSA request
-func GenerateNonce(r io.Reader) (*big.Int, error) {
-	// Pick a random number from 0 to 2^159
-	nonce, err := rand.Int(r, (&big.Int{}).Lsh(big.NewInt(1), 159))
-	if err != nil {
-		return nil, fmt.Errorf("error generating nonce: %w", err)
-	}
-	return nonce, nil
+	return resp.TimestampToken.FullBytes, nil
 }

@@ -16,10 +16,9 @@ package timestamp
 import (
 	"context"
 	"crypto"
-	"crypto/rand"
+	"crypto/x509"
 	"encoding/asn1"
 	"encoding/hex"
-	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -46,6 +45,8 @@ func TestTimestamp(t *testing.T) {
 		t.Fatal("failed to read root CA certificate:", err)
 	}
 	rootCert := rootCerts[0]
+	rootCAs := x509.NewCertPool()
+	rootCAs.AddCert(rootCert)
 
 	// --------------- Success case ----------------------------------
 	opts := tspclient.RequestOptions{
@@ -53,7 +54,7 @@ func TestTimestamp(t *testing.T) {
 		HashAlgorithm:           crypto.SHA256,
 		HashAlgorithmParameters: asn1.NullRawValue,
 	}
-	_, err = Timestamp(ctx, rfc3161TSAurl, nil, rootCert, opts)
+	_, err = Timestamp(ctx, rfc3161TSAurl, nil, rootCAs, opts)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,7 +65,7 @@ func TestTimestamp(t *testing.T) {
 		HashAlgorithm: crypto.SHA1,
 	}
 	expectedErr := "malformed timestamping request: unsupported hashing algorithm: SHA-1"
-	_, err = Timestamp(ctx, "", nil, rootCert, opts)
+	_, err = Timestamp(ctx, "", nil, rootCAs, opts)
 	assertErrorEqual(expectedErr, err, t)
 
 	opts = tspclient.RequestOptions{
@@ -77,16 +78,16 @@ func TestTimestamp(t *testing.T) {
 		t.Fatal(err)
 	}
 	expectedErr = "parse \"http://\\x7f\": net/url: invalid control character in URL"
-	_, err = Timestamp(ctx, "http://"+string(bs), nil, rootCert, opts)
+	_, err = Timestamp(ctx, "http://"+string(bs), nil, rootCAs, opts)
 	assertErrorEqual(expectedErr, err, t)
 
 	mockInvalidTSA := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		const wantContentType = tspclient.MediaTypeTimestampQuery
 		if got := r.Header.Get("Content-Type"); got != wantContentType {
-			t.Fatalf("TimeStampRequest.ContentType = %v, want %v", err, wantContentType)
+			t.Fatalf("TimestampRequest.ContentType = %v, want %v", err, wantContentType)
 		}
 		if _, err := io.ReadAll(r.Body); err != nil {
-			t.Fatalf("TimeStampRequest.Body read error = %v", err)
+			t.Fatalf("TimestampRequest.Body read error = %v", err)
 		}
 
 		// write reply
@@ -98,7 +99,7 @@ func TestTimestamp(t *testing.T) {
 	}))
 	defer mockInvalidTSA.Close()
 	expectedErr = "https response bad status: 500 Internal Server Error"
-	_, err = Timestamp(ctx, mockInvalidTSA.URL, nil, rootCert, opts)
+	_, err = Timestamp(ctx, mockInvalidTSA.URL, nil, rootCAs, opts)
 	if err == nil || !strings.Contains(err.Error(), expectedErr) {
 		t.Fatalf("expected error message to contain %s, but got %v", expectedErr, err)
 	}
@@ -112,10 +113,10 @@ func TestTimestamp(t *testing.T) {
 	mockInvalidTSA = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		const wantContentType = tspclient.MediaTypeTimestampQuery
 		if got := r.Header.Get("Content-Type"); got != wantContentType {
-			t.Fatalf("TimeStampRequest.ContentType = %v, want %v", err, wantContentType)
+			t.Fatalf("TimestampRequest.ContentType = %v, want %v", err, wantContentType)
 		}
 		if _, err := io.ReadAll(r.Body); err != nil {
-			t.Fatalf("TimeStampRequest.Body read error = %v", err)
+			t.Fatalf("TimestampRequest.Body read error = %v", err)
 		}
 
 		// write reply
@@ -127,7 +128,7 @@ func TestTimestamp(t *testing.T) {
 			Status: pki.StatusInfo{
 				Status: pki.StatusGranted,
 			},
-			TimeStampToken: asn1.RawValue{
+			TimestampToken: asn1.RawValue{
 				FullBytes: token,
 			},
 		}
@@ -142,7 +143,7 @@ func TestTimestamp(t *testing.T) {
 	}))
 	defer mockInvalidTSA.Close()
 	expectedErr = "invalid timestamping response: certReq is True in request, but did not find any TSA signing certificate in the response"
-	_, err = Timestamp(ctx, mockInvalidTSA.URL, nil, rootCert, opts)
+	_, err = Timestamp(ctx, mockInvalidTSA.URL, nil, rootCAs, opts)
 	assertErrorEqual(expectedErr, err, t)
 
 	opts = tspclient.RequestOptions{
@@ -154,10 +155,10 @@ func TestTimestamp(t *testing.T) {
 	mockInvalidTSA = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		const wantContentType = tspclient.MediaTypeTimestampQuery
 		if got := r.Header.Get("Content-Type"); got != wantContentType {
-			t.Fatalf("TimeStampRequest.ContentType = %v, want %v", err, wantContentType)
+			t.Fatalf("TimestampRequest.ContentType = %v, want %v", err, wantContentType)
 		}
 		if _, err := io.ReadAll(r.Body); err != nil {
-			t.Fatalf("TimeStampRequest.Body read error = %v", err)
+			t.Fatalf("TimestampRequest.Body read error = %v", err)
 		}
 
 		// write reply
@@ -169,7 +170,7 @@ func TestTimestamp(t *testing.T) {
 	defer mockInvalidTSA.Close()
 	signingTime := time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC)
 	expectedErr = "certificate with subject \"CN=Globalsign TSA for Advanced - G4,O=GlobalSign nv-sa,C=BE\" was invalid at signing time of 2100-01-01 00:00:00 +0000 UTC. Certificate is valid from [2021-05-27 09:55:23 +0000 UTC] to [2032-06-28 09:55:22 +0000 UTC]"
-	_, err = Timestamp(ctx, mockInvalidTSA.URL, &signingTime, rootCert, opts)
+	_, err = Timestamp(ctx, mockInvalidTSA.URL, &signingTime, rootCAs, opts)
 	assertErrorEqual(expectedErr, err, t)
 
 	opts = tspclient.RequestOptions{
@@ -181,10 +182,10 @@ func TestTimestamp(t *testing.T) {
 	mockInvalidTSA = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		const wantContentType = tspclient.MediaTypeTimestampQuery
 		if got := r.Header.Get("Content-Type"); got != wantContentType {
-			t.Fatalf("TimeStampRequest.ContentType = %v, want %v", err, wantContentType)
+			t.Fatalf("TimestampRequest.ContentType = %v, want %v", err, wantContentType)
 		}
 		if _, err := io.ReadAll(r.Body); err != nil {
-			t.Fatalf("TimeStampRequest.Body read error = %v", err)
+			t.Fatalf("TimestampRequest.Body read error = %v", err)
 		}
 
 		// write reply
@@ -196,7 +197,7 @@ func TestTimestamp(t *testing.T) {
 			Status: pki.StatusInfo{
 				Status: pki.StatusGranted,
 			},
-			TimeStampToken: asn1.RawValue{
+			TimestampToken: asn1.RawValue{
 				FullBytes: token,
 			},
 		}
@@ -211,30 +212,12 @@ func TestTimestamp(t *testing.T) {
 	}))
 	defer mockInvalidTSA.Close()
 	expectedErr = "failed to verify signed token: cms verification failure: crypto/rsa: verification error"
-	_, err = Timestamp(ctx, mockInvalidTSA.URL, nil, rootCert, opts)
+	_, err = Timestamp(ctx, mockInvalidTSA.URL, nil, rootCAs, opts)
 	assertErrorEqual(expectedErr, err, t)
-}
-
-func TestGenerateNonce(t *testing.T) {
-	if _, err := GenerateNonce(rand.Reader); err != nil {
-		t.Fatal(err)
-	}
-
-	_, err := GenerateNonce(dummyReader{})
-	expectedErrMsg := "error generating nonce: failed to read"
-	if err == nil || err.Error() != expectedErrMsg {
-		t.Fatalf("expected %s, but got %s", expectedErrMsg, err.Error())
-	}
 }
 
 func assertErrorEqual(expected string, err error, t *testing.T) {
 	if err == nil || expected != err.Error() {
 		t.Fatalf("Expected error \"%v\" but was \"%v\"", expected, err)
 	}
-}
-
-type dummyReader struct{}
-
-func (r dummyReader) Read(p []byte) (n int, err error) {
-	return 0, errors.New("failed to read")
 }

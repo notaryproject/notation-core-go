@@ -35,16 +35,29 @@ type Revocation interface {
 
 // revocation is an internal struct used for revocation checking
 type revocation struct {
-	httpClient *http.Client
+	httpClient       *http.Client
+	certChainPurpose ocsp.Purpose
 }
 
-// New constructs a revocation object
+// New constructs a revocation object for code signing certificate chain
 func New(httpClient *http.Client) (Revocation, error) {
 	if httpClient == nil {
 		return nil, errors.New("invalid input: a non-nil httpClient must be specified")
 	}
 	return &revocation{
 		httpClient: httpClient,
+	}, nil
+}
+
+// NewTimestamp contructs a revocation object for timestamping certificate
+// chain
+func NewTimestamp(httpClient *http.Client) (Revocation, error) {
+	if httpClient == nil {
+		return nil, errors.New("invalid input: a non-nil httpClient must be specified")
+	}
+	return &revocation{
+		httpClient:       httpClient,
+		certChainPurpose: ocsp.PurposeTimestamping,
 	}, nil
 }
 
@@ -56,27 +69,12 @@ func New(httpClient *http.Client) (Revocation, error) {
 // https://github.com/notaryproject/notation-core-go/issues/125
 func (r *revocation) Validate(certChain []*x509.Certificate, signingTime time.Time) ([]*result.CertRevocationResult, error) {
 	return ocsp.CheckStatus(ocsp.Options{
-		CertChain:   certChain,
-		SigningTime: signingTime,
-		HTTPClient:  r.httpClient,
+		CertChain:        certChain,
+		CertChainPurpose: r.certChainPurpose,
+		SigningTime:      signingTime,
+		HTTPClient:       r.httpClient,
 	})
-	// TODO: add CRL support
-	// https://github.com/notaryproject/notation-core-go/issues/125
-}
 
-// ValidateTimestampCertChain checks the revocation status for a TSA certificate
-// chain using OCSP and returns an array of CertRevocationResults that contain
-// the results and any errors that are encountered during the process
-//
-// TODO: add CRL support
-// https://github.com/notaryproject/notation-core-go/issues/125
-func ValidateTimestampCertChain(certChain []*x509.Certificate, signingTime time.Time, httpClient *http.Client) ([]*result.CertRevocationResult, error) {
-	return ocsp.CheckStatus(ocsp.Options{
-		CertChain:   certChain,
-		Timestamp:   true,
-		SigningTime: signingTime,
-		HTTPClient:  httpClient,
-	})
 	// TODO: add CRL support
 	// https://github.com/notaryproject/notation-core-go/issues/125
 }

@@ -14,18 +14,13 @@
 package jws
 
 import (
-	"context"
-	"crypto/rand"
 	"crypto/x509"
-	"encoding/asn1"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"strings"
 
 	"github.com/notaryproject/notation-core-go/signature"
-	"github.com/notaryproject/notation-core-go/timestamp"
-	"github.com/notaryproject/tspclient-go"
 )
 
 func parseProtectedHeaders(encoded string) (*jwsProtectedHeader, error) {
@@ -176,64 +171,28 @@ func contains(s []string, e string) bool {
 	return false
 }
 
-func generateJWS(compact string, req *signature.SignRequest, signingScheme string, certs []*x509.Certificate) (*jwsEnvelope, error) {
+func generateJWS(compact string, req *signature.SignRequest, certs []*x509.Certificate) (*jwsEnvelope, error) {
 	parts := strings.Split(compact, ".")
 	if len(parts) != 3 {
 		// this should never happen
 		return nil, fmt.Errorf(
 			"unexpected error occurred while generating a JWS-JSON serialization from compact serialization. want: len(parts) == 3, got: len(parts) == %d", len(parts))
 	}
-	protected := parts[0]
-	payload := parts[1]
-	sig := parts[2]
 
 	rawCerts := make([][]byte, len(certs))
 	for i, cert := range certs {
 		rawCerts[i] = cert.Raw
 	}
 
-	jwsEnvelope := &jwsEnvelope{
-		Protected: protected,
-		Payload:   payload,
-		Signature: sig,
+	return &jwsEnvelope{
+		Protected: parts[0],
+		Payload:   parts[1],
+		Signature: parts[2],
 		Header: jwsUnprotectedHeader{
 			CertChain:    rawCerts,
 			SigningAgent: req.SigningAgent,
 		},
-	}
-
-	// timestamping
-	if signingScheme == string(signature.SigningSchemeX509) && req.TSAServerURL != "" {
-		primitiveSignature, err := base64.RawURLEncoding.DecodeString(sig)
-		if err != nil {
-			return nil, &signature.TimestampError{Detail: err}
-		}
-		ks, err := req.Signer.KeySpec()
-		if err != nil {
-			return nil, &signature.TimestampError{Detail: err}
-		}
-		hash := ks.SignatureAlgorithm().Hash()
-		if hash == 0 {
-			return nil, &signature.TimestampError{Msg: fmt.Sprintf("got hash value 0 from key spec %+v", ks)}
-		}
-		nonce, err := timestamp.GenerateNonce(rand.Reader)
-		if err != nil {
-			return nil, &signature.TimestampError{Detail: err}
-		}
-		timestampOpts := tspclient.RequestOptions{
-			Content:                 primitiveSignature,
-			HashAlgorithm:           hash,
-			HashAlgorithmParameters: asn1.NullRawValue,
-			Nonce:                   nonce,
-		}
-		timestampToken, err := timestamp.Timestamp(context.Background(), req.TSAServerURL, &req.SigningTime, req.TSARootCertificate, timestampOpts)
-		if err != nil {
-			return nil, &signature.TimestampError{Detail: err}
-		}
-		// on success, embed the timestamp token to TimestampSignature
-		jwsEnvelope.Header.TimestampSignature = timestampToken
-	}
-	return jwsEnvelope, nil
+	}, nil
 }
 
 // getSignerAttributes merge extended signed attributes and protected header to be signed attributes.

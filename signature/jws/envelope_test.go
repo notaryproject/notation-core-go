@@ -337,12 +337,14 @@ func TestSignWithTimestamp(t *testing.T) {
 	checkNoError(t, err)
 
 	signReq.TSAServerURL = rfc3161TSAurl
-	rootCerts, err := nx509.ReadCertificateFile("../../timestamp/testdata/tsaRootCert.crt")
+	rootCerts, err := nx509.ReadCertificateFile("../../internal/timestamp/testdata/tsaRootCert.crt")
 	if err != nil || len(rootCerts) == 0 {
 		t.Fatal("failed to read root CA certificate:", err)
 	}
 	rootCert := rootCerts[0]
-	signReq.TSARootCertificate = rootCert
+	rootCAs := x509.NewCertPool()
+	rootCAs.AddCert(rootCert)
+	signReq.TSARootCAs = rootCAs
 	env := envelope{}
 	encoded, err := env.Sign(signReq)
 	if err != nil || encoded == nil {
