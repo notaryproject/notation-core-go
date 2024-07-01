@@ -206,6 +206,89 @@ func TestTimestamp(t *testing.T) {
 	expectedErr = "failed to verify signed token: cms verification failure: crypto/rsa: verification error"
 	_, err = Timestamp(ctx, req, opts)
 	assertErrorEqual(expectedErr, err, t)
+
+	opts = tspclient.RequestOptions{
+		Content:       []byte("notation"),
+		HashAlgorithm: crypto.SHA256,
+		NoNonce:       true,
+	}
+	mockInvalidTSA = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		const wantContentType = tspclient.MediaTypeTimestampQuery
+		if got := r.Header.Get("Content-Type"); got != wantContentType {
+			t.Fatalf("TimestampRequest.ContentType = %v, want %v", err, wantContentType)
+		}
+		if _, err := io.ReadAll(r.Body); err != nil {
+			t.Fatalf("TimestampRequest.Body read error = %v", err)
+		}
+
+		// write reply
+		resp := &tspclient.Response{
+			Status: pki.StatusInfo{
+				Status: pki.StatusRejection,
+			},
+		}
+		respBytes, err := resp.MarshalBinary()
+		if err != nil {
+			t.Fatal(err)
+		}
+		w.Header().Set("Content-Type", tspclient.MediaTypeTimestampReply)
+		if _, err := w.Write(respBytes); err != nil {
+			t.Error("failed to write response:", err)
+		}
+	}))
+	defer mockInvalidTSA.Close()
+	req = &signature.SignRequest{
+		TSAServerURL: mockInvalidTSA.URL,
+		TSARootCAs:   rootCAs,
+	}
+	expectedErr = "invalid timestamping response: invalid response with status code 2: rejected"
+	_, err = Timestamp(ctx, req, opts)
+	assertErrorEqual(expectedErr, err, t)
+
+	opts = tspclient.RequestOptions{
+		Content:       []byte("notation"),
+		HashAlgorithm: crypto.SHA256,
+		NoNonce:       true,
+	}
+	mockInvalidTSA = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		const wantContentType = tspclient.MediaTypeTimestampQuery
+		if got := r.Header.Get("Content-Type"); got != wantContentType {
+			t.Fatalf("TimestampRequest.ContentType = %v, want %v", err, wantContentType)
+		}
+		if _, err := io.ReadAll(r.Body); err != nil {
+			t.Fatalf("TimestampRequest.Body read error = %v", err)
+		}
+
+		// write reply
+		token, err := os.ReadFile("testdata/TimeStampTokenWithInvalidTSTInfo.p7s")
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp := &tspclient.Response{
+			Status: pki.StatusInfo{
+				Status: pki.StatusGranted,
+			},
+			TimestampToken: asn1.RawValue{
+				FullBytes: token,
+			},
+		}
+		respBytes, err := resp.MarshalBinary()
+		if err != nil {
+			t.Fatal(err)
+		}
+		w.Header().Set("Content-Type", tspclient.MediaTypeTimestampReply)
+		if _, err := w.Write(respBytes); err != nil {
+			t.Error("failed to write response:", err)
+		}
+	}))
+	defer mockInvalidTSA.Close()
+	req = &signature.SignRequest{
+		TSAServerURL: mockInvalidTSA.URL,
+		TSARootCAs:   rootCAs,
+	}
+	expectedErr = "invalid timestamping response: cannot unmarshal TSTInfo from timestamp token: asn1: structure error: tags don't match (23 vs {class:0 tag:16 length:3 isCompound:true}) {optional:false explicit:false application:false private:false defaultValue:<nil> tag:<nil> stringType:0 timeType:24 set:false omitEmpty:false} Time @89"
+	_, err = Timestamp(ctx, req, opts)
+	assertErrorEqual(expectedErr, err, t)
 }
 
 func assertErrorEqual(expected string, err error, t *testing.T) {
