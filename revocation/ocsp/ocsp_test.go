@@ -532,7 +532,7 @@ func TestCheckStatusErrors(t *testing.T) {
 		}
 	})
 
-	t.Run("check codesigning cert with timestamp set to true", func(t *testing.T) {
+	t.Run("check codesigning cert with PurposeTimestamping", func(t *testing.T) {
 		opts := Options{
 			CertChain:        okChain,
 			CertChainPurpose: PurposeTimestamping,
@@ -541,6 +541,22 @@ func TestCheckStatusErrors(t *testing.T) {
 		}
 		certResults, err := CheckStatus(opts)
 		if err == nil || err.Error() != timestampSigningCertErr.Error() {
+			t.Errorf("Expected CheckStatus to fail with %v, but got: %v", timestampSigningCertErr, err)
+		}
+		if certResults != nil {
+			t.Error("Expected certResults to be nil when there is an error")
+		}
+	})
+
+	t.Run("check with unknwon CertChainPurpose", func(t *testing.T) {
+		opts := Options{
+			CertChain:        okChain,
+			CertChainPurpose: 2,
+			SigningTime:      time.Now(),
+			HTTPClient:       http.DefaultClient,
+		}
+		certResults, err := CheckStatus(opts)
+		if err == nil || err.Error() != "invalid chain: expected chain to be correct and complete: unknown certificate chain purpose 2" {
 			t.Errorf("Expected CheckStatus to fail with %v, but got: %v", timestampSigningCertErr, err)
 		}
 		if certResults != nil {

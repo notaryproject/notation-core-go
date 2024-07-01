@@ -17,7 +17,6 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/notaryproject/notation-core-go/internal/oid"
 )
@@ -26,7 +25,7 @@ import (
 // chain and validates issuance from leaf to root
 // Validates certificates according to this spec:
 // https://github.com/notaryproject/notaryproject/blob/main/specs/signature-specification.md#certificate-requirements
-func ValidateTimestampingCertChain(certChain []*x509.Certificate, signingTime *time.Time) error {
+func ValidateTimestampingCertChain(certChain []*x509.Certificate) error {
 	if len(certChain) < 1 {
 		return errors.New("certificate chain must contain at least one certificate")
 	}
@@ -34,9 +33,6 @@ func ValidateTimestampingCertChain(certChain []*x509.Certificate, signingTime *t
 	// For self-signed signing certificate (not a CA)
 	if len(certChain) == 1 {
 		cert := certChain[0]
-		if signedTimeError := validateSigningTime(cert, signingTime); signedTimeError != nil {
-			return signedTimeError
-		}
 		if err := cert.CheckSignature(cert.SignatureAlgorithm, cert.RawTBSCertificate, cert.Signature); err != nil {
 			return fmt.Errorf("invalid self-signed certificate. subject: %q. Error: %w", cert.Subject, err)
 		}
@@ -47,9 +43,6 @@ func ValidateTimestampingCertChain(certChain []*x509.Certificate, signingTime *t
 	}
 
 	for i, cert := range certChain {
-		if signedTimeError := validateSigningTime(cert, signingTime); signedTimeError != nil {
-			return signedTimeError
-		}
 		if i == len(certChain)-1 {
 			selfSigned, selfSignedError := isSelfSigned(cert)
 			if selfSignedError != nil {
@@ -106,10 +99,7 @@ func validateTimestampingLeafCertificate(cert *x509.Certificate) error {
 	if err := validateLeafBasicConstraints(cert); err != nil {
 		return err
 	}
-	if err := validateTimestampingKeyUsagePresent(cert); err != nil {
-		return err
-	}
-	if err := validateLeafKeyUsage(cert); err != nil {
+	if err := validateTimestampingLeafKeyUsage(cert); err != nil {
 		return err
 	}
 	if err := validateTimestampingExtendedKeyUsage(cert); err != nil {
@@ -126,6 +116,13 @@ func validateTimestampingCAKeyUsage(cert *x509.Certificate) error {
 		return fmt.Errorf("certificate with subject %q: key usage must have the bit positions for key cert sign set", cert.Subject)
 	}
 	return nil
+}
+
+func validateTimestampingLeafKeyUsage(cert *x509.Certificate) error {
+	if err := validateTimestampingKeyUsagePresent(cert); err != nil {
+		return err
+	}
+	return validateLeafKeyUsage(cert)
 }
 
 func validateTimestampingKeyUsagePresent(cert *x509.Certificate) error {

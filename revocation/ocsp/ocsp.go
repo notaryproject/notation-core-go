@@ -51,7 +51,7 @@ const (
 // Options specifies values that are needed to check OCSP revocation
 type Options struct {
 	CertChain        []*x509.Certificate
-	CertChainPurpose Purpose
+	CertChainPurpose Purpose // default value is `PurposeCodeSigning`
 	SigningTime      time.Time
 	HTTPClient       *http.Client
 }
@@ -83,9 +83,11 @@ func CheckStatus(opts Options) ([]*result.CertRevocationResult, error) {
 			return nil, result.InvalidChainError{Err: err}
 		}
 	case PurposeTimestamping:
-		if err := coreX509.ValidateTimestampingCertChain(opts.CertChain, nil); err != nil {
+		if err := coreX509.ValidateTimestampingCertChain(opts.CertChain); err != nil {
 			return nil, result.InvalidChainError{Err: err}
 		}
+	default:
+		return nil, result.InvalidChainError{Err: fmt.Errorf("unknown certificate chain purpose %v", opts.CertChainPurpose)}
 	}
 
 	certResults := make([]*result.CertRevocationResult, len(opts.CertChain))

@@ -866,39 +866,40 @@ func TestGenerateExtendedAttributesError(t *testing.T) {
 }
 
 func TestHashFunc(t *testing.T) {
-	hash := hashFromCoseAlgorithm(cose.AlgorithmPS256)
-	if hash.String() != "SHA-256" {
+	hash, err := hashFromCOSEAlgorithm(cose.AlgorithmPS256)
+	if err != nil || hash.String() != "SHA-256" {
 		t.Fatalf("expected SHA-256, but got %s", hash)
 	}
 
-	hash = hashFromCoseAlgorithm(cose.AlgorithmPS384)
-	if hash.String() != "SHA-384" {
+	hash, err = hashFromCOSEAlgorithm(cose.AlgorithmPS384)
+	if err != nil || hash.String() != "SHA-384" {
 		t.Fatalf("expected SHA-384, but got %s", hash)
 	}
 
-	hash = hashFromCoseAlgorithm(cose.AlgorithmPS512)
-	if hash.String() != "SHA-512" {
+	hash, err = hashFromCOSEAlgorithm(cose.AlgorithmPS512)
+	if err != nil || hash.String() != "SHA-512" {
 		t.Fatalf("expected SHA-512, but got %s", hash)
 	}
 
-	hash = hashFromCoseAlgorithm(cose.AlgorithmES256)
-	if hash.String() != "SHA-256" {
+	hash, err = hashFromCOSEAlgorithm(cose.AlgorithmES256)
+	if err != nil || hash.String() != "SHA-256" {
 		t.Fatalf("expected SHA-256, but got %s", hash)
 	}
 
-	hash = hashFromCoseAlgorithm(cose.AlgorithmES384)
-	if hash.String() != "SHA-384" {
+	hash, err = hashFromCOSEAlgorithm(cose.AlgorithmES384)
+	if err != nil || hash.String() != "SHA-384" {
 		t.Fatalf("expected SHA-384, but got %s", hash)
 	}
 
-	hash = hashFromCoseAlgorithm(cose.AlgorithmES512)
-	if hash.String() != "SHA-512" {
+	hash, err = hashFromCOSEAlgorithm(cose.AlgorithmES512)
+	if err != nil || hash.String() != "SHA-512" {
 		t.Fatalf("expected SHA-512, but got %s", hash)
 	}
 
-	hash = hashFromCoseAlgorithm(cose.AlgorithmEd25519)
-	if hash.String() != "unknown hash value 0" {
-		t.Fatalf("expected unknown hash value 0, but got %s", hash)
+	_, err = hashFromCOSEAlgorithm(cose.AlgorithmEd25519)
+	expectedErrMsg := "unsupported cose algorithm EdDSA"
+	if err == nil || err.Error() != expectedErrMsg {
+		t.Fatalf("expected %s, but got %s", expectedErrMsg, err)
 	}
 }
 

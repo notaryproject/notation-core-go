@@ -30,7 +30,7 @@ func ValidateCodeSigningCertChain(certChain []*x509.Certificate, signingTime *ti
 	if len(certChain) < 1 {
 		return errors.New("certificate chain must contain at least one certificate")
 	}
-	expectedLeafEku := x509.ExtKeyUsageAny
+
 	// For self-signed signing certificate (not a CA)
 	if len(certChain) == 1 {
 		cert := certChain[0]
@@ -40,7 +40,7 @@ func ValidateCodeSigningCertChain(certChain []*x509.Certificate, signingTime *ti
 		if err := cert.CheckSignature(cert.SignatureAlgorithm, cert.RawTBSCertificate, cert.Signature); err != nil {
 			return fmt.Errorf("invalid self-signed certificate. subject: %q. Error: %w", cert.Subject, err)
 		}
-		if err := validateCodeSigningLeafCertificate(cert, expectedLeafEku); err != nil {
+		if err := validateCodeSigningLeafCertificate(cert); err != nil {
 			return fmt.Errorf("invalid self-signed certificate. Error: %w", err)
 		}
 		return nil
@@ -83,7 +83,7 @@ func ValidateCodeSigningCertChain(certChain []*x509.Certificate, signingTime *ti
 		}
 
 		if i == 0 {
-			if err := validateCodeSigningLeafCertificate(cert, expectedLeafEku); err != nil {
+			if err := validateCodeSigningLeafCertificate(cert); err != nil {
 				return err
 			}
 		} else {
@@ -102,17 +102,14 @@ func validateCodeSigningCACertificate(cert *x509.Certificate, expectedPathLen in
 	return validateCodeSigningCAKeyUsage(cert)
 }
 
-func validateCodeSigningLeafCertificate(cert *x509.Certificate, expectedLeafEku x509.ExtKeyUsage) error {
+func validateCodeSigningLeafCertificate(cert *x509.Certificate) error {
 	if err := validateLeafBasicConstraints(cert); err != nil {
 		return err
 	}
-	if err := validateCodeSigningKeyUsagePresent(cert); err != nil {
+	if err := validateCodeSigningLeafKeyUsage(cert); err != nil {
 		return err
 	}
-	if err := validateLeafKeyUsage(cert); err != nil {
-		return err
-	}
-	if err := validateCodeSigningExtendedKeyUsage(cert, expectedLeafEku); err != nil {
+	if err := validateCodeSigningExtendedKeyUsage(cert); err != nil {
 		return err
 	}
 	return validateSignatureAlgorithm(cert)
@@ -126,6 +123,13 @@ func validateCodeSigningCAKeyUsage(cert *x509.Certificate) error {
 		return fmt.Errorf("certificate with subject %q: key usage must have the bit positions for key cert sign set", cert.Subject)
 	}
 	return nil
+}
+
+func validateCodeSigningLeafKeyUsage(cert *x509.Certificate) error {
+	if err := validateCodeSigningKeyUsagePresent(cert); err != nil {
+		return err
+	}
+	return validateLeafKeyUsage(cert)
 }
 
 func validateCodeSigningKeyUsagePresent(cert *x509.Certificate) error {
@@ -145,13 +149,12 @@ func validateCodeSigningKeyUsagePresent(cert *x509.Certificate) error {
 	return nil
 }
 
-func validateCodeSigningExtendedKeyUsage(cert *x509.Certificate, expectedEku x509.ExtKeyUsage) error {
+func validateCodeSigningExtendedKeyUsage(cert *x509.Certificate) error {
 	if len(cert.ExtKeyUsage) == 0 {
 		return nil
 	}
 
 	excludedEkus := []x509.ExtKeyUsage{
-		x509.ExtKeyUsageAny,
 		x509.ExtKeyUsageServerAuth,
 		x509.ExtKeyUsageClientAuth,
 		x509.ExtKeyUsageEmailProtection,
@@ -159,21 +162,12 @@ func validateCodeSigningExtendedKeyUsage(cert *x509.Certificate, expectedEku x50
 		x509.ExtKeyUsageOCSPSigning,
 	}
 
-	var hasExpectedEku bool
 	for _, certEku := range cert.ExtKeyUsage {
-		if certEku == expectedEku {
-			hasExpectedEku = true
-			continue
-		}
 		for _, excludedEku := range excludedEkus {
 			if certEku == excludedEku {
 				return fmt.Errorf("certificate with subject %q: extended key usage must not contain %s eku", cert.Subject, ekuToString(excludedEku))
 			}
 		}
-	}
-
-	if expectedEku != 0 && !hasExpectedEku {
-		return fmt.Errorf("certificate with subject %q: extended key usage must contain %s eku", cert.Subject, ekuToString(expectedEku))
 	}
 	return nil
 }

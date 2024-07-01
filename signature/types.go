@@ -16,6 +16,7 @@ package signature
 import (
 	"crypto/x509"
 	"errors"
+	"net/http"
 	"time"
 )
 
@@ -107,6 +108,9 @@ type SignRequest struct {
 
 	// TSARootCAs is the set of caller trusted TSA root certificates
 	TSARootCAs *x509.CertPool
+
+	// TimestampHttpClient is the http client used for TSA timestamping
+	TimestampHttpClient *http.Client
 }
 
 // EnvelopeContent represents a combination of payload to be signed and a parsed

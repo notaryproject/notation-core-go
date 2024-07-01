@@ -45,7 +45,8 @@ func New(httpClient *http.Client) (Revocation, error) {
 		return nil, errors.New("invalid input: a non-nil httpClient must be specified")
 	}
 	return &revocation{
-		httpClient: httpClient,
+		httpClient:       httpClient,
+		certChainPurpose: ocsp.PurposeCodeSigning,
 	}, nil
 }
 

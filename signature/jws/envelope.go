@@ -16,7 +16,6 @@ package jws
 import (
 	"context"
 	"crypto/x509"
-	"encoding/asn1"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -96,30 +95,8 @@ func (e *envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 	}
 
 	// timestamping
-	if signedAttrs[headerKeySigningScheme].(string) == string(signature.SigningSchemeX509) && req.TSAServerURL != "" {
-		primitiveSignature, err := base64.RawURLEncoding.DecodeString(env.Signature)
-		if err != nil {
-			return nil, &signature.TimestampError{Detail: err}
-		}
-		ks, err := req.Signer.KeySpec()
-		if err != nil {
-			return nil, &signature.TimestampError{Detail: err}
-		}
-		hash := ks.SignatureAlgorithm().Hash()
-		if hash == 0 {
-			return nil, &signature.TimestampError{Msg: fmt.Sprintf("got hash value 0 from key spec %+v", ks)}
-		}
-		timestampOpts := tspclient.RequestOptions{
-			Content:                 primitiveSignature,
-			HashAlgorithm:           hash,
-			HashAlgorithmParameters: asn1.NullRawValue,
-		}
-		timestampToken, err := timestamp.Timestamp(context.Background(), req.TSAServerURL, &req.SigningTime, req.TSARootCAs, timestampOpts)
-		if err != nil {
-			return nil, &signature.TimestampError{Detail: err}
-		}
-		// on success, embed the timestamp token to TimestampSignature
-		env.Header.TimestampSignature = timestampToken
+	if err := timestampJWS(env, req, signedAttrs[headerKeySigningScheme].(string)); err != nil {
+		return nil, err
 	}
 
 	encoded, err := json.Marshal(env)
@@ -251,4 +228,35 @@ func sign(payload jwt.MapClaims, headers map[string]interface{}, method signingM
 		return "", nil, err
 	}
 	return compact, certs, nil
+}
+
+// timestampJWS timestamps a JWS envelope
+func timestampJWS(env *jwsEnvelope, req *signature.SignRequest, signingScheme string) error {
+	if signingScheme != string(signature.SigningSchemeX509) || req.TSAServerURL == "" {
+		return nil
+	}
+	primitiveSignature, err := base64.RawURLEncoding.DecodeString(env.Signature)
+	if err != nil {
+		return &signature.TimestampError{Detail: err}
+	}
+	ks, err := req.Signer.KeySpec()
+	if err != nil {
+		return &signature.TimestampError{Detail: err}
+	}
+	hash := ks.SignatureAlgorithm().Hash()
+	if hash == 0 {
+		return &signature.TimestampError{Msg: fmt.Sprintf("got hash value 0 from key spec %+v", ks)}
+	}
+	timestampOpts := tspclient.RequestOptions{
+		Content:       primitiveSignature,
+		HashAlgorithm: hash,
+	}
+	timestampToken, err := timestamp.Timestamp(context.Background(), req, timestampOpts)
+	if err != nil {
+		return &signature.TimestampError{Detail: err}
+	}
+
+	// on success, embed the timestamp token to TimestampSignature
+	env.Header.TimestampSignature = timestampToken
+	return nil
 }

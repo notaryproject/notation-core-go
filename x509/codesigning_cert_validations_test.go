@@ -465,7 +465,7 @@ var validNoOptionsLeafPem = "-----BEGIN CERTIFICATE-----\n" +
 var validNoOptionsLeaf = parseCertificateFromString(validNoOptionsLeafPem)
 
 func TestValidNoOptionsLeaf(t *testing.T) {
-	if err := validateCodeSigningLeafCertificate(validNoOptionsLeaf, x509.ExtKeyUsageCodeSigning); err != nil {
+	if err := validateCodeSigningLeafCertificate(validNoOptionsLeaf); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -490,7 +490,7 @@ var caTrueLeafPem = "-----BEGIN CERTIFICATE-----\n" +
 var caTrueLeaf = parseCertificateFromString(caTrueLeafPem)
 
 func TestFailCaTrueLeaf(t *testing.T) {
-	err := validateCodeSigningLeafCertificate(caTrueLeaf, x509.ExtKeyUsageCodeSigning)
+	err := validateCodeSigningLeafCertificate(caTrueLeaf)
 	assertErrorEqual("certificate with subject \"CN=Hello\": if the basic constraints extension is present, the ca field must be set to false", err, t)
 }
 
@@ -514,7 +514,7 @@ var kuNoDigitalSignatureLeafPem = "-----BEGIN CERTIFICATE-----\n" +
 var kuNoDigitalSignatureLeaf = parseCertificateFromString(kuNoDigitalSignatureLeafPem)
 
 func TestFailKuNoDigitalSignatureLeaf(t *testing.T) {
-	err := validateCodeSigningLeafCertificate(kuNoDigitalSignatureLeaf, x509.ExtKeyUsageCodeSigning)
+	err := validateCodeSigningLeafCertificate(kuNoDigitalSignatureLeaf)
 	assertErrorEqual("the certificate with subject \"CN=Hello\" is invalid. The key usage must have the bit positions for \"Digital Signature\" set", err, t)
 }
 
@@ -538,7 +538,7 @@ var kuWrongValuesLeafPem = "-----BEGIN CERTIFICATE-----\n" +
 var kuWrongValuesLeaf = parseCertificateFromString(kuWrongValuesLeafPem)
 
 func TestFailKuWrongValuesLeaf(t *testing.T) {
-	err := validateCodeSigningLeafCertificate(kuWrongValuesLeaf, x509.ExtKeyUsageCodeSigning)
+	err := validateCodeSigningLeafCertificate(kuWrongValuesLeaf)
 	assertErrorEqual("the certificate with subject \"CN=Hello\" is invalid. The key usage must be \"Digital Signature\" only, but found \"CertSign\", \"CRLSign\"", err, t)
 }
 
@@ -557,7 +557,7 @@ var rsaKeyTooSmallLeafPem = "-----BEGIN CERTIFICATE-----\n" +
 var rsaKeyTooSmallLeaf = parseCertificateFromString(rsaKeyTooSmallLeafPem)
 
 func TestFailRsaKeyTooSmallLeaf(t *testing.T) {
-	err := validateCodeSigningLeafCertificate(rsaKeyTooSmallLeaf, x509.ExtKeyUsageCodeSigning)
+	err := validateCodeSigningLeafCertificate(rsaKeyTooSmallLeaf)
 	assertErrorEqual("certificate with subject \"CN=Hello\": rsa key size 1024 bits is not supported", err, t)
 }
 
@@ -573,14 +573,14 @@ var ecdsaKeyTooSmallLeafPem = "-----BEGIN CERTIFICATE-----\n" +
 var ecdsaKeyTooSmallLeaf = parseCertificateFromString(ecdsaKeyTooSmallLeafPem)
 
 func TestFailEcdsaKeyTooSmallLeaf(t *testing.T) {
-	err := validateCodeSigningLeafCertificate(ecdsaKeyTooSmallLeaf, x509.ExtKeyUsageCodeSigning)
+	err := validateCodeSigningLeafCertificate(ecdsaKeyTooSmallLeaf)
 	assertErrorEqual("certificate with subject \"CN=Hello\": ecdsa key size 224 bits is not supported", err, t)
 }
 
 // ---------------- Code-Signing Leaf Validations ----------------
 
 func TestValidFullOptionsCodeLeaf(t *testing.T) {
-	if err := validateCodeSigningLeafCertificate(codeSigningCert, x509.ExtKeyUsageCodeSigning); err != nil {
+	if err := validateCodeSigningLeafCertificate(codeSigningCert); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -678,7 +678,7 @@ var ekuWrongValuesCodeLeafPem = "-----BEGIN CERTIFICATE-----\n" +
 var ekuWrongValuesCodeLeaf = parseCertificateFromString(ekuWrongValuesCodeLeafPem)
 
 func TestFailEkuWrongValuesCodeLeaf(t *testing.T) {
-	err := validateCodeSigningLeafCertificate(ekuWrongValuesCodeLeaf, x509.ExtKeyUsageCodeSigning)
+	err := validateCodeSigningLeafCertificate(ekuWrongValuesCodeLeaf)
 	assertErrorEqual("certificate with subject \"CN=Hello\": extended key usage must not contain ServerAuth eku", err, t)
 }
 
@@ -702,7 +702,7 @@ var ekuMissingCodeSigningLeafPem = "-----BEGIN CERTIFICATE-----\n" +
 var ekuMissingCodeSigningLeaf = parseCertificateFromString(ekuMissingCodeSigningLeafPem)
 
 func TestFailEkuMissingCodeSigningLeaf(t *testing.T) {
-	err := validateCodeSigningLeafCertificate(ekuMissingCodeSigningLeaf, x509.ExtKeyUsageCodeSigning)
+	err := validateCodeSigningLeafCertificate(ekuMissingCodeSigningLeaf)
 	assertErrorEqual("certificate with subject \"CN=Hello\": extended key usage must not contain OCSPSigning eku", err, t)
 }
 

@@ -17,8 +17,8 @@ package timestamp
 import (
 	"context"
 	"crypto/x509"
-	"time"
 
+	"github.com/notaryproject/notation-core-go/signature"
 	nx509 "github.com/notaryproject/notation-core-go/x509"
 	"github.com/notaryproject/tspclient-go"
 )
@@ -30,12 +30,12 @@ import (
 // TSA.
 //
 // Reference: https://github.com/notaryproject/specifications/blob/v1.0.0/specs/signature-specification.md#leaf-certificates
-func Timestamp(ctx context.Context, tsaURL string, signingTime *time.Time, tsaRootCAs *x509.CertPool, opts tspclient.RequestOptions) ([]byte, error) {
+func Timestamp(ctx context.Context, req *signature.SignRequest, opts tspclient.RequestOptions) ([]byte, error) {
 	tsaRequest, err := tspclient.NewRequest(opts)
 	if err != nil {
 		return nil, err
 	}
-	httpTimestamper, err := tspclient.NewHTTPTimestamper(nil, tsaURL)
+	httpTimestamper, err := tspclient.NewHTTPTimestamper(req.TimestampHttpClient, req.TSAServerURL)
 	if err != nil {
 		return nil, err
 	}
@@ -47,13 +47,22 @@ func Timestamp(ctx context.Context, tsaURL string, signingTime *time.Time, tsaRo
 	if err != nil {
 		return nil, err
 	}
+	info, err := token.Info()
+	if err != nil {
+		return nil, err
+	}
+	timestamp, err := info.Validate(opts.Content)
+	if err != nil {
+		return nil, err
+	}
 	tsaCertChain, err := token.Verify(ctx, x509.VerifyOptions{
-		Roots: tsaRootCAs,
+		CurrentTime: timestamp.Value,
+		Roots:       req.TSARootCAs,
 	})
 	if err != nil {
 		return nil, err
 	}
-	if err := nx509.ValidateTimestampingCertChain(tsaCertChain, signingTime); err != nil {
+	if err := nx509.ValidateTimestampingCertChain(tsaCertChain); err != nil {
 		return nil, err
 	}
 	return resp.TimestampToken.FullBytes, nil

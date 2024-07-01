@@ -18,7 +18,6 @@ import (
 	"crypto"
 	"crypto/rand"
 	"crypto/x509"
-	"encoding/asn1"
 	"errors"
 	"fmt"
 	"io"
@@ -243,16 +242,15 @@ func (e *envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 
 	// timestamping
 	if req.SigningScheme == signature.SigningSchemeX509 && req.TSAServerURL != "" {
-		hash := hashFromCoseAlgorithm(signer.Algorithm())
-		if hash == 0 {
-			return nil, &signature.TimestampError{Msg: fmt.Sprintf("got hash value 0 from unsupported cose algorithm %s", signer.Algorithm())}
+		hash, err := hashFromCOSEAlgorithm(signer.Algorithm())
+		if err != nil {
+			return nil, &signature.TimestampError{Detail: err}
 		}
 		timestampOpts := tspclient.RequestOptions{
-			Content:                 msg.Signature,
-			HashAlgorithm:           hash,
-			HashAlgorithmParameters: asn1.NullRawValue,
+			Content:       msg.Signature,
+			HashAlgorithm: hash,
 		}
-		timestampToken, err := timestamp.Timestamp(context.Background(), req.TSAServerURL, &req.SigningTime, req.TSARootCAs, timestampOpts)
+		timestampToken, err := timestamp.Timestamp(context.Background(), req, timestampOpts)
 		if err != nil {
 			return nil, &signature.TimestampError{Detail: err}
 		}
@@ -726,16 +724,16 @@ func generateRawProtectedCBORMap(rawProtected cbor.RawMessage) (map[any]cbor.Raw
 	return headerMap, nil
 }
 
-// hashFromCoseAlgorithm maps the cose algorithm supported by go-cose to hash
-func hashFromCoseAlgorithm(alg cose.Algorithm) crypto.Hash {
+// hashFromCOSEAlgorithm maps the cose algorithm supported by go-cose to hash
+func hashFromCOSEAlgorithm(alg cose.Algorithm) (crypto.Hash, error) {
 	switch alg {
 	case cose.AlgorithmPS256, cose.AlgorithmES256:
-		return crypto.SHA256
+		return crypto.SHA256, nil
 	case cose.AlgorithmPS384, cose.AlgorithmES384:
-		return crypto.SHA384
+		return crypto.SHA384, nil
 	case cose.AlgorithmPS512, cose.AlgorithmES512:
-		return crypto.SHA512
+		return crypto.SHA512, nil
 	default:
-		return 0
+		return 0, fmt.Errorf("unsupported cose algorithm %s", alg)
 	}
 }

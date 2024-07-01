@@ -17,7 +17,6 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"testing"
-	"time"
 )
 
 func TestValidTimestampingChain(t *testing.T) {
@@ -33,11 +32,8 @@ func TestValidTimestampingChain(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
 	certChain := []*x509.Certificate{timestamp_leaf, timestamp_intermediate, timestamp_root}
-	signingTime := time.Now()
-
-	err = ValidateTimestampingCertChain(certChain, &signingTime)
+	err = ValidateTimestampingCertChain(certChain)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -57,46 +53,33 @@ func TestInvalidTimestampingChain(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	signingTime := time.Now()
 	expectedErr := "certificate chain must contain at least one certificate"
-	err = ValidateTimestampingCertChain([]*x509.Certificate{}, &signingTime)
+	err = ValidateTimestampingCertChain([]*x509.Certificate{})
 	assertErrorEqual(expectedErr, err, t)
 
 	certChain := []*x509.Certificate{timestamp_leaf, intermediateCert2, intermediateCert1, rootCert}
 	expectedErr = "invalid certificates or certificate with subject \"CN=DigiCert Timestamp 2023,O=DigiCert\\\\, Inc.,C=US\" is not issued by \"CN=Intermediate2\". Error: crypto/rsa: verification error"
-	err = ValidateTimestampingCertChain(certChain, &signingTime)
-	assertErrorEqual(expectedErr, err, t)
-
-	certChain = []*x509.Certificate{timestamp_leaf}
-	expectedErr = "certificate with subject \"CN=DigiCert Timestamp 2023,O=DigiCert\\\\, Inc.,C=US\" was invalid at signing time of 2000-09-17 14:09:10 +0000 UTC. Certificate is valid from [2023-07-14 00:00:00 +0000 UTC] to [2034-10-13 23:59:59 +0000 UTC]"
-	dummySigningTime := time.Date(2000, time.September, 17, 14, 9, 10, 0, time.UTC)
-	err = ValidateTimestampingCertChain(certChain, &dummySigningTime)
+	err = ValidateTimestampingCertChain(certChain)
 	assertErrorEqual(expectedErr, err, t)
 
 	certChain = []*x509.Certificate{timestamp_leaf}
 	expectedErr = "invalid self-signed certificate. subject: \"CN=DigiCert Timestamp 2023,O=DigiCert\\\\, Inc.,C=US\". Error: crypto/rsa: verification error"
-	err = ValidateTimestampingCertChain(certChain, &signingTime)
-	assertErrorEqual(expectedErr, err, t)
-
-	certChain = []*x509.Certificate{timestamp_leaf, timestamp_intermediate, timestamp_root}
-	expectedErr = "certificate with subject \"CN=DigiCert Timestamp 2023,O=DigiCert\\\\, Inc.,C=US\" was invalid at signing time of 2000-09-17 14:09:10 +0000 UTC. Certificate is valid from [2023-07-14 00:00:00 +0000 UTC] to [2034-10-13 23:59:59 +0000 UTC]"
-	dummySigningTime = time.Date(2000, time.September, 17, 14, 9, 10, 0, time.UTC)
-	err = ValidateTimestampingCertChain(certChain, &dummySigningTime)
+	err = ValidateTimestampingCertChain(certChain)
 	assertErrorEqual(expectedErr, err, t)
 
 	certChain = []*x509.Certificate{timestamp_leaf, timestamp_intermediate}
 	expectedErr = "root certificate with subject \"CN=DigiCert Trusted G4 RSA4096 SHA256 TimeStamping CA,O=DigiCert\\\\, Inc.,C=US\" is invalid or not self-signed. Certificate chain must end with a valid self-signed root certificate. Error: crypto/rsa: verification error"
-	err = ValidateTimestampingCertChain(certChain, &signingTime)
+	err = ValidateTimestampingCertChain(certChain)
 	assertErrorEqual(expectedErr, err, t)
 
 	certChain = []*x509.Certificate{timestamp_root, timestamp_root}
 	expectedErr = "leaf certificate with subject \"CN=DigiCert Trusted Root G4,OU=www.digicert.com,O=DigiCert Inc,C=US\" is self-signed. Certificate chain must not contain self-signed leaf certificate"
-	err = ValidateTimestampingCertChain(certChain, &signingTime)
+	err = ValidateTimestampingCertChain(certChain)
 	assertErrorEqual(expectedErr, err, t)
 
 	certChain = []*x509.Certificate{timestamp_leaf, timestamp_intermediate, timestamp_root, timestamp_root}
 	expectedErr = "intermediate certificate with subject \"CN=DigiCert Trusted Root G4,OU=www.digicert.com,O=DigiCert Inc,C=US\" is self-signed. Certificate chain must not contain self-signed intermediate certificate"
-	err = ValidateTimestampingCertChain(certChain, &signingTime)
+	err = ValidateTimestampingCertChain(certChain)
 	assertErrorEqual(expectedErr, err, t)
 }
 
