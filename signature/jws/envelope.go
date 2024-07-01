@@ -97,7 +97,6 @@ func (e *envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 
 	// timestamping
 	if signedAttrs[headerKeySigningScheme].(string) == string(signature.SigningSchemeX509) && req.TSAServerURL != "" {
-		fmt.Println("here")
 		primitiveSignature, err := base64.RawURLEncoding.DecodeString(env.Signature)
 		if err != nil {
 			return nil, &signature.TimestampError{Detail: err}
