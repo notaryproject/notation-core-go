@@ -43,8 +43,10 @@ func Timestamp(ctx context.Context, req *signature.SignRequest, opts tspclient.R
 	if err != nil {
 		return nil, err
 	}
-	token, _ := resp.SignedToken() // never returns error, already checked by httpTimestamper.Timestamp
-	info, _ := token.Info()        // never returns error, already checked by httpTimestamper.Timestamp
+	// never returns error, already checked by httpTimestamper.Timestamp
+	token, _ := resp.SignedToken()
+	// never returns error, already checked by httpTimestamper.Timestamp
+	info, _ := token.Info()
 	timestamp, err := info.Validate(opts.Content)
 	if err != nil {
 		return nil, err
