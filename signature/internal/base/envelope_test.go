@@ -22,10 +22,12 @@ import (
 
 	"github.com/notaryproject/notation-core-go/signature"
 	"github.com/notaryproject/notation-core-go/testhelper"
+	"github.com/notaryproject/tspclient-go"
 )
 
 var (
 	errMsg              = "error msg"
+	invalidTimestamper  tspclient.Timestamper
 	invalidSigningAgent = "test/1"
 	validSigningAgent   = "test/0"
 	invalidContentType  = "text/plain"
@@ -35,13 +37,13 @@ var (
 	time08_02           time.Time
 	time08_03           time.Time
 	timeLayout          = "2006-01-02"
-	signiningSchema = signature.SigningScheme("notary.x509")
+	signiningSchema     = signature.SigningScheme("notary.x509")
 	validSignerInfo     = &signature.SignerInfo{
 		Signature:          validBytes,
 		SignatureAlgorithm: signature.AlgorithmPS384,
 		SignedAttributes: signature.SignedAttributes{
-			SigningTime: testhelper.GetRSALeafCertificate().Cert.NotBefore,
-			Expiry:      testhelper.GetECLeafCertificate().Cert.NotAfter,
+			SigningTime:   testhelper.GetRSALeafCertificate().Cert.NotBefore,
+			Expiry:        testhelper.GetECLeafCertificate().Cert.NotAfter,
 			SigningScheme: signiningSchema,
 		},
 		CertificateChain: []*x509.Certificate{
@@ -62,8 +64,8 @@ var (
 			ContentType: validContentType,
 			Content:     validBytes,
 		},
-		SigningTime: testhelper.GetRSALeafCertificate().Cert.NotBefore,
-		Expiry:      testhelper.GetRSALeafCertificate().Cert.NotAfter,
+		SigningTime:   testhelper.GetRSALeafCertificate().Cert.NotBefore,
+		Expiry:        testhelper.GetRSALeafCertificate().Cert.NotAfter,
 		SigningScheme: signiningSchema,
 		Signer: &mockSigner{
 			keySpec: signature.KeySpec{
@@ -82,8 +84,8 @@ var (
 			ContentType: validContentType,
 			Content:     validBytes,
 		},
-		SigningTime: testhelper.GetRSALeafCertificate().Cert.NotBefore,
-		Expiry:      testhelper.GetRSALeafCertificate().Cert.NotAfter,
+		SigningTime:   testhelper.GetRSALeafCertificate().Cert.NotBefore,
+		Expiry:        testhelper.GetRSALeafCertificate().Cert.NotAfter,
 		SigningScheme: signiningSchema,
 		Signer: &mockSigner{
 			keySpec: signature.KeySpec{
@@ -97,19 +99,42 @@ var (
 		},
 		SigningAgent: invalidSigningAgent,
 	}
+	reqWithInvalidTSAurl = &signature.SignRequest{
+		Payload: signature.Payload{
+			ContentType: validContentType,
+			Content:     validBytes,
+		},
+		SigningTime:   testhelper.GetRSALeafCertificate().Cert.NotBefore,
+		Expiry:        testhelper.GetRSALeafCertificate().Cert.NotAfter,
+		SigningScheme: signiningSchema,
+		Signer: &mockSigner{
+			keySpec: signature.KeySpec{
+				Type: signature.KeyTypeRSA,
+				Size: 3072,
+			},
+			certs: []*x509.Certificate{
+				testhelper.GetRSALeafCertificate().Cert,
+				testhelper.GetRSARootCertificate().Cert,
+			},
+		},
+		SigningAgent: validSigningAgent,
+		Timestamper:  invalidTimestamper,
+	}
 )
 
 func init() {
 	time08_02, _ = time.Parse(timeLayout, "2020-08-02")
 	time08_03, _ = time.Parse(timeLayout, "2020-08-03")
+	invalidTimestamper, _ = tspclient.NewHTTPTimestamper(nil, "invalid")
 }
 
 // Mock an internal envelope that implements signature.Envelope.
 type mockEnvelope struct {
-	payload    *signature.Payload
-	signerInfo *signature.SignerInfo
-	content    *signature.EnvelopeContent
-	failVerify bool
+	payload       *signature.Payload
+	signerInfo    *signature.SignerInfo
+	content       *signature.EnvelopeContent
+	failTimestamp bool
+	failVerify    bool
 }
 
 // Sign implements Sign of signature.Envelope.
@@ -118,6 +143,9 @@ func (e mockEnvelope) Sign(req *signature.SignRequest) ([]byte, error) {
 	case invalidSigningAgent:
 		return nil, errors.New(errMsg)
 	case validSigningAgent:
+		if e.failTimestamp {
+			return validBytes, &signature.TimestampError{}
+		}
 		return validBytes, nil
 	}
 	return nil, nil
@@ -234,6 +262,21 @@ func TestSign(t *testing.T) {
 			expect:    validBytes,
 			expectErr: false,
 		},
+		{
+			name: "failed to timestamp",
+			req:  reqWithInvalidTSAurl,
+			env: &Envelope{
+				Raw: validBytes,
+				Envelope: &mockEnvelope{
+					content: &signature.EnvelopeContent{
+						SignerInfo: *validSignerInfo,
+					},
+					failTimestamp: true,
+				},
+			},
+			expect:    nil,
+			expectErr: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -245,6 +288,17 @@ func TestSign(t *testing.T) {
 			}
 			if !reflect.DeepEqual(sig, tt.expect) {
 				t.Errorf("expect %+v, got %+v", tt.expect, sig)
+			}
+
+			if tt.name == "failed to timestamp" {
+				var timestampErr *signature.TimestampError
+				if !errors.As(err, &timestampErr) {
+					t.Fatal("expecting error to be signature.TimestampError")
+				}
+				expectedErrMsg := "timestamp error"
+				if timestampErr.Error() != expectedErrMsg {
+					t.Fatalf("expected error %s, but got %v", expectedErrMsg, err)
+				}
 			}
 		})
 	}
@@ -456,8 +510,8 @@ func TestValidateSignRequest(t *testing.T) {
 					ContentType: validContentType,
 					Content:     validBytes,
 				},
-				SigningTime: time08_02,
-				Expiry:      time08_03,
+				SigningTime:   time08_02,
+				Expiry:        time08_03,
 				SigningScheme: signiningSchema,
 				Signer: &mockSigner{
 					certs: []*x509.Certificate{

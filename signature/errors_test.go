@@ -177,3 +177,34 @@ func TestEnvelopeKeyRepeatedError(t *testing.T) {
 		t.Errorf("Expected %v but got %v", expectMsg, err.Error())
 	}
 }
+
+func TestTimestampError(t *testing.T) {
+	err := &TimestampError{Msg: "test error", Detail: errors.New("test inner error")}
+	expectMsg := "timestamp: test error. Error: test inner error"
+	if err.Error() != expectMsg {
+		t.Errorf("Expected %v but got %v", expectMsg, err.Error())
+	}
+
+	err = &TimestampError{Msg: "test error"}
+	expectMsg = "timestamp: test error"
+	if err.Error() != expectMsg {
+		t.Errorf("Expected %v but got %v", expectMsg, err.Error())
+	}
+
+	err = &TimestampError{Detail: errors.New("test inner error")}
+	expectMsg = "timestamp: test inner error"
+	if err.Error() != expectMsg {
+		t.Errorf("Expected %v but got %v", expectMsg, err.Error())
+	}
+	unwrappedErr := err.Unwrap()
+	expectMsg = "test inner error"
+	if unwrappedErr.Error() != expectMsg {
+		t.Errorf("Expected %s but got %s", errMsg, unwrappedErr.Error())
+	}
+
+	err = &TimestampError{}
+	expectMsg = "timestamp error"
+	if err.Error() != expectMsg {
+		t.Errorf("Expected %v but got %v", expectMsg, err.Error())
+	}
+}

@@ -25,11 +25,15 @@ import (
 	"github.com/notaryproject/notation-core-go/signature"
 	"github.com/notaryproject/notation-core-go/signature/internal/signaturetest"
 	"github.com/notaryproject/notation-core-go/testhelper"
+	nx509 "github.com/notaryproject/notation-core-go/x509"
+	"github.com/notaryproject/tspclient-go"
 	"github.com/veraison/go-cose"
 )
 
 const (
 	payloadString = "{\"targetArtifact\":{\"mediaType\":\"application/vnd.oci.image.manifest.v1+json\",\"digest\":\"sha256:73c803930ea3ba1e54bc25c2bdc53edd0284c62ed651fe7b00369da519a3c333\",\"size\":16724,\"annotations\":{\"io.wabbit-networks.buildId\":\"123\"}}}"
+
+	rfc3161TSAurl = "http://rfc3161timestamp.globalsign.com/advanced"
 )
 
 var (
@@ -123,6 +127,49 @@ func TestSign(t *testing.T) {
 			}
 		}
 	}
+
+	t.Run("with timestmap countersignature request", func(t *testing.T) {
+		signRequest, err := newSignRequest("notary.x509", signature.KeyTypeRSA, 3072)
+		if err != nil {
+			t.Fatalf("newSignRequest() failed. Error = %s", err)
+		}
+		signRequest.Timestamper, err = tspclient.NewHTTPTimestamper(nil, rfc3161TSAurl)
+		if err != nil {
+			t.Fatal(err)
+		}
+		rootCerts, err := nx509.ReadCertificateFile("../../internal/timestamp/testdata/tsaRootCert.crt")
+		if err != nil || len(rootCerts) == 0 {
+			t.Fatal("failed to read root CA certificate:", err)
+		}
+		rootCert := rootCerts[0]
+		rootCAs := x509.NewCertPool()
+		rootCAs.AddCert(rootCert)
+		signRequest.TSARootCAs = rootCAs
+		encoded, err := env.Sign(signRequest)
+		if err != nil || encoded == nil {
+			t.Fatalf("Sign() failed. Error = %s", err)
+		}
+		content, err := env.Content()
+		if err != nil {
+			t.Fatal(err)
+		}
+		timestampToken := content.SignerInfo.UnsignedAttributes.TimestampSignature
+		if len(timestampToken) == 0 {
+			t.Fatal("expected timestamp token to be present")
+		}
+		signedToken, err := tspclient.ParseSignedToken(timestampToken)
+		if err != nil {
+			t.Fatal(err)
+		}
+		info, err := signedToken.Info()
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = info.Validate(content.SignerInfo.Signature)
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
 }
 
 func TestSignErrors(t *testing.T) {
@@ -286,6 +333,29 @@ func TestSignErrors(t *testing.T) {
 		expected := errors.New("intended CertificateChain() error")
 		if !isErrEqual(expected, err) {
 			t.Fatalf("Sign() expects error: %v, but got: %v.", expected, err)
+		}
+	})
+
+	t.Run("when invalid tsa url is provided", func(t *testing.T) {
+		signRequest, err := getSignRequest()
+		if err != nil {
+			t.Fatalf("getSignRequest() failed. Error = %v", err)
+		}
+		signRequest.Timestamper, err = tspclient.NewHTTPTimestamper(nil, "invalid")
+		if err != nil {
+			t.Fatal(err)
+		}
+		expected := errors.New("timestamp: Post \"invalid\": unsupported protocol scheme \"\"")
+		encoded, err := env.Sign(signRequest)
+		if !isErrEqual(expected, err) {
+			t.Fatalf("Sign() expects error: %v, but got: %v.", expected, err)
+		}
+		var timestampErr *signature.TimestampError
+		if !errors.As(err, &timestampErr) {
+			t.Fatal("expected signature.TimestampError")
+		}
+		if encoded != nil {
+			t.Fatal("expected nil signature envelope")
 		}
 	})
 }
@@ -798,6 +868,44 @@ func TestGenerateExtendedAttributesError(t *testing.T) {
 	expected := errors.New("invalid critical headers")
 	if !isErrEqual(expected, err) {
 		t.Fatalf("TestgenerateExtendedAttributesError() expects error: %v, but got: %v.", expected, err)
+	}
+}
+
+func TestHashFunc(t *testing.T) {
+	hash, err := hashFromCOSEAlgorithm(cose.AlgorithmPS256)
+	if err != nil || hash.String() != "SHA-256" {
+		t.Fatalf("expected SHA-256, but got %s", hash)
+	}
+
+	hash, err = hashFromCOSEAlgorithm(cose.AlgorithmPS384)
+	if err != nil || hash.String() != "SHA-384" {
+		t.Fatalf("expected SHA-384, but got %s", hash)
+	}
+
+	hash, err = hashFromCOSEAlgorithm(cose.AlgorithmPS512)
+	if err != nil || hash.String() != "SHA-512" {
+		t.Fatalf("expected SHA-512, but got %s", hash)
+	}
+
+	hash, err = hashFromCOSEAlgorithm(cose.AlgorithmES256)
+	if err != nil || hash.String() != "SHA-256" {
+		t.Fatalf("expected SHA-256, but got %s", hash)
+	}
+
+	hash, err = hashFromCOSEAlgorithm(cose.AlgorithmES384)
+	if err != nil || hash.String() != "SHA-384" {
+		t.Fatalf("expected SHA-384, but got %s", hash)
+	}
+
+	hash, err = hashFromCOSEAlgorithm(cose.AlgorithmES512)
+	if err != nil || hash.String() != "SHA-512" {
+		t.Fatalf("expected SHA-512, but got %s", hash)
+	}
+
+	_, err = hashFromCOSEAlgorithm(cose.AlgorithmEd25519)
+	expectedErrMsg := "unsupported cose algorithm EdDSA"
+	if err == nil || err.Error() != expectedErrMsg {
+		t.Fatalf("expected %s, but got %s", expectedErrMsg, err)
 	}
 }
 

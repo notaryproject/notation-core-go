@@ -57,7 +57,7 @@ func TestConformance(t *testing.T) {
 
 // testSign does conformance check on COSE_Sign1_Tagged
 func testSign(t *testing.T, sign1 *sign1) {
-	signRequest, err := getSignReq(sign1)
+	signRequest, err := getSignReq()
 	if err != nil {
 		t.Fatalf("getSignReq() failed. Error = %s", err)
 	}
@@ -90,7 +90,7 @@ func testSign(t *testing.T, sign1 *sign1) {
 // testVerify does conformance check by decoding COSE_Sign1_Tagged object
 // into Sign1Message
 func testVerify(t *testing.T, sign1 *sign1) {
-	signRequest, err := getSignReq(sign1)
+	signRequest, err := getSignReq()
 	if err != nil {
 		t.Fatalf("getSignReq() failed. Error = %s", err)
 	}
@@ -124,7 +124,7 @@ func testVerify(t *testing.T, sign1 *sign1) {
 	verifySignerInfo(&content.SignerInfo, signRequest, t)
 }
 
-func getSignReq(sign1 *sign1) (*signature.SignRequest, error) {
+func getSignReq() (*signature.SignRequest, error) {
 	certs := []*x509.Certificate{testhelper.GetRSALeafCertificate().Cert, testhelper.GetRSARootCertificate().Cert}
 	signer, err := signature.NewLocalSigner(certs, testhelper.GetRSALeafCertificate().PrivateKey)
 	if err != nil {
