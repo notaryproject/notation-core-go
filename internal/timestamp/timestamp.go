@@ -15,7 +15,6 @@
 package timestamp
 
 import (
-	"context"
 	"crypto/x509"
 
 	"github.com/notaryproject/notation-core-go/signature"
@@ -30,23 +29,24 @@ import (
 // TSA.
 //
 // Reference: https://github.com/notaryproject/specifications/blob/v1.0.0/specs/signature-specification.md#leaf-certificates
-func Timestamp(ctx context.Context, req *signature.SignRequest, opts tspclient.RequestOptions) ([]byte, error) {
+func Timestamp(req *signature.SignRequest, opts tspclient.RequestOptions) ([]byte, error) {
 	tsaRequest, err := tspclient.NewRequest(opts)
 	if err != nil {
 		return nil, err
 	}
-	httpTimestamper, err := tspclient.NewHTTPTimestamper(req.TimestampHttpClient, req.TSAServerURL)
+	ctx := req.Context()
+	resp, err := req.Timestamper.Timestamp(ctx, tsaRequest)
 	if err != nil {
 		return nil, err
 	}
-	resp, err := httpTimestamper.Timestamp(ctx, tsaRequest)
+	token, err := resp.SignedToken()
 	if err != nil {
 		return nil, err
 	}
-	// never returns error, already checked by httpTimestamper.Timestamp
-	token, _ := resp.SignedToken()
-	// never returns error, already checked by httpTimestamper.Timestamp
-	info, _ := token.Info()
+	info, err := token.Info()
+	if err != nil {
+		return nil, err
+	}
 	timestamp, err := info.Validate(opts.Content)
 	if err != nil {
 		return nil, err

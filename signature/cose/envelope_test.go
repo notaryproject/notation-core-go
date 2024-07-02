@@ -133,7 +133,10 @@ func TestSign(t *testing.T) {
 		if err != nil {
 			t.Fatalf("newSignRequest() failed. Error = %s", err)
 		}
-		signRequest.TSAServerURL = rfc3161TSAurl
+		signRequest.Timestamper, err = tspclient.NewHTTPTimestamper(nil, rfc3161TSAurl)
+		if err != nil {
+			t.Fatal(err)
+		}
 		rootCerts, err := nx509.ReadCertificateFile("../../internal/timestamp/testdata/tsaRootCert.crt")
 		if err != nil || len(rootCerts) == 0 {
 			t.Fatal("failed to read root CA certificate:", err)
@@ -338,7 +341,10 @@ func TestSignErrors(t *testing.T) {
 		if err != nil {
 			t.Fatalf("getSignRequest() failed. Error = %v", err)
 		}
-		signRequest.TSAServerURL = "invalid"
+		signRequest.Timestamper, err = tspclient.NewHTTPTimestamper(nil, "invalid")
+		if err != nil {
+			t.Fatal(err)
+		}
 		expected := errors.New("timestamp: Post \"invalid\": unsupported protocol scheme \"\"")
 		encoded, err := env.Sign(signRequest)
 		if !isErrEqual(expected, err) {

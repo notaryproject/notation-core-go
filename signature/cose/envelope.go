@@ -14,7 +14,6 @@
 package cose
 
 import (
-	"context"
 	"crypto"
 	"crypto/rand"
 	"crypto/x509"
@@ -241,7 +240,7 @@ func (e *envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 	generateUnprotectedHeaders(req, signer, msg.Headers.Unprotected)
 
 	// timestamping
-	if req.SigningScheme == signature.SigningSchemeX509 && req.TSAServerURL != "" {
+	if req.SigningScheme == signature.SigningSchemeX509 && req.Timestamper != nil {
 		hash, err := hashFromCOSEAlgorithm(signer.Algorithm())
 		if err != nil {
 			return nil, &signature.TimestampError{Detail: err}
@@ -250,7 +249,7 @@ func (e *envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 			Content:       msg.Signature,
 			HashAlgorithm: hash,
 		}
-		timestampToken, err := timestamp.Timestamp(context.Background(), req, timestampOpts)
+		timestampToken, err := timestamp.Timestamp(req, timestampOpts)
 		if err != nil {
 			return nil, &signature.TimestampError{Detail: err}
 		}

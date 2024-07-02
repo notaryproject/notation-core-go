@@ -14,7 +14,6 @@
 package jws
 
 import (
-	"context"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
@@ -232,7 +231,7 @@ func sign(payload jwt.MapClaims, headers map[string]interface{}, method signingM
 
 // timestampJWS timestamps a JWS envelope
 func timestampJWS(env *jwsEnvelope, req *signature.SignRequest, signingScheme string) error {
-	if signingScheme != string(signature.SigningSchemeX509) || req.TSAServerURL == "" {
+	if signingScheme != string(signature.SigningSchemeX509) || req.Timestamper == nil {
 		return nil
 	}
 	primitiveSignature, err := base64.RawURLEncoding.DecodeString(env.Signature)
@@ -251,7 +250,7 @@ func timestampJWS(env *jwsEnvelope, req *signature.SignRequest, signingScheme st
 		Content:       primitiveSignature,
 		HashAlgorithm: hash,
 	}
-	timestampToken, err := timestamp.Timestamp(context.Background(), req, timestampOpts)
+	timestampToken, err := timestamp.Timestamp(req, timestampOpts)
 	if err != nil {
 		return &signature.TimestampError{Detail: err}
 	}

@@ -22,10 +22,12 @@ import (
 
 	"github.com/notaryproject/notation-core-go/signature"
 	"github.com/notaryproject/notation-core-go/testhelper"
+	"github.com/notaryproject/tspclient-go"
 )
 
 var (
 	errMsg              = "error msg"
+	invalidTimestamper  tspclient.Timestamper
 	invalidSigningAgent = "test/1"
 	validSigningAgent   = "test/0"
 	invalidContentType  = "text/plain"
@@ -116,13 +118,14 @@ var (
 			},
 		},
 		SigningAgent: validSigningAgent,
-		TSAServerURL: "invalid",
+		Timestamper:  invalidTimestamper,
 	}
 )
 
 func init() {
 	time08_02, _ = time.Parse(timeLayout, "2020-08-02")
 	time08_03, _ = time.Parse(timeLayout, "2020-08-03")
+	invalidTimestamper, _ = tspclient.NewHTTPTimestamper(nil, "invalid")
 }
 
 // Mock an internal envelope that implements signature.Envelope.
