@@ -22,3 +22,5 @@ on:
 jobs:
   build:
     uses: ./.github/workflows/reusable-build.yml
+    secrets:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
