@@ -80,11 +80,6 @@ type Attribute struct {
 
 // SignRequest is used to generate Signature.
 type SignRequest struct {
-	// ctx is the caller context. It should only be modified via WithContext.
-	// It is unexported to prevent people from using Context wrong
-	// and mutating the contexts held by callers of the same request.
-	ctx context.Context
-
 	// Payload is the payload to be signed.
 	//
 	// For JWS envelope, Payload.Content is limited to be JSON format.
@@ -115,6 +110,11 @@ type SignRequest struct {
 
 	// TSARootCAs is the set of caller trusted TSA root certificates
 	TSARootCAs *x509.CertPool
+
+	// ctx is the caller context. It should only be modified via WithContext.
+	// It is unexported to prevent people from using Context wrong
+	// and mutating the contexts held by callers of the same request.
+	ctx context.Context
 }
 
 // Context returns the SignRequest's context. To change the context, use
