@@ -41,11 +41,12 @@ func (c *crlClient) Fetch(url string) (*x509.RevocationList, error) {
 
 	crl, err := x509.ParseRevocationList(data)
 	if err != nil {
-		return nil, err
+		// cache is broken
+		return c.update(url)
 	}
 
 	if crl.NextUpdate.Before(time.Now()) {
-		// cache is expired, update
+		// cache is expired
 		return c.update(url)
 	}
 
