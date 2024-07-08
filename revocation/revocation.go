@@ -41,18 +41,31 @@ type revocation struct {
 	httpClient *http.Client
 
 	// CRLCache caches the CRL files; the default one is memory cache
-	CRLCache crl.Cache
+	CRLCache         crl.Cache
+	certChainPurpose ocsp.Purpose
 }
 
-// New constructs a revocation object
+// New constructs a revocation object for code signing certificate chain
 func New(httpClient *http.Client) (Revocation, error) {
 	if httpClient == nil {
 		return nil, errors.New("invalid input: a non-nil httpClient must be specified")
 	}
 
 	return &revocation{
-		httpClient: httpClient,
-		CRLCache:   crl.NewMemoryCache(),
+		httpClient:       httpClient,
+		certChainPurpose: ocsp.PurposeCodeSigning,
+	}, nil
+}
+
+// NewTimestamp contructs a revocation object for timestamping certificate
+// chain
+func NewTimestamp(httpClient *http.Client) (Revocation, error) {
+	if httpClient == nil {
+		return nil, errors.New("invalid input: a non-nil httpClient must be specified")
+	}
+	return &revocation{
+		httpClient:       httpClient,
+		certChainPurpose: ocsp.PurposeTimestamping,
 	}, nil
 }
 
@@ -69,9 +82,10 @@ func (r *revocation) Validate(certChain []*x509.Certificate, signingTime time.Ti
 	}
 
 	ocspOpts := ocsp.Options{
-		CertChain:   certChain,
-		SigningTime: signingTime,
-		HTTPClient:  r.httpClient,
+		CertChain:        certChain,
+		SigningTime:      signingTime,
+		CertChainPurpose: r.certChainPurpose,
+		HTTPClient:       r.httpClient,
 	}
 
 	crlOpts := crl.Options{

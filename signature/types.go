@@ -14,9 +14,12 @@
 package signature
 
 import (
+	"context"
 	"crypto/x509"
 	"errors"
 	"time"
+
+	"github.com/notaryproject/tspclient-go"
 )
 
 // SignatureMediaType list the supported media-type for signatures.
@@ -101,6 +104,41 @@ type SignRequest struct {
 
 	// SigningScheme defines the Notary Project Signing Scheme used by the signature.
 	SigningScheme SigningScheme
+
+	// Timestamper denotes the timestamper for RFC 3161 timestamping
+	Timestamper tspclient.Timestamper
+
+	// TSARootCAs is the set of caller trusted TSA root certificates
+	TSARootCAs *x509.CertPool
+
+	// ctx is the caller context. It should only be modified via WithContext.
+	// It is unexported to prevent people from using Context wrong
+	// and mutating the contexts held by callers of the same request.
+	ctx context.Context
+}
+
+// Context returns the SignRequest's context. To change the context, use
+// [SignRequest.WithContext].
+//
+// The returned context is always non-nil; it defaults to the
+// background context.
+func (r *SignRequest) Context() context.Context {
+	if r.ctx != nil {
+		return r.ctx
+	}
+	return context.Background()
+}
+
+// WithContext returns a shallow copy of r with its context changed
+// to ctx. The provided ctx must be non-nil.
+func (r *SignRequest) WithContext(ctx context.Context) *SignRequest {
+	if ctx == nil {
+		panic("nil context")
+	}
+	r2 := new(SignRequest)
+	*r2 = *r
+	r2.ctx = ctx
+	return r2
 }
 
 // EnvelopeContent represents a combination of payload to be signed and a parsed
