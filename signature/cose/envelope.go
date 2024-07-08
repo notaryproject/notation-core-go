@@ -24,8 +24,10 @@ import (
 	"time"
 
 	"github.com/fxamacker/cbor/v2"
+	"github.com/notaryproject/notation-core-go/internal/timestamp"
 	"github.com/notaryproject/notation-core-go/signature"
 	"github.com/notaryproject/notation-core-go/signature/internal/base"
+	"github.com/notaryproject/tspclient-go"
 	"github.com/veraison/go-cose"
 )
 
@@ -76,7 +78,7 @@ const (
 // Unprotected Headers
 // https://github.com/notaryproject/notaryproject/blob/cose-envelope/signature-envelope-cose.md
 const (
-	headerLabelTimeStampSignature = "io.cncf.notary.timestampSignature"
+	headerLabelTimestampSignature = "io.cncf.notary.timestampSignature"
 	headerLabelSigningAgent       = "io.cncf.notary.signingAgent"
 )
 
@@ -234,10 +236,26 @@ func (e *envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 		return nil, &signature.InvalidSignRequestError{Msg: err.Error()}
 	}
 
-	// generate unprotected headers of COSE envelope
+	// generate unprotected headers of COSE envelope.
 	generateUnprotectedHeaders(req, signer, msg.Headers.Unprotected)
 
-	// TODO: needs to add headerKeyTimeStampSignature.
+	// timestamping
+	if req.SigningScheme == signature.SigningSchemeX509 && req.Timestamper != nil {
+		hash, err := hashFromCOSEAlgorithm(signer.Algorithm())
+		if err != nil {
+			return nil, &signature.TimestampError{Detail: err}
+		}
+		timestampOpts := tspclient.RequestOptions{
+			Content:       msg.Signature,
+			HashAlgorithm: hash,
+		}
+		timestampToken, err := timestamp.Timestamp(req, timestampOpts)
+		if err != nil {
+			return nil, &signature.TimestampError{Detail: err}
+		}
+		// on success, embed the timestamp token to Unprotected header
+		msg.Headers.Unprotected[headerLabelTimestampSignature] = timestampToken
+	}
 
 	// encode Sign1Message into COSE_Sign1_Tagged object
 	encoded, err := msg.MarshalCBOR()
@@ -368,7 +386,10 @@ func (e *envelope) signerInfo() (*signature.SignerInfo, error) {
 		signerInfo.UnsignedAttributes.SigningAgent = h
 	}
 
-	// TODO: needs to add headerKeyTimeStampSignature.
+	// populate signerInfo.UnsignedAttributes.TimestampSignature
+	if timestamepToken, ok := e.base.Headers.Unprotected[headerLabelTimestampSignature].([]byte); ok {
+		signerInfo.UnsignedAttributes.TimestampSignature = timestamepToken
+	}
 
 	return &signerInfo, nil
 }
@@ -700,4 +721,18 @@ func generateRawProtectedCBORMap(rawProtected cbor.RawMessage) (map[any]cbor.Raw
 	}
 
 	return headerMap, nil
+}
+
+// hashFromCOSEAlgorithm maps the cose algorithm supported by go-cose to hash
+func hashFromCOSEAlgorithm(alg cose.Algorithm) (crypto.Hash, error) {
+	switch alg {
+	case cose.AlgorithmPS256, cose.AlgorithmES256:
+		return crypto.SHA256, nil
+	case cose.AlgorithmPS384, cose.AlgorithmES384:
+		return crypto.SHA384, nil
+	case cose.AlgorithmPS512, cose.AlgorithmES512:
+		return crypto.SHA512, nil
+	default:
+		return 0, fmt.Errorf("unsupported cose algorithm %s", alg)
+	}
 }

@@ -20,8 +20,10 @@ import (
 	"fmt"
 
 	"github.com/golang-jwt/jwt/v4"
+	"github.com/notaryproject/notation-core-go/internal/timestamp"
 	"github.com/notaryproject/notation-core-go/signature"
 	"github.com/notaryproject/notation-core-go/signature/internal/base"
+	"github.com/notaryproject/tspclient-go"
 )
 
 // MediaTypeEnvelope defines the media type name of JWS envelope.
@@ -91,11 +93,17 @@ func (e *envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 		return nil, &signature.InvalidSignatureError{Msg: err.Error()}
 	}
 
+	// timestamping
+	if err := timestampJWS(env, req, signedAttrs[headerKeySigningScheme].(string)); err != nil {
+		return nil, err
+	}
+
 	encoded, err := json.Marshal(env)
 	if err != nil {
 		return nil, &signature.InvalidSignatureError{Msg: err.Error()}
 	}
 	e.base = env
+
 	return encoded, nil
 }
 
@@ -219,4 +227,35 @@ func sign(payload jwt.MapClaims, headers map[string]interface{}, method signingM
 		return "", nil, err
 	}
 	return compact, certs, nil
+}
+
+// timestampJWS timestamps a JWS envelope
+func timestampJWS(env *jwsEnvelope, req *signature.SignRequest, signingScheme string) error {
+	if signingScheme != string(signature.SigningSchemeX509) || req.Timestamper == nil {
+		return nil
+	}
+	primitiveSignature, err := base64.RawURLEncoding.DecodeString(env.Signature)
+	if err != nil {
+		return &signature.TimestampError{Detail: err}
+	}
+	ks, err := req.Signer.KeySpec()
+	if err != nil {
+		return &signature.TimestampError{Detail: err}
+	}
+	hash := ks.SignatureAlgorithm().Hash()
+	if hash == 0 {
+		return &signature.TimestampError{Msg: fmt.Sprintf("got hash value 0 from key spec %+v", ks)}
+	}
+	timestampOpts := tspclient.RequestOptions{
+		Content:       primitiveSignature,
+		HashAlgorithm: hash,
+	}
+	timestampToken, err := timestamp.Timestamp(req, timestampOpts)
+	if err != nil {
+		return &signature.TimestampError{Detail: err}
+	}
+
+	// on success, embed the timestamp token to TimestampSignature
+	env.Header.TimestampSignature = timestampToken
+	return nil
 }

@@ -142,3 +142,28 @@ type DuplicateKeyError struct {
 func (e *DuplicateKeyError) Error() string {
 	return fmt.Sprintf("repeated key: %q exists.", e.Key)
 }
+
+// TimestampError is any error related to RFC3161 Timestamp.
+type TimestampError struct {
+	Msg    string
+	Detail error
+}
+
+// Error returns the formatted error message.
+func (e *TimestampError) Error() string {
+	if e.Msg != "" && e.Detail != nil {
+		return fmt.Sprintf("timestamp: %s. Error: %s", e.Msg, e.Detail.Error())
+	}
+	if e.Msg != "" {
+		return fmt.Sprintf("timestamp: %s", e.Msg)
+	}
+	if e.Detail != nil {
+		return fmt.Sprintf("timestamp: %s", e.Detail.Error())
+	}
+	return "timestamp error"
+}
+
+// Unwrap returns the detail error of e.
+func (e *TimestampError) Unwrap() error {
+	return e.Detail
+}

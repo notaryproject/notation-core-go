@@ -53,7 +53,6 @@ func (e *Envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	if err := validateCertificateChain(
 		content.SignerInfo.CertificateChain,
 		&content.SignerInfo.SignedAttributes.SigningTime,
@@ -62,7 +61,9 @@ func (e *Envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 		return nil, err
 	}
 
+	// store the raw signature
 	e.Raw = raw
+
 	return e.Raw, nil
 }
 
