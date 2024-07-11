@@ -28,25 +28,31 @@ func CertCheckStatus(cert, issuer *x509.Certificate, opts Options) *result.CertR
 		return &result.CertRevocationResult{Error: errors.New("certificate does not support CRL")}
 	}
 
-	crlClient := NewCRLClient(opts.Cache, opts.HTTPClient)
+	crlFetcher := NewCachedCRLFetcher(opts.HTTPClient, opts.Cache)
 
 	// Check CRL
 	var lastError error
 	for _, crlURL := range cert.CRLDistributionPoints {
-		crl, err := crlClient.Fetch(crlURL)
+		crlStore, err := crlFetcher.Fetch(crlURL)
 		if err != nil {
 			lastError = err
 			continue
 		}
 
-		err = validateCRL(crl, issuer)
+		err = validateCRL(crlStore.BaseCRL(), issuer)
 		if err != nil {
+			lastError = err
+			continue
+		}
+
+		// cache
+		if err := crlStore.Save(); err != nil {
 			lastError = err
 			continue
 		}
 
 		// check revocation
-		for _, revokedCert := range crl.RevokedCertificateEntries {
+		for _, revokedCert := range crlStore.BaseCRL().RevokedCertificateEntries {
 			if revokedCert.SerialNumber.Cmp(cert.SerialNumber) == 0 {
 				return &result.CertRevocationResult{
 					Result:    result.ResultRevoked,

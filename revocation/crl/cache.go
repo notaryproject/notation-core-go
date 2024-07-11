@@ -1,84 +1,89 @@
 package crl
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
+	"io"
 	"os"
 	"path/filepath"
-	"sync"
 )
 
-type Cache interface {
-	// Get retrieves the CRL from the store
-	Get(key string) ([]byte, error)
+const tempFileName = "notation-*.crl"
 
-	// Set stores the CRL in the store
-	Set(key string, value []byte) error
+type Cache interface {
+	Get(key string) (io.ReadCloser, error)
+
+	Set(key string) (WriteCanceler, error)
+
+	Delete(key string) error
+}
+type WriteCanceler interface {
+	io.WriteCloser
+	Cancel()
 }
 
+// fileSystemCache builds on top of OS file system to leverage the file system
+// concurrency control and atomicity
 type fileSystemCache struct {
 	dir string
-
-	// mu protects the cache
-	mu sync.RWMutex
 }
 
 // NewFileSystemCache creates a new file system store
 func NewFileSystemCache(dir string) Cache {
 	return &fileSystemCache{
 		dir: dir,
-		mu:  sync.RWMutex{},
 	}
 }
 
-func (f *fileSystemCache) Get(key string) ([]byte, error) {
-	f.mu.RLock()
-	defer f.mu.RUnlock()
-
-	fileName := hashURL(key)
-	return os.ReadFile(filepath.Join(f.dir, fileName))
+// Get retrieves the CRL from the store
+func (f *fileSystemCache) Get(fileName string) (io.ReadCloser, error) {
+	return os.Open(filepath.Join(f.dir, fileName))
 }
 
-// Set stores the CRL in the store. It hashes the URL to determine the
-// filename to store the CRL in.
-func (f *fileSystemCache) Set(key string, value []byte) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	fileName := hashURL(key)
-	return os.WriteFile(filepath.Join(f.dir, fileName), value, 0644)
+// Set stores the CRL in the store
+func (f *fileSystemCache) Set(filename string) (WriteCanceler, error) {
+	return newFileSystemWriter(filepath.Join(f.dir, filename))
 }
 
-type memeoryCache struct {
-	cache map[string][]byte
-
-	// mu protects the cache
-	mu sync.RWMutex
+func (f *fileSystemCache) Delete(fileName string) error {
+	return os.Remove(filepath.Join(f.dir, fileName))
 }
 
-// NewMemoryCache creates a new memory store
-func NewMemoryCache() Cache {
-	return &memeoryCache{
-		cache: make(map[string][]byte),
-		mu:    sync.RWMutex{},
+// fileSystemWriter is a WriteCanceler implementation that writes to
+// a file system file and renames it to the final path when Close is called
+type fileSystemWriter struct {
+	io.WriteCloser
+	tempFilePath string
+	filePath     string
+	canceled     bool
+}
+
+func newFileSystemWriter(filePath string) (WriteCanceler, error) {
+	tempFile, err := os.CreateTemp("", tempFileName)
+	if err != nil {
+		return nil, err
 	}
+
+	return &fileSystemWriter{
+		WriteCloser:  tempFile,
+		tempFilePath: tempFile.Name(),
+		filePath:     filePath,
+	}, nil
 }
 
-func (m *memeoryCache) Get(key string) ([]byte, error) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	return m.cache[key], nil
+func (c *fileSystemWriter) Write(p []byte) (int, error) {
+	return c.WriteCloser.Write(p)
 }
 
-func (m *memeoryCache) Set(key string, value []byte) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.cache[key] = value
+func (c *fileSystemWriter) Cancel() {
+	c.canceled = true
+}
+
+func (c *fileSystemWriter) Close() error {
+	if err := c.WriteCloser.Close(); err != nil {
+		return err
+	}
+
+	if !c.canceled {
+		return os.Rename(c.tempFilePath, c.filePath)
+	}
 	return nil
-}
-
-// hashURL hashes the URL with SHA256 and returns the hex-encoded result
-func hashURL(url string) string {
-	hash := sha256.Sum256([]byte(url))
-	return hex.EncodeToString(hash[:])
 }
