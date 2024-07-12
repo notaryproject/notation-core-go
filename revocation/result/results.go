@@ -84,25 +84,25 @@ func NewServerResult(result Result, server string, err error) *ServerResult {
 	}
 }
 
-// ReasonCode is CRL reason code
-type ReasonCode int
+// CRLReasonCode is CRL reason code
+type CRLReasonCode int
 
 const (
-	Unspecified ReasonCode = iota
-	KeyCompromise
-	CACompromise
-	AffiliationChanged
-	Superseded
-	CessationOfOperation
-	CertificateHold
+	CRLReasonCodeUnspecified CRLReasonCode = iota
+	CRLReasonCodeKeyCompromise
+	CRLReasonCodeCACompromise
+	CRLReasonCodeAffiliationChanged
+	CRLReasonCodeSuperseded
+	CRLReasonCodeCessationOfOperation
+	CRLReasonCodeCertificateHold
 	// value 7 is not used
-	RemoveFromCRL ReasonCode = iota + 1
-	PrivilegeWithdrawn
-	AACompromise
+	CRLReasonCodeRemoveFromCRL CRLReasonCode = iota + 1
+	CRLReasonCodePrivilegeWithdrawn
+	CRLReasonCodeAACompromise
 )
 
 // String provides a conversion from a ReasonCode to a string
-func (r ReasonCode) String() string {
+func (r CRLReasonCode) String() string {
 	switch r {
 	case Unspecified:
 		return "Unspecified"
@@ -132,7 +132,7 @@ func (r ReasonCode) String() string {
 // CRLStatus encapsulates the result of a CRL check
 type CRLStatus struct {
 	// ReasonCode is the reason code for the CRL status
-	ReasonCode ReasonCode
+	ReasonCode CRLReasonCode
 
 	// RevocationTime is the time at which the certificate was revoked
 	RevocationTime time.Time
@@ -141,7 +141,7 @@ type CRLStatus struct {
 // NewCRLStatus creates a CRLStatus object
 func NewCRLStatus(entity x509.RevocationListEntry) *CRLStatus {
 	return &CRLStatus{
-		ReasonCode:     ReasonCode(entity.ReasonCode),
+		ReasonCode:     CRLReasonCode(entity.ReasonCode),
 		RevocationTime: entity.RevocationTime,
 	}
 }

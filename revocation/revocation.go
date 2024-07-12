@@ -60,6 +60,7 @@ func (m Mode) CanRunCRL() bool {
 }
 
 type Options struct {
+	HttpClient       *http.Client
 	Mode             Mode
 	CertChainPurpose ocsp.Purpose
 	CRLCache         cache.Cache
@@ -102,8 +103,8 @@ func NewTimestamp(httpClient *http.Client) (Revocation, error) {
 	}, nil
 }
 
-func NewWithOptions(httpClient *http.Client, opts Options) (Revocation, error) {
-	if httpClient == nil {
+func NewWithOptions(opts Options) (Revocation, error) {
+	if opts.HttpClient == nil {
 		return nil, errors.New("invalid input: a non-nil httpClient must be specified")
 	}
 
@@ -125,7 +126,7 @@ func NewWithOptions(httpClient *http.Client, opts Options) (Revocation, error) {
 
 	return &revocation{
 		mode:             opts.Mode,
-		httpClient:       httpClient,
+		httpClient:       opts.HttpClient,
 		certChainPurpose: opts.CertChainPurpose,
 		crlCache:         opts.CRLCache,
 	}, nil

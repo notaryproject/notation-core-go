@@ -54,12 +54,27 @@ func CertCheckStatus(cert, issuer *x509.Certificate, opts Options) *result.CertR
 		}
 
 		// check revocation
-		for _, revokedCert := range crlStore.BaseCRL().RevokedCertificateEntries {
-			if revokedCert.SerialNumber.Cmp(cert.SerialNumber) == 0 {
-				return &result.CertRevocationResult{
-					Result:    result.ResultRevoked,
-					CRLStatus: result.NewCRLStatus(revokedCert),
+		var (
+			revoked             bool
+			lastRevocationEntry x509.RevocationListEntry
+		)
+		for _, revocationEntry := range crlStore.BaseCRL().RevokedCertificateEntries {
+			if revocationEntry.SerialNumber.Cmp(cert.SerialNumber) == 0 {
+				lastRevocationEntry = revocationEntry
+				if revocationEntry.ReasonCode == int(result.CRLReasonCodeCertificateHold) {
+					revoked = true
+				} else if revocationEntry.ReasonCode == int(result.CRLReasonCodeRemoveFromCRL) {
+					revoked = false
+				} else {
+					revoked = true
+					break
 				}
+			}
+		}
+		if revoked {
+			return &result.CertRevocationResult{
+				Result:    result.ResultRevoked,
+				CRLStatus: result.NewCRLStatus(lastRevocationEntry),
 			}
 		}
 
