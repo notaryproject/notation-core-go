@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/notaryproject/notation-core-go/revocation/crl/cache"
 	"github.com/notaryproject/notation-core-go/revocation/result"
 )
 
@@ -14,7 +15,7 @@ import (
 type Options struct {
 	CertChain  []*x509.Certificate
 	HTTPClient *http.Client
-	Cache      Cache
+	Cache      cache.Cache
 }
 
 func CertCheckStatus(cert, issuer *x509.Certificate, opts Options) *result.CertRevocationResult {
@@ -33,7 +34,7 @@ func CertCheckStatus(cert, issuer *x509.Certificate, opts Options) *result.CertR
 	// Check CRL
 	var lastError error
 	for _, crlURL := range cert.CRLDistributionPoints {
-		crlStore, err := crlFetcher.Fetch(crlURL)
+		crlStore, cached, err := crlFetcher.Fetch(crlURL)
 		if err != nil {
 			lastError = err
 			continue
@@ -45,10 +46,11 @@ func CertCheckStatus(cert, issuer *x509.Certificate, opts Options) *result.CertR
 			continue
 		}
 
-		// cache
-		if err := crlStore.Save(); err != nil {
-			lastError = err
-			continue
+		if !cached {
+			if err := crlStore.Save(); err != nil {
+				lastError = err
+				continue
+			}
 		}
 
 		// check revocation
@@ -85,7 +87,6 @@ func validateCRL(crl *x509.RevocationList, issuer *x509.Certificate) error {
 		if ext.Critical {
 			return fmt.Errorf("CRL contains unsupported critical extension: %v", ext.Id)
 		}
-
 	}
 
 	return nil

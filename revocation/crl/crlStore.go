@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"io"
 	"time"
+
+	"github.com/notaryproject/notation-core-go/revocation/crl/cache"
 )
 
 const BaseCRL = "base.crl"
@@ -26,10 +28,10 @@ type crlTarStore struct {
 	baseCRL  *x509.RevocationList
 	metadata map[string]string
 
-	cache Cache
+	cache cache.Cache
 }
 
-func NewCRLTarStore(baseCRL *x509.RevocationList, url string, cache Cache) CRLStore {
+func NewCRLTarStore(baseCRL *x509.RevocationList, url string, cache cache.Cache) CRLStore {
 	return &crlTarStore{
 		baseCRL:  baseCRL,
 		metadata: map[string]string{BaseCRL: url},
@@ -134,7 +136,7 @@ func (c *crlTarStore) Save() error {
 	return nil
 }
 
-func (c *crlTarStore) saveTar(w WriteCanceler) error {
+func (c *crlTarStore) saveTar(w cache.WriteCanceler) error {
 	tarWriter := tar.NewWriter(w)
 	// Add base.crl
 	if err := addToTar(BaseCRL, c.baseCRL.Raw, tarWriter); err != nil {

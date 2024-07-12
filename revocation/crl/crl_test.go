@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/notaryproject/notation-core-go/revocation/crl/cache"
 	"github.com/notaryproject/notation-core-go/revocation/result"
 )
 
@@ -26,7 +27,7 @@ func TestValidCert(t *testing.T) {
 	opts := Options{
 		CertChain:  certChain,
 		HTTPClient: http.DefaultClient,
-		Cache:      NewFileSystemCache(filepath.Join("testdata", "cache")),
+		Cache:      cache.NewFileSystemCache(filepath.Join("testdata", "cache")),
 	}
 
 	r := CertCheckStatus(intermediateCert, rootCert, opts)
@@ -54,7 +55,7 @@ func TestRevoked(t *testing.T) {
 	opts := Options{
 		CertChain:  certChain,
 		HTTPClient: http.DefaultClient,
-		Cache:      NewFileSystemCache(filepath.Join("testdata", "cache")),
+		Cache:      cache.NewFileSystemCache(filepath.Join("testdata", "cache")),
 	}
 
 	r := CertCheckStatus(intermediateCert, rootCert, opts)
@@ -82,7 +83,7 @@ func TestMSCert(t *testing.T) {
 	opts := Options{
 		CertChain:  certChain,
 		HTTPClient: http.DefaultClient,
-		Cache:      NewFileSystemCache(filepath.Join("testdata", "cache")),
+		Cache:      cache.NewFileSystemCache(filepath.Join("testdata", "cache")),
 	}
 
 	r := CertCheckStatus(intermediateCert, rootCert, opts)

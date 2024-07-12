@@ -5,52 +5,57 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"time"
+
+	"github.com/notaryproject/notation-core-go/revocation/crl/cache"
 )
 
 // CRLFetcher is an interface to fetch CRL
 type CRLFetcher interface {
 	// Fetch retrieves the CRL with the given URL
-	Fetch(url string) (CRLStore, error)
+	Fetch(url string) (crlStore CRLStore, cached bool, err error)
 }
 
 type cachedCRLFetcher struct {
 	httpClient *http.Client
-	cache      Cache
+	cache      cache.Cache
 }
 
 // NewCachedCRLFetcher creates a new CRL fetcher with cache
-func NewCachedCRLFetcher(httpClient *http.Client, cache Cache) CRLFetcher {
+func NewCachedCRLFetcher(httpClient *http.Client, cache cache.Cache) CRLFetcher {
 	return &cachedCRLFetcher{
 		httpClient: httpClient,
 		cache:      cache,
 	}
 }
 
-func (c *cachedCRLFetcher) Fetch(url string) (CRLStore, error) {
+func (c *cachedCRLFetcher) Fetch(url string) (crlStore CRLStore, cached bool, err error) {
 	// try to get from cache
 	file, err := c.cache.Get(url)
 	if err != nil {
 		if os.IsNotExist(err) {
 			// fallback to fetch from remote
-			return c.download(url)
+			crlStore, err := c.download(url)
+			if err != nil {
+				return nil, false, err
+			}
+			return crlStore, cached, nil
 		}
 
-		return nil, err
+		return nil, false, err
 	}
 	defer file.Close()
 
-	crlStore, err := ParseCRLTar(file)
+	crlStore, err = ParseCRLTar(file)
 	if err != nil {
-		return c.download(url)
+		crlStore, err := c.download(url)
+		if err != nil {
+			return nil, false, err
+		}
+		return crlStore, cached, nil
 	}
 
-	if crlStore.baseCRL.NextUpdate.Before(time.Now()) {
-		// cache is expired
-		return c.download(url)
-	}
-
-	return crlStore, nil
+	cached = true
+	return crlStore, cached, nil
 }
 
 func (c *cachedCRLFetcher) download(url string) (CRLStore, error) {

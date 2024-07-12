@@ -1,4 +1,4 @@
-package crl
+package cache
 
 import (
 	"io"
@@ -7,18 +7,6 @@ import (
 )
 
 const tempFileName = "notation-*.crl"
-
-type Cache interface {
-	Get(key string) (io.ReadCloser, error)
-
-	Set(key string) (WriteCanceler, error)
-
-	Delete(key string) error
-}
-type WriteCanceler interface {
-	io.WriteCloser
-	Cancel()
-}
 
 // fileSystemCache builds on top of OS file system to leverage the file system
 // concurrency control and atomicity
