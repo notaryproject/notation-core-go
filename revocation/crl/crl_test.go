@@ -12,6 +12,8 @@ import (
 )
 
 func TestValidCert(t *testing.T) {
+	tempDir := t.TempDir()
+
 	// read intermediate cert file
 	intermediateCert, err := loadCertFile(filepath.Join("testdata", "valid", "valid.cer"))
 	if err != nil {
@@ -27,19 +29,33 @@ func TestValidCert(t *testing.T) {
 	opts := Options{
 		CertChain:  certChain,
 		HTTPClient: http.DefaultClient,
-		Cache:      cache.NewFileSystemCache(filepath.Join("testdata", "cache")),
+		Cache:      cache.NewFileSystemCache(tempDir),
 	}
 
-	r := CertCheckStatus(intermediateCert, rootCert, opts)
-	if r.Error != nil {
-		t.Fatal(err)
-	}
-	if r.Result != result.ResultOK {
-		t.Fatal("unexpected result")
-	}
+	t.Run("validate without cache", func(t *testing.T) {
+		r := CertCheckStatus(intermediateCert, rootCert, opts)
+		if r.Error != nil {
+			t.Fatal(err)
+		}
+		if r.Result != result.ResultOK {
+			t.Fatal("unexpected result")
+		}
+	})
+
+	t.Run("validate with cache", func(t *testing.T) {
+		r := CertCheckStatus(intermediateCert, rootCert, opts)
+		if r.Error != nil {
+			t.Fatal(err)
+		}
+		if r.Result != result.ResultOK {
+			t.Fatal("unexpected result")
+		}
+	})
 }
 
 func TestRevoked(t *testing.T) {
+	tempDir := t.TempDir()
+
 	// read intermediate cert file
 	intermediateCert, err := loadCertFile(filepath.Join("testdata", "revoked", "revoked.cer"))
 	if err != nil {
@@ -55,12 +71,12 @@ func TestRevoked(t *testing.T) {
 	opts := Options{
 		CertChain:  certChain,
 		HTTPClient: http.DefaultClient,
-		Cache:      cache.NewFileSystemCache(filepath.Join("testdata", "cache")),
+		Cache:      cache.NewFileSystemCache(tempDir),
 	}
 
 	r := CertCheckStatus(intermediateCert, rootCert, opts)
 	if r.Error != nil {
-		t.Fatal(err)
+		t.Fatal(r.Error)
 	}
 	if r.Result != result.ResultRevoked {
 		t.Fatal("unexpected result")
@@ -68,6 +84,8 @@ func TestRevoked(t *testing.T) {
 }
 
 func TestMSCert(t *testing.T) {
+	tempDir := t.TempDir()
+
 	// read intermediate cert file
 	intermediateCert, err := loadCertFile(filepath.Join("testdata", "ms", "msleaf.cer"))
 	if err != nil {
@@ -83,7 +101,7 @@ func TestMSCert(t *testing.T) {
 	opts := Options{
 		CertChain:  certChain,
 		HTTPClient: http.DefaultClient,
-		Cache:      cache.NewFileSystemCache(filepath.Join("testdata", "cache")),
+		Cache:      cache.NewFileSystemCache(tempDir),
 	}
 
 	r := CertCheckStatus(intermediateCert, rootCert, opts)

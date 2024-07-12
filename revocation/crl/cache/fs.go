@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 )
 
-const tempFileName = "notation-*.crl"
+const tempFileName = "notation-*"
 
 // fileSystemCache builds on top of OS file system to leverage the file system
 // concurrency control and atomicity
@@ -46,6 +46,11 @@ type fileSystemWriter struct {
 
 func newFileSystemWriter(filePath string) (WriteCanceler, error) {
 	tempFile, err := os.CreateTemp("", tempFileName)
+	if err != nil {
+		return nil, err
+	}
+
+	filePath, err = filepath.Abs(filePath)
 	if err != nil {
 		return nil, err
 	}

@@ -115,7 +115,7 @@ func (c *crlTarStore) SetBaseCRL(baseCRL *x509.RevocationList, url string) {
 	c.metadata[BaseCRL] = url
 }
 
-func (c *crlTarStore) Save() error {
+func (c *crlTarStore) Save() (err error) {
 	baseCRLURL, ok := c.metadata[BaseCRL]
 	if !ok {
 		return errors.New("base.crl URL is missing")
@@ -126,7 +126,11 @@ func (c *crlTarStore) Save() error {
 	if err != nil {
 		return err
 	}
-	defer w.Close()
+	defer func() {
+		if cerr := w.Close(); cerr != nil && err == nil {
+			err = cerr
+		}
+	}()
 
 	if err := c.saveTar(w); err != nil {
 		w.Cancel()

@@ -30,7 +30,7 @@ func NewCachedCRLFetcher(httpClient *http.Client, cache cache.Cache) CRLFetcher 
 
 func (c *cachedCRLFetcher) Fetch(url string) (crlStore CRLStore, cached bool, err error) {
 	// try to get from cache
-	file, err := c.cache.Get(url)
+	file, err := c.cache.Get(buildTarName(url))
 	if err != nil {
 		if os.IsNotExist(err) {
 			// fallback to fetch from remote
