@@ -104,25 +104,25 @@ const (
 // String provides a conversion from a ReasonCode to a string
 func (r CRLReasonCode) String() string {
 	switch r {
-	case Unspecified:
+	case CRLReasonCodeUnspecified:
 		return "Unspecified"
-	case KeyCompromise:
+	case CRLReasonCodeKeyCompromise:
 		return "KeyCompromise"
-	case CACompromise:
+	case CRLReasonCodeCACompromise:
 		return "CACompromise"
-	case AffiliationChanged:
+	case CRLReasonCodeAffiliationChanged:
 		return "AffiliationChanged"
-	case Superseded:
+	case CRLReasonCodeSuperseded:
 		return "Superseded"
-	case CessationOfOperation:
+	case CRLReasonCodeCessationOfOperation:
 		return "CessationOfOperation"
-	case CertificateHold:
+	case CRLReasonCodeCertificateHold:
 		return "CertificateHold"
-	case RemoveFromCRL:
+	case CRLReasonCodeRemoveFromCRL:
 		return "RemoveFromCRL"
-	case PrivilegeWithdrawn:
+	case CRLReasonCodePrivilegeWithdrawn:
 		return "PrivilegeWithdrawn"
-	case AACompromise:
+	case CRLReasonCodeAACompromise:
 		return "AACompromise"
 	default:
 		return fmt.Sprintf("invalid reason code with value: %d", r)
