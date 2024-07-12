@@ -38,7 +38,7 @@ func (c *cachedCRLFetcher) Fetch(url string) (crlStore CRLStore, cached bool, er
 			if err != nil {
 				return nil, false, err
 			}
-			return crlStore, cached, nil
+			return crlStore, false, nil
 		}
 
 		return nil, false, err
@@ -51,11 +51,10 @@ func (c *cachedCRLFetcher) Fetch(url string) (crlStore CRLStore, cached bool, er
 		if err != nil {
 			return nil, false, err
 		}
-		return crlStore, cached, nil
+		return crlStore, false, nil
 	}
 
-	cached = true
-	return crlStore, cached, nil
+	return crlStore, true, nil
 }
 
 func (c *cachedCRLFetcher) download(url string) (CRLStore, error) {
