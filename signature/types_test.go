@@ -71,10 +71,21 @@ func TestAuthenticSigningTime(t *testing.T) {
 
 	signerInfo = SignerInfo{
 		SignedAttributes: SignedAttributes{
+			SigningScheme: "notary.x509.signingAuthority",
+		},
+	}
+	expectedErrMsg := "authentic signing time must be present under signing scheme \"notary.x509.signingAuthority\""
+	_, err = signerInfo.AuthenticSigningTime()
+	if err == nil || err.Error() != expectedErrMsg {
+		t.Fatalf("expected %s, but got %s", expectedErrMsg, err)
+	}
+
+	signerInfo = SignerInfo{
+		SignedAttributes: SignedAttributes{
 			SigningScheme: "notary.x509",
 		},
 	}
-	expectedErrMsg := "authenticSigningTime not supported under signing scheme \"notary.x509\""
+	expectedErrMsg = "authentic signing time not supported under signing scheme \"notary.x509\""
 	_, err = signerInfo.AuthenticSigningTime()
 	if err == nil || err.Error() != expectedErrMsg {
 		t.Fatalf("expected %s, but got %s", expectedErrMsg, err)

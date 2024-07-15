@@ -207,8 +207,11 @@ func (signerInfo *SignerInfo) ExtendedAttribute(key string) (Attribute, error) {
 func (signerInfo *SignerInfo) AuthenticSigningTime() (time.Time, error) {
 	switch signingScheme := signerInfo.SignedAttributes.SigningScheme; {
 	case signingScheme == SigningSchemeX509SigningAuthority:
+		if signerInfo.SignedAttributes.SigningTime.IsZero() {
+			return time.Time{}, fmt.Errorf("authentic signing time must be present under signing scheme %q", signingScheme)
+		}
 		return signerInfo.SignedAttributes.SigningTime, nil
 	default:
-		return time.Time{}, fmt.Errorf("authenticSigningTime not supported under signing scheme %q", signingScheme)
+		return time.Time{}, fmt.Errorf("authentic signing time not supported under signing scheme %q", signingScheme)
 	}
 }
