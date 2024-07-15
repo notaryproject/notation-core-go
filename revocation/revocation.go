@@ -26,7 +26,6 @@ import (
 	"github.com/notaryproject/notation-core-go/revocation/crl/cache"
 	"github.com/notaryproject/notation-core-go/revocation/ocsp"
 	"github.com/notaryproject/notation-core-go/revocation/result"
-	coreX509 "github.com/notaryproject/notation-core-go/x509"
 )
 
 // Revocation is an interface that specifies methods used for revocation checking
@@ -100,10 +99,6 @@ func NewWithOptions(opts Options) (Revocation, error) {
 func (r *revocation) Validate(certChain []*x509.Certificate, signingTime time.Time) ([]*result.CertRevocationResult, error) {
 	if len(certChain) == 0 {
 		return nil, result.InvalidChainError{Err: errors.New("chain does not contain any certificates")}
-	}
-
-	if err := coreX509.ValidateCodeSigningCertChain(certChain, nil); err != nil {
-		return nil, result.InvalidChainError{Err: err}
 	}
 
 	ocspOpts := ocsp.Options{
