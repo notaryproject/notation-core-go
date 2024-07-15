@@ -17,6 +17,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 )
 
 func TestSignRequestContext(t *testing.T) {
@@ -50,4 +51,32 @@ func TestSignRequestWithContext(t *testing.T) {
 		}
 	}()
 	r.WithContext(nil) // should panic
+}
+
+func TestAuthenticSigningTime(t *testing.T) {
+	testTime := time.Now()
+	signerInfo := SignerInfo{
+		SignedAttributes: SignedAttributes{
+			SigningScheme: "notary.x509.signingAuthority",
+			SigningTime:   testTime,
+		},
+	}
+	authenticSigningTime, err := signerInfo.AuthenticSigningTime()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !authenticSigningTime.Equal(testTime) {
+		t.Fatalf("expected %s, but got %s", testTime, authenticSigningTime)
+	}
+
+	signerInfo = SignerInfo{
+		SignedAttributes: SignedAttributes{
+			SigningScheme: "notary.x509",
+		},
+	}
+	expectedErrMsg := "authenticSigningTime not supported under signing scheme \"notary.x509\""
+	_, err = signerInfo.AuthenticSigningTime()
+	if err == nil || err.Error() != expectedErrMsg {
+		t.Fatalf("expected %s, but got %s", expectedErrMsg, err)
+	}
 }
