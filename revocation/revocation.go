@@ -18,6 +18,7 @@ package revocation
 import (
 	"crypto/x509"
 	"errors"
+	"fmt"
 	"net/http"
 	"sync"
 	"time"
@@ -26,6 +27,7 @@ import (
 	"github.com/notaryproject/notation-core-go/revocation/crl/cache"
 	"github.com/notaryproject/notation-core-go/revocation/ocsp"
 	"github.com/notaryproject/notation-core-go/revocation/result"
+	coreX509 "github.com/notaryproject/notation-core-go/x509"
 )
 
 // Revocation is an interface that specifies methods used for revocation checking
@@ -99,6 +101,23 @@ func NewWithOptions(opts Options) (Revocation, error) {
 func (r *revocation) Validate(certChain []*x509.Certificate, signingTime time.Time) ([]*result.CertRevocationResult, error) {
 	if len(certChain) == 0 {
 		return nil, result.InvalidChainError{Err: errors.New("chain does not contain any certificates")}
+	}
+
+	// Validate cert chain structure
+	// Since this is using authentic signing time, signing time may be zero.
+	// Thus, it is better to pass nil here than fail for a cert's NotBefore
+	// being after zero time
+	switch r.certChainPurpose {
+	case ocsp.PurposeCodeSigning:
+		if err := coreX509.ValidateCodeSigningCertChain(certChain, nil); err != nil {
+			return nil, result.InvalidChainError{Err: err}
+		}
+	case ocsp.PurposeTimestamping:
+		if err := coreX509.ValidateTimestampingCertChain(certChain); err != nil {
+			return nil, result.InvalidChainError{Err: err}
+		}
+	default:
+		return nil, result.InvalidChainError{Err: fmt.Errorf("unknown certificate chain purpose %v", r.certChainPurpose)}
 	}
 
 	ocspOpts := ocsp.Options{
