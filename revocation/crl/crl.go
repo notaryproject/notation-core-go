@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/notaryproject/notation-core-go/revocation/crl/cache"
@@ -16,6 +17,38 @@ type Options struct {
 	CertChain  []*x509.Certificate
 	HTTPClient *http.Client
 	Cache      cache.Cache
+}
+
+func CheckStatus(opts Options) ([]*result.CertRevocationResult, error) {
+	if opts.Cache == nil {
+		return nil, errors.New("cache is required")
+	}
+	if opts.HTTPClient == nil {
+		opts.HTTPClient = http.DefaultClient
+	}
+
+	certResult := make([]*result.CertRevocationResult, len(opts.CertChain))
+
+	var wg sync.WaitGroup
+	for i, cert := range opts.CertChain[:len(opts.CertChain)-1] {
+		wg.Add(1)
+		go func(i int, cert *x509.Certificate) {
+			defer wg.Done()
+			certResult[i] = CertCheckStatus(cert, cert, opts)
+		}(i, cert)
+	}
+
+	// Last is root cert, which will never be revoked by OCSP
+	certResult[len(opts.CertChain)-1] = &result.CertRevocationResult{
+		Result: result.ResultNonRevokable,
+		ServerResults: []*result.ServerResult{{
+			Result: result.ResultNonRevokable,
+			Error:  nil,
+		}},
+	}
+
+	wg.Wait()
+	return certResult, nil
 }
 
 func CertCheckStatus(cert, issuer *x509.Certificate, opts Options) *result.CertRevocationResult {

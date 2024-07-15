@@ -37,38 +37,14 @@ type Revocation interface {
 	Validate(certChain []*x509.Certificate, signingTime time.Time) ([]*result.CertRevocationResult, error)
 }
 
-type Mode int
-
-const (
-	// ModeAutoFallback is the default mode that tries OCSP first and falls back
-	// to CRL if OCSP doesn't exist or fails with unknown status
-	ModeAutoFallback Mode = iota
-
-	// ModeOCSPOnly is the mode that only uses OCSP for revocation checking
-	ModeOCSPOnly
-
-	// ModeCRLOnly is the mode that only uses CRL for revocation checking
-	ModeCRLOnly
-)
-
-func (m Mode) CanRunOCSP() bool {
-	return m == ModeAutoFallback || m == ModeOCSPOnly
-}
-
-func (m Mode) CanRunCRL() bool {
-	return m == ModeAutoFallback || m == ModeCRLOnly
-}
-
 type Options struct {
 	HttpClient       *http.Client
-	Mode             Mode
 	CertChainPurpose ocsp.Purpose
 	CRLCache         cache.Cache
 }
 
 // revocation is an internal struct used for revocation checking
 type revocation struct {
-	mode       Mode
 	httpClient *http.Client
 
 	certChainPurpose ocsp.Purpose
@@ -79,39 +55,26 @@ type revocation struct {
 
 // New constructs a revocation object for code signing certificate chain
 func New(httpClient *http.Client) (Revocation, error) {
-	if httpClient == nil {
-		return nil, errors.New("invalid input: a non-nil httpClient must be specified")
-	}
-
-	return &revocation{
-		httpClient:       httpClient,
-		certChainPurpose: ocsp.PurposeCodeSigning,
-		crlCache:         cache.NewDummyCache(),
-	}, nil
+	return NewWithOptions(Options{
+		HttpClient:       httpClient,
+		CertChainPurpose: ocsp.PurposeCodeSigning,
+		CRLCache:         cache.NewDummyCache(),
+	})
 }
 
 // NewTimestamp contructs a revocation object for timestamping certificate
 // chain
 func NewTimestamp(httpClient *http.Client) (Revocation, error) {
-	if httpClient == nil {
-		return nil, errors.New("invalid input: a non-nil httpClient must be specified")
-	}
-	return &revocation{
-		httpClient:       httpClient,
-		certChainPurpose: ocsp.PurposeTimestamping,
-		crlCache:         cache.NewDummyCache(),
-	}, nil
+	return NewWithOptions(Options{
+		HttpClient:       httpClient,
+		CertChainPurpose: ocsp.PurposeTimestamping,
+		CRLCache:         cache.NewDummyCache(),
+	})
 }
 
 func NewWithOptions(opts Options) (Revocation, error) {
 	if opts.HttpClient == nil {
 		return nil, errors.New("invalid input: a non-nil httpClient must be specified")
-	}
-
-	switch opts.Mode {
-	case ModeAutoFallback, ModeOCSPOnly, ModeCRLOnly:
-	default:
-		return nil, errors.New("invalid input: unknown mode")
 	}
 
 	switch opts.CertChainPurpose {
@@ -125,7 +88,6 @@ func NewWithOptions(opts Options) (Revocation, error) {
 	}
 
 	return &revocation{
-		mode:             opts.Mode,
 		httpClient:       opts.HttpClient,
 		certChainPurpose: opts.CertChainPurpose,
 		crlCache:         opts.CRLCache,
@@ -161,7 +123,7 @@ func (r *revocation) Validate(certChain []*x509.Certificate, signingTime time.Ti
 	var wg sync.WaitGroup
 	for i, cert := range certChain[:len(certChain)-1] {
 		switch {
-		case r.mode.CanRunOCSP() && ocsp.HasOCSP(cert):
+		case ocsp.HasOCSP(cert):
 			// do OCSP check for the certificate
 			wg.Add(1)
 
@@ -170,7 +132,7 @@ func (r *revocation) Validate(certChain []*x509.Certificate, signingTime time.Ti
 				defer wg.Done()
 				certResults[i] = ocsp.CertCheckStatus(cert, certChain[i+1], ocspOpts)
 			}(i, cert)
-		case r.mode.CanRunCRL() && crl.HasCRL(cert):
+		case crl.HasCRL(cert):
 			// do CRL check for the certificate
 			wg.Add(1)
 
