@@ -163,3 +163,27 @@ func (r *revocation) Validate(certChain []*x509.Certificate, signingTime time.Ti
 	wg.Wait()
 	return certResults, nil
 }
+
+type OCSPRevocation interface {
+	ValidateOCSPOnly(certChain []*x509.Certificate, signingTime time.Time) ([]*result.CertRevocationResult, error)
+}
+
+func (r *revocation) ValidateOCSPOnly(certChain []*x509.Certificate, signingTime time.Time) ([]*result.CertRevocationResult, error) {
+	return ocsp.CheckStatus(ocsp.Options{
+		CertChain:        certChain,
+		SigningTime:      signingTime,
+		CertChainPurpose: r.certChainPurpose,
+	})
+}
+
+type CRLRevocation interface {
+	ValidateCRLOnly(certChain []*x509.Certificate, signingTime time.Time) ([]*result.CertRevocationResult, error)
+}
+
+func (r *revocation) ValidateCRLOnly(certChain []*x509.Certificate, signingTime time.Time) ([]*result.CertRevocationResult, error) {
+	return crl.CheckStatus(crl.Options{
+		CertChain:  certChain,
+		HTTPClient: r.httpClient,
+		Cache:      r.crlCache,
+	})
+}
