@@ -203,14 +203,15 @@ func (signerInfo *SignerInfo) ExtendedAttribute(key string) (Attribute, error) {
 // For signing scheme notary.x509, since it only supports authentic timestamp,
 // an error is returned.
 //
-// Reference: https://github.com/notaryproject/specifications/blob/main/specs/signature-specification.md#signing-time--authentic-signing-time
+// Reference: https://github.com/notaryproject/specifications/blob/3b0743cd9bb99faee60600dc31d706149775fd49/specs/signature-specification.md#signing-time--authentic-signing-time
 func (signerInfo *SignerInfo) AuthenticSigningTime() (time.Time, error) {
-	switch signingScheme := signerInfo.SignedAttributes.SigningScheme; {
-	case signingScheme == SigningSchemeX509SigningAuthority:
-		if signerInfo.SignedAttributes.SigningTime.IsZero() {
+	switch signingScheme := signerInfo.SignedAttributes.SigningScheme; signingScheme {
+	case SigningSchemeX509SigningAuthority:
+		signingTime := signerInfo.SignedAttributes.SigningTime
+		if signingTime.IsZero() {
 			return time.Time{}, fmt.Errorf("authentic signing time must be present under signing scheme %q", signingScheme)
 		}
-		return signerInfo.SignedAttributes.SigningTime, nil
+		return signingTime, nil
 	default:
 		return time.Time{}, fmt.Errorf("authentic signing time not supported under signing scheme %q", signingScheme)
 	}
