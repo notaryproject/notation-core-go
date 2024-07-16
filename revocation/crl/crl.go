@@ -34,7 +34,7 @@ func CheckStatus(opts Options) ([]*result.CertRevocationResult, error) {
 		wg.Add(1)
 		go func(i int, cert *x509.Certificate) {
 			defer wg.Done()
-			certResult[i] = CertCheckStatus(cert, cert, opts)
+			certResult[i] = CertCheckStatus(cert, opts.CertChain[i+1], opts)
 		}(i, cert)
 	}
 
@@ -116,7 +116,7 @@ func CertCheckStatus(cert, issuer *x509.Certificate, opts Options) *result.CertR
 		}
 	}
 
-	return &result.CertRevocationResult{Result: result.ResultNonRevokable, Error: lastError}
+	return &result.CertRevocationResult{Result: result.ResultUnknown, Error: lastError}
 }
 
 func validateCRL(crl *x509.RevocationList, issuer *x509.Certificate) error {

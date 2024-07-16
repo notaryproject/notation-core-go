@@ -2,9 +2,11 @@ package crl
 
 import (
 	"crypto/x509"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/notaryproject/notation-core-go/revocation/crl/cache"
 )
@@ -29,6 +31,7 @@ func NewCachedCRLFetcher(httpClient *http.Client, cache cache.Cache) CRLFetcher 
 }
 
 func (c *cachedCRLFetcher) Fetch(url string) (crlStore CRLStore, cached bool, err error) {
+	startTime := time.Now()
 	// try to get from cache
 	file, err := c.cache.Get(buildTarName(url))
 	if err != nil {
@@ -54,10 +57,16 @@ func (c *cachedCRLFetcher) Fetch(url string) (crlStore CRLStore, cached bool, er
 		return crlStore, false, nil
 	}
 
+	// Calculate the duration
+	duration := time.Since(startTime)
+	fmt.Printf("The cache request to %s took %s\n", url, duration)
+
 	return crlStore, true, nil
 }
 
 func (c *cachedCRLFetcher) download(url string) (CRLStore, error) {
+	fmt.Println("downloading CRL from", url)
+	startTime := time.Now()
 	// fetch from remote
 	resp, err := c.httpClient.Get(url)
 	if err != nil {
@@ -69,6 +78,11 @@ func (c *cachedCRLFetcher) download(url string) (CRLStore, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// Calculate the duration
+	duration := time.Since(startTime)
+
+	fmt.Printf("The HTTP request took %s\n", duration)
 
 	crl, err := x509.ParseRevocationList(data)
 	if err != nil {

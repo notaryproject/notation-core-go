@@ -184,6 +184,7 @@ type OCSPRevocation interface {
 
 func (r *revocation) ValidateOCSPOnly(certChain []*x509.Certificate, signingTime time.Time) ([]*result.CertRevocationResult, error) {
 	return ocsp.CheckStatus(ocsp.Options{
+		HTTPClient:       r.httpClient,
 		CertChain:        certChain,
 		SigningTime:      signingTime,
 		CertChainPurpose: r.certChainPurpose,
@@ -196,8 +197,8 @@ type CRLRevocation interface {
 
 func (r *revocation) ValidateCRLOnly(certChain []*x509.Certificate, signingTime time.Time) ([]*result.CertRevocationResult, error) {
 	return crl.CheckStatus(crl.Options{
-		CertChain:  certChain,
 		HTTPClient: r.httpClient,
+		CertChain:  certChain,
 		Cache:      r.crlCache,
 	})
 }

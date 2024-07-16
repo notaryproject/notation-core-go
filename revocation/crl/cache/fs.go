@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -76,6 +77,7 @@ func (c *fileSystemWriter) Close() error {
 	}
 
 	if !c.canceled {
+		fmt.Println("Renaming", c.tempFilePath, "to", c.filePath)
 		return os.Rename(c.tempFilePath, c.filePath)
 	}
 	return nil
