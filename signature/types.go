@@ -17,6 +17,7 @@ import (
 	"context"
 	"crypto/x509"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/notaryproject/tspclient-go"
@@ -197,17 +198,21 @@ func (signerInfo *SignerInfo) ExtendedAttribute(key string) (Attribute, error) {
 	return Attribute{}, errors.New("key not in ExtendedAttributes")
 }
 
-// AuthenticSigningTime returns the authentic signing time
+// AuthenticSigningTime returns the authentic signing time under signing scheme
+// notary.x509.signingAuthority.
+// For signing scheme notary.x509, since it only supports authentic timestamp,
+// an error is returned.
+//
+// Reference: https://github.com/notaryproject/specifications/blob/3b0743cd9bb99faee60600dc31d706149775fd49/specs/signature-specification.md#signing-time--authentic-signing-time
 func (signerInfo *SignerInfo) AuthenticSigningTime() (time.Time, error) {
-	switch signerInfo.SignedAttributes.SigningScheme {
+	switch signingScheme := signerInfo.SignedAttributes.SigningScheme; signingScheme {
 	case SigningSchemeX509SigningAuthority:
-		return signerInfo.SignedAttributes.SigningTime, nil
-	case SigningSchemeX509:
-		if len(signerInfo.UnsignedAttributes.TimestampSignature) > 0 {
-			// TODO: Add TSA support for AutheticSigningTime
-			// https://github.com/notaryproject/notation-core-go/issues/38
-			return time.Time{}, errors.New("TSA checking has not been implemented")
+		signingTime := signerInfo.SignedAttributes.SigningTime
+		if signingTime.IsZero() {
+			return time.Time{}, fmt.Errorf("authentic signing time must be present under signing scheme %q", signingScheme)
 		}
+		return signingTime, nil
+	default:
+		return time.Time{}, fmt.Errorf("authentic signing time not supported under signing scheme %q", signingScheme)
 	}
-	return time.Time{}, errors.New("authenticSigningTime not found")
 }
