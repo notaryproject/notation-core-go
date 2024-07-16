@@ -6,67 +6,62 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"time"
 
 	"github.com/notaryproject/notation-core-go/revocation/crl/cache"
 )
 
-// CRLFetcher is an interface to fetch CRL
-type CRLFetcher interface {
+// Fetcher is an interface to fetch CRL
+type Fetcher interface {
 	// Fetch retrieves the CRL with the given URL
-	Fetch(url string) (crlStore CRLStore, cached bool, err error)
+	Fetch(url string) (crlStore Store, err error)
 }
 
-type cachedCRLFetcher struct {
+// cachedFetcher is a CRL fetcher with cache
+type cachedFetcher struct {
 	httpClient *http.Client
 	cache      cache.Cache
 }
 
-// NewCachedCRLFetcher creates a new CRL fetcher with cache
-func NewCachedCRLFetcher(httpClient *http.Client, cache cache.Cache) CRLFetcher {
-	return &cachedCRLFetcher{
+// NewCachedFetcher creates a new CRL fetcher with cache
+func NewCachedFetcher(httpClient *http.Client, cache cache.Cache) Fetcher {
+	return &cachedFetcher{
 		httpClient: httpClient,
 		cache:      cache,
 	}
 }
 
-func (c *cachedCRLFetcher) Fetch(url string) (crlStore CRLStore, cached bool, err error) {
-	startTime := time.Now()
+// Fetch retrieves the CRL with the given URL
+func (c *cachedFetcher) Fetch(url string) (crlStore Store, err error) {
 	// try to get from cache
-	file, err := c.cache.Get(buildTarName(url))
+	file, err := c.cache.Get(tarStoreName(url))
 	if err != nil {
 		if os.IsNotExist(err) {
 			// fallback to fetch from remote
 			crlStore, err := c.download(url)
 			if err != nil {
-				return nil, false, err
+				return nil, err
 			}
-			return crlStore, false, nil
+			return crlStore, nil
 		}
 
-		return nil, false, err
+		return nil, err
 	}
 	defer file.Close()
 
-	crlStore, err = ParseCRLTar(file)
+	crlStore, err = ParseTarStore(file)
 	if err != nil {
 		crlStore, err := c.download(url)
 		if err != nil {
-			return nil, false, err
+			return nil, err
 		}
-		return crlStore, false, nil
+		return crlStore, nil
 	}
 
-	// Calculate the duration
-	duration := time.Since(startTime)
-	fmt.Printf("The cache request to %s took %s\n", url, duration)
-
-	return crlStore, true, nil
+	return crlStore, nil
 }
 
-func (c *cachedCRLFetcher) download(url string) (CRLStore, error) {
+func (c *cachedFetcher) download(url string) (Store, error) {
 	fmt.Println("downloading CRL from", url)
-	startTime := time.Now()
 	// fetch from remote
 	resp, err := c.httpClient.Get(url)
 	if err != nil {
@@ -79,16 +74,11 @@ func (c *cachedCRLFetcher) download(url string) (CRLStore, error) {
 		return nil, err
 	}
 
-	// Calculate the duration
-	duration := time.Since(startTime)
-
-	fmt.Printf("The HTTP request took %s\n", duration)
-
 	crl, err := x509.ParseRevocationList(data)
 	if err != nil {
 		return nil, err
 	}
 
-	crlStore := NewCRLTarStore(crl, url, c.cache)
+	crlStore := NewTarStore(crl, url, c.cache)
 	return crlStore, nil
 }

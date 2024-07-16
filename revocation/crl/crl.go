@@ -62,28 +62,32 @@ func CertCheckStatus(cert, issuer *x509.Certificate, opts Options) *result.CertR
 		return &result.CertRevocationResult{Error: errors.New("certificate does not support CRL")}
 	}
 
-	crlFetcher := NewCachedCRLFetcher(opts.HTTPClient, opts.Cache)
+	crlFetcher := NewCachedFetcher(opts.HTTPClient, opts.Cache)
 
 	// Check CRL
 	var lastError error
 	for _, crlURL := range cert.CRLDistributionPoints {
-		crlStore, cached, err := crlFetcher.Fetch(crlURL)
+		crlStore, err := crlFetcher.Fetch(crlURL)
 		if err != nil {
 			lastError = err
 			continue
 		}
 
-		err = validateCRL(crlStore.BaseCRL(), issuer)
+		// validate CRL
+		baseCRLStore, ok := crlStore.(BaseCRLStore)
+		if !ok {
+			lastError = errors.New("invalid CRL store")
+			continue
+		}
+		err = validateCRL(baseCRLStore.BaseCRL(), issuer)
 		if err != nil {
 			lastError = err
 			continue
 		}
 
-		if !cached {
-			if err := crlStore.Save(); err != nil {
-				lastError = err
-				continue
-			}
+		if err := crlStore.Save(); err != nil {
+			lastError = err
+			continue
 		}
 
 		// check revocation
@@ -91,7 +95,7 @@ func CertCheckStatus(cert, issuer *x509.Certificate, opts Options) *result.CertR
 			revoked             bool
 			lastRevocationEntry x509.RevocationListEntry
 		)
-		for _, revocationEntry := range crlStore.BaseCRL().RevokedCertificateEntries {
+		for _, revocationEntry := range baseCRLStore.BaseCRL().RevokedCertificateEntries {
 			if revocationEntry.SerialNumber.Cmp(cert.SerialNumber) == 0 {
 				lastRevocationEntry = revocationEntry
 				if revocationEntry.ReasonCode == int(result.CRLReasonCodeCertificateHold) {

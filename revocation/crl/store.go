@@ -14,33 +14,48 @@ import (
 	"github.com/notaryproject/notation-core-go/revocation/crl/cache"
 )
 
-const BaseCRL = "base.crl"
-const Metadata = "metadata.json"
+const (
+	// BaseCRL is the file name of the base CRL
+	BaseCRL = "base.crl"
 
-type CRLStore interface {
-	BaseCRL() *x509.RevocationList
-	Metadata() map[string]string
-	SetBaseCRL(baseCRL *x509.RevocationList, url string)
+	// Metadata is the file name of the metadata
+	Metadata = "metadata.json"
+)
+
+// Store is an interface to store CRL
+type Store interface {
+	// Save saves the CRL
 	Save() error
 }
 
-type crlTarStore struct {
+type BaseCRLStore interface {
+	// BaseCRL returns the base CRL
+	BaseCRL() *x509.RevocationList
+}
+
+// tarStore is a CRL store with tarball format
+//
+// The tarball contains:
+// base.crl: the base CRL
+// metadata.json: the metadata
+type tarStore struct {
 	baseCRL  *x509.RevocationList
 	metadata map[string]string
 
 	cache cache.Cache
 }
 
-func NewCRLTarStore(baseCRL *x509.RevocationList, url string, cache cache.Cache) CRLStore {
-	return &crlTarStore{
+// NewTarStore creates a new CRL store with tarball format
+func NewTarStore(baseCRL *x509.RevocationList, url string, cache cache.Cache) Store {
+	return &tarStore{
 		baseCRL:  baseCRL,
 		metadata: map[string]string{BaseCRL: url},
 		cache:    cache}
 }
 
-// ParseCRLTar parses the CRL tarball
-func ParseCRLTar(data io.Reader) (*crlTarStore, error) {
-	CRLTar := &crlTarStore{}
+// ParseTarStore parses the CRL tarball
+func ParseTarStore(data io.Reader) (*tarStore, error) {
+	CRLTar := &tarStore{}
 
 	// parse the tarball
 	tar := tar.NewReader(data)
@@ -98,31 +113,22 @@ func ParseCRLTar(data io.Reader) (*crlTarStore, error) {
 	return CRLTar, nil
 }
 
-func (c *crlTarStore) BaseCRL() *x509.RevocationList {
+func (c *tarStore) BaseCRL() *x509.RevocationList {
 	return c.baseCRL
 }
 
-func (c *crlTarStore) Metadata() map[string]string {
-	return c.metadata
-}
-
-func (c *crlTarStore) SetBaseCRL(baseCRL *x509.RevocationList, url string) {
-	c.baseCRL = baseCRL
-
-	if c.metadata == nil {
-		c.metadata = make(map[string]string)
-	}
-	c.metadata[BaseCRL] = url
-}
-
-func (c *crlTarStore) Save() (err error) {
-	baseCRLURL, ok := c.metadata[BaseCRL]
+func (c *tarStore) Save() (err error) {
+	baseURL, ok := c.metadata[BaseCRL]
 	if !ok {
 		return errors.New("base.crl URL is missing")
 	}
 
+	if c.isCached(baseURL) {
+		return nil
+	}
+
 	// create cache file
-	w, err := c.cache.Set(buildTarName(baseCRLURL))
+	w, err := c.cache.Set(tarStoreName(baseURL))
 	if err != nil {
 		return err
 	}
@@ -140,7 +146,7 @@ func (c *crlTarStore) Save() (err error) {
 	return nil
 }
 
-func (c *crlTarStore) saveTar(w cache.WriteCanceler) error {
+func (c *tarStore) saveTar(w cache.WriteCanceler) error {
 	tarWriter := tar.NewWriter(w)
 	// Add base.crl
 	if err := addToTar(BaseCRL, c.baseCRL.Raw, tarWriter); err != nil {
@@ -155,7 +161,12 @@ func (c *crlTarStore) saveTar(w cache.WriteCanceler) error {
 	return addToTar(Metadata, metadataBytes, tarWriter)
 }
 
-func buildTarName(url string) string {
+func (c *tarStore) isCached(url string) bool {
+	_, err := c.cache.Get(tarStoreName(url))
+	return err == nil
+}
+
+func tarStoreName(url string) string {
 	return hashURL(url) + ".tar"
 }
 
