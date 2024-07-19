@@ -66,8 +66,13 @@ func NewTarStore(baseCRL *x509.RevocationList, url string, cache cache.Cache) St
 }
 
 // ParseTarStore parses the CRL tarball
-func ParseTarStore(data io.Reader) (*tarStore, error) {
-	CRLTar := &tarStore{}
+func ParseTarStore(data io.Reader, cache cache.Cache) (*tarStore, error) {
+	if cache == nil {
+		return nil, errors.New("cache is required")
+	}
+	CRLTar := &tarStore{
+		cache: cache,
+	}
 
 	// parse the tarball
 	tar := tar.NewReader(data)

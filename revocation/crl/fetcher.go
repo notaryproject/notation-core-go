@@ -49,7 +49,7 @@ func (c *cachedFetcher) Fetch(url string) (crlStore Store, err error) {
 	}
 	defer file.Close()
 
-	crlStore, err = ParseTarStore(file)
+	crlStore, err = ParseTarStore(file, c.cache)
 	if err != nil {
 		crlStore, err := c.download(url)
 		if err != nil {
