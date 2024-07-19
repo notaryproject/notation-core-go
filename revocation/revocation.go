@@ -146,8 +146,8 @@ func (r *revocation) Validate(certChain []*x509.Certificate, signingTime time.Ti
 				defer wg.Done()
 				ocspResult := ocsp.CertCheckStatus(cert, certChain[i+1], ocspOpts)
 
-				// try CRL check if OCSP is unknown
-				if crl.HasCRL(cert) && ocspResult != nil && ocspResult.Result == result.ResultUnknown {
+				// try CRL check if OCSP result is unknown
+				if ocspResult != nil && ocspResult.Result == result.ResultUnknown && crl.HasCRL(cert) {
 					crlResult := crl.CertCheckStatus(cert, certChain[i+1], crlOpts)
 					crlResult.Error = result.OCSPFallbackError{
 						OCSPErr: ocspResult.Error,
@@ -157,7 +157,6 @@ func (r *revocation) Validate(certChain []*x509.Certificate, signingTime time.Ti
 				} else {
 					certResults[i] = ocspResult
 				}
-
 			}(i, cert)
 		case crl.HasCRL(cert):
 			// do CRL check for the certificate
