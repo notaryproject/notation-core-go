@@ -31,3 +31,16 @@ func (e InvalidChainError) Error() string {
 	}
 	return msg
 }
+
+type OCSPFallbackError struct {
+	OCSPErr error
+	CRLErr  error
+}
+
+func (e OCSPFallbackError) Error() string {
+	msg := "the OCSP check result is of unknown status; fallback to CRL"
+	if e.OCSPErr != nil {
+		msg += fmt.Sprintf("; OCSP error: %v", e.OCSPErr)
+	}
+	return msg
+}

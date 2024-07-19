@@ -144,7 +144,20 @@ func (r *revocation) Validate(certChain []*x509.Certificate, signingTime time.Ti
 			// Assume cert chain is accurate and next cert in chain is the issuer
 			go func(i int, cert *x509.Certificate) {
 				defer wg.Done()
-				certResults[i] = ocsp.CertCheckStatus(cert, certChain[i+1], ocspOpts)
+				ocspResult := ocsp.CertCheckStatus(cert, certChain[i+1], ocspOpts)
+
+				// try CRL check if OCSP is unknown
+				if crl.HasCRL(cert) && ocspResult != nil && ocspResult.Result == result.ResultUnknown {
+					crlResult := crl.CertCheckStatus(cert, certChain[i+1], crlOpts)
+					crlResult.Error = result.OCSPFallbackError{
+						OCSPErr: ocspResult.Error,
+						CRLErr:  crlResult.Error,
+					}
+					certResults[i] = crlResult
+				} else {
+					certResults[i] = ocspResult
+				}
+
 			}(i, cert)
 		case crl.HasCRL(cert):
 			// do CRL check for the certificate
