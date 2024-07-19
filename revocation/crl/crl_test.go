@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/notaryproject/notation-core-go/revocation/crl/cache"
 	"github.com/notaryproject/notation-core-go/revocation/result"
@@ -26,10 +27,14 @@ func TestValidCert(t *testing.T) {
 	}
 
 	certChain := []*x509.Certificate{intermediateCert, rootCert}
+	cache, err := cache.NewFileSystemCache(tempDir, time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
 	opts := Options{
 		CertChain:  certChain,
 		HTTPClient: http.DefaultClient,
-		Cache:      cache.NewFileSystemCache(tempDir),
+		Cache:      cache,
 	}
 
 	t.Run("validate without cache", func(t *testing.T) {
@@ -68,10 +73,14 @@ func TestRevoked(t *testing.T) {
 	}
 
 	certChain := []*x509.Certificate{intermediateCert, rootCert}
+	cache, err := cache.NewFileSystemCache(tempDir, time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
 	opts := Options{
 		CertChain:  certChain,
 		HTTPClient: http.DefaultClient,
-		Cache:      cache.NewFileSystemCache(tempDir),
+		Cache:      cache,
 	}
 
 	r := CertCheckStatus(intermediateCert, rootCert, opts)
@@ -98,10 +107,14 @@ func TestMSCert(t *testing.T) {
 	}
 
 	certChain := []*x509.Certificate{intermediateCert, rootCert}
+	cache, err := cache.NewFileSystemCache(tempDir, time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
 	opts := Options{
 		CertChain:  certChain,
 		HTTPClient: http.DefaultClient,
-		Cache:      cache.NewFileSystemCache(tempDir),
+		Cache:      cache,
 	}
 
 	r := CertCheckStatus(intermediateCert, rootCert, opts)

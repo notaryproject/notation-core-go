@@ -5,25 +5,51 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"time"
 )
 
-const tempFileName = "notation-*"
+const (
+	// tempFileName is the prefix of the temporary file
+	tempFileName = "notation-*"
+
+	// defaultTTL is the default time to live for the cache
+	defaultTTL = 24 * 7 * time.Hour
+)
 
 // fileSystemCache builds on top of OS file system to leverage the file system
 // concurrency control and atomicity
 type fileSystemCache struct {
 	dir string
+	ttl time.Duration
 }
 
 // NewFileSystemCache creates a new file system store
-func NewFileSystemCache(dir string) Cache {
+func NewFileSystemCache(dir string, ttl time.Duration) (Cache, error) {
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return nil, err
+	}
+
+	if ttl == 0 {
+		ttl = defaultTTL
+	}
+
 	return &fileSystemCache{
 		dir: dir,
-	}
+		ttl: ttl,
+	}, nil
 }
 
 // Get retrieves the CRL from the store
 func (f *fileSystemCache) Get(fileName string) (io.ReadCloser, error) {
+	fileInfo, err := os.Stat(filepath.Join(f.dir, fileName))
+	if err != nil {
+		return nil, err
+	}
+
+	// check if the file is expired
+	if time.Since(fileInfo.ModTime()) > f.ttl {
+		return nil, os.ErrNotExist
+	}
 	return os.Open(filepath.Join(f.dir, fileName))
 }
 
@@ -93,11 +119,6 @@ func (c *fileSystemWriter) Close() error {
 	}
 
 	if !c.canceled {
-		// make directory
-		if err := os.MkdirAll(filepath.Dir(c.filePath), 0755); err != nil {
-			return err
-		}
-
 		fmt.Println("Renaming", c.tempFilePath, "to", c.filePath)
 		return os.Rename(c.tempFilePath, c.filePath)
 	}

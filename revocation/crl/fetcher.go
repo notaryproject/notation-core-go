@@ -32,6 +32,7 @@ func NewCachedFetcher(httpClient *http.Client, cache cache.Cache) Fetcher {
 
 // Fetch retrieves the CRL with the given URL
 func (c *cachedFetcher) Fetch(url string) (crlStore Store, err error) {
+	fmt.Println("fetching CRL from", url)
 	// try to get from cache
 	file, err := c.cache.Get(tarStoreName(url))
 	if err != nil {
@@ -61,7 +62,6 @@ func (c *cachedFetcher) Fetch(url string) (crlStore Store, err error) {
 }
 
 func (c *cachedFetcher) download(url string) (Store, error) {
-	fmt.Println("downloading CRL from", url)
 	// fetch from remote
 	resp, err := c.httpClient.Get(url)
 	if err != nil {

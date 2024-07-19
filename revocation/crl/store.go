@@ -40,17 +40,29 @@ type BaseCRLStore interface {
 // metadata.json: the metadata
 type tarStore struct {
 	baseCRL  *x509.RevocationList
-	metadata map[string]string
+	metadata metadata
 
 	cache cache.Cache
+}
+
+type metadata struct {
+	BaseCRL crlInfo `json:"base.crl"`
+}
+
+type crlInfo struct {
+	URL string `json:"url"`
 }
 
 // NewTarStore creates a new CRL store with tarball format
 func NewTarStore(baseCRL *x509.RevocationList, url string, cache cache.Cache) Store {
 	return &tarStore{
-		baseCRL:  baseCRL,
-		metadata: map[string]string{BaseCRL: url},
-		cache:    cache}
+		baseCRL: baseCRL,
+		metadata: metadata{
+			BaseCRL: crlInfo{
+				URL: url,
+			},
+		},
+		cache: cache}
 }
 
 // ParseTarStore parses the CRL tarball
@@ -86,7 +98,7 @@ func ParseTarStore(data io.Reader) (*tarStore, error) {
 			CRLTar.baseCRL = baseCRL
 		case Metadata:
 			// parse metadata
-			metadata := make(map[string]string)
+			var metadata metadata
 			if err := json.NewDecoder(tar).Decode(&metadata); err != nil {
 				return nil, err
 			}
@@ -102,12 +114,8 @@ func ParseTarStore(data io.Reader) (*tarStore, error) {
 		return nil, errors.New("base.crl is missing")
 	}
 
-	if CRLTar.metadata == nil {
-		return nil, errors.New("metadata.json is missing")
-	}
-
-	if _, ok := CRLTar.metadata[BaseCRL]; !ok {
-		return nil, errors.New("base.crl URL is missing")
+	if CRLTar.metadata.BaseCRL.URL == "" {
+		return nil, errors.New("base CRL's URL is missing from metadata.json")
 	}
 
 	return CRLTar, nil
@@ -118,11 +126,7 @@ func (c *tarStore) BaseCRL() *x509.RevocationList {
 }
 
 func (c *tarStore) Save() (err error) {
-	baseURL, ok := c.metadata[BaseCRL]
-	if !ok {
-		return errors.New("base.crl URL is missing")
-	}
-
+	baseURL := c.metadata.BaseCRL.URL
 	if c.isCached(baseURL) {
 		return nil
 	}
