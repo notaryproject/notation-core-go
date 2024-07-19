@@ -19,6 +19,9 @@ type Options struct {
 	Cache      cache.Cache
 }
 
+// CheckStatus checks the revocation status of the certificate chain.
+//
+// It caches the CRL and check the revocation status of the certificate chain.
 func CheckStatus(opts Options) ([]*result.CertRevocationResult, error) {
 	if opts.Cache == nil {
 		return nil, errors.New("cache is required")

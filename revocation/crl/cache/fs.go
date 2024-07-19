@@ -32,6 +32,22 @@ func (f *fileSystemCache) Set(filename string) (WriteCanceler, error) {
 	return newFileSystemWriter(filepath.Join(f.dir, filename))
 }
 
+// List returns the list of CRLs in the store
+func (f *fileSystemCache) List() ([]string, error) {
+	files, err := os.ReadDir(f.dir)
+	if err != nil {
+		return nil, err
+	}
+
+	var fileNames []string
+	for _, file := range files {
+		fileNames = append(fileNames, file.Name())
+	}
+
+	return fileNames, nil
+}
+
+// Delete removes the CRL from the store
 func (f *fileSystemCache) Delete(fileName string) error {
 	return os.Remove(filepath.Join(f.dir, fileName))
 }
@@ -77,6 +93,11 @@ func (c *fileSystemWriter) Close() error {
 	}
 
 	if !c.canceled {
+		// make directory
+		if err := os.MkdirAll(filepath.Dir(c.filePath), 0755); err != nil {
+			return err
+		}
+
 		fmt.Println("Renaming", c.tempFilePath, "to", c.filePath)
 		return os.Rename(c.tempFilePath, c.filePath)
 	}
