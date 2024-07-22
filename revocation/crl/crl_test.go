@@ -1,6 +1,7 @@
 package crl
 
 import (
+	"context"
 	"crypto/x509"
 	"net/http"
 	"os"
@@ -29,7 +30,7 @@ func TestValidCert(t *testing.T) {
 	}
 
 	t.Run("validate without cache", func(t *testing.T) {
-		r := CertCheckStatus(intermediateCert, rootCert, opts)
+		r := CertCheckStatus(context.Background(), intermediateCert, rootCert, opts)
 		if r.Error != nil {
 			t.Fatal(err)
 		}
@@ -39,7 +40,7 @@ func TestValidCert(t *testing.T) {
 	})
 
 	t.Run("validate with cache", func(t *testing.T) {
-		r := CertCheckStatus(intermediateCert, rootCert, opts)
+		r := CertCheckStatus(context.Background(), intermediateCert, rootCert, opts)
 		if r.Error != nil {
 			t.Fatal(err)
 		}
@@ -67,7 +68,7 @@ func TestRevoked(t *testing.T) {
 		HTTPClient: http.DefaultClient,
 	}
 
-	r := CertCheckStatus(intermediateCert, rootCert, opts)
+	r := CertCheckStatus(context.Background(), intermediateCert, rootCert, opts)
 	if r.Error != nil {
 		t.Fatal(r.Error)
 	}
@@ -95,7 +96,7 @@ func TestMSCert(t *testing.T) {
 		HTTPClient: http.DefaultClient,
 	}
 
-	r := CertCheckStatus(intermediateCert, rootCert, opts)
+	r := CertCheckStatus(context.Background(), intermediateCert, rootCert, opts)
 	if r.Error != nil {
 		t.Fatal(err)
 	}

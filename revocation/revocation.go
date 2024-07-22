@@ -16,6 +16,7 @@
 package revocation
 
 import (
+	"context"
 	"crypto/x509"
 	"errors"
 	"fmt"
@@ -74,6 +75,7 @@ func (r *revocation) Validate(certChain []*x509.Certificate, signingTime time.Ti
 	if len(certChain) == 0 {
 		return nil, result.InvalidChainError{Err: errors.New("chain does not contain any certificates")}
 	}
+	ctx := context.Background()
 
 	// Validate cert chain structure
 	// Since this is using authentic signing time, signing time may be zero.
@@ -100,8 +102,9 @@ func (r *revocation) Validate(certChain []*x509.Certificate, signingTime time.Ti
 	}
 
 	crlOpts := crl.Options{
-		CertChain:  certChain,
-		HTTPClient: r.httpClient,
+		CertChain:   certChain,
+		HTTPClient:  r.httpClient,
+		SigningTime: signingTime,
 	}
 
 	certResults := make([]*result.CertRevocationResult, len(certChain))
@@ -119,7 +122,7 @@ func (r *revocation) Validate(certChain []*x509.Certificate, signingTime time.Ti
 
 				// try CRL check if OCSP result is unknown
 				if ocspResult != nil && ocspResult.Result == result.ResultUnknown && crl.HasCRL(cert) {
-					crlResult := crl.CertCheckStatus(cert, certChain[i+1], crlOpts)
+					crlResult := crl.CertCheckStatus(ctx, cert, certChain[i+1], crlOpts)
 					crlResult.Error = result.OCSPFallbackError{
 						OCSPErr: ocspResult.Error,
 						CRLErr:  crlResult.Error,
@@ -136,7 +139,7 @@ func (r *revocation) Validate(certChain []*x509.Certificate, signingTime time.Ti
 			go func(i int, cert *x509.Certificate) {
 				defer wg.Done()
 
-				certResults[i] = crl.CertCheckStatus(cert, certChain[i+1], crlOpts)
+				certResults[i] = crl.CertCheckStatus(ctx, cert, certChain[i+1], crlOpts)
 			}(i, cert)
 		default:
 			certResults[i] = &result.CertRevocationResult{

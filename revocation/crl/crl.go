@@ -1,26 +1,35 @@
 package crl
 
 import (
+	"context"
 	"crypto/x509"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/notaryproject/notation-core-go/revocation/result"
 )
 
-// Options specifies values that are needed to check OCSP revocation
+// Options specifies values that are needed to check CRL
 type Options struct {
-	CertChain  []*x509.Certificate
-	HTTPClient *http.Client
+	CertChain   []*x509.Certificate
+	HTTPClient  *http.Client
+	SigningTime time.Time
 }
 
-func CertCheckStatus(cert, issuer *x509.Certificate, opts Options) *result.CertRevocationResult {
+// CertCheckStatus checks the revocation status of a certificate using CRL
+func CertCheckStatus(ctx context.Context, cert, issuer *x509.Certificate, opts Options) *result.CertRevocationResult {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	if opts.HTTPClient == nil {
 		opts.HTTPClient = http.DefaultClient
 	}
+
 	if !HasCRL(cert) {
 		return &result.CertRevocationResult{Error: errors.New("certificate does not support CRL")}
 	}
@@ -28,7 +37,7 @@ func CertCheckStatus(cert, issuer *x509.Certificate, opts Options) *result.CertR
 	// Check CRLs
 	crlResults := make([]*result.CRLResult, len(cert.CRLDistributionPoints))
 	for i, crlURL := range cert.CRLDistributionPoints {
-		baseCRL, err := download(crlURL, opts.HTTPClient)
+		baseCRL, err := download(ctx, crlURL, opts.HTTPClient)
 		if err != nil {
 			crlResults[i] = &result.CRLResult{
 				URL:   crlURL,
@@ -39,53 +48,14 @@ func CertCheckStatus(cert, issuer *x509.Certificate, opts Options) *result.CertR
 
 		err = validateCRL(baseCRL, issuer)
 		if err != nil {
-			crlResults[i] = &result.CRLResult{
-				URL:   crlURL,
-				Error: err,
-			}
-			continue
-		}
-
-		// check revocation
-		var (
-			revoked             bool
-			lastRevocationEntry x509.RevocationListEntry
-		)
-		for _, revocationEntry := range baseCRL.RevokedCertificateEntries {
-			if revocationEntry.SerialNumber.Cmp(cert.SerialNumber) == 0 {
-				if err := validateCRLEntry(revocationEntry); err != nil {
-					crlResults[i] = &result.CRLResult{
-						URL:   crlURL,
-						Error: err,
-					}
-					break
-				}
-
-				lastRevocationEntry = revocationEntry
-				if revocationEntry.ReasonCode == int(result.CRLReasonCodeCertificateHold) {
-					revoked = true
-				} else if revocationEntry.ReasonCode == int(result.CRLReasonCodeRemoveFromCRL) {
-					revoked = false
-				} else {
-					revoked = true
-					break
-				}
-			}
-		}
-		if revoked {
 			return &result.CertRevocationResult{
-				Result: result.ResultRevoked,
-				CRLResults: []*result.CRLResult{{
-					URL:            crlURL,
-					ReasonCode:     result.CRLReasonCode(lastRevocationEntry.ReasonCode),
-					RevocationTime: lastRevocationEntry.RevocationTime}},
+				Result:     result.ResultUnknown,
+				CRLResults: crlResults,
+				Error:      err,
 			}
 		}
 
-		return &result.CertRevocationResult{
-			Result:     result.ResultOK,
-			CRLResults: []*result.CRLResult{{URL: crlURL}},
-		}
+		return checkRevocation(cert, baseCRL, crlURL, opts.SigningTime)
 	}
 
 	return &result.CertRevocationResult{
@@ -95,9 +65,9 @@ func CertCheckStatus(cert, issuer *x509.Certificate, opts Options) *result.CertR
 }
 
 func validateCRL(crl *x509.RevocationList, issuer *x509.Certificate) error {
-	// check crl expiration
+	// after NextUpdate time, new CRL will be issued. (See RFC 5280, Section 5.1.2.5)
 	if time.Now().After(crl.NextUpdate) {
-		return errors.New("CRL is expired")
+		return fmt.Errorf("CRL is expired: %v", crl.NextUpdate)
 	}
 
 	// check signature
@@ -105,7 +75,7 @@ func validateCRL(crl *x509.RevocationList, issuer *x509.Certificate) error {
 		return fmt.Errorf("CRL signature verification failed: %v", err)
 	}
 
-	// check extensions
+	// unsupported critical extensions is not allowed. (See RFC 5280, Section 5.2)
 	for _, ext := range crl.Extensions {
 		if ext.Critical {
 			return fmt.Errorf("CRL contains unsupported critical extension: %v", ext.Id)
@@ -115,9 +85,65 @@ func validateCRL(crl *x509.RevocationList, issuer *x509.Certificate) error {
 	return nil
 }
 
-func validateCRLEntry(entry x509.RevocationListEntry) error {
-	// ensure all extension are non-critical
-	for _, ext := range entry.Extensions {
+func checkRevocation(cert *x509.Certificate, baseCRL *x509.RevocationList, crlURL string, signingTime time.Time) *result.CertRevocationResult {
+	// check revocation
+	var (
+		revoked             bool
+		lastRevocationEntry x509.RevocationListEntry
+	)
+	for _, revocationEntry := range baseCRL.RevokedCertificateEntries {
+		if revocationEntry.SerialNumber.Cmp(cert.SerialNumber) == 0 {
+			if err := validateRevocationEntry(revocationEntry); err != nil {
+				return &result.CertRevocationResult{
+					Result: result.ResultUnknown,
+					CRLResults: []*result.CRLResult{
+						{
+							URL:   crlURL,
+							Error: err,
+						},
+					},
+				}
+			}
+
+			// validate revocation time
+			if !revocationEntry.RevocationTime.IsZero() && signingTime.Before(revocationEntry.RevocationTime) {
+				// certificate is revoked after signing time, so it is valid
+				continue
+			}
+			lastRevocationEntry = revocationEntry
+
+			if revocationEntry.ReasonCode == int(result.CRLReasonCodeCertificateHold) {
+				// certificate is revoked but not permanently
+				revoked = true
+			} else if revocationEntry.ReasonCode == int(result.CRLReasonCodeRemoveFromCRL) {
+				// certificate has been removed from the CRL
+				revoked = false
+			} else {
+				// permanently revoked
+				revoked = true
+				break
+			}
+		}
+	}
+	if revoked {
+		return &result.CertRevocationResult{
+			Result: result.ResultRevoked,
+			CRLResults: []*result.CRLResult{{
+				URL:            crlURL,
+				ReasonCode:     result.CRLReasonCode(lastRevocationEntry.ReasonCode),
+				RevocationTime: lastRevocationEntry.RevocationTime}},
+		}
+	}
+
+	return &result.CertRevocationResult{
+		Result:     result.ResultOK,
+		CRLResults: []*result.CRLResult{{URL: crlURL}},
+	}
+}
+
+func validateRevocationEntry(entry x509.RevocationListEntry) error {
+	// unsupported critical extensions is not allowed. (See RFC 5280, Section 5.2)
+	for _, ext := range entry.ExtraExtensions {
 		if ext.Critical {
 			return fmt.Errorf("CRL entry contains unsupported critical extension: %v", ext.Id)
 		}
@@ -131,13 +157,33 @@ func HasCRL(cert *x509.Certificate) bool {
 	return len(cert.CRLDistributionPoints) > 0
 }
 
-func download(url string, httpClient *http.Client) (*x509.RevocationList, error) {
+func download(ctx context.Context, crlURL string, httpClient *http.Client) (*x509.RevocationList, error) {
+	// validate URL
+	parsedURL, err := url.Parse(crlURL)
+	if err != nil {
+		return nil, err
+	}
+
+	if parsedURL.Scheme != "http" {
+		return nil, fmt.Errorf("unsupported scheme: %s. Only supports CRL URL in HTTP protocol", parsedURL.Scheme)
+	}
+
 	// fetch from remote
-	resp, err := httpClient.Get(url)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, crlURL, nil)
+	if err != nil {
+		return nil, err
+
+	}
+
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("failed to download CRL from %s: %s", crlURL, resp.Status)
+	}
 
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
