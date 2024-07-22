@@ -15,7 +15,6 @@
 package result
 
 import (
-	"crypto/x509"
 	"fmt"
 	"strconv"
 	"time"
@@ -129,21 +128,19 @@ func (r CRLReasonCode) String() string {
 	}
 }
 
-// CRLStatus encapsulates the result of a CRL check
-type CRLStatus struct {
+// CRLResult encapsulates the result of a CRL check
+type CRLResult struct {
+	// URL is the URL of the CRL that was checked
+	URL string
+
 	// ReasonCode is the reason code for the CRL status
 	ReasonCode CRLReasonCode
 
 	// RevocationTime is the time at which the certificate was revoked
 	RevocationTime time.Time
-}
 
-// NewCRLStatus creates a CRLStatus object
-func NewCRLStatus(entity x509.RevocationListEntry) *CRLStatus {
-	return &CRLStatus{
-		ReasonCode:     CRLReasonCode(entity.ReasonCode),
-		RevocationTime: entity.RevocationTime,
-	}
+	// Error is set if there is an error associated with the revocation check
+	Error error
 }
 
 // CertRevocationResult encapsulates the result for a single certificate in the
@@ -168,8 +165,8 @@ type CertRevocationResult struct {
 	// status from being retrieved. These are all contained here for evaluation
 	ServerResults []*ServerResult
 
-	// CRLStatus is the result of the CRL check for this certificate
-	CRLStatus *CRLStatus
+	// CRLResults is the result of the CRL check for this certificate
+	CRLResults []*CRLResult
 
 	// Error is set if there is an error associated with the revocation check
 	Error error

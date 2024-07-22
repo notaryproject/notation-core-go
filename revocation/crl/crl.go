@@ -25,18 +25,24 @@ func CertCheckStatus(cert, issuer *x509.Certificate, opts Options) *result.CertR
 		return &result.CertRevocationResult{Error: errors.New("certificate does not support CRL")}
 	}
 
-	// Check CRL
-	var lastError error
-	for _, crlURL := range cert.CRLDistributionPoints {
+	// Check CRLs
+	crlResults := make([]*result.CRLResult, len(cert.CRLDistributionPoints))
+	for i, crlURL := range cert.CRLDistributionPoints {
 		baseCRL, err := download(crlURL, opts.HTTPClient)
 		if err != nil {
-			lastError = err
+			crlResults[i] = &result.CRLResult{
+				URL:   crlURL,
+				Error: err,
+			}
 			continue
 		}
 
 		err = validateCRL(baseCRL, issuer)
 		if err != nil {
-			lastError = err
+			crlResults[i] = &result.CRLResult{
+				URL:   crlURL,
+				Error: err,
+			}
 			continue
 		}
 
@@ -47,6 +53,14 @@ func CertCheckStatus(cert, issuer *x509.Certificate, opts Options) *result.CertR
 		)
 		for _, revocationEntry := range baseCRL.RevokedCertificateEntries {
 			if revocationEntry.SerialNumber.Cmp(cert.SerialNumber) == 0 {
+				if err := validateCRLEntry(revocationEntry); err != nil {
+					crlResults[i] = &result.CRLResult{
+						URL:   crlURL,
+						Error: err,
+					}
+					break
+				}
+
 				lastRevocationEntry = revocationEntry
 				if revocationEntry.ReasonCode == int(result.CRLReasonCodeCertificateHold) {
 					revoked = true
@@ -60,17 +74,24 @@ func CertCheckStatus(cert, issuer *x509.Certificate, opts Options) *result.CertR
 		}
 		if revoked {
 			return &result.CertRevocationResult{
-				Result:    result.ResultRevoked,
-				CRLStatus: result.NewCRLStatus(lastRevocationEntry),
+				Result: result.ResultRevoked,
+				CRLResults: []*result.CRLResult{{
+					URL:            crlURL,
+					ReasonCode:     result.CRLReasonCode(lastRevocationEntry.ReasonCode),
+					RevocationTime: lastRevocationEntry.RevocationTime}},
 			}
 		}
 
 		return &result.CertRevocationResult{
-			Result: result.ResultOK,
+			Result:     result.ResultOK,
+			CRLResults: []*result.CRLResult{{URL: crlURL}},
 		}
 	}
 
-	return &result.CertRevocationResult{Result: result.ResultUnknown, Error: lastError}
+	return &result.CertRevocationResult{
+		Result:     result.ResultUnknown,
+		CRLResults: crlResults,
+		Error:      crlResults[len(crlResults)-1].Error}
 }
 
 func validateCRL(crl *x509.RevocationList, issuer *x509.Certificate) error {
@@ -88,6 +109,17 @@ func validateCRL(crl *x509.RevocationList, issuer *x509.Certificate) error {
 	for _, ext := range crl.Extensions {
 		if ext.Critical {
 			return fmt.Errorf("CRL contains unsupported critical extension: %v", ext.Id)
+		}
+	}
+
+	return nil
+}
+
+func validateCRLEntry(entry x509.RevocationListEntry) error {
+	// ensure all extension are non-critical
+	for _, ext := range entry.Extensions {
+		if ext.Critical {
+			return fmt.Errorf("CRL entry contains unsupported critical extension: %v", ext.Id)
 		}
 	}
 
