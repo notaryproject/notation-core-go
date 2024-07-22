@@ -24,7 +24,6 @@ import (
 	"time"
 
 	"github.com/notaryproject/notation-core-go/revocation/crl"
-	"github.com/notaryproject/notation-core-go/revocation/crl/cache"
 	"github.com/notaryproject/notation-core-go/revocation/ocsp"
 	"github.com/notaryproject/notation-core-go/revocation/result"
 	coreX509 "github.com/notaryproject/notation-core-go/x509"
@@ -38,60 +37,33 @@ type Revocation interface {
 	Validate(certChain []*x509.Certificate, signingTime time.Time) ([]*result.CertRevocationResult, error)
 }
 
-type Options struct {
-	HttpClient       *http.Client
-	CertChainPurpose ocsp.Purpose
-	CRLCache         cache.Cache
-}
-
 // revocation is an internal struct used for revocation checking
 type revocation struct {
 	httpClient *http.Client
 
 	certChainPurpose ocsp.Purpose
-
-	// crlCache caches the CRL files; the default one is memory cache
-	crlCache cache.Cache
 }
 
 // New constructs a revocation object for code signing certificate chain
 func New(httpClient *http.Client) (Revocation, error) {
-	return NewWithOptions(Options{
-		HttpClient:       httpClient,
-		CertChainPurpose: ocsp.PurposeCodeSigning,
-		CRLCache:         cache.NewDummyCache(),
-	})
+	if httpClient == nil {
+		return nil, errors.New("invalid input: a non-nil httpClient must be specified")
+	}
+	return &revocation{
+		httpClient:       httpClient,
+		certChainPurpose: ocsp.PurposeCodeSigning,
+	}, nil
 }
 
 // NewTimestamp contructs a revocation object for timestamping certificate
 // chain
 func NewTimestamp(httpClient *http.Client) (Revocation, error) {
-	return NewWithOptions(Options{
-		HttpClient:       httpClient,
-		CertChainPurpose: ocsp.PurposeTimestamping,
-		CRLCache:         cache.NewDummyCache(),
-	})
-}
-
-func NewWithOptions(opts Options) (Revocation, error) {
-	if opts.HttpClient == nil {
+	if httpClient == nil {
 		return nil, errors.New("invalid input: a non-nil httpClient must be specified")
 	}
-
-	switch opts.CertChainPurpose {
-	case ocsp.PurposeCodeSigning, ocsp.PurposeTimestamping:
-	default:
-		return nil, errors.New("invalid input: unknown cert chain purpose")
-	}
-
-	if opts.CRLCache == nil {
-		opts.CRLCache = cache.NewDummyCache()
-	}
-
 	return &revocation{
-		httpClient:       opts.HttpClient,
-		certChainPurpose: opts.CertChainPurpose,
-		crlCache:         opts.CRLCache,
+		httpClient:       httpClient,
+		certChainPurpose: ocsp.PurposeTimestamping,
 	}, nil
 }
 
@@ -130,7 +102,6 @@ func (r *revocation) Validate(certChain []*x509.Certificate, signingTime time.Ti
 	crlOpts := crl.Options{
 		CertChain:  certChain,
 		HTTPClient: r.httpClient,
-		Cache:      r.crlCache,
 	}
 
 	certResults := make([]*result.CertRevocationResult, len(certChain))
@@ -188,29 +159,4 @@ func (r *revocation) Validate(certChain []*x509.Certificate, signingTime time.Ti
 	}
 	wg.Wait()
 	return certResults, nil
-}
-
-type OCSPRevocation interface {
-	ValidateOCSPOnly(certChain []*x509.Certificate, signingTime time.Time) ([]*result.CertRevocationResult, error)
-}
-
-func (r *revocation) ValidateOCSPOnly(certChain []*x509.Certificate, signingTime time.Time) ([]*result.CertRevocationResult, error) {
-	return ocsp.CheckStatus(ocsp.Options{
-		HTTPClient:       r.httpClient,
-		CertChain:        certChain,
-		SigningTime:      signingTime,
-		CertChainPurpose: r.certChainPurpose,
-	})
-}
-
-type CRLRevocation interface {
-	ValidateCRLOnly(certChain []*x509.Certificate, signingTime time.Time) ([]*result.CertRevocationResult, error)
-}
-
-func (r *revocation) ValidateCRLOnly(certChain []*x509.Certificate, signingTime time.Time) ([]*result.CertRevocationResult, error) {
-	return crl.CheckStatus(crl.Options{
-		HTTPClient: r.httpClient,
-		CertChain:  certChain,
-		Cache:      r.crlCache,
-	})
 }

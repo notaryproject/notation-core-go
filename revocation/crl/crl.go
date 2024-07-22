@@ -4,11 +4,10 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
-	"sync"
 	"time"
 
-	"github.com/notaryproject/notation-core-go/revocation/crl/cache"
 	"github.com/notaryproject/notation-core-go/revocation/result"
 )
 
@@ -16,48 +15,9 @@ import (
 type Options struct {
 	CertChain  []*x509.Certificate
 	HTTPClient *http.Client
-	Cache      cache.Cache
-}
-
-// CheckStatus checks the revocation status of the certificate chain.
-//
-// It caches the CRL and check the revocation status of the certificate chain.
-func CheckStatus(opts Options) ([]*result.CertRevocationResult, error) {
-	if opts.Cache == nil {
-		return nil, errors.New("cache is required")
-	}
-	if opts.HTTPClient == nil {
-		opts.HTTPClient = http.DefaultClient
-	}
-
-	certResult := make([]*result.CertRevocationResult, len(opts.CertChain))
-
-	var wg sync.WaitGroup
-	for i, cert := range opts.CertChain[:len(opts.CertChain)-1] {
-		wg.Add(1)
-		go func(i int, cert *x509.Certificate) {
-			defer wg.Done()
-			certResult[i] = CertCheckStatus(cert, opts.CertChain[i+1], opts)
-		}(i, cert)
-	}
-
-	// Last is root cert, which will never be revoked by OCSP
-	certResult[len(opts.CertChain)-1] = &result.CertRevocationResult{
-		Result: result.ResultNonRevokable,
-		ServerResults: []*result.ServerResult{{
-			Result: result.ResultNonRevokable,
-			Error:  nil,
-		}},
-	}
-
-	wg.Wait()
-	return certResult, nil
 }
 
 func CertCheckStatus(cert, issuer *x509.Certificate, opts Options) *result.CertRevocationResult {
-	if opts.Cache == nil {
-		return &result.CertRevocationResult{Error: errors.New("cache is required")}
-	}
 	if opts.HTTPClient == nil {
 		opts.HTTPClient = http.DefaultClient
 	}
@@ -65,30 +25,17 @@ func CertCheckStatus(cert, issuer *x509.Certificate, opts Options) *result.CertR
 		return &result.CertRevocationResult{Error: errors.New("certificate does not support CRL")}
 	}
 
-	crlFetcher := NewCachedFetcher(opts.HTTPClient, opts.Cache)
-
 	// Check CRL
 	var lastError error
 	for _, crlURL := range cert.CRLDistributionPoints {
-		crlStore, err := crlFetcher.Fetch(crlURL)
+		baseCRL, err := download(crlURL, opts.HTTPClient)
 		if err != nil {
 			lastError = err
 			continue
 		}
 
-		// validate CRL
-		baseCRLStore, ok := crlStore.(BaseCRLStore)
-		if !ok {
-			lastError = errors.New("invalid CRL store")
-			continue
-		}
-		err = validateCRL(baseCRLStore.BaseCRL(), issuer)
+		err = validateCRL(baseCRL, issuer)
 		if err != nil {
-			lastError = err
-			continue
-		}
-
-		if err := crlStore.Save(); err != nil {
 			lastError = err
 			continue
 		}
@@ -98,7 +45,7 @@ func CertCheckStatus(cert, issuer *x509.Certificate, opts Options) *result.CertR
 			revoked             bool
 			lastRevocationEntry x509.RevocationListEntry
 		)
-		for _, revocationEntry := range baseCRLStore.BaseCRL().RevokedCertificateEntries {
+		for _, revocationEntry := range baseCRL.RevokedCertificateEntries {
 			if revocationEntry.SerialNumber.Cmp(cert.SerialNumber) == 0 {
 				lastRevocationEntry = revocationEntry
 				if revocationEntry.ReasonCode == int(result.CRLReasonCodeCertificateHold) {
@@ -150,4 +97,20 @@ func validateCRL(crl *x509.RevocationList, issuer *x509.Certificate) error {
 // HasCRL checks if the certificate supports CRL.
 func HasCRL(cert *x509.Certificate) bool {
 	return len(cert.CRLDistributionPoints) > 0
+}
+
+func download(url string, httpClient *http.Client) (*x509.RevocationList, error) {
+	// fetch from remote
+	resp, err := httpClient.Get(url)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	return x509.ParseRevocationList(data)
 }

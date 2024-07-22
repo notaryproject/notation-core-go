@@ -6,15 +6,11 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
-	"github.com/notaryproject/notation-core-go/revocation/crl/cache"
 	"github.com/notaryproject/notation-core-go/revocation/result"
 )
 
 func TestValidCert(t *testing.T) {
-	tempDir := t.TempDir()
-
 	// read intermediate cert file
 	intermediateCert, err := loadCertFile(filepath.Join("testdata", "valid", "valid.cer"))
 	if err != nil {
@@ -27,14 +23,9 @@ func TestValidCert(t *testing.T) {
 	}
 
 	certChain := []*x509.Certificate{intermediateCert, rootCert}
-	cache, err := cache.NewFileSystemCache(tempDir, time.Hour)
-	if err != nil {
-		t.Fatal(err)
-	}
 	opts := Options{
 		CertChain:  certChain,
 		HTTPClient: http.DefaultClient,
-		Cache:      cache,
 	}
 
 	t.Run("validate without cache", func(t *testing.T) {
@@ -59,8 +50,6 @@ func TestValidCert(t *testing.T) {
 }
 
 func TestRevoked(t *testing.T) {
-	tempDir := t.TempDir()
-
 	// read intermediate cert file
 	intermediateCert, err := loadCertFile(filepath.Join("testdata", "revoked", "revoked.cer"))
 	if err != nil {
@@ -73,14 +62,9 @@ func TestRevoked(t *testing.T) {
 	}
 
 	certChain := []*x509.Certificate{intermediateCert, rootCert}
-	cache, err := cache.NewFileSystemCache(tempDir, time.Hour)
-	if err != nil {
-		t.Fatal(err)
-	}
 	opts := Options{
 		CertChain:  certChain,
 		HTTPClient: http.DefaultClient,
-		Cache:      cache,
 	}
 
 	r := CertCheckStatus(intermediateCert, rootCert, opts)
@@ -93,7 +77,6 @@ func TestRevoked(t *testing.T) {
 }
 
 func TestMSCert(t *testing.T) {
-	tempDir := t.TempDir()
 
 	// read intermediate cert file
 	intermediateCert, err := loadCertFile(filepath.Join("testdata", "ms", "msleaf.cer"))
@@ -107,14 +90,9 @@ func TestMSCert(t *testing.T) {
 	}
 
 	certChain := []*x509.Certificate{intermediateCert, rootCert}
-	cache, err := cache.NewFileSystemCache(tempDir, time.Hour)
-	if err != nil {
-		t.Fatal(err)
-	}
 	opts := Options{
 		CertChain:  certChain,
 		HTTPClient: http.DefaultClient,
-		Cache:      cache,
 	}
 
 	r := CertCheckStatus(intermediateCert, rootCert, opts)
