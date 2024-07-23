@@ -191,7 +191,7 @@ func getRevokableRSARootChainCertTuple(cn string, pathLen int) RSACertTuple {
 	template := getCertTemplate(true, true, false, cn)
 	template.BasicConstraintsValid = true
 	template.IsCA = true
-	template.KeyUsage = x509.KeyUsageCertSign
+	template.KeyUsage = x509.KeyUsageCertSign | x509.KeyUsageCRLSign
 	template.MaxPathLen = pathLen
 	return getRSACertTupleWithTemplate(template, pk, nil)
 }

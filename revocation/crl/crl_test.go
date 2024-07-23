@@ -1,10 +1,13 @@
 package crl
 
 import (
+	"bytes"
 	"context"
+	"crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"fmt"
+	"io"
 	"math/big"
 	"net/http"
 	"os"
@@ -13,6 +16,7 @@ import (
 	"time"
 
 	"github.com/notaryproject/notation-core-go/revocation/result"
+	"github.com/notaryproject/notation-core-go/testhelper"
 )
 
 func TestValidCert(t *testing.T) {
@@ -137,6 +141,20 @@ func TestCertCheckStatus(t *testing.T) {
 			t.Fatal("expected error")
 		}
 	})
+
+	t.Run("CRL validate failed", func(t *testing.T) {
+		cert := &x509.Certificate{
+			CRLDistributionPoints: []string{"http://example.com"},
+		}
+		r := CertCheckStatus(context.Background(), cert, &x509.Certificate{}, Options{
+			HTTPClient: &http.Client{
+				Transport: expiredCRLRoundTripperMock{},
+			},
+		})
+		if r.Error == nil {
+			t.Fatal("expected error")
+		}
+	})
 }
 
 func TestValidate(t *testing.T) {
@@ -161,13 +179,32 @@ func TestValidate(t *testing.T) {
 	})
 
 	t.Run("unsupported CRL critical extensions", func(t *testing.T) {
-		crl := &x509.RevocationList{
+		chain := testhelper.GetRevokableRSAChain(1, false, true)
+		issuerCert := chain[0].Cert
+		issuerKey := chain[0].PrivateKey
+
+		crlBytes, err := x509.CreateRevocationList(rand.Reader, &x509.RevocationList{
 			NextUpdate: time.Now().Add(time.Hour),
+			Number:     big.NewInt(20240720),
+		}, issuerCert, issuerKey)
+		if err != nil {
+			t.Fatal(err)
 		}
 
-		cert := &x509.Certificate{}
+		crl, err := x509.ParseRevocationList(crlBytes)
+		if err != nil {
+			t.Fatal(err)
+		}
 
-		if err := validate(crl, cert); err == nil {
+		// add unsupported critical extension
+		crl.Extensions = []pkix.Extension{
+			{
+				Id:       []int{1, 2, 3},
+				Critical: true,
+			},
+		}
+
+		if err := validate(crl, issuerCert); err == nil {
 			t.Fatal("expected error")
 		}
 	})
@@ -400,6 +437,27 @@ func (rt readFailedRoundTripperMock) RoundTrip(req *http.Request) (*http.Respons
 	return &http.Response{
 		StatusCode: http.StatusOK,
 		Body:       errorReaderMock{},
+	}, nil
+}
+
+type expiredCRLRoundTripperMock struct{}
+
+func (rt expiredCRLRoundTripperMock) RoundTrip(req *http.Request) (*http.Response, error) {
+	chain := testhelper.GetRevokableRSAChain(1, false, true)
+	issuerCert := chain[0].Cert
+	issuerKey := chain[0].PrivateKey
+
+	crlBytes, err := x509.CreateRevocationList(rand.Reader, &x509.RevocationList{
+		NextUpdate: time.Now().Add(-time.Hour),
+		Number:     big.NewInt(20240720),
+	}, issuerCert, issuerKey)
+	if err != nil {
+		return nil, err
+	}
+
+	return &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(bytes.NewBuffer(crlBytes)),
 	}, nil
 }
 
