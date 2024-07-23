@@ -226,7 +226,7 @@ func TestCheckRevocationStatusForRootCert(t *testing.T) {
 
 func TestCheckRevocationStatusForChain(t *testing.T) {
 	zeroTime := time.Time{}
-	testChain := testhelper.GetRevokableRSAChain(6)
+	testChain := testhelper.GetRevokableRSAChain(6, true, false)
 	revokableChain := make([]*x509.Certificate, 6)
 	for i, tuple := range testChain {
 		revokableChain[i] = tuple.Cert
@@ -705,7 +705,7 @@ func TestCheckRevocationErrors(t *testing.T) {
 	rootCertTuple := testhelper.GetRSARootCertificate()
 	noOCSPChain := []*x509.Certificate{leafCertTuple.Cert, rootCertTuple.Cert}
 
-	revokableTuples := testhelper.GetRevokableRSAChain(3)
+	revokableTuples := testhelper.GetRevokableRSAChain(3, true, false)
 	noRootChain := []*x509.Certificate{revokableTuples[0].Cert, revokableTuples[1].Cert}
 	backwardsChain := []*x509.Certificate{revokableTuples[2].Cert, revokableTuples[1].Cert, revokableTuples[0].Cert}
 	okChain := []*x509.Certificate{revokableTuples[0].Cert, revokableTuples[1].Cert, revokableTuples[2].Cert}
@@ -864,7 +864,7 @@ func TestCheckRevocationErrors(t *testing.T) {
 }
 
 func TestCheckRevocationInvalidChain(t *testing.T) {
-	revokableTuples := testhelper.GetRevokableRSAChain(4)
+	revokableTuples := testhelper.GetRevokableRSAChain(4, true, false)
 	misorderedIntermediateTuples := []testhelper.RSACertTuple{revokableTuples[1], revokableTuples[0], revokableTuples[2], revokableTuples[3]}
 	misorderedIntermediateChain := []*x509.Certificate{revokableTuples[1].Cert, revokableTuples[0].Cert, revokableTuples[2].Cert, revokableTuples[3].Cert}
 	for i, cert := range misorderedIntermediateChain {

@@ -102,7 +102,6 @@ func (r *revocation) Validate(certChain []*x509.Certificate, signingTime time.Ti
 	}
 
 	crlOpts := crl.Options{
-		CertChain:   certChain,
 		HTTPClient:  r.httpClient,
 		SigningTime: signingTime,
 	}

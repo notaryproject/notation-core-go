@@ -15,17 +15,12 @@ import (
 
 // Options specifies values that are needed to check CRL
 type Options struct {
-	CertChain   []*x509.Certificate
 	HTTPClient  *http.Client
 	SigningTime time.Time
 }
 
 // CertCheckStatus checks the revocation status of a certificate using CRL
 func CertCheckStatus(ctx context.Context, cert, issuer *x509.Certificate, opts Options) *result.CertRevocationResult {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-
 	if opts.HTTPClient == nil {
 		opts.HTTPClient = http.DefaultClient
 	}
@@ -46,7 +41,7 @@ func CertCheckStatus(ctx context.Context, cert, issuer *x509.Certificate, opts O
 			continue
 		}
 
-		err = validateCRL(baseCRL, issuer)
+		err = validate(baseCRL, issuer)
 		if err != nil {
 			return &result.CertRevocationResult{
 				Result:     result.ResultUnknown,
@@ -64,15 +59,15 @@ func CertCheckStatus(ctx context.Context, cert, issuer *x509.Certificate, opts O
 		Error:      crlResults[len(crlResults)-1].Error}
 }
 
-func validateCRL(crl *x509.RevocationList, issuer *x509.Certificate) error {
+func validate(crl *x509.RevocationList, issuer *x509.Certificate) error {
 	// after NextUpdate time, new CRL will be issued. (See RFC 5280, Section 5.1.2.5)
-	if time.Now().After(crl.NextUpdate) {
+	if !crl.NextUpdate.IsZero() && time.Now().After(crl.NextUpdate) {
 		return fmt.Errorf("CRL is expired: %v", crl.NextUpdate)
 	}
 
 	// check signature
 	if err := crl.CheckSignatureFrom(issuer); err != nil {
-		return fmt.Errorf("CRL signature verification failed: %v", err)
+		return fmt.Errorf("CRL signature verification failed: %w", err)
 	}
 
 	// unsupported critical extensions is not allowed. (See RFC 5280, Section 5.2)
@@ -85,6 +80,7 @@ func validateCRL(crl *x509.RevocationList, issuer *x509.Certificate) error {
 	return nil
 }
 
+// checkRevocation checks if the certificate is revoked or not
 func checkRevocation(cert *x509.Certificate, baseCRL *x509.RevocationList, crlURL string, signingTime time.Time) *result.CertRevocationResult {
 	// check revocation
 	var (
@@ -102,11 +98,12 @@ func checkRevocation(cert *x509.Certificate, baseCRL *x509.RevocationList, crlUR
 							Error: err,
 						},
 					},
+					Error: err,
 				}
 			}
 
 			// validate revocation time
-			if !revocationEntry.RevocationTime.IsZero() && signingTime.Before(revocationEntry.RevocationTime) {
+			if !signingTime.IsZero() && signingTime.Before(revocationEntry.RevocationTime) {
 				// certificate is revoked after signing time, so it is valid
 				continue
 			}
@@ -157,7 +154,7 @@ func HasCRL(cert *x509.Certificate) bool {
 	return len(cert.CRLDistributionPoints) > 0
 }
 
-func download(ctx context.Context, crlURL string, httpClient *http.Client) (*x509.RevocationList, error) {
+func download(ctx context.Context, crlURL string, client *http.Client) (*x509.RevocationList, error) {
 	// validate URL
 	parsedURL, err := url.Parse(crlURL)
 	if err != nil {
@@ -175,7 +172,7 @@ func download(ctx context.Context, crlURL string, httpClient *http.Client) (*x50
 
 	}
 
-	resp, err := httpClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}
