@@ -169,7 +169,6 @@ func download(ctx context.Context, crlURL string, client *http.Client) (*x509.Re
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, crlURL, nil)
 	if err != nil {
 		return nil, err
-
 	}
 
 	resp, err := client.Do(req)
