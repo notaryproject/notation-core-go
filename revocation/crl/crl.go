@@ -32,16 +32,29 @@ import (
 )
 
 var (
+	// oidInvalidityDate is the object identifier for the invalidity date
+	// CRL entry extension. (See RFC 5280, Section 5.3.1)
 	oidInvalidityDate = asn1.ObjectIdentifier{2, 5, 29, 24}
 )
 
 // Options specifies values that are needed to check CRL
 type Options struct {
-	HTTPClient  *http.Client
+	// HTTPClient is the HTTP client used to download CRL
+	HTTPClient *http.Client
+
+	// SigningTime is the time when the certificate's private key is used to
+	// sign the data.
 	SigningTime time.Time
 }
 
 // CertCheckStatus checks the revocation status of a certificate using CRL
+//
+// The function checks the revocation status of the certificate by downloading
+// the CRL from the CRL distribution points specified in the certificate.
+//
+// If the invalidity date extension is present in the CRL entry and SigningTime
+// is not zero, the certificate is considered revoked if the SigningTime is
+// after the invalidity date. (See RFC 5280, Section 5.3.2)
 func CertCheckStatus(ctx context.Context, cert, issuer *x509.Certificate, opts Options) *result.CertRevocationResult {
 	if opts.HTTPClient == nil {
 		return &result.CertRevocationResult{Error: errors.New("invalid input: a non-nil httpClient must be specified")}
@@ -57,7 +70,7 @@ func CertCheckStatus(ctx context.Context, cert, issuer *x509.Certificate, opts O
 		baseCRL, err := download(ctx, crlURL, opts.HTTPClient)
 		if err != nil {
 			crlResults[i] = &result.CRLResult{
-				Error: err,
+				Error: fmt.Errorf("failed to download CRL from %s: %w", crlURL, err),
 			}
 			continue
 		}
@@ -126,7 +139,7 @@ func checkRevocation(cert *x509.Certificate, baseCRL *x509.RevocationList, signi
 
 	for _, revocationEntry := range baseCRL.RevokedCertificateEntries {
 		if revocationEntry.SerialNumber.Cmp(cert.SerialNumber) == 0 {
-			extensions, err := parseEntryExtension(revocationEntry)
+			extensions, err := parseEntryExtensions(revocationEntry)
 			if err != nil {
 				return &result.CertRevocationResult{
 					Result: result.ResultUnknown,
@@ -193,9 +206,8 @@ type entryExtensions struct {
 	invalidityDate time.Time
 }
 
-func parseEntryExtension(entry x509.RevocationListEntry) (entryExtensions, error) {
+func parseEntryExtensions(entry x509.RevocationListEntry) (entryExtensions, error) {
 	extensions := entryExtensions{}
-	// unsupported critical extensions is not allowed. (See RFC 5280, Section 5.2)
 	for _, ext := range entry.ExtraExtensions {
 		switch {
 		case ext.Id.Equal(oidInvalidityDate):
@@ -211,6 +223,7 @@ func parseEntryExtension(entry x509.RevocationListEntry) (entryExtensions, error
 			extensions.invalidityDate = invalidityDate
 		default:
 			if ext.Critical {
+				// unsupported critical extensions is not allowed. (See RFC 5280, Section 5.2)
 				return entryExtensions{}, fmt.Errorf("CRL entry contains unsupported critical extension: %v", ext.Id)
 			}
 		}
@@ -223,7 +236,7 @@ func download(ctx context.Context, crlURL string, client *http.Client) (*x509.Re
 	// validate URL
 	parsedURL, err := url.Parse(crlURL)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("invalid CRL URL: %w", err)
 	}
 	if strings.ToLower(parsedURL.Scheme) != "http" {
 		return nil, fmt.Errorf("unsupported scheme: %s. Only supports CRL URL in HTTP protocol", parsedURL.Scheme)
@@ -242,7 +255,7 @@ func download(ctx context.Context, crlURL string, client *http.Client) (*x509.Re
 
 	// check response
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("failed to download CRL from %s: %s", crlURL, resp.Status)
+		return nil, fmt.Errorf("failed to download with status code: %d", resp.StatusCode)
 	}
 
 	// parse CRL

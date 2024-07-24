@@ -441,7 +441,7 @@ func TestParseEntryExtension(t *testing.T) {
 				},
 			},
 		}
-		if _, err := parseEntryExtension(entry); err == nil {
+		if _, err := parseEntryExtensions(entry); err == nil {
 			t.Fatal("expected error")
 		}
 	})
@@ -455,7 +455,7 @@ func TestParseEntryExtension(t *testing.T) {
 				},
 			},
 		}
-		if _, err := parseEntryExtension(entry); err != nil {
+		if _, err := parseEntryExtensions(entry); err != nil {
 			t.Fatal(err)
 		}
 	})
@@ -478,7 +478,7 @@ func TestParseEntryExtension(t *testing.T) {
 				},
 			},
 		}
-		extensions, err := parseEntryExtension(entry)
+		extensions, err := parseEntryExtensions(entry)
 		if err != nil {
 			t.Fatal(err)
 		}
