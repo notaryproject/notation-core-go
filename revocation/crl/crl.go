@@ -39,7 +39,7 @@ type Options struct {
 // CertCheckStatus checks the revocation status of a certificate using CRL
 func CertCheckStatus(ctx context.Context, cert, issuer *x509.Certificate, opts Options) *result.CertRevocationResult {
 	if opts.HTTPClient == nil {
-		opts.HTTPClient = http.DefaultClient
+		return &result.CertRevocationResult{Error: errors.New("invalid input: a non-nil httpClient must be specified")}
 	}
 
 	if !SupportCRL(cert) {

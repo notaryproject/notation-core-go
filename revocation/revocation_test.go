@@ -15,6 +15,7 @@ package revocation
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"crypto/x509"
 	"errors"
@@ -96,10 +97,8 @@ func getOKCertResult(server string) *result.CertRevocationResult {
 
 func getOKCertResultForCRL() *result.CertRevocationResult {
 	return &result.CertRevocationResult{
-		Result: result.ResultOK,
-		CRLResults: []*result.CRLResult{
-			{},
-		},
+		Result:     result.ResultOK,
+		CRLResults: []*result.CRLResult{},
 	}
 }
 
@@ -127,8 +126,8 @@ func TestNew(t *testing.T) {
 	revR, ok := r.(*revocation)
 	if !ok {
 		t.Error("Expected New to create an object matching the internal revocation struct")
-	} else if revR.httpClient != client {
-		t.Errorf("Expected New to set client to %v, but it was set to %v", client, revR.httpClient)
+	} else if revR.ocspHTTPClient != client {
+		t.Errorf("Expected New to set client to %v, but it was set to %v", client, revR.ocspHTTPClient)
 	}
 }
 
@@ -511,7 +510,8 @@ func TestCheckRevocationStatusForTimestampChain(t *testing.T) {
 
 	t.Run("invalid revocation purpose", func(t *testing.T) {
 		revocationClient := &revocation{
-			httpClient:       &http.Client{Timeout: 5 * time.Second},
+			ctx:              context.Background(),
+			ocspHTTPClient:   &http.Client{Timeout: 5 * time.Second},
 			certChainPurpose: -1,
 		}
 
@@ -982,14 +982,19 @@ func TestCRL(t *testing.T) {
 	t.Run("CRL check valid", func(t *testing.T) {
 		chain := testhelper.GetRevokableRSAChain(3, false, true)
 
-		revocationClient := &revocation{
-			httpClient: &http.Client{
+		revocationClient, err := NewWithOptions(&Options{
+			Ctx: context.Background(),
+			CRLHTTPClient: &http.Client{
 				Timeout: 5 * time.Second,
 				Transport: &crlRoundTripper{
 					CertChain: chain,
 					Revoked:   false,
 				},
 			},
+			OCSPHTTPClient: &http.Client{},
+		})
+		if err != nil {
+			t.Errorf("Expected successful creation of revocation, but received error: %v", err)
 		}
 
 		certResults, err := revocationClient.Validate([]*x509.Certificate{
@@ -1013,14 +1018,19 @@ func TestCRL(t *testing.T) {
 	t.Run("CRL check with revoked status", func(t *testing.T) {
 		chain := testhelper.GetRevokableRSAChain(3, false, true)
 
-		revocationClient := &revocation{
-			httpClient: &http.Client{
+		revocationClient, err := NewWithOptions(&Options{
+			Ctx: context.Background(),
+			CRLHTTPClient: &http.Client{
 				Timeout: 5 * time.Second,
 				Transport: &crlRoundTripper{
 					CertChain: chain,
 					Revoked:   true,
 				},
 			},
+			OCSPHTTPClient: &http.Client{},
+		})
+		if err != nil {
+			t.Errorf("Expected successful creation of revocation, but received error: %v", err)
 		}
 
 		certResults, err := revocationClient.Validate([]*x509.Certificate{
@@ -1058,8 +1068,9 @@ func TestCRL(t *testing.T) {
 	t.Run("OCSP fallback to CRL", func(t *testing.T) {
 		chain := testhelper.GetRevokableRSAChain(3, true, true)
 
-		revocationClient := &revocation{
-			httpClient: &http.Client{
+		revocationClient, err := NewWithOptions(&Options{
+			Ctx: context.Background(),
+			CRLHTTPClient: &http.Client{
 				Timeout: 5 * time.Second,
 				Transport: &crlRoundTripper{
 					CertChain: chain,
@@ -1067,6 +1078,10 @@ func TestCRL(t *testing.T) {
 					FailOCSP:  true,
 				},
 			},
+			OCSPHTTPClient: &http.Client{},
+		})
+		if err != nil {
+			t.Errorf("Expected successful creation of revocation, but received error: %v", err)
 		}
 
 		certResults, err := revocationClient.Validate([]*x509.Certificate{
@@ -1102,6 +1117,47 @@ func TestCRL(t *testing.T) {
 
 		validateEquivalentCertResults(certResults, expectedCertResults, t)
 	})
+}
+
+func TestNewWithOptions(t *testing.T) {
+	t.Run("nil ctx", func(t *testing.T) {
+		_, err := NewWithOptions(&Options{})
+		if err == nil {
+			t.Error("Expected NewWithOptions to fail with an error, but it succeeded")
+		}
+	})
+
+	t.Run("nil OCSP HTTP Client", func(t *testing.T) {
+		_, err := NewWithOptions(&Options{
+			Ctx: context.Background(),
+		})
+		if err == nil {
+			t.Error("Expected NewWithOptions to fail with an error, but it succeeded")
+		}
+	})
+
+	t.Run("nil CRL HTTP Client", func(t *testing.T) {
+		_, err := NewWithOptions(&Options{
+			Ctx:            context.Background(),
+			OCSPHTTPClient: &http.Client{},
+		})
+		if err == nil {
+			t.Error("Expected NewWithOptions to fail with an error, but it succeeded")
+		}
+	})
+
+	t.Run("invalid CertChainPurpose", func(t *testing.T) {
+		_, err := NewWithOptions(&Options{
+			Ctx:              context.Background(),
+			OCSPHTTPClient:   &http.Client{},
+			CRLHTTPClient:    &http.Client{},
+			CertChainPurpose: -1,
+		})
+		if err == nil {
+			t.Error("Expected NewWithOptions to fail with an error, but it succeeded")
+		}
+	})
+
 }
 
 type crlRoundTripper struct {

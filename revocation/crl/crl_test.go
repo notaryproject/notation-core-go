@@ -141,6 +141,15 @@ func TestCertCheckStatus(t *testing.T) {
 		}
 	})
 
+	t.Run("certificate does not support CRL", func(t *testing.T) {
+		r := CertCheckStatus(context.Background(), &x509.Certificate{}, &x509.Certificate{}, Options{
+			HTTPClient: http.DefaultClient,
+		})
+		if r.Error == nil {
+			t.Fatal("expected error")
+		}
+	})
+
 	t.Run("download error", func(t *testing.T) {
 		cert := &x509.Certificate{
 			CRLDistributionPoints: []string{"http://example.com"},
