@@ -42,5 +42,10 @@ func (e OCSPFallbackError) Error() string {
 	if e.OCSPErr != nil {
 		msg += fmt.Sprintf("; OCSP error: %v", e.OCSPErr)
 	}
+
+	if e.CRLErr != nil {
+		msg += fmt.Sprintf("; CRL error: %v", e.CRLErr)
+	}
+
 	return msg
 }

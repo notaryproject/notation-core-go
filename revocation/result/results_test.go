@@ -63,3 +63,38 @@ func TestNewServerResult(t *testing.T) {
 		t.Errorf("Expected %v but got %v", expectedR.Error, r.Error)
 	}
 }
+
+func TestCRLReasonCode(t *testing.T) {
+	expected := []struct {
+		code   int
+		reason string
+	}{
+		{0, "Unspecified"},
+		{1, "KeyCompromise"},
+		{2, "CACompromise"},
+		{3, "AffiliationChanged"},
+		{4, "Superseded"},
+		{5, "CessationOfOperation"},
+		{6, "CertificateHold"},
+		{8, "RemoveFromCRL"},
+		{9, "PrivilegeWithdrawn"},
+		{10, "AACompromise"},
+	}
+
+	for _, e := range expected {
+		reasonCode := CRLReasonCode(e.code)
+		if !reasonCode.Equal(e.code) || reasonCode.String() != e.reason {
+			t.Errorf("Expected %s but got %s", e.reason, CRLReasonCode(e.code).String())
+		}
+	}
+}
+
+func TestInvalidCRLReasonCode(t *testing.T) {
+	if CRLReasonCode(7).String() != "invalid reason code with value: 7" {
+		t.Errorf("Expected %s but got %s", "invalid reason code with value: 7", CRLReasonCode(7).String())
+	}
+
+	if CRLReasonCode(11).String() != "invalid reason code with value: 11" {
+		t.Errorf("Expected %s but got %s", "invalid reason code with value: 11", CRLReasonCode(11).String())
+	}
+}

@@ -37,3 +37,41 @@ func TestInvalidChainError(t *testing.T) {
 		}
 	})
 }
+
+func TestOCSPFallbackError(t *testing.T) {
+	t.Run("without_inner_error", func(t *testing.T) {
+		err := &OCSPFallbackError{}
+		expectedMsg := "the OCSP check result is of unknown status; fallback to CRL"
+
+		if err.Error() != expectedMsg {
+			t.Errorf("Expected %v but got %v", expectedMsg, err.Error())
+		}
+	})
+
+	t.Run("with_ocsp_error", func(t *testing.T) {
+		err := &OCSPFallbackError{OCSPErr: errors.New("ocsp error")}
+		expectedMsg := "the OCSP check result is of unknown status; fallback to CRL; OCSP error: ocsp error"
+
+		if err.Error() != expectedMsg {
+			t.Errorf("Expected %v but got %v", expectedMsg, err.Error())
+		}
+	})
+
+	t.Run("with_crl_error", func(t *testing.T) {
+		err := &OCSPFallbackError{CRLErr: errors.New("crl error")}
+		expectedMsg := "the OCSP check result is of unknown status; fallback to CRL; CRL error: crl error"
+
+		if err.Error() != expectedMsg {
+			t.Errorf("Expected %v but got %v", expectedMsg, err.Error())
+		}
+	})
+
+	t.Run("with_both_errors", func(t *testing.T) {
+		err := &OCSPFallbackError{OCSPErr: errors.New("ocsp error"), CRLErr: errors.New("crl error")}
+		expectedMsg := "the OCSP check result is of unknown status; fallback to CRL; OCSP error: ocsp error; CRL error: crl error"
+
+		if err.Error() != expectedMsg {
+			t.Errorf("Expected %v but got %v", expectedMsg, err.Error())
+		}
+	})
+}

@@ -116,7 +116,7 @@ func CheckStatus(opts Options) ([]*result.CertRevocationResult, error) {
 }
 
 func CertCheckStatus(cert, issuer *x509.Certificate, opts Options) *result.CertRevocationResult {
-	if !HasOCSP(cert) {
+	if !SupportOCSP(cert) {
 		// OCSP not enabled for this certificate.
 		return &result.CertRevocationResult{
 			Result:        result.ResultNonRevokable,
@@ -139,6 +139,11 @@ func CertCheckStatus(cert, issuer *x509.Certificate, opts Options) *result.CertR
 		serverResults[serverIndex] = serverResult
 	}
 	return serverResultsToCertRevocationResult(serverResults)
+}
+
+// SupportOCSP returns true if the certificate supports OCSP.
+func SupportOCSP(cert *x509.Certificate) bool {
+	return len(cert.OCSPServer) > 0
 }
 
 func checkStatusFromServer(cert, issuer *x509.Certificate, server string, opts Options) *result.ServerResult {
@@ -292,9 +297,4 @@ func serverResultsToCertRevocationResult(serverResults []*result.ServerResult) *
 		Result:        serverResults[len(serverResults)-1].Result,
 		ServerResults: serverResults,
 	}
-}
-
-// HasOCSP returns true if the certificate supports OCSP.
-func HasOCSP(cert *x509.Certificate) bool {
-	return len(cert.OCSPServer) > 0
 }

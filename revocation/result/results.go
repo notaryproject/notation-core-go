@@ -100,6 +100,11 @@ const (
 	CRLReasonCodeAACompromise
 )
 
+// Equal checks if the reason code is equal to the given reason code
+func (r CRLReasonCode) Equal(reasonCode int) bool {
+	return int(r) == reasonCode
+}
+
 // String provides a conversion from a ReasonCode to a string
 func (r CRLReasonCode) String() string {
 	switch r {
@@ -130,9 +135,6 @@ func (r CRLReasonCode) String() string {
 
 // CRLResult encapsulates the result of a CRL check
 type CRLResult struct {
-	// URL is the URL of the CRL that was checked
-	URL string
-
 	// ReasonCode is the reason code for the CRL status
 	ReasonCode CRLReasonCode
 

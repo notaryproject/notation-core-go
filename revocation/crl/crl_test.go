@@ -1,3 +1,16 @@
+// Copyright The Notary Project Authors.
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package crl
 
 import (
@@ -214,8 +227,21 @@ func TestCheckRevocation(t *testing.T) {
 	cert := &x509.Certificate{
 		SerialNumber: big.NewInt(1),
 	}
-	crlURL := "http://example.com"
 	signingTime := time.Now()
+
+	t.Run("certificate is nil", func(t *testing.T) {
+		r := checkRevocation(nil, &x509.RevocationList{}, signingTime)
+		if r.Error == nil {
+			t.Fatal("expected error")
+		}
+	})
+
+	t.Run("CRL is nil", func(t *testing.T) {
+		r := checkRevocation(cert, nil, signingTime)
+		if r.Error == nil {
+			t.Fatal("expected error")
+		}
+	})
 
 	t.Run("not revoked", func(t *testing.T) {
 		baseCRL := &x509.RevocationList{
@@ -225,7 +251,7 @@ func TestCheckRevocation(t *testing.T) {
 				},
 			},
 		}
-		r := checkRevocation(cert, baseCRL, crlURL, signingTime)
+		r := checkRevocation(cert, baseCRL, signingTime)
 		if r.Error != nil {
 			t.Fatal(r.Error)
 		}
@@ -244,7 +270,7 @@ func TestCheckRevocation(t *testing.T) {
 				},
 			},
 		}
-		r := checkRevocation(cert, baseCRL, crlURL, signingTime)
+		r := checkRevocation(cert, baseCRL, signingTime)
 		if r.Error != nil {
 			t.Fatal(r.Error)
 		}
@@ -263,7 +289,7 @@ func TestCheckRevocation(t *testing.T) {
 				},
 			},
 		}
-		r := checkRevocation(cert, baseCRL, crlURL, signingTime)
+		r := checkRevocation(cert, baseCRL, signingTime)
 		if r.Error != nil {
 			t.Fatal(r.Error)
 		}
@@ -282,7 +308,7 @@ func TestCheckRevocation(t *testing.T) {
 				},
 			},
 		}
-		r := checkRevocation(cert, baseCRL, crlURL, time.Time{})
+		r := checkRevocation(cert, baseCRL, time.Time{})
 		if r.Error != nil {
 			t.Fatal(r.Error)
 		}
@@ -297,21 +323,103 @@ func TestCheckRevocation(t *testing.T) {
 				{
 					SerialNumber:   big.NewInt(1),
 					ReasonCode:     int(result.CRLReasonCodeCertificateHold),
-					RevocationTime: time.Time{},
+					RevocationTime: time.Now().Add(-time.Hour),
 				},
 				{
 					SerialNumber:   big.NewInt(1),
 					ReasonCode:     int(result.CRLReasonCodeRemoveFromCRL),
-					RevocationTime: time.Time{},
+					RevocationTime: time.Now().Add(-time.Minute * 10),
 				},
 			},
 		}
-		r := checkRevocation(cert, baseCRL, crlURL, signingTime)
+		r := checkRevocation(cert, baseCRL, signingTime)
 		if r.Error != nil {
 			t.Fatal(r.Error)
 		}
 		if r.Result != result.ResultOK {
 			t.Fatalf("unexpected result, got %s", r.Result)
+		}
+	})
+
+	t.Run("revoked but not permanently with disordered entry list", func(t *testing.T) {
+		baseCRL := &x509.RevocationList{
+			RevokedCertificateEntries: []x509.RevocationListEntry{
+				{
+					SerialNumber:   big.NewInt(1),
+					ReasonCode:     int(result.CRLReasonCodeRemoveFromCRL),
+					RevocationTime: time.Now().Add(-time.Minute * 10),
+				},
+				{
+					SerialNumber:   big.NewInt(1),
+					ReasonCode:     int(result.CRLReasonCodeCertificateHold),
+					RevocationTime: time.Now().Add(-time.Hour),
+				},
+			},
+		}
+		r := checkRevocation(cert, baseCRL, signingTime)
+		if r.Error != nil {
+			t.Fatal(r.Error)
+		}
+		if r.Result != result.ResultOK {
+			t.Fatalf("unexpected result, got %s", r.Result)
+		}
+	})
+
+	t.Run("RemoveFromCRL before CertificateHold", func(t *testing.T) {
+		baseCRL := &x509.RevocationList{
+			RevokedCertificateEntries: []x509.RevocationListEntry{
+				{
+					SerialNumber:   big.NewInt(1),
+					ReasonCode:     int(result.CRLReasonCodeRemoveFromCRL),
+					RevocationTime: time.Now().Add(-time.Hour),
+				},
+				{
+					SerialNumber:   big.NewInt(1),
+					ReasonCode:     int(result.CRLReasonCodeCertificateHold),
+					RevocationTime: time.Now().Add(-time.Minute * 10),
+				},
+			},
+		}
+		r := checkRevocation(cert, baseCRL, signingTime)
+		if r.Error != nil {
+			t.Fatal(r.Error)
+		}
+		if r.Result != result.ResultRevoked {
+			t.Fatalf("expected revoked, got %s", r.Result)
+		}
+	})
+
+	t.Run("multiple CertificateHold with RemoveFromCRL and disordered entry list", func(t *testing.T) {
+		baseCRL := &x509.RevocationList{
+			RevokedCertificateEntries: []x509.RevocationListEntry{
+				{
+					SerialNumber:   big.NewInt(1),
+					ReasonCode:     int(result.CRLReasonCodeCertificateHold),
+					RevocationTime: time.Now().Add(-time.Minute * 20),
+				},
+				{
+					SerialNumber:   big.NewInt(1),
+					ReasonCode:     int(result.CRLReasonCodeRemoveFromCRL),
+					RevocationTime: time.Now().Add(-time.Hour),
+				},
+				{
+					SerialNumber:   big.NewInt(1),
+					ReasonCode:     int(result.CRLReasonCodeCertificateHold),
+					RevocationTime: time.Now().Add(-time.Minute * 50),
+				},
+				{
+					SerialNumber:   big.NewInt(1),
+					ReasonCode:     int(result.CRLReasonCodeRemoveFromCRL),
+					RevocationTime: time.Now().Add(-time.Minute * 40),
+				},
+			},
+		}
+		r := checkRevocation(cert, baseCRL, signingTime)
+		if r.Error != nil {
+			t.Fatal(r.Error)
+		}
+		if r.Result != result.ResultRevoked {
+			t.Fatalf("expected revoked, got %s", r.Result)
 		}
 	})
 
@@ -329,7 +437,7 @@ func TestCheckRevocation(t *testing.T) {
 				},
 			},
 		}
-		r := checkRevocation(cert, baseCRL, crlURL, signingTime)
+		r := checkRevocation(cert, baseCRL, signingTime)
 		if r.Error == nil {
 			t.Fatal("expected error")
 		}

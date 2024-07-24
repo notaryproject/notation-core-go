@@ -1,3 +1,18 @@
+// Copyright The Notary Project Authors.
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Package crl provides methods for checking the revocation status of a
+// certificate using CRL
 package crl
 
 import (
@@ -8,6 +23,8 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/notaryproject/notation-core-go/revocation/result"
@@ -25,7 +42,7 @@ func CertCheckStatus(ctx context.Context, cert, issuer *x509.Certificate, opts O
 		opts.HTTPClient = http.DefaultClient
 	}
 
-	if !HasCRL(cert) {
+	if !SupportCRL(cert) {
 		return &result.CertRevocationResult{Error: errors.New("certificate does not support CRL")}
 	}
 
@@ -35,7 +52,6 @@ func CertCheckStatus(ctx context.Context, cert, issuer *x509.Certificate, opts O
 		baseCRL, err := download(ctx, crlURL, opts.HTTPClient)
 		if err != nil {
 			crlResults[i] = &result.CRLResult{
-				URL:   crlURL,
 				Error: err,
 			}
 			continue
@@ -50,13 +66,18 @@ func CertCheckStatus(ctx context.Context, cert, issuer *x509.Certificate, opts O
 			}
 		}
 
-		return checkRevocation(cert, baseCRL, crlURL, opts.SigningTime)
+		return checkRevocation(cert, baseCRL, opts.SigningTime)
 	}
 
 	return &result.CertRevocationResult{
 		Result:     result.ResultUnknown,
 		CRLResults: crlResults,
 		Error:      crlResults[len(crlResults)-1].Error}
+}
+
+// SupportCRL checks if the certificate supports CRL.
+func SupportCRL(cert *x509.Certificate) bool {
+	return len(cert.CRLDistributionPoints) > 0
 }
 
 func validate(crl *x509.RevocationList, issuer *x509.Certificate) error {
@@ -81,12 +102,23 @@ func validate(crl *x509.RevocationList, issuer *x509.Certificate) error {
 }
 
 // checkRevocation checks if the certificate is revoked or not
-func checkRevocation(cert *x509.Certificate, baseCRL *x509.RevocationList, crlURL string, signingTime time.Time) *result.CertRevocationResult {
-	// check revocation
-	var (
-		revoked             bool
-		lastRevocationEntry x509.RevocationListEntry
-	)
+func checkRevocation(cert *x509.Certificate, baseCRL *x509.RevocationList, signingTime time.Time) *result.CertRevocationResult {
+	if cert == nil {
+		return &result.CertRevocationResult{Error: errors.New("certificate is nil")}
+	}
+
+	if baseCRL == nil {
+		return &result.CertRevocationResult{Error: errors.New("CRL is nil")}
+	}
+
+	// tempRevokedEntries contains revocation entries with reasons such as
+	// CertificateHold or RemoveFromCRL.
+	//
+	// If the certificate is revoked with CertificateHold, it is temporarily
+	// revoked. If the certificate is shown in the CRL with RemoveFromCRL,
+	// its revocation is no longer valid.
+	var tempRevokedEntries []x509.RevocationListEntry
+
 	for _, revocationEntry := range baseCRL.RevokedCertificateEntries {
 		if revocationEntry.SerialNumber.Cmp(cert.SerialNumber) == 0 {
 			if err := validateRevocationEntry(revocationEntry); err != nil {
@@ -94,7 +126,6 @@ func checkRevocation(cert *x509.Certificate, baseCRL *x509.RevocationList, crlUR
 					Result: result.ResultUnknown,
 					CRLResults: []*result.CRLResult{
 						{
-							URL:   crlURL,
 							Error: err,
 						},
 					},
@@ -104,37 +135,47 @@ func checkRevocation(cert *x509.Certificate, baseCRL *x509.RevocationList, crlUR
 
 			// validate revocation time
 			if !signingTime.IsZero() && signingTime.Before(revocationEntry.RevocationTime) {
-				// certificate is revoked after signing time, so it is valid
 				continue
 			}
-			lastRevocationEntry = revocationEntry
 
-			if revocationEntry.ReasonCode == int(result.CRLReasonCodeCertificateHold) {
-				// certificate is revoked but not permanently
-				revoked = true
-			} else if revocationEntry.ReasonCode == int(result.CRLReasonCodeRemoveFromCRL) {
-				// certificate has been removed from the CRL
-				revoked = false
+			if result.CRLReasonCodeCertificateHold.Equal(revocationEntry.ReasonCode) ||
+				result.CRLReasonCodeRemoveFromCRL.Equal(revocationEntry.ReasonCode) {
+				// temporarily revoked
+				tempRevokedEntries = append(tempRevokedEntries, revocationEntry)
 			} else {
 				// permanently revoked
-				revoked = true
-				break
+				return &result.CertRevocationResult{
+					Result: result.ResultRevoked,
+					CRLResults: []*result.CRLResult{{
+						ReasonCode:     result.CRLReasonCode(revocationEntry.ReasonCode),
+						RevocationTime: revocationEntry.RevocationTime}},
+				}
 			}
 		}
 	}
-	if revoked {
-		return &result.CertRevocationResult{
-			Result: result.ResultRevoked,
-			CRLResults: []*result.CRLResult{{
-				URL:            crlURL,
-				ReasonCode:     result.CRLReasonCode(lastRevocationEntry.ReasonCode),
-				RevocationTime: lastRevocationEntry.RevocationTime}},
+
+	// check if the revocation with CertificateHold or RemoveFromCRL
+	if len(tempRevokedEntries) > 0 {
+		// sort by revocation time (ascending order)
+		sort.Slice(tempRevokedEntries, func(i, j int) bool {
+			return tempRevokedEntries[i].RevocationTime.Before(tempRevokedEntries[j].RevocationTime)
+		})
+
+		// the revocation status depends on the most recent one
+		lastEntry := tempRevokedEntries[len(tempRevokedEntries)-1]
+		if !result.CRLReasonCodeRemoveFromCRL.Equal(lastEntry.ReasonCode) {
+			return &result.CertRevocationResult{
+				Result: result.ResultRevoked,
+				CRLResults: []*result.CRLResult{{
+					ReasonCode:     result.CRLReasonCode(lastEntry.ReasonCode),
+					RevocationTime: lastEntry.RevocationTime}},
+			}
 		}
 	}
 
 	return &result.CertRevocationResult{
 		Result:     result.ResultOK,
-		CRLResults: []*result.CRLResult{{URL: crlURL}},
+		CRLResults: []*result.CRLResult{},
 	}
 }
 
@@ -149,42 +190,36 @@ func validateRevocationEntry(entry x509.RevocationListEntry) error {
 	return nil
 }
 
-// HasCRL checks if the certificate supports CRL.
-func HasCRL(cert *x509.Certificate) bool {
-	return len(cert.CRLDistributionPoints) > 0
-}
-
 func download(ctx context.Context, crlURL string, client *http.Client) (*x509.RevocationList, error) {
 	// validate URL
 	parsedURL, err := url.Parse(crlURL)
 	if err != nil {
 		return nil, err
 	}
-
-	if parsedURL.Scheme != "http" {
+	if strings.ToLower(parsedURL.Scheme) != "http" {
 		return nil, fmt.Errorf("unsupported scheme: %s. Only supports CRL URL in HTTP protocol", parsedURL.Scheme)
 	}
 
-	// fetch from remote
+	// download CRL
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, crlURL, nil)
 	if err != nil {
 		return nil, err
 	}
-
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
 
+	// check response
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return nil, fmt.Errorf("failed to download CRL from %s: %s", crlURL, resp.Status)
 	}
 
+	// parse CRL
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}
-
 	return x509.ParseRevocationList(data)
 }
