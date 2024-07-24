@@ -15,9 +15,13 @@ name: License Checker
 
 on:
   push:
-    branches: *
+    branches:
+      - main
+      - crl
   pull_request:
-    branches: *
+    branches:
+      - main
+      - crl
 
 permissions:
   contents: write

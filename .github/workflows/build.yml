@@ -15,9 +15,13 @@ name: Build
 
 on:
   push:
-    branches: *
+    branches: 
+      - main
+      - crl
   pull_request:
-    branches: *
+    branches:
+      - main
+      - crl
 
 jobs:
   build:
