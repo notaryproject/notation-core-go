@@ -460,7 +460,7 @@ func TestParseEntryExtension(t *testing.T) {
 		}
 	})
 
-	t.Run("parse invalidityDate error", func(t *testing.T) {
+	t.Run("parse invalidityDate", func(t *testing.T) {
 
 		// create a time and marshal it to be generalizedTime
 		invalidityDate := time.Now()
@@ -485,6 +485,45 @@ func TestParseEntryExtension(t *testing.T) {
 
 		if extensions.invalidityDate.IsZero() {
 			t.Fatal("expected invalidityDate")
+		}
+	})
+
+	t.Run("parse invalidityDate with error", func(t *testing.T) {
+		// invalid invalidityDate extension
+		entry := x509.RevocationListEntry{
+			ExtraExtensions: []pkix.Extension{
+				{
+					Id:       oidInvalidityDate,
+					Critical: false,
+					Value:    []byte{0x00, 0x01, 0x02, 0x03},
+				},
+			},
+		}
+		_, err := parseEntryExtensions(entry)
+		if err == nil {
+			t.Fatal("expected error")
+		}
+
+		// invalidityDate extension with extra bytes
+		invalidityDate := time.Now()
+		invalidityDateBytes, err := marshalGeneralizedTimeToBytes(invalidityDate)
+		if err != nil {
+			t.Fatal(err)
+		}
+		invalidityDateBytes = append(invalidityDateBytes, 0x00)
+
+		entry = x509.RevocationListEntry{
+			ExtraExtensions: []pkix.Extension{
+				{
+					Id:       oidInvalidityDate,
+					Critical: false,
+					Value:    invalidityDateBytes,
+				},
+			},
+		}
+		_, err = parseEntryExtensions(entry)
+		if err == nil {
+			t.Fatal("expected error")
 		}
 	})
 }
