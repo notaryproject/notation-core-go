@@ -152,7 +152,7 @@ func checkRevocation(cert *x509.Certificate, baseCRL *x509.RevocationList, signi
 				}
 			}
 
-			// validate revocation time
+			// validate signingTime and invalidityDate
 			if !signingTime.IsZero() && !extensions.invalidityDate.IsZero() &&
 				signingTime.Before(extensions.invalidityDate) {
 				// signing time is before the invalidity date which means the

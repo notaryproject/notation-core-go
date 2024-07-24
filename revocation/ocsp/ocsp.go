@@ -115,6 +115,7 @@ func CheckStatus(opts Options) ([]*result.CertRevocationResult, error) {
 	return certResults, nil
 }
 
+// CertCheckStatus checks the revocation status of a certificate using OCSP
 func CertCheckStatus(cert, issuer *x509.Certificate, opts Options) *result.CertRevocationResult {
 	if !SupportOCSP(cert) {
 		// OCSP not enabled for this certificate.
