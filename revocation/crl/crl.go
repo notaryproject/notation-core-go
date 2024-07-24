@@ -18,6 +18,7 @@ package crl
 import (
 	"context"
 	"crypto/x509"
+	"encoding/asn1"
 	"errors"
 	"fmt"
 	"io"
@@ -28,6 +29,10 @@ import (
 	"time"
 
 	"github.com/notaryproject/notation-core-go/revocation/result"
+)
+
+var (
+	oidInvalidityDate = asn1.ObjectIdentifier{2, 5, 29, 24}
 )
 
 // Options specifies values that are needed to check CRL
@@ -121,7 +126,8 @@ func checkRevocation(cert *x509.Certificate, baseCRL *x509.RevocationList, signi
 
 	for _, revocationEntry := range baseCRL.RevokedCertificateEntries {
 		if revocationEntry.SerialNumber.Cmp(cert.SerialNumber) == 0 {
-			if err := validateRevocationEntry(revocationEntry); err != nil {
+			extensions, err := parseEntryExtension(revocationEntry)
+			if err != nil {
 				return &result.CertRevocationResult{
 					Result: result.ResultUnknown,
 					CRLResults: []*result.CRLResult{
@@ -134,7 +140,10 @@ func checkRevocation(cert *x509.Certificate, baseCRL *x509.RevocationList, signi
 			}
 
 			// validate revocation time
-			if !signingTime.IsZero() && signingTime.Before(revocationEntry.RevocationTime) {
+			if !signingTime.IsZero() && !extensions.invalidityDate.IsZero() &&
+				signingTime.Before(extensions.invalidityDate) {
+				// signing time is before the invalidity date which means the
+				// certificate is not revoked at the time of signing.
 				continue
 			}
 
@@ -179,15 +188,35 @@ func checkRevocation(cert *x509.Certificate, baseCRL *x509.RevocationList, signi
 	}
 }
 
-func validateRevocationEntry(entry x509.RevocationListEntry) error {
+type entryExtensions struct {
+	// invalidityDate is the date when the key is invalid.
+	invalidityDate time.Time
+}
+
+func parseEntryExtension(entry x509.RevocationListEntry) (entryExtensions, error) {
+	extensions := entryExtensions{}
 	// unsupported critical extensions is not allowed. (See RFC 5280, Section 5.2)
 	for _, ext := range entry.ExtraExtensions {
-		if ext.Critical {
-			return fmt.Errorf("CRL entry contains unsupported critical extension: %v", ext.Id)
+		switch {
+		case ext.Id.Equal(oidInvalidityDate):
+			var invalidityDate time.Time
+			rest, err := asn1.UnmarshalWithParams(ext.Value, &invalidityDate, "generalized")
+			if err != nil {
+				return entryExtensions{}, fmt.Errorf("failed to parse invalidity date: %w", err)
+			}
+			if len(rest) > 0 {
+				return entryExtensions{}, fmt.Errorf("invalid invalidity date extension")
+			}
+
+			extensions.invalidityDate = invalidityDate
+		default:
+			if ext.Critical {
+				return entryExtensions{}, fmt.Errorf("CRL entry contains unsupported critical extension: %v", ext.Id)
+			}
 		}
 	}
 
-	return nil
+	return extensions, nil
 }
 
 func download(ctx context.Context, crlURL string, client *http.Client) (*x509.RevocationList, error) {

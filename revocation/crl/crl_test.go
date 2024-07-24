@@ -19,6 +19,7 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/asn1"
 	"fmt"
 	"io"
 	"math/big"
@@ -216,13 +217,28 @@ func TestCheckRevocation(t *testing.T) {
 		}
 	})
 
-	t.Run("revoked but signing time is before revocation time", func(t *testing.T) {
+	t.Run("revoked but signing time is before invalidityDate", func(t *testing.T) {
+		invalidityDate := time.Now().Add(time.Hour)
+		invalidityDateBytes, err := marshalGeneralizedTimeToBytes(invalidityDate)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		extensions := []pkix.Extension{
+			{
+				Id:       oidInvalidityDate,
+				Critical: false,
+				Value:    invalidityDateBytes,
+			},
+		}
+
 		baseCRL := &x509.RevocationList{
 			RevokedCertificateEntries: []x509.RevocationListEntry{
 				{
-					SerialNumber:   big.NewInt(1),
-					ReasonCode:     int(result.CRLReasonCodeCertificateHold),
-					RevocationTime: time.Now().Add(time.Hour),
+					SerialNumber:    big.NewInt(1),
+					ReasonCode:      int(result.CRLReasonCodeCertificateHold),
+					RevocationTime:  time.Now().Add(time.Hour),
+					ExtraExtensions: extensions,
 				},
 			},
 		}
@@ -232,6 +248,40 @@ func TestCheckRevocation(t *testing.T) {
 		}
 		if r.Result != result.ResultOK {
 			t.Fatalf("unexpected result, got %s", r.Result)
+		}
+	})
+
+	t.Run("revoked; signing time is after invalidityDate", func(t *testing.T) {
+		invalidityDate := time.Now().Add(-time.Hour)
+		invalidityDateBytes, err := marshalGeneralizedTimeToBytes(invalidityDate)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		extensions := []pkix.Extension{
+			{
+				Id:       oidInvalidityDate,
+				Critical: false,
+				Value:    invalidityDateBytes,
+			},
+		}
+
+		baseCRL := &x509.RevocationList{
+			RevokedCertificateEntries: []x509.RevocationListEntry{
+				{
+					SerialNumber:    big.NewInt(1),
+					ReasonCode:      int(result.CRLReasonCodeCertificateHold),
+					RevocationTime:  time.Now().Add(-time.Hour),
+					ExtraExtensions: extensions,
+				},
+			},
+		}
+		r := checkRevocation(cert, baseCRL, signingTime)
+		if r.Error != nil {
+			t.Fatal(r.Error)
+		}
+		if r.Result != result.ResultRevoked {
+			t.Fatalf("expected revoked, got %s", r.Result)
 		}
 	})
 
@@ -381,8 +431,8 @@ func TestCheckRevocation(t *testing.T) {
 	})
 }
 
-func TestValidateRevocationEntry(t *testing.T) {
-	t.Run("invalid extension", func(t *testing.T) {
+func TestParseEntryExtension(t *testing.T) {
+	t.Run("unsupported critical extension", func(t *testing.T) {
 		entry := x509.RevocationListEntry{
 			ExtraExtensions: []pkix.Extension{
 				{
@@ -391,7 +441,7 @@ func TestValidateRevocationEntry(t *testing.T) {
 				},
 			},
 		}
-		if err := validateRevocationEntry(entry); err == nil {
+		if _, err := parseEntryExtension(entry); err == nil {
 			t.Fatal("expected error")
 		}
 	})
@@ -405,10 +455,46 @@ func TestValidateRevocationEntry(t *testing.T) {
 				},
 			},
 		}
-		if err := validateRevocationEntry(entry); err != nil {
+		if _, err := parseEntryExtension(entry); err != nil {
 			t.Fatal(err)
 		}
 	})
+
+	t.Run("parse invalidityDate error", func(t *testing.T) {
+
+		// create a time and marshal it to be generalizedTime
+		invalidityDate := time.Now()
+		invalidityDateBytes, err := marshalGeneralizedTimeToBytes(invalidityDate)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		entry := x509.RevocationListEntry{
+			ExtraExtensions: []pkix.Extension{
+				{
+					Id:       oidInvalidityDate,
+					Critical: false,
+					Value:    invalidityDateBytes,
+				},
+			},
+		}
+		extensions, err := parseEntryExtension(entry)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if extensions.invalidityDate.IsZero() {
+			t.Fatal("expected invalidityDate")
+		}
+	})
+}
+
+// marshalGeneralizedTimeToBytes converts a time.Time to ASN.1 GeneralizedTime bytes.
+func marshalGeneralizedTimeToBytes(t time.Time) ([]byte, error) {
+	// ASN.1 GeneralizedTime requires the time to be in UTC
+	t = t.UTC()
+	// Use asn1.Marshal to directly get the ASN.1 GeneralizedTime bytes
+	return asn1.Marshal(t)
 }
 
 func TestDownload(t *testing.T) {

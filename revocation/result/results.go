@@ -83,7 +83,7 @@ func NewServerResult(result Result, server string, err error) *ServerResult {
 	}
 }
 
-// CRLReasonCode is CRL reason code
+// CRLReasonCode is CRL reason code (See RFC 5280, section 5.3.1)
 type CRLReasonCode int
 
 const (

@@ -32,9 +32,14 @@ func (e InvalidChainError) Error() string {
 	return msg
 }
 
+// OCSPFallbackErro is returned when the OCSP check result is of unknown status
+// and falls back to CRL
 type OCSPFallbackError struct {
+	// OCSPErr is the error that occurred during the OCSP check
 	OCSPErr error
-	CRLErr  error
+
+	// CRLErr is the error that occurred during the CRL check
+	CRLErr error
 }
 
 func (e OCSPFallbackError) Error() string {
