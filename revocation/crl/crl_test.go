@@ -23,115 +23,12 @@ import (
 	"io"
 	"math/big"
 	"net/http"
-	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/notaryproject/notation-core-go/revocation/result"
 	"github.com/notaryproject/notation-core-go/testhelper"
 )
-
-func TestValidCert(t *testing.T) {
-	// read intermediate cert file
-	intermediateCert, err := loadCertFile(filepath.Join("testdata", "valid", "valid.cer"))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	rootCert, err := loadCertFile(filepath.Join("testdata", "valid", "root.cer"))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	opts := Options{
-		HTTPClient: http.DefaultClient,
-	}
-
-	t.Run("validate without cache", func(t *testing.T) {
-		r := CertCheckStatus(context.Background(), intermediateCert, rootCert, opts)
-		if r.Error != nil {
-			t.Fatal(err)
-		}
-		if r.Result != result.ResultOK {
-			t.Fatal("unexpected result")
-		}
-	})
-
-	t.Run("validate with cache", func(t *testing.T) {
-		r := CertCheckStatus(context.Background(), intermediateCert, rootCert, opts)
-		if r.Error != nil {
-			t.Fatal(err)
-		}
-		if r.Result != result.ResultOK {
-			t.Fatal("unexpected result")
-		}
-	})
-}
-
-func TestRevoked(t *testing.T) {
-	// read intermediate cert file
-	intermediateCert, err := loadCertFile(filepath.Join("testdata", "revoked", "revoked.cer"))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	rootCert, err := loadCertFile(filepath.Join("testdata", "revoked", "root.cer"))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	opts := Options{
-		HTTPClient: http.DefaultClient,
-	}
-
-	r := CertCheckStatus(context.Background(), intermediateCert, rootCert, opts)
-	if r.Error != nil {
-		t.Fatal(r.Error)
-	}
-	if r.Result != result.ResultRevoked {
-		t.Fatalf("unexpected result, got %s", r.Result)
-	}
-}
-
-func TestMSCert(t *testing.T) {
-
-	// read intermediate cert file
-	intermediateCert, err := loadCertFile(filepath.Join("testdata", "ms", "msleaf.cer"))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	rootCert, err := loadCertFile(filepath.Join("testdata", "ms", "msintermediate.cer"))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	opts := Options{
-		HTTPClient: http.DefaultClient,
-	}
-
-	r := CertCheckStatus(context.Background(), intermediateCert, rootCert, opts)
-	if r.Error != nil {
-		t.Fatal(err)
-	}
-	if r.Result != result.ResultOK {
-		t.Fatal("unexpected result")
-	}
-}
-
-func loadCertFile(certPath string) (*x509.Certificate, error) {
-	intermediateCert, err := os.ReadFile(certPath)
-	if err != nil {
-		return nil, err
-	}
-
-	cert, err := x509.ParseCertificate(intermediateCert)
-	if err != nil {
-		return nil, err
-	}
-	return cert, nil
-}
 
 func TestCertCheckStatus(t *testing.T) {
 	t.Run("http client is nil", func(t *testing.T) {
@@ -176,6 +73,37 @@ func TestCertCheckStatus(t *testing.T) {
 		if r.Error == nil {
 			t.Fatal("expected error")
 		}
+	})
+
+	t.Run("revoked", func(t *testing.T) {
+		chain := testhelper.GetRevokableRSAChain(2, false, true)
+		issuerCert := chain[1].Cert
+		issuerKey := chain[1].PrivateKey
+
+		crlBytes, err := x509.CreateRevocationList(rand.Reader, &x509.RevocationList{
+			NextUpdate: time.Now().Add(time.Hour),
+			Number:     big.NewInt(20240720),
+			RevokedCertificateEntries: []x509.RevocationListEntry{
+				{
+					SerialNumber:   chain[0].Cert.SerialNumber,
+					RevocationTime: time.Now().Add(-time.Hour),
+					ReasonCode:     int(result.CRLReasonCodeUnspecified),
+				},
+			},
+		}, issuerCert, issuerKey)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		r := CertCheckStatus(context.Background(), chain[0].Cert, issuerCert, Options{
+			HTTPClient: &http.Client{
+				Transport: expectedRoundTripperMock{Body: crlBytes},
+			},
+		})
+		if r.Result != result.ResultRevoked {
+			t.Fatalf("expected revoked, got %s", r.Result)
+		}
+
 	})
 }
 
@@ -586,4 +514,15 @@ func (r errorReaderMock) Read(p []byte) (n int, err error) {
 
 func (r errorReaderMock) Close() error {
 	return nil
+}
+
+type expectedRoundTripperMock struct {
+	Body []byte
+}
+
+func (rt expectedRoundTripperMock) RoundTrip(req *http.Request) (*http.Response, error) {
+	return &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(bytes.NewBuffer(rt.Body)),
+	}, nil
 }
