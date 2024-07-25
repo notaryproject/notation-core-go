@@ -41,9 +41,6 @@ type Revocation interface {
 
 // Options specifies values that are needed to check revocation
 type Options struct {
-	// Ctx is a required context used for the revocation check
-	Ctx context.Context
-
 	// OCSPHTTPClient is a required HTTP client for OCSP request
 	OCSPHTTPClient *http.Client
 
@@ -68,8 +65,7 @@ func New(httpClient *http.Client) (Revocation, error) {
 		return nil, errors.New("invalid input: a non-nil httpClient must be specified")
 	}
 
-	return NewWithOptions(&Options{
-		Ctx:              context.Background(),
+	return NewWithOptions(context.Background(), &Options{
 		OCSPHTTPClient:   httpClient,
 		CRLHTTPClient:    httpClient,
 		CertChainPurpose: ocsp.PurposeCodeSigning,
@@ -83,8 +79,7 @@ func NewTimestamp(httpClient *http.Client) (Revocation, error) {
 		return nil, errors.New("invalid input: a non-nil httpClient must be specified")
 	}
 
-	return NewWithOptions(&Options{
-		Ctx:              context.Background(),
+	return NewWithOptions(context.Background(), &Options{
 		OCSPHTTPClient:   httpClient,
 		CRLHTTPClient:    httpClient,
 		CertChainPurpose: ocsp.PurposeTimestamping,
@@ -92,8 +87,8 @@ func NewTimestamp(httpClient *http.Client) (Revocation, error) {
 }
 
 // NewWithOptions constructs a revocation object with the specified options
-func NewWithOptions(opts *Options) (Revocation, error) {
-	if opts.Ctx == nil {
+func NewWithOptions(ctx context.Context, opts *Options) (Revocation, error) {
+	if ctx == nil {
 		return nil, errors.New("invalid input: a non-nil context must be specified")
 	}
 
@@ -112,7 +107,7 @@ func NewWithOptions(opts *Options) (Revocation, error) {
 	}
 
 	return &revocation{
-		ctx:              opts.Ctx,
+		ctx:              ctx,
 		ocspHTTPClient:   opts.OCSPHTTPClient,
 		crlHTTPClient:    opts.CRLHTTPClient,
 		certChainPurpose: opts.CertChainPurpose,

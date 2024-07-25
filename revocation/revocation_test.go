@@ -982,8 +982,7 @@ func TestCRL(t *testing.T) {
 	t.Run("CRL check valid", func(t *testing.T) {
 		chain := testhelper.GetRevokableRSAChain(3, false, true)
 
-		revocationClient, err := NewWithOptions(&Options{
-			Ctx: context.Background(),
+		revocationClient, err := NewWithOptions(context.Background(), &Options{
 			CRLHTTPClient: &http.Client{
 				Timeout: 5 * time.Second,
 				Transport: &crlRoundTripper{
@@ -1018,8 +1017,7 @@ func TestCRL(t *testing.T) {
 	t.Run("CRL check with revoked status", func(t *testing.T) {
 		chain := testhelper.GetRevokableRSAChain(3, false, true)
 
-		revocationClient, err := NewWithOptions(&Options{
-			Ctx: context.Background(),
+		revocationClient, err := NewWithOptions(context.Background(), &Options{
 			CRLHTTPClient: &http.Client{
 				Timeout: 5 * time.Second,
 				Transport: &crlRoundTripper{
@@ -1068,8 +1066,7 @@ func TestCRL(t *testing.T) {
 	t.Run("OCSP fallback to CRL", func(t *testing.T) {
 		chain := testhelper.GetRevokableRSAChain(3, true, true)
 
-		revocationClient, err := NewWithOptions(&Options{
-			Ctx: context.Background(),
+		revocationClient, err := NewWithOptions(context.Background(), &Options{
 			CRLHTTPClient: &http.Client{
 				Timeout: 5 * time.Second,
 				Transport: &crlRoundTripper{
@@ -1121,24 +1118,21 @@ func TestCRL(t *testing.T) {
 
 func TestNewWithOptions(t *testing.T) {
 	t.Run("nil ctx", func(t *testing.T) {
-		_, err := NewWithOptions(&Options{})
+		_, err := NewWithOptions(context.Background(), &Options{})
 		if err == nil {
 			t.Error("Expected NewWithOptions to fail with an error, but it succeeded")
 		}
 	})
 
 	t.Run("nil OCSP HTTP Client", func(t *testing.T) {
-		_, err := NewWithOptions(&Options{
-			Ctx: context.Background(),
-		})
+		_, err := NewWithOptions(context.Background(), &Options{})
 		if err == nil {
 			t.Error("Expected NewWithOptions to fail with an error, but it succeeded")
 		}
 	})
 
 	t.Run("nil CRL HTTP Client", func(t *testing.T) {
-		_, err := NewWithOptions(&Options{
-			Ctx:            context.Background(),
+		_, err := NewWithOptions(context.Background(), &Options{
 			OCSPHTTPClient: &http.Client{},
 		})
 		if err == nil {
@@ -1147,8 +1141,7 @@ func TestNewWithOptions(t *testing.T) {
 	})
 
 	t.Run("invalid CertChainPurpose", func(t *testing.T) {
-		_, err := NewWithOptions(&Options{
-			Ctx:              context.Background(),
+		_, err := NewWithOptions(context.Background(), &Options{
 			OCSPHTTPClient:   &http.Client{},
 			CRLHTTPClient:    &http.Client{},
 			CertChainPurpose: -1,
