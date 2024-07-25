@@ -33,7 +33,7 @@ import (
 
 var (
 	// oidInvalidityDate is the object identifier for the invalidity date
-	// CRL entry extension. (See RFC 5280, Section 5.3.1)
+	// CRL entry extension. (See RFC 5280, Section 5.3.2)
 	oidInvalidityDate = asn1.ObjectIdentifier{2, 5, 29, 24}
 )
 
