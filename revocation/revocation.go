@@ -119,11 +119,20 @@ func NewWithOptions(opts *Options) (Revocation, error) {
 	}, nil
 }
 
-// Validate checks the revocation status for a certificate chain using OCSP or
-// CRL and returns an array of CertRevocationResults that contain the results
-// and any errors that are encountered during the process.
+// Validate checks the revocation status for a certificate chain using OCSP and
+// CRL if OCSP is not available. It returns an array of CertRevocationResults
+// that contain the results and any errors that are encountered during the
+// process.
 //
 // The certificate chain is expected to be in the order of leaf to root.
+//
+// This function tries OCSP and falls back to CRL when:
+// - OCSP is not supported by the certificate
+// - OCSP returns an unknown status
+//
+// When OCSP returns an unknown status, the function will try to check the
+// certificate status using CRL and return certificate result with an
+// result.OCSPFallbackError.
 func (r *revocation) Validate(certChain []*x509.Certificate, signingTime time.Time) ([]*result.CertRevocationResult, error) {
 	if len(certChain) == 0 {
 		return nil, result.InvalidChainError{Err: errors.New("chain does not contain any certificates")}
@@ -169,9 +178,8 @@ func (r *revocation) Validate(certChain []*x509.Certificate, signingTime time.Ti
 			go func(i int, cert *x509.Certificate) {
 				defer wg.Done()
 				ocspResult := ocsp.CertCheckStatus(cert, certChain[i+1], ocspOpts)
-
-				// try CRL check if OCSP result is unknown
 				if ocspResult != nil && ocspResult.Result == result.ResultUnknown && crl.SupportCRL(cert) {
+					// try CRL check if OCSP result is unknown
 					crlResult := crl.CertCheckStatus(r.ctx, cert, certChain[i+1], crlOpts)
 					crlResult.Error = result.OCSPFallbackError{
 						OCSPErr: ocspResult.Error,

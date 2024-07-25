@@ -110,11 +110,24 @@ func TestCertCheckStatus(t *testing.T) {
 
 func TestValidate(t *testing.T) {
 	t.Run("expired CRL", func(t *testing.T) {
-		crl := &x509.RevocationList{
+		chain := testhelper.GetRevokableRSAChain(1, false, true)
+		issuerCert := chain[0].Cert
+		issuerKey := chain[0].PrivateKey
+
+		crlBytes, err := x509.CreateRevocationList(rand.Reader, &x509.RevocationList{
 			NextUpdate: time.Now().Add(-time.Hour),
+			Number:     big.NewInt(20240720),
+		}, issuerCert, issuerKey)
+		if err != nil {
+			t.Fatal(err)
 		}
 
-		if err := validate(crl, &x509.Certificate{}); err == nil {
+		crl, err := x509.ParseRevocationList(crlBytes)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if err := validate(crl, issuerCert); err == nil {
 			t.Fatal("expected error")
 		}
 	})

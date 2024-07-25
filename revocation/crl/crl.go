@@ -99,14 +99,14 @@ func SupportCRL(cert *x509.Certificate) bool {
 }
 
 func validate(crl *x509.RevocationList, issuer *x509.Certificate) error {
-	// after NextUpdate time, new CRL will be issued. (See RFC 5280, Section 5.1.2.5)
-	if !crl.NextUpdate.IsZero() && time.Now().After(crl.NextUpdate) {
-		return fmt.Errorf("CRL is expired: %v", crl.NextUpdate)
-	}
-
 	// check signature
 	if err := crl.CheckSignatureFrom(issuer); err != nil {
 		return fmt.Errorf("CRL signature verification failed: %w", err)
+	}
+
+	// check validity
+	if !crl.NextUpdate.IsZero() && time.Now().After(crl.NextUpdate) {
+		return fmt.Errorf("CRL is expired: %v", crl.NextUpdate)
 	}
 
 	// unsupported critical extensions is not allowed. (See RFC 5280, Section 5.2)
@@ -134,7 +134,7 @@ func checkRevocation(cert *x509.Certificate, baseCRL *x509.RevocationList, signi
 	//
 	// If the certificate is revoked with CertificateHold, it is temporarily
 	// revoked. If the certificate is shown in the CRL with RemoveFromCRL,
-	// its revocation is no longer valid.
+	// it is unrevoked.
 	var tempRevokedEntries []x509.RevocationListEntry
 
 	for _, revocationEntry := range baseCRL.RevokedCertificateEntries {
