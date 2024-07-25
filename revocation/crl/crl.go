@@ -31,11 +31,12 @@ import (
 	"github.com/notaryproject/notation-core-go/revocation/result"
 )
 
-var (
-	// oidInvalidityDate is the object identifier for the invalidity date
-	// CRL entry extension. (See RFC 5280, Section 5.3.2)
-	oidInvalidityDate = asn1.ObjectIdentifier{2, 5, 29, 24}
-)
+// oidInvalidityDate is the object identifier for the invalidity date
+// CRL entry extension. (See RFC 5280, Section 5.3.2)
+var oidInvalidityDate = asn1.ObjectIdentifier{2, 5, 29, 24}
+
+// maxCRLSize is the maximum size of CRL in bytes
+const maxCRLSize = 10 << 20 // 10 MiB
 
 // Options specifies values that are needed to check CRL
 type Options struct {
@@ -245,11 +246,11 @@ func download(ctx context.Context, crlURL string, client *http.Client) (*x509.Re
 	// download CRL
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, crlURL, nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create CRL request: %w", err)
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -258,10 +259,15 @@ func download(ctx context.Context, crlURL string, client *http.Client) (*x509.Re
 		return nil, fmt.Errorf("failed to download with status code: %d", resp.StatusCode)
 	}
 
-	// parse CRL
-	data, err := io.ReadAll(resp.Body)
+	// read with size limit
+	limitedReader := io.LimitReader(resp.Body, maxCRLSize)
+	data, err := io.ReadAll(limitedReader)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to read CRL response: %w", err)
 	}
+	if len(data) == maxCRLSize {
+		return nil, fmt.Errorf("CRL size exceeds the limit: %d", maxCRLSize)
+	}
+
 	return x509.ParseRevocationList(data)
 }
