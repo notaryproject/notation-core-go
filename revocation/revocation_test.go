@@ -1118,7 +1118,7 @@ func TestCRL(t *testing.T) {
 
 func TestNewWithOptions(t *testing.T) {
 	t.Run("nil ctx", func(t *testing.T) {
-		_, err := NewWithOptions(context.Background(), &Options{})
+		_, err := NewWithOptions(nil, &Options{})
 		if err == nil {
 			t.Error("Expected NewWithOptions to fail with an error, but it succeeded")
 		}
