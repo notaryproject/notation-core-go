@@ -204,7 +204,7 @@ func (r *revocation) Validate(certChain []*x509.Certificate, signingTime time.Ti
 		}
 	}
 
-	// Last is root cert, which will never be revoked by OCSP
+	// Last is root cert, which will never be revoked by OCSP or CRL
 	certResults[len(certChain)-1] = &result.CertRevocationResult{
 		Result: result.ResultNonRevokable,
 		ServerResults: []*result.ServerResult{{
