@@ -35,9 +35,10 @@ type Revocation interface {
 	Validate(certChain []*x509.Certificate, signingTime time.Time) ([]*result.CertRevocationResult, error)
 }
 
-// ContextRevocation is an interface that specifies methods used for revocation checking
+// ContextRevocation is an interface that specifies methods used for revocation
+// checking with context
 type ContextRevocation interface {
-	// ValidateContext checks the revocation status for a certificate chain using OCSP
+	// ValidateContext checks the revocation status for a certificate chain
 	// and returns an array of CertRevocationResults that contain the results
 	// and any errors that are encountered during the process
 	ValidateContext(ctx context.Context, certChain []*x509.Certificate, signingTime time.Time) ([]*result.CertRevocationResult, error)
@@ -48,7 +49,8 @@ type Options struct {
 	// OCSPHTTPClient is a required HTTP client for OCSP request
 	OCSPHTTPClient *http.Client
 
-	// CertChainPurpose is the purpose of the certificate chain
+	// CertChainPurpose is the purpose of the certificate chain. Supported
+	// values are x509.ExtKeyUsageCodeSigning and x509.ExtKeyUsageTimeStamping.
 	CertChainPurpose x509.ExtKeyUsage
 }
 
@@ -69,7 +71,7 @@ func New(httpClient *http.Client) (Revocation, error) {
 	}, nil
 }
 
-// NewWithOptions constructs a revocation object with the specified options
+// NewWithOptions constructs a ContextRevocation with the specified options
 func NewWithOptions(opts *Options) (ContextRevocation, error) {
 	if opts.OCSPHTTPClient == nil {
 		return nil, errors.New("invalid input: a non-nil OCSPHTTPClient must be specified")
@@ -97,9 +99,9 @@ func (r *revocation) Validate(certChain []*x509.Certificate, signingTime time.Ti
 	return r.ValidateContext(context.Background(), certChain, signingTime)
 }
 
-// ValidateContext checks the revocation status for a certificate chain using OCSP and
-// returns an array of CertRevocationResults that contain the results and any
-// errors that are encountered during the process
+// ValidateContext checks the revocation status for a certificate chain using
+// OCSP and returns an array of CertRevocationResults that contain the results
+// and any errors that are encountered during the process
 //
 // TODO: add CRL support
 // https://github.com/notaryproject/notation-core-go/issues/125

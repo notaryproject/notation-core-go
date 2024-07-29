@@ -39,7 +39,7 @@ import (
 // Options specifies values that are needed to check OCSP revocation
 type Options struct {
 	CertChain        []*x509.Certificate
-	CertChainPurpose x509.ExtKeyUsage // default value is `PurposeCodeSigning`
+	CertChainPurpose x509.ExtKeyUsage
 	SigningTime      time.Time
 	HTTPClient       *http.Client
 }
