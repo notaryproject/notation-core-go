@@ -2,7 +2,10 @@ package cache
 
 import (
 	"archive/tar"
+	"bytes"
+	"crypto/sha256"
 	"crypto/x509"
+	"encoding/gob"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -23,6 +26,8 @@ const (
 type CRL struct {
 	BaseCRL  *x509.RevocationList
 	Metadata Metadata
+
+	checksum [32]byte
 }
 
 // Metadata stores the metadata infomation of the CRL
@@ -37,20 +42,52 @@ type FileInfo struct {
 }
 
 // NewCRL creates a new CRL store with tarball format
-func NewCRL(baseCRL *x509.RevocationList, url string) *CRL {
-	return &CRL{
+func NewCRL(baseCRL *x509.RevocationList, url string) (*CRL, error) {
+	crl := &CRL{
 		BaseCRL: baseCRL,
 		Metadata: Metadata{
 			BaseCRL: FileInfo{
 				URL:      url,
 				CreateAt: time.Now(),
 			},
-		}}
+		},
+	}
+
+	return crl, nil
+}
+
+func (c *CRL) IsCached() bool {
+	// check c.checksum is empty
+	checksum, err := c.computCheckSum()
+	if err != nil {
+		return false
+	}
+
+	return c.checksum == checksum
+}
+
+func (c *CRL) computCheckSum() ([32]byte, error) {
+	toBeHashed := struct {
+		BaseCRL  []byte
+		Metadata Metadata
+	}{
+		BaseCRL:  c.BaseCRL.Raw,
+		Metadata: c.Metadata,
+	}
+
+	var buf bytes.Buffer
+	enc := gob.NewEncoder(&buf)
+	if err := enc.Encode(toBeHashed); err != nil {
+		return [32]byte{}, err
+	}
+
+	// sha256 hash
+	return sha256.Sum256(buf.Bytes()), nil
 }
 
 // ParseCRLFromTarball parses the CRL blob from a tarball
 func ParseCRLFromTarball(data io.Reader) (*CRL, error) {
-	crlBlob := &CRL{}
+	crlBlob := &CRL{cached: true}
 
 	// parse the tarball
 	tar := tar.NewReader(data)
@@ -106,15 +143,15 @@ func ParseCRLFromTarball(data io.Reader) (*CRL, error) {
 
 // SaveAsTar saves the CRL blob as a tarball, including the base CRL and
 // metadata
-func (c *CRL) SaveAsTarball(w io.Writer) (err error) {
+func SaveAsTarball(w io.Writer, crl *CRL) (err error) {
 	tarWriter := tar.NewWriter(w)
 	// Add base.crl
-	if err := addToTar(BaseCRLFile, c.BaseCRL.Raw, tarWriter); err != nil {
+	if err := addToTar(BaseCRLFile, crl.BaseCRL.Raw, tarWriter); err != nil {
 		return err
 	}
 
 	// Add metadata.json
-	metadataBytes, err := json.Marshal(c.Metadata)
+	metadataBytes, err := json.Marshal(crl.Metadata)
 	if err != nil {
 		return err
 	}

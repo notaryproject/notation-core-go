@@ -24,10 +24,12 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"sort"
 	"strings"
 	"time"
 
+	"github.com/notaryproject/notation-core-go/revocation/crl/cache"
 	"github.com/notaryproject/notation-core-go/revocation/result"
 )
 
@@ -231,6 +233,31 @@ func parseEntryExtensions(entry x509.RevocationListEntry) (entryExtensions, erro
 	}
 
 	return extensions, nil
+}
+
+func fetchCRL(ctx context.Context, cacheClient cache.Cache, crlURL string, client *http.Client) (*cache.CRL, error) {
+	// check cache
+	// try to get from cache
+	obj, err := cacheClient.Get(ctx, tarStoreName(crlURL))
+	if err != nil {
+		if os.IsNotExist(err) {
+			crl, err := download(ctx, crlURL, client)
+			if err != nil {
+				return nil, err
+			}
+
+			return cache.NewCRL(crl, crlURL), nil
+		}
+
+		return nil, err
+	}
+
+	crl, ok := obj.(*cache.CRL)
+	if !ok {
+		return nil, fmt.Errorf("invalid cache object type: %T", obj)
+	}
+
+	return crl, nil
 }
 
 func download(ctx context.Context, crlURL string, client *http.Client) (*x509.RevocationList, error) {
