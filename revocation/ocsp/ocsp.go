@@ -32,26 +32,15 @@ import (
 	"time"
 
 	"github.com/notaryproject/notation-core-go/revocation/result"
+	revX509 "github.com/notaryproject/notation-core-go/revocation/x509"
 	coreX509 "github.com/notaryproject/notation-core-go/x509"
 	"golang.org/x/crypto/ocsp"
-)
-
-// Purpose is an enum for purpose of the certificate chain whose OCSP status
-// is checked
-type Purpose int
-
-const (
-	// PurposeCodeSigning means the certificate chain is a code signing chain
-	PurposeCodeSigning Purpose = iota
-
-	// PurposeTimestamping means the certificate chain is a timestamping chain
-	PurposeTimestamping
 )
 
 // Options specifies values that are needed to check OCSP revocation
 type Options struct {
 	CertChain        []*x509.Certificate
-	CertChainPurpose Purpose // default value is `PurposeCodeSigning`
+	CertChainPurpose revX509.Purpose // default value is `PurposeCodeSigning`
 	SigningTime      time.Time
 	HTTPClient       *http.Client
 }
@@ -78,11 +67,11 @@ func CheckStatus(opts Options) ([]*result.CertRevocationResult, error) {
 	// Thus, it is better to pass nil here than fail for a cert's NotBefore
 	// being after zero time
 	switch opts.CertChainPurpose {
-	case PurposeCodeSigning:
+	case revX509.PurposeCodeSigning:
 		if err := coreX509.ValidateCodeSigningCertChain(opts.CertChain, nil); err != nil {
 			return nil, result.InvalidChainError{Err: err}
 		}
-	case PurposeTimestamping:
+	case revX509.PurposeTimestamping:
 		if err := coreX509.ValidateTimestampingCertChain(opts.CertChain); err != nil {
 			return nil, result.InvalidChainError{Err: err}
 		}

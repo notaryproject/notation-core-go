@@ -18,11 +18,13 @@ package revocation
 import (
 	"crypto/x509"
 	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/notaryproject/notation-core-go/revocation/ocsp"
 	"github.com/notaryproject/notation-core-go/revocation/result"
+	revX509 "github.com/notaryproject/notation-core-go/revocation/x509"
 )
 
 // Revocation is an interface that specifies methods used for revocation checking
@@ -33,10 +35,19 @@ type Revocation interface {
 	Validate(certChain []*x509.Certificate, signingTime time.Time) ([]*result.CertRevocationResult, error)
 }
 
+// Options specifies values that are needed to check revocation
+type Options struct {
+	// OCSPHTTPClient is a required HTTP client for OCSP request
+	OCSPHTTPClient *http.Client
+
+	// CertChainPurpose is the purpose of the certificate chain
+	CertChainPurpose revX509.Purpose
+}
+
 // revocation is an internal struct used for revocation checking
 type revocation struct {
 	httpClient       *http.Client
-	certChainPurpose ocsp.Purpose
+	certChainPurpose revX509.Purpose
 }
 
 // New constructs a revocation object for code signing certificate chain
@@ -46,19 +57,25 @@ func New(httpClient *http.Client) (Revocation, error) {
 	}
 	return &revocation{
 		httpClient:       httpClient,
-		certChainPurpose: ocsp.PurposeCodeSigning,
+		certChainPurpose: revX509.PurposeCodeSigning,
 	}, nil
 }
 
-// NewTimestamp contructs a revocation object for timestamping certificate
-// chain
-func NewTimestamp(httpClient *http.Client) (Revocation, error) {
-	if httpClient == nil {
-		return nil, errors.New("invalid input: a non-nil httpClient must be specified")
+// NewWithOptions constructs a revocation object with the specified options
+func NewWithOptions(opts *Options) (Revocation, error) {
+	if opts.OCSPHTTPClient == nil {
+		return nil, errors.New("invalid input: a non-nil OCSPHTTPClient must be specified")
 	}
+
+	switch opts.CertChainPurpose {
+	case revX509.PurposeCodeSigning, revX509.PurposeTimestamping:
+	default:
+		return nil, fmt.Errorf("unknown certificate chain purpose %v", opts.CertChainPurpose)
+	}
+
 	return &revocation{
-		httpClient:       httpClient,
-		certChainPurpose: ocsp.PurposeTimestamping,
+		httpClient:       opts.OCSPHTTPClient,
+		certChainPurpose: opts.CertChainPurpose,
 	}, nil
 }
 

@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/notaryproject/notation-core-go/revocation/result"
+	revX509 "github.com/notaryproject/notation-core-go/revocation/x509"
 	"github.com/notaryproject/notation-core-go/testhelper"
 	"golang.org/x/crypto/ocsp"
 )
@@ -535,7 +536,7 @@ func TestCheckStatusErrors(t *testing.T) {
 	t.Run("check codesigning cert with PurposeTimestamping", func(t *testing.T) {
 		opts := Options{
 			CertChain:        okChain,
-			CertChainPurpose: PurposeTimestamping,
+			CertChainPurpose: revX509.PurposeTimestamping,
 			SigningTime:      time.Now(),
 			HTTPClient:       http.DefaultClient,
 		}
