@@ -14,6 +14,7 @@
 package revocation
 
 import (
+	"context"
 	"crypto/x509"
 	"errors"
 	"fmt"
@@ -23,7 +24,6 @@ import (
 
 	revocationocsp "github.com/notaryproject/notation-core-go/revocation/ocsp"
 	"github.com/notaryproject/notation-core-go/revocation/result"
-	revX509 "github.com/notaryproject/notation-core-go/revocation/x509"
 	"github.com/notaryproject/notation-core-go/testhelper"
 	"golang.org/x/crypto/ocsp"
 )
@@ -492,12 +492,12 @@ func TestCheckRevocationStatusForTimestampChain(t *testing.T) {
 	t.Run("empty chain", func(t *testing.T) {
 		r, err := NewWithOptions(&Options{
 			OCSPHTTPClient:   &http.Client{Timeout: 5 * time.Second},
-			CertChainPurpose: revX509.PurposeTimestamping,
+			CertChainPurpose: x509.ExtKeyUsageTimeStamping,
 		})
 		if err != nil {
 			t.Errorf("Expected successful creation of revocation, but received error: %v", err)
 		}
-		certResults, err := r.Validate([]*x509.Certificate{}, time.Now())
+		certResults, err := r.ValidateContext(context.Background(), []*x509.Certificate{}, time.Now())
 		expectedErr := result.InvalidChainError{Err: errors.New("chain does not contain any certificates")}
 		if err == nil || err.Error() != expectedErr.Error() {
 			t.Errorf("Expected CheckStatus to fail with %v, but got: %v", expectedErr, err)
@@ -510,12 +510,12 @@ func TestCheckRevocationStatusForTimestampChain(t *testing.T) {
 		client := testhelper.MockClient(testChain, []ocsp.ResponseStatus{ocsp.Good}, nil, true)
 		r, err := NewWithOptions(&Options{
 			OCSPHTTPClient:   client,
-			CertChainPurpose: revX509.PurposeTimestamping,
+			CertChainPurpose: x509.ExtKeyUsageTimeStamping,
 		})
 		if err != nil {
 			t.Errorf("Expected successful creation of revocation, but received error: %v", err)
 		}
-		certResults, err := r.Validate(revokableChain, time.Now())
+		certResults, err := r.ValidateContext(context.Background(), revokableChain, time.Now())
 		if err != nil {
 			t.Errorf("Expected CheckStatus to succeed, but got error: %v", err)
 		}
@@ -534,12 +534,12 @@ func TestCheckRevocationStatusForTimestampChain(t *testing.T) {
 		client := testhelper.MockClient(testChain, []ocsp.ResponseStatus{ocsp.Good, ocsp.Good, ocsp.Unknown, ocsp.Good}, nil, true)
 		r, err := NewWithOptions(&Options{
 			OCSPHTTPClient:   client,
-			CertChainPurpose: revX509.PurposeTimestamping,
+			CertChainPurpose: x509.ExtKeyUsageTimeStamping,
 		})
 		if err != nil {
 			t.Errorf("Expected successful creation of revocation, but received error: %v", err)
 		}
-		certResults, err := r.Validate(revokableChain, time.Now())
+		certResults, err := r.ValidateContext(context.Background(), revokableChain, time.Now())
 		if err != nil {
 			t.Errorf("Expected CheckStatus to succeed, but got error: %v", err)
 		}
@@ -563,12 +563,12 @@ func TestCheckRevocationStatusForTimestampChain(t *testing.T) {
 		client := testhelper.MockClient(testChain, []ocsp.ResponseStatus{ocsp.Good, ocsp.Good, ocsp.Revoked, ocsp.Good}, nil, true)
 		r, err := NewWithOptions(&Options{
 			OCSPHTTPClient:   client,
-			CertChainPurpose: revX509.PurposeTimestamping,
+			CertChainPurpose: x509.ExtKeyUsageTimeStamping,
 		})
 		if err != nil {
 			t.Errorf("Expected successful creation of revocation, but received error: %v", err)
 		}
-		certResults, err := r.Validate(revokableChain, time.Now())
+		certResults, err := r.ValidateContext(context.Background(), revokableChain, time.Now())
 		if err != nil {
 			t.Errorf("Expected CheckStatus to succeed, but got error: %v", err)
 		}
@@ -592,12 +592,12 @@ func TestCheckRevocationStatusForTimestampChain(t *testing.T) {
 		client := testhelper.MockClient(testChain, []ocsp.ResponseStatus{ocsp.Good, ocsp.Good, ocsp.Unknown, ocsp.Good, ocsp.Revoked, ocsp.Good}, nil, true)
 		r, err := NewWithOptions(&Options{
 			OCSPHTTPClient:   client,
-			CertChainPurpose: revX509.PurposeTimestamping,
+			CertChainPurpose: x509.ExtKeyUsageTimeStamping,
 		})
 		if err != nil {
 			t.Errorf("Expected successful creation of revocation, but received error: %v", err)
 		}
-		certResults, err := r.Validate(revokableChain, time.Now())
+		certResults, err := r.ValidateContext(context.Background(), revokableChain, time.Now())
 		if err != nil {
 			t.Errorf("Expected CheckStatus to succeed, but got error: %v", err)
 		}
@@ -627,12 +627,12 @@ func TestCheckRevocationStatusForTimestampChain(t *testing.T) {
 		client := testhelper.MockClient(testChain, []ocsp.ResponseStatus{ocsp.Good, ocsp.Good, ocsp.Revoked, ocsp.Good}, &revokedTime, true)
 		r, err := NewWithOptions(&Options{
 			OCSPHTTPClient:   client,
-			CertChainPurpose: revX509.PurposeTimestamping,
+			CertChainPurpose: x509.ExtKeyUsageTimeStamping,
 		})
 		if err != nil {
 			t.Errorf("Expected successful creation of revocation, but received error: %v", err)
 		}
-		certResults, err := r.Validate(revokableChain, time.Now())
+		certResults, err := r.ValidateContext(context.Background(), revokableChain, time.Now())
 		if err != nil {
 			t.Errorf("Expected CheckStatus to succeed, but got error: %v", err)
 		}
@@ -652,12 +652,12 @@ func TestCheckRevocationStatusForTimestampChain(t *testing.T) {
 		client := testhelper.MockClient(testChain, []ocsp.ResponseStatus{ocsp.Good, ocsp.Good, ocsp.Unknown, ocsp.Good, ocsp.Revoked, ocsp.Good}, &revokedTime, true)
 		r, err := NewWithOptions(&Options{
 			OCSPHTTPClient:   client,
-			CertChainPurpose: revX509.PurposeTimestamping,
+			CertChainPurpose: x509.ExtKeyUsageTimeStamping,
 		})
 		if err != nil {
 			t.Errorf("Expected successful creation of revocation, but received error: %v", err)
 		}
-		certResults, err := r.Validate(revokableChain, time.Now())
+		certResults, err := r.ValidateContext(context.Background(), revokableChain, time.Now())
 		if err != nil {
 			t.Errorf("Expected CheckStatus to succeed, but got error: %v", err)
 		}
@@ -681,12 +681,12 @@ func TestCheckRevocationStatusForTimestampChain(t *testing.T) {
 		client := testhelper.MockClient(testChain, []ocsp.ResponseStatus{ocsp.Good, ocsp.Good, ocsp.Revoked, ocsp.Good}, nil, true)
 		r, err := NewWithOptions(&Options{
 			OCSPHTTPClient:   client,
-			CertChainPurpose: revX509.PurposeTimestamping,
+			CertChainPurpose: x509.ExtKeyUsageTimeStamping,
 		})
 		if err != nil {
 			t.Errorf("Expected successful creation of revocation, but received error: %v", err)
 		}
-		certResults, err := r.Validate(revokableChain, time.Now().Add(time.Hour))
+		certResults, err := r.ValidateContext(context.Background(), revokableChain, time.Now().Add(time.Hour))
 		if err != nil {
 			t.Errorf("Expected CheckStatus to succeed, but got error: %v", err)
 		}
@@ -714,12 +714,12 @@ func TestCheckRevocationStatusForTimestampChain(t *testing.T) {
 		}
 		r, err := NewWithOptions(&Options{
 			OCSPHTTPClient:   client,
-			CertChainPurpose: revX509.PurposeTimestamping,
+			CertChainPurpose: x509.ExtKeyUsageTimeStamping,
 		})
 		if err != nil {
 			t.Errorf("Expected successful creation of revocation, but received error: %v", err)
 		}
-		certResults, err := r.Validate(revokableChain, time.Now().Add(time.Hour))
+		certResults, err := r.ValidateContext(context.Background(), revokableChain, time.Now().Add(time.Hour))
 		if err != nil {
 			t.Errorf("Expected CheckStatus to succeed, but got error: %v", err)
 		}

@@ -16,6 +16,7 @@
 package revocation
 
 import (
+	"context"
 	"crypto/x509"
 	"errors"
 	"fmt"
@@ -24,7 +25,6 @@ import (
 
 	"github.com/notaryproject/notation-core-go/revocation/ocsp"
 	"github.com/notaryproject/notation-core-go/revocation/result"
-	revX509 "github.com/notaryproject/notation-core-go/revocation/x509"
 )
 
 // Revocation is an interface that specifies methods used for revocation checking
@@ -35,19 +35,27 @@ type Revocation interface {
 	Validate(certChain []*x509.Certificate, signingTime time.Time) ([]*result.CertRevocationResult, error)
 }
 
+// ContextRevocation is an interface that specifies methods used for revocation checking
+type ContextRevocation interface {
+	// ValidateContext checks the revocation status for a certificate chain using OCSP
+	// and returns an array of CertRevocationResults that contain the results
+	// and any errors that are encountered during the process
+	ValidateContext(ctx context.Context, certChain []*x509.Certificate, signingTime time.Time) ([]*result.CertRevocationResult, error)
+}
+
 // Options specifies values that are needed to check revocation
 type Options struct {
 	// OCSPHTTPClient is a required HTTP client for OCSP request
 	OCSPHTTPClient *http.Client
 
 	// CertChainPurpose is the purpose of the certificate chain
-	CertChainPurpose revX509.Purpose
+	CertChainPurpose x509.ExtKeyUsage
 }
 
 // revocation is an internal struct used for revocation checking
 type revocation struct {
 	httpClient       *http.Client
-	certChainPurpose revX509.Purpose
+	certChainPurpose x509.ExtKeyUsage
 }
 
 // New constructs a revocation object for code signing certificate chain
@@ -57,18 +65,18 @@ func New(httpClient *http.Client) (Revocation, error) {
 	}
 	return &revocation{
 		httpClient:       httpClient,
-		certChainPurpose: revX509.PurposeCodeSigning,
+		certChainPurpose: x509.ExtKeyUsageTimeStamping,
 	}, nil
 }
 
 // NewWithOptions constructs a revocation object with the specified options
-func NewWithOptions(opts *Options) (Revocation, error) {
+func NewWithOptions(opts *Options) (ContextRevocation, error) {
 	if opts.OCSPHTTPClient == nil {
 		return nil, errors.New("invalid input: a non-nil OCSPHTTPClient must be specified")
 	}
 
 	switch opts.CertChainPurpose {
-	case revX509.PurposeCodeSigning, revX509.PurposeTimestamping:
+	case x509.ExtKeyUsageCodeSigning, x509.ExtKeyUsageTimeStamping:
 	default:
 		return nil, fmt.Errorf("unknown certificate chain purpose %v", opts.CertChainPurpose)
 	}
@@ -86,6 +94,16 @@ func NewWithOptions(opts *Options) (Revocation, error) {
 // TODO: add CRL support
 // https://github.com/notaryproject/notation-core-go/issues/125
 func (r *revocation) Validate(certChain []*x509.Certificate, signingTime time.Time) ([]*result.CertRevocationResult, error) {
+	return r.ValidateContext(context.Background(), certChain, signingTime)
+}
+
+// ValidateContext checks the revocation status for a certificate chain using OCSP and
+// returns an array of CertRevocationResults that contain the results and any
+// errors that are encountered during the process
+//
+// TODO: add CRL support
+// https://github.com/notaryproject/notation-core-go/issues/125
+func (r *revocation) ValidateContext(ctx context.Context, certChain []*x509.Certificate, signingTime time.Time) ([]*result.CertRevocationResult, error) {
 	return ocsp.CheckStatus(ocsp.Options{
 		CertChain:        certChain,
 		CertChainPurpose: r.certChainPurpose,
