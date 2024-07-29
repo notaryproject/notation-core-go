@@ -65,7 +65,7 @@ func New(httpClient *http.Client) (Revocation, error) {
 	}
 	return &revocation{
 		httpClient:       httpClient,
-		certChainPurpose: x509.ExtKeyUsageTimeStamping,
+		certChainPurpose: x509.ExtKeyUsageCodeSigning,
 	}, nil
 }
 
