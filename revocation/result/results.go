@@ -14,7 +14,11 @@
 // Package result provides general objects that are used across revocation
 package result
 
-import "strconv"
+import (
+	"fmt"
+	"strconv"
+	"time"
+)
 
 // Result is a type of enumerated value to help characterize errors. It can be
 // OK, Unknown, or Revoked
@@ -52,7 +56,7 @@ func (r Result) String() string {
 	}
 }
 
-// ServerResult encapsulates the result for a single server for a single
+// ServerResult encapsulates the OCSP result for a single server for a single
 // certificate in the chain
 type ServerResult struct {
 	// Result of revocation for this server (Unknown if there is an error which
@@ -79,6 +83,68 @@ func NewServerResult(result Result, server string, err error) *ServerResult {
 	}
 }
 
+// CRLReasonCode is CRL reason code (See RFC 5280, section 5.3.1)
+type CRLReasonCode int
+
+const (
+	CRLReasonCodeUnspecified CRLReasonCode = iota
+	CRLReasonCodeKeyCompromise
+	CRLReasonCodeCACompromise
+	CRLReasonCodeAffiliationChanged
+	CRLReasonCodeSuperseded
+	CRLReasonCodeCessationOfOperation
+	CRLReasonCodeCertificateHold
+	// value 7 is not used
+	CRLReasonCodeRemoveFromCRL CRLReasonCode = iota + 1
+	CRLReasonCodePrivilegeWithdrawn
+	CRLReasonCodeAACompromise
+)
+
+// Equal checks if the reason code is equal to the given reason code
+func (r CRLReasonCode) Equal(reasonCode int) bool {
+	return int(r) == reasonCode
+}
+
+// String provides a conversion from a ReasonCode to a string
+func (r CRLReasonCode) String() string {
+	switch r {
+	case CRLReasonCodeUnspecified:
+		return "Unspecified"
+	case CRLReasonCodeKeyCompromise:
+		return "KeyCompromise"
+	case CRLReasonCodeCACompromise:
+		return "CACompromise"
+	case CRLReasonCodeAffiliationChanged:
+		return "AffiliationChanged"
+	case CRLReasonCodeSuperseded:
+		return "Superseded"
+	case CRLReasonCodeCessationOfOperation:
+		return "CessationOfOperation"
+	case CRLReasonCodeCertificateHold:
+		return "CertificateHold"
+	case CRLReasonCodeRemoveFromCRL:
+		return "RemoveFromCRL"
+	case CRLReasonCodePrivilegeWithdrawn:
+		return "PrivilegeWithdrawn"
+	case CRLReasonCodeAACompromise:
+		return "AACompromise"
+	default:
+		return fmt.Sprintf("invalid reason code with value: %d", r)
+	}
+}
+
+// CRLResult encapsulates the result of a CRL check
+type CRLResult struct {
+	// ReasonCode is the reason code for the CRL status
+	ReasonCode CRLReasonCode
+
+	// RevocationTime is the time at which the certificate was revoked
+	RevocationTime time.Time
+
+	// Error is set if there is an error associated with the revocation check
+	Error error
+}
+
 // CertRevocationResult encapsulates the result for a single certificate in the
 // chain as well as the results from individual servers associated with this
 // certificate
@@ -100,4 +166,10 @@ type CertRevocationResult struct {
 	// Otherwise, every server specified had some error that prevented the
 	// status from being retrieved. These are all contained here for evaluation
 	ServerResults []*ServerResult
+
+	// CRLResults is the result of the CRL check for this certificate
+	CRLResults []*CRLResult
+
+	// Error is set if there is an error associated with the revocation check
+	Error error
 }
