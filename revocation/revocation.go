@@ -35,23 +35,24 @@ type Revocation interface {
 	Validate(certChain []*x509.Certificate, signingTime time.Time) ([]*result.CertRevocationResult, error)
 }
 
-// ContextRevocation is an interface that specifies methods used for revocation
-// checking with context
-type ContextRevocation interface {
-	// ValidateContext checks the revocation status for a certificate chain
-	// and returns an array of CertRevocationResults that contain the results
-	// and any errors that are encountered during the process
-	ValidateContext(ctx context.Context, certChain []*x509.Certificate, signingTime time.Time) ([]*result.CertRevocationResult, error)
+// ValidateContextOptions provides configuration options for revocation checks
+type ValidateContextOptions struct {
+	// CertChain denotes the certificate chain whose revocation status is
+	// been validated.
+	CertChain []*x509.Certificate
+
+	// AuthenticSigningTime denotes the authentic signing time of the signature.
+	// It is solely used under signing scheme `notary.x509.signingAuthority`.
+	AuthenticSigningTime time.Time
 }
 
-// Options specifies values that are needed to check revocation
-type Options struct {
-	// OCSPHTTPClient is a required HTTP client for OCSP request
-	OCSPHTTPClient *http.Client
-
-	// CertChainPurpose is the purpose of the certificate chain. Supported
-	// values are x509.ExtKeyUsageCodeSigning and x509.ExtKeyUsageTimeStamping.
-	CertChainPurpose x509.ExtKeyUsage
+// ContextRevocation is an interface that provides revocation checking with
+// context
+type ContextRevocation interface {
+	// ValidateContext checks the revocation status given caller provided options
+	// and returns an array of CertRevocationResults that contain the results
+	// and any errors that are encountered during the process
+	ValidateContext(ctx context.Context, validateContextOpts ValidateContextOptions) ([]*result.CertRevocationResult, error)
 }
 
 // revocation is an internal struct used for revocation checking
@@ -71,8 +72,18 @@ func New(httpClient *http.Client) (Revocation, error) {
 	}, nil
 }
 
+// Options specifies values that are needed to check revocation
+type Options struct {
+	// OCSPHTTPClient is a required HTTP client for OCSP request
+	OCSPHTTPClient *http.Client
+
+	// CertChainPurpose is the purpose of the certificate chain. Supported
+	// values are x509.ExtKeyUsageCodeSigning and x509.ExtKeyUsageTimeStamping.
+	CertChainPurpose x509.ExtKeyUsage
+}
+
 // NewWithOptions constructs a ContextRevocation with the specified options
-func NewWithOptions(opts *Options) (ContextRevocation, error) {
+func NewWithOptions(opts Options) (ContextRevocation, error) {
 	if opts.OCSPHTTPClient == nil {
 		return nil, errors.New("invalid input: a non-nil OCSPHTTPClient must be specified")
 	}
@@ -96,7 +107,10 @@ func NewWithOptions(opts *Options) (ContextRevocation, error) {
 // TODO: add CRL support
 // https://github.com/notaryproject/notation-core-go/issues/125
 func (r *revocation) Validate(certChain []*x509.Certificate, signingTime time.Time) ([]*result.CertRevocationResult, error) {
-	return r.ValidateContext(context.Background(), certChain, signingTime)
+	return r.ValidateContext(context.Background(), ValidateContextOptions{
+		CertChain:            certChain,
+		AuthenticSigningTime: signingTime,
+	})
 }
 
 // ValidateContext checks the revocation status for a certificate chain using
@@ -105,11 +119,11 @@ func (r *revocation) Validate(certChain []*x509.Certificate, signingTime time.Ti
 //
 // TODO: add CRL support
 // https://github.com/notaryproject/notation-core-go/issues/125
-func (r *revocation) ValidateContext(ctx context.Context, certChain []*x509.Certificate, signingTime time.Time) ([]*result.CertRevocationResult, error) {
+func (r *revocation) ValidateContext(ctx context.Context, validateContextOpts ValidateContextOptions) ([]*result.CertRevocationResult, error) {
 	return ocsp.CheckStatus(ocsp.Options{
-		CertChain:        certChain,
+		CertChain:        validateContextOpts.CertChain,
 		CertChainPurpose: r.certChainPurpose,
-		SigningTime:      signingTime,
+		SigningTime:      validateContextOpts.AuthenticSigningTime,
 		HTTPClient:       r.httpClient,
 	})
 
