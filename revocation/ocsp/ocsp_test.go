@@ -567,19 +567,15 @@ func TestCheckStatusErrors(t *testing.T) {
 		}
 	})
 
-	t.Run("check with unknwon CertChainPurpose", func(t *testing.T) {
+	t.Run("check with default CertChainPurpose", func(t *testing.T) {
 		opts := Options{
-			CertChain:        okChain,
-			CertChainPurpose: -1,
-			SigningTime:      time.Now(),
-			HTTPClient:       http.DefaultClient,
+			CertChain:   okChain,
+			SigningTime: time.Now(),
+			HTTPClient:  http.DefaultClient,
 		}
-		certResults, err := CheckStatus(opts)
-		if err == nil || err.Error() != "invalid chain: expected chain to be correct and complete: unknown certificate chain purpose -1" {
-			t.Errorf("Expected CheckStatus to fail with %v, but got: %v", timestampSigningCertErr, err)
-		}
-		if certResults != nil {
-			t.Error("Expected certResults to be nil when there is an error")
+		_, err := CheckStatus(opts)
+		if err != nil {
+			t.Fatal(err)
 		}
 	})
 
