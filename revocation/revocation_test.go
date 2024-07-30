@@ -984,3 +984,18 @@ func TestCheckRevocationInvalidChain(t *testing.T) {
 		}
 	})
 }
+
+func TestValidateContext(t *testing.T) {
+	r, err := NewWithOptions(Options{
+		OCSPHTTPClient:   &http.Client{},
+		CertChainPurpose: x509.ExtKeyUsageCodeSigning,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectedErrMsg := "invalid chain: expected chain to be correct and complete: chain does not contain any certificates"
+	_, err = r.ValidateContext(context.Background(), ValidateContextOptions{})
+	if err == nil || err.Error() != expectedErrMsg {
+		t.Fatalf("expected %s, but got %s", expectedErrMsg, err)
+	}
+}

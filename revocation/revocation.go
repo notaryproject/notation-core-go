@@ -122,6 +122,10 @@ func (r *revocation) Validate(certChain []*x509.Certificate, signingTime time.Ti
 // TODO: add CRL support
 // https://github.com/notaryproject/notation-core-go/issues/125
 func (r *revocation) ValidateContext(ctx context.Context, validateContextOpts ValidateContextOptions) ([]*result.CertRevocationResult, error) {
+	if len(validateContextOpts.CertChain) == 0 {
+		return nil, result.InvalidChainError{Err: errors.New("chain does not contain any certificates")}
+	}
+
 	return ocsp.CheckStatus(ocsp.Options{
 		CertChain:        validateContextOpts.CertChain,
 		CertChainPurpose: r.certChainPurpose,
