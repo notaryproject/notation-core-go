@@ -27,7 +27,10 @@ import (
 	"github.com/notaryproject/notation-core-go/revocation/result"
 )
 
-// Revocation is an interface that specifies methods used for revocation checking
+// Revocation is an interface that specifies methods used for revocation checking.
+//
+// Deprecated: Revocation exists for backwards compatibility and should not be used.
+// To perform revocation check, use ContextRevocation.
 type Revocation interface {
 	// Validate checks the revocation status for a certificate chain using OCSP
 	// and returns an array of CertRevocationResults that contain the results
@@ -62,7 +65,10 @@ type revocation struct {
 	certChainPurpose x509.ExtKeyUsage
 }
 
-// New constructs a revocation object for code signing certificate chain
+// New constructs a revocation object for code signing certificate chain.
+//
+// Deprecated: New exists for backwards compatibility and should not be used.
+// To create a revocation object, use NewWithOptions.
 func New(httpClient *http.Client) (Revocation, error) {
 	if httpClient == nil {
 		return nil, errors.New("invalid input: a non-nil httpClient must be specified")
