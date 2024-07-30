@@ -38,11 +38,12 @@ type Revocation interface {
 // ValidateContextOptions provides configuration options for revocation checks
 type ValidateContextOptions struct {
 	// CertChain denotes the certificate chain whose revocation status is
-	// been validated.
+	// been validated. REQUIRED.
 	CertChain []*x509.Certificate
 
 	// AuthenticSigningTime denotes the authentic signing time of the signature.
 	// It is solely used under signing scheme `notary.x509.signingAuthority`.
+	// OPTIONAL.
 	AuthenticSigningTime time.Time
 }
 
@@ -74,11 +75,12 @@ func New(httpClient *http.Client) (Revocation, error) {
 
 // Options specifies values that are needed to check revocation
 type Options struct {
-	// OCSPHTTPClient is a required HTTP client for OCSP request
+	// OCSPHTTPClient is the HTTP client for OCSP request. REQUIRED.
 	OCSPHTTPClient *http.Client
 
 	// CertChainPurpose is the purpose of the certificate chain. Supported
 	// values are x509.ExtKeyUsageCodeSigning and x509.ExtKeyUsageTimeStamping.
+	// REQUIRED.
 	CertChainPurpose x509.ExtKeyUsage
 }
 
