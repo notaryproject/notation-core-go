@@ -75,7 +75,9 @@ func New(httpClient *http.Client) (Revocation, error) {
 
 // Options specifies values that are needed to check revocation
 type Options struct {
-	// OCSPHTTPClient is the HTTP client for OCSP request. REQUIRED.
+	// OCSPHTTPClient is the HTTP client for OCSP request. If not provided,
+	// the default http.Client will be used.
+	// OPTIONAL.
 	OCSPHTTPClient *http.Client
 
 	// CertChainPurpose is the purpose of the certificate chain. Supported
@@ -87,7 +89,7 @@ type Options struct {
 // NewWithOptions constructs a ContextRevocation with the specified options
 func NewWithOptions(opts Options) (ContextRevocation, error) {
 	if opts.OCSPHTTPClient == nil {
-		return nil, errors.New("invalid input: a non-nil OCSPHTTPClient must be specified")
+		opts.OCSPHTTPClient = &http.Client{}
 	}
 
 	switch opts.CertChainPurpose {

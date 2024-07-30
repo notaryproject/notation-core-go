@@ -42,7 +42,7 @@ type Options struct {
 
 	// CertChainPurpose is the purpose of the certificate chain. Supported
 	// values are x509.ExtKeyUsageCodeSigning and x509.ExtKeyUsageTimeStamping.
-	// When not provided, x509.ExtKeyUsageCodeSigning is used as default.
+	// When not provided, the chain is taken as a code signing certificate chain.
 	CertChainPurpose x509.ExtKeyUsage
 
 	SigningTime time.Time
@@ -71,14 +71,16 @@ func CheckStatus(opts Options) ([]*result.CertRevocationResult, error) {
 	// Thus, it is better to pass nil here than fail for a cert's NotBefore
 	// being after zero time
 	switch opts.CertChainPurpose {
+	case x509.ExtKeyUsageAny, x509.ExtKeyUsageCodeSigning:
+		if err := coreX509.ValidateCodeSigningCertChain(opts.CertChain, nil); err != nil {
+			return nil, result.InvalidChainError{Err: err}
+		}
 	case x509.ExtKeyUsageTimeStamping:
 		if err := coreX509.ValidateTimestampingCertChain(opts.CertChain); err != nil {
 			return nil, result.InvalidChainError{Err: err}
 		}
 	default:
-		if err := coreX509.ValidateCodeSigningCertChain(opts.CertChain, nil); err != nil {
-			return nil, result.InvalidChainError{Err: err}
-		}
+		return nil, result.InvalidChainError{Err: fmt.Errorf("unknown certificate chain purpose %v", opts.CertChainPurpose)}
 	}
 
 	certResults := make([]*result.CertRevocationResult, len(opts.CertChain))
