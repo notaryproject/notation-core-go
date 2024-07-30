@@ -30,7 +30,7 @@ import (
 // Revocation is an interface that specifies methods used for revocation checking.
 //
 // Deprecated: Revocation exists for backwards compatibility and should not be used.
-// To perform revocation check, use ContextRevocation.
+// To perform revocation check, use [ContextRevocation].
 type Revocation interface {
 	// Validate checks the revocation status for a certificate chain using OCSP
 	// and returns an array of CertRevocationResults that contain the results
@@ -68,7 +68,7 @@ type revocation struct {
 // New constructs a revocation object for code signing certificate chain.
 //
 // Deprecated: New exists for backwards compatibility and should not be used.
-// To create a revocation object, use NewWithOptions.
+// To create a revocation object, use [NewWithOptions].
 func New(httpClient *http.Client) (Revocation, error) {
 	if httpClient == nil {
 		return nil, errors.New("invalid input: a non-nil httpClient must be specified")
@@ -82,7 +82,7 @@ func New(httpClient *http.Client) (Revocation, error) {
 // Options specifies values that are needed to check revocation
 type Options struct {
 	// OCSPHTTPClient is the HTTP client for OCSP request. If not provided,
-	// the default http.Client will be used.
+	// http.DefaultClient will be used.
 	// OPTIONAL.
 	OCSPHTTPClient *http.Client
 
@@ -95,13 +95,13 @@ type Options struct {
 // NewWithOptions constructs a ContextRevocation with the specified options
 func NewWithOptions(opts Options) (ContextRevocation, error) {
 	if opts.OCSPHTTPClient == nil {
-		opts.OCSPHTTPClient = &http.Client{}
+		opts.OCSPHTTPClient = http.DefaultClient
 	}
 
 	switch opts.CertChainPurpose {
 	case x509.ExtKeyUsageCodeSigning, x509.ExtKeyUsageTimeStamping:
 	default:
-		return nil, fmt.Errorf("unknown certificate chain purpose %v", opts.CertChainPurpose)
+		return nil, fmt.Errorf("unsupported certificate chain purpose %v", opts.CertChainPurpose)
 	}
 
 	return &revocation{

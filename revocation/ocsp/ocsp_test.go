@@ -587,7 +587,7 @@ func TestCheckStatusErrors(t *testing.T) {
 			HTTPClient:       http.DefaultClient,
 		}
 		certResults, err := CheckStatus(opts)
-		if err == nil || err.Error() != "invalid chain: expected chain to be correct and complete: unknown certificate chain purpose -1" {
+		if err == nil || err.Error() != "invalid chain: expected chain to be correct and complete: unsupported certificate chain purpose -1" {
 			t.Errorf("Expected CheckStatus to fail with %v, but got: %v", timestampSigningCertErr, err)
 		}
 		if certResults != nil {

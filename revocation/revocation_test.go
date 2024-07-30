@@ -102,9 +102,11 @@ func TestNew(t *testing.T) {
 
 func TestNewWithOptions(t *testing.T) {
 	t.Run("nil OCSP HTTP Client", func(t *testing.T) {
-		_, err := NewWithOptions(Options{})
-		if err == nil {
-			t.Error("Expected NewWithOptions to fail with an error, but it succeeded")
+		_, err := NewWithOptions(Options{
+			CertChainPurpose: x509.ExtKeyUsageCodeSigning,
+		})
+		if err != nil {
+			t.Fatal(err)
 		}
 	})
 
@@ -113,8 +115,9 @@ func TestNewWithOptions(t *testing.T) {
 			OCSPHTTPClient:   &http.Client{},
 			CertChainPurpose: -1,
 		})
-		if err == nil {
-			t.Error("Expected NewWithOptions to fail with an error, but it succeeded")
+		expectedErrMsg := "unsupported certificate chain purpose -1"
+		if err == nil || err.Error() != expectedErrMsg {
+			t.Fatalf("expected %s, but got %s", expectedErrMsg, err.Error())
 		}
 	})
 
