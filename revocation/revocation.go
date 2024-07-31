@@ -30,7 +30,7 @@ import (
 // Revocation is an interface that specifies methods used for revocation checking.
 //
 // Deprecated: Revocation exists for backwards compatibility and should not be used.
-// To perform revocation check, use [ContextRevocation].
+// To perform revocation check, use [Validator].
 type Revocation interface {
 	// Validate checks the revocation status for a certificate chain using OCSP
 	// and returns an array of CertRevocationResults that contain the results
@@ -44,15 +44,15 @@ type ValidateContextOptions struct {
 	// been validated. REQUIRED.
 	CertChain []*x509.Certificate
 
-	// AuthenticSigningTime denotes the authentic signing time of the signature.
+	// AuthenticdSigningTime denotes the authentic signing time of the signature.
 	// It is solely used under signing scheme `notary.x509.signingAuthority`.
 	// OPTIONAL.
-	AuthenticSigningTime time.Time
+	AuthenticdSigningTime time.Time
 }
 
-// ContextRevocation is an interface that provides revocation checking with
+// Validator is an interface that provides revocation checking with
 // context
-type ContextRevocation interface {
+type Validator interface {
 	// ValidateContext checks the revocation status given caller provided options
 	// and returns an array of CertRevocationResults that contain the results
 	// and any errors that are encountered during the process
@@ -93,9 +93,9 @@ type Options struct {
 }
 
 // NewWithOptions constructs a ContextRevocation with the specified options
-func NewWithOptions(opts Options) (ContextRevocation, error) {
+func NewWithOptions(opts Options) (Validator, error) {
 	if opts.OCSPHTTPClient == nil {
-		opts.OCSPHTTPClient = http.DefaultClient
+		opts.OCSPHTTPClient = &http.Client{Timeout: 2 * time.Second}
 	}
 
 	switch opts.CertChainPurpose {
@@ -118,8 +118,8 @@ func NewWithOptions(opts Options) (ContextRevocation, error) {
 // https://github.com/notaryproject/notation-core-go/issues/125
 func (r *revocation) Validate(certChain []*x509.Certificate, signingTime time.Time) ([]*result.CertRevocationResult, error) {
 	return r.ValidateContext(context.Background(), ValidateContextOptions{
-		CertChain:            certChain,
-		AuthenticSigningTime: signingTime,
+		CertChain:             certChain,
+		AuthenticdSigningTime: signingTime,
 	})
 }
 
@@ -137,7 +137,7 @@ func (r *revocation) ValidateContext(ctx context.Context, validateContextOpts Va
 	return ocsp.CheckStatus(ocsp.Options{
 		CertChain:        validateContextOpts.CertChain,
 		CertChainPurpose: r.certChainPurpose,
-		SigningTime:      validateContextOpts.AuthenticSigningTime,
+		SigningTime:      validateContextOpts.AuthenticdSigningTime,
 		HTTPClient:       r.httpClient,
 	})
 

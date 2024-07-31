@@ -501,8 +501,8 @@ func TestCheckRevocationStatusForTimestampChain(t *testing.T) {
 			t.Errorf("Expected successful creation of revocation, but received error: %v", err)
 		}
 		certResults, err := r.ValidateContext(context.Background(), ValidateContextOptions{
-			CertChain:            []*x509.Certificate{},
-			AuthenticSigningTime: time.Now(),
+			CertChain:             []*x509.Certificate{},
+			AuthenticdSigningTime: time.Now(),
 		})
 		expectedErr := result.InvalidChainError{Err: errors.New("chain does not contain any certificates")}
 		if err == nil || err.Error() != expectedErr.Error() {
@@ -522,8 +522,8 @@ func TestCheckRevocationStatusForTimestampChain(t *testing.T) {
 			t.Errorf("Expected successful creation of revocation, but received error: %v", err)
 		}
 		certResults, err := r.ValidateContext(context.Background(), ValidateContextOptions{
-			CertChain:            revokableChain,
-			AuthenticSigningTime: time.Now(),
+			CertChain:             revokableChain,
+			AuthenticdSigningTime: time.Now(),
 		})
 		if err != nil {
 			t.Errorf("Expected CheckStatus to succeed, but got error: %v", err)
@@ -549,8 +549,8 @@ func TestCheckRevocationStatusForTimestampChain(t *testing.T) {
 			t.Errorf("Expected successful creation of revocation, but received error: %v", err)
 		}
 		certResults, err := r.ValidateContext(context.Background(), ValidateContextOptions{
-			CertChain:            revokableChain,
-			AuthenticSigningTime: time.Now(),
+			CertChain:             revokableChain,
+			AuthenticdSigningTime: time.Now(),
 		})
 		if err != nil {
 			t.Errorf("Expected CheckStatus to succeed, but got error: %v", err)
@@ -581,8 +581,8 @@ func TestCheckRevocationStatusForTimestampChain(t *testing.T) {
 			t.Errorf("Expected successful creation of revocation, but received error: %v", err)
 		}
 		certResults, err := r.ValidateContext(context.Background(), ValidateContextOptions{
-			CertChain:            revokableChain,
-			AuthenticSigningTime: time.Now(),
+			CertChain:             revokableChain,
+			AuthenticdSigningTime: time.Now(),
 		})
 		if err != nil {
 			t.Errorf("Expected CheckStatus to succeed, but got error: %v", err)
@@ -613,8 +613,8 @@ func TestCheckRevocationStatusForTimestampChain(t *testing.T) {
 			t.Errorf("Expected successful creation of revocation, but received error: %v", err)
 		}
 		certResults, err := r.ValidateContext(context.Background(), ValidateContextOptions{
-			CertChain:            revokableChain,
-			AuthenticSigningTime: time.Now(),
+			CertChain:             revokableChain,
+			AuthenticdSigningTime: time.Now(),
 		})
 		if err != nil {
 			t.Errorf("Expected CheckStatus to succeed, but got error: %v", err)
@@ -651,8 +651,8 @@ func TestCheckRevocationStatusForTimestampChain(t *testing.T) {
 			t.Errorf("Expected successful creation of revocation, but received error: %v", err)
 		}
 		certResults, err := r.ValidateContext(context.Background(), ValidateContextOptions{
-			CertChain:            revokableChain,
-			AuthenticSigningTime: time.Now(),
+			CertChain:             revokableChain,
+			AuthenticdSigningTime: time.Now(),
 		})
 		if err != nil {
 			t.Errorf("Expected CheckStatus to succeed, but got error: %v", err)
@@ -679,8 +679,8 @@ func TestCheckRevocationStatusForTimestampChain(t *testing.T) {
 			t.Errorf("Expected successful creation of revocation, but received error: %v", err)
 		}
 		certResults, err := r.ValidateContext(context.Background(), ValidateContextOptions{
-			CertChain:            revokableChain,
-			AuthenticSigningTime: time.Now(),
+			CertChain:             revokableChain,
+			AuthenticdSigningTime: time.Now(),
 		})
 		if err != nil {
 			t.Errorf("Expected CheckStatus to succeed, but got error: %v", err)
@@ -711,8 +711,8 @@ func TestCheckRevocationStatusForTimestampChain(t *testing.T) {
 			t.Errorf("Expected successful creation of revocation, but received error: %v", err)
 		}
 		certResults, err := r.ValidateContext(context.Background(), ValidateContextOptions{
-			CertChain:            revokableChain,
-			AuthenticSigningTime: time.Now().Add(time.Hour),
+			CertChain:             revokableChain,
+			AuthenticdSigningTime: time.Now().Add(time.Hour),
 		})
 		if err != nil {
 			t.Errorf("Expected CheckStatus to succeed, but got error: %v", err)
@@ -747,8 +747,8 @@ func TestCheckRevocationStatusForTimestampChain(t *testing.T) {
 			t.Errorf("Expected successful creation of revocation, but received error: %v", err)
 		}
 		certResults, err := r.ValidateContext(context.Background(), ValidateContextOptions{
-			CertChain:            revokableChain,
-			AuthenticSigningTime: time.Now().Add(time.Hour),
+			CertChain:             revokableChain,
+			AuthenticdSigningTime: time.Now().Add(time.Hour),
 		})
 		if err != nil {
 			t.Errorf("Expected CheckStatus to succeed, but got error: %v", err)

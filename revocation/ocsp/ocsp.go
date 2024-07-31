@@ -67,12 +67,12 @@ func CheckStatus(opts Options) ([]*result.CertRevocationResult, error) {
 		return nil, result.InvalidChainError{Err: errors.New("chain does not contain any certificates")}
 	}
 
-	// Validate cert chain structure
-	// Since this is using authentic signing time, signing time may be zero.
-	// Thus, it is better to pass nil here than fail for a cert's NotBefore
-	// being after zero time
 	switch opts.CertChainPurpose {
 	case x509.ExtKeyUsageAny, x509.ExtKeyUsageCodeSigning:
+		// Since ValidateCodeSigningCertChain is using authentic signing time,
+		// signing time may be zero.
+		// Thus, it is better to pass nil here than fail for a cert's NotBefore
+		// being after zero time
 		if err := coreX509.ValidateCodeSigningCertChain(opts.CertChain, nil); err != nil {
 			return nil, result.InvalidChainError{Err: err}
 		}
