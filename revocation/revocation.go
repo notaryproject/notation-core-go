@@ -82,7 +82,7 @@ func New(httpClient *http.Client) (Revocation, error) {
 // Options specifies values that are needed to check revocation
 type Options struct {
 	// OCSPHTTPClient is the HTTP client for OCSP request. If not provided,
-	// http.DefaultClient will be used.
+	// a default *http.Client with timeout of 2 seconds will be used.
 	// OPTIONAL.
 	OCSPHTTPClient *http.Client
 
@@ -92,7 +92,7 @@ type Options struct {
 	CertChainPurpose x509.ExtKeyUsage
 }
 
-// NewWithOptions constructs a ContextRevocation with the specified options
+// NewWithOptions constructs a Validator with the specified options
 func NewWithOptions(opts Options) (Validator, error) {
 	if opts.OCSPHTTPClient == nil {
 		opts.OCSPHTTPClient = &http.Client{Timeout: 2 * time.Second}
