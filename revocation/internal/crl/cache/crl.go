@@ -76,7 +76,7 @@ func ParseCRLFromTarball(data io.Reader) (*CRL, error) {
 			break
 		}
 		if err != nil {
-			return nil, &ParseCRLFromTarballError{
+			return nil, &BrokenFileError{
 				Err: fmt.Errorf("failed to read tarball: %w", err),
 			}
 		}
@@ -92,7 +92,7 @@ func ParseCRLFromTarball(data io.Reader) (*CRL, error) {
 			var baseCRL *x509.RevocationList
 			baseCRL, err = x509.ParseRevocationList(data)
 			if err != nil {
-				return nil, &ParseCRLFromTarballError{
+				return nil, &BrokenFileError{
 					Err: fmt.Errorf("failed to parse base CRL from tarball: %w", err),
 				}
 			}
@@ -102,7 +102,7 @@ func ParseCRLFromTarball(data io.Reader) (*CRL, error) {
 			// parse metadata
 			var metadata Metadata
 			if err := json.NewDecoder(tar).Decode(&metadata); err != nil {
-				return nil, &ParseCRLFromTarballError{
+				return nil, &BrokenFileError{
 					Err: fmt.Errorf("failed to parse CRL metadata from tarball: %w", err),
 				}
 			}
@@ -110,7 +110,7 @@ func ParseCRLFromTarball(data io.Reader) (*CRL, error) {
 			crl.Metadata = metadata
 
 		default:
-			return nil, &ParseCRLFromTarballError{
+			return nil, &BrokenFileError{
 				Err: fmt.Errorf("unexpected file in CRL tarball: %s", header.Name),
 			}
 		}
@@ -118,17 +118,17 @@ func ParseCRLFromTarball(data io.Reader) (*CRL, error) {
 
 	// validate
 	if crl.BaseCRL == nil {
-		return nil, &ParseCRLFromTarballError{
+		return nil, &BrokenFileError{
 			Err: errors.New("base CRL is missing from cached tarball"),
 		}
 	}
 	if crl.Metadata.BaseCRL.URL == "" {
-		return nil, &ParseCRLFromTarballError{
+		return nil, &BrokenFileError{
 			Err: errors.New("base CRL URL is missing from cached tarball"),
 		}
 	}
 	if crl.Metadata.BaseCRL.CreateAt.IsZero() {
-		return nil, &ParseCRLFromTarballError{
+		return nil, &BrokenFileError{
 			Err: errors.New("base CRL creation time is missing from cached tarball"),
 		}
 	}

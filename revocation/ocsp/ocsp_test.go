@@ -93,7 +93,7 @@ func TestCheckStatus(t *testing.T) {
 			HTTPClient:  client,
 		}
 
-		certResult := CertCheckStatus(revokableChain[0], revokableChain[1], opts)
+		certResult := certCheckStatus(revokableChain[0], revokableChain[1], opts)
 		expectedCertResults := []*result.CertRevocationResult{getOKCertResult(ocspServer)}
 		validateEquivalentCertResults([]*result.CertRevocationResult{certResult}, expectedCertResults, t)
 	})
@@ -105,7 +105,7 @@ func TestCheckStatus(t *testing.T) {
 			HTTPClient:  client,
 		}
 
-		certResult := CertCheckStatus(revokableChain[0], revokableChain[1], opts)
+		certResult := certCheckStatus(revokableChain[0], revokableChain[1], opts)
 		expectedCertResults := []*result.CertRevocationResult{{
 			Result: result.ResultUnknown,
 			ServerResults: []*result.ServerResult{
@@ -122,7 +122,7 @@ func TestCheckStatus(t *testing.T) {
 			HTTPClient:  client,
 		}
 
-		certResult := CertCheckStatus(revokableChain[0], revokableChain[1], opts)
+		certResult := certCheckStatus(revokableChain[0], revokableChain[1], opts)
 		expectedCertResults := []*result.CertRevocationResult{{
 			Result: result.ResultRevoked,
 			ServerResults: []*result.ServerResult{
@@ -140,7 +140,7 @@ func TestCheckStatus(t *testing.T) {
 			HTTPClient:  client,
 		}
 
-		certResult := CertCheckStatus(revokableChain[0], revokableChain[1], opts)
+		certResult := certCheckStatus(revokableChain[0], revokableChain[1], opts)
 		expectedCertResults := []*result.CertRevocationResult{getOKCertResult(ocspServer)}
 		validateEquivalentCertResults([]*result.CertRevocationResult{certResult}, expectedCertResults, t)
 	})
@@ -203,7 +203,7 @@ func TestCheckStatusForNonSelfSignedSingleCert(t *testing.T) {
 
 func TestCheckStatusForChain(t *testing.T) {
 	zeroTime := time.Time{}
-	testChain := testhelper.GetRevokableRSAChain(6, true, false)
+	testChain := testhelper.GetRevokableRSAChain(6)
 	revokableChain := make([]*x509.Certificate, 6)
 	for i, tuple := range testChain {
 		revokableChain[i] = tuple.Cert
@@ -457,7 +457,7 @@ func TestCheckStatusErrors(t *testing.T) {
 	rootCertTuple := testhelper.GetRSARootCertificate()
 	noOCSPChain := []*x509.Certificate{leafCertTuple.Cert, rootCertTuple.Cert}
 
-	revokableTuples := testhelper.GetRevokableRSAChain(3, true, false)
+	revokableTuples := testhelper.GetRevokableRSAChain(3)
 	noRootChain := []*x509.Certificate{revokableTuples[0].Cert, revokableTuples[1].Cert}
 	backwardsChain := []*x509.Certificate{revokableTuples[2].Cert, revokableTuples[1].Cert, revokableTuples[0].Cert}
 	okChain := []*x509.Certificate{revokableTuples[0].Cert, revokableTuples[1].Cert, revokableTuples[2].Cert}
@@ -663,7 +663,7 @@ func TestCheckStatusErrors(t *testing.T) {
 }
 
 func TestCheckOCSPInvalidChain(t *testing.T) {
-	revokableTuples := testhelper.GetRevokableRSAChain(4, true, false)
+	revokableTuples := testhelper.GetRevokableRSAChain(4)
 	misorderedIntermediateTuples := []testhelper.RSACertTuple{revokableTuples[1], revokableTuples[0], revokableTuples[2], revokableTuples[3]}
 	misorderedIntermediateChain := []*x509.Certificate{revokableTuples[1].Cert, revokableTuples[0].Cert, revokableTuples[2].Cert, revokableTuples[3].Cert}
 	for i, cert := range misorderedIntermediateChain {
