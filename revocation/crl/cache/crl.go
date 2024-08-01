@@ -2,10 +2,7 @@ package cache
 
 import (
 	"archive/tar"
-	"bytes"
-	"crypto/sha256"
 	"crypto/x509"
-	"encoding/gob"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -26,8 +23,6 @@ const (
 type CRL struct {
 	BaseCRL  *x509.RevocationList
 	Metadata Metadata
-
-	checksum [32]byte
 }
 
 // Metadata stores the metadata infomation of the CRL
@@ -56,49 +51,34 @@ func NewCRL(baseCRL *x509.RevocationList, url string) (*CRL, error) {
 	return crl, nil
 }
 
-func (c *CRL) IsCached() bool {
-	// check c.checksum is empty
-	checksum, err := c.computCheckSum()
-	if err != nil {
-		return false
-	}
-
-	return c.checksum == checksum
-}
-
-func (c *CRL) computCheckSum() ([32]byte, error) {
-	toBeHashed := struct {
-		BaseCRL  []byte
-		Metadata Metadata
-	}{
-		BaseCRL:  c.BaseCRL.Raw,
-		Metadata: c.Metadata,
-	}
-
-	var buf bytes.Buffer
-	enc := gob.NewEncoder(&buf)
-	if err := enc.Encode(toBeHashed); err != nil {
-		return [32]byte{}, err
-	}
-
-	// sha256 hash
-	return sha256.Sum256(buf.Bytes()), nil
-}
-
 // ParseCRLFromTarball parses the CRL blob from a tarball
+//
+// The tarball should contain two files:
+// - base.crl: the base CRL in DER format
+// - metadata.json: the metadata of the CRL
+//
+// example of metadata.json:
+//
+//	{
+//	  "base.crl": {
+//		   "url": "https://example.com/base.crl",
+//		   "createAt": "2021-09-01T00:00:00Z"
+//	  }
+//	}
 func ParseCRLFromTarball(data io.Reader) (*CRL, error) {
-	crlBlob := &CRL{cached: true}
+	crl := &CRL{}
 
 	// parse the tarball
 	tar := tar.NewReader(data)
-
 	for {
 		header, err := tar.Next()
 		if err == io.EOF {
 			break
 		}
 		if err != nil {
-			return nil, err
+			return nil, &ParseCRLFromTarballError{
+				Err: fmt.Errorf("failed to read tarball: %w", err),
+			}
 		}
 
 		switch header.Name {
@@ -112,37 +92,65 @@ func ParseCRLFromTarball(data io.Reader) (*CRL, error) {
 			var baseCRL *x509.RevocationList
 			baseCRL, err = x509.ParseRevocationList(data)
 			if err != nil {
-				return nil, err
+				return nil, &ParseCRLFromTarballError{
+					Err: fmt.Errorf("failed to parse base CRL from tarball: %w", err),
+				}
 			}
 
-			crlBlob.BaseCRL = baseCRL
+			crl.BaseCRL = baseCRL
 		case MetadataFile:
 			// parse metadata
 			var metadata Metadata
 			if err := json.NewDecoder(tar).Decode(&metadata); err != nil {
-				return nil, err
+				return nil, &ParseCRLFromTarballError{
+					Err: fmt.Errorf("failed to parse CRL metadata from tarball: %w", err),
+				}
 			}
 
-			crlBlob.Metadata = metadata
+			crl.Metadata = metadata
 
 		default:
-			return nil, fmt.Errorf("unknown file in tarball: %s", header.Name)
+			return nil, &ParseCRLFromTarballError{
+				Err: fmt.Errorf("unexpected file in CRL tarball: %s", header.Name),
+			}
 		}
 	}
 
-	if crlBlob.BaseCRL == nil {
-		return nil, errors.New("base.crl is missing")
+	// validate
+	if crl.BaseCRL == nil {
+		return nil, &ParseCRLFromTarballError{
+			Err: errors.New("base CRL is missing from cached tarball"),
+		}
+	}
+	if crl.Metadata.BaseCRL.URL == "" {
+		return nil, &ParseCRLFromTarballError{
+			Err: errors.New("base CRL URL is missing from cached tarball"),
+		}
+	}
+	if crl.Metadata.BaseCRL.CreateAt.IsZero() {
+		return nil, &ParseCRLFromTarballError{
+			Err: errors.New("base CRL creation time is missing from cached tarball"),
+		}
 	}
 
-	if crlBlob.Metadata.BaseCRL.URL == "" {
-		return nil, errors.New("base CRL's URL is missing from metadata.json")
-	}
-
-	return crlBlob, nil
+	return crl, nil
 }
 
 // SaveAsTar saves the CRL blob as a tarball, including the base CRL and
 // metadata
+//
+// The tarball should contain two files:
+// - base.crl: the base CRL in DER format
+// - metadata.json: the metadata of the CRL
+//
+// example of metadata.json:
+//
+//	{
+//	  "base.crl": {
+//		   "url": "https://example.com/base.crl",
+//		   "createAt": "2021-09-01T00:00:00Z"
+//	  }
+//	}
 func SaveAsTarball(w io.Writer, crl *CRL) (err error) {
 	tarWriter := tar.NewWriter(w)
 	// Add base.crl

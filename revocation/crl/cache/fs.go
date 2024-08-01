@@ -71,7 +71,7 @@ func (c *fileSystemCache) Set(ctx context.Context, key string, value any) error 
 	if err != nil {
 		return err
 	}
-	if err := crlBlob.SaveAsTarball(tempFile); err != nil {
+	if err := SaveAsTarball(tempFile, crlBlob); err != nil {
 		return err
 	}
 
