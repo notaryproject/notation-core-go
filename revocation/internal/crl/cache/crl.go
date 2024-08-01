@@ -20,6 +20,8 @@ const (
 
 // CRL is in memory representation of the CRL tarball, including CRL file and
 // metadata file, which may be cached in the file system or other storage
+//
+// TODO: consider adding DeltaCRL field in the future
 type CRL struct {
 	BaseCRL  *x509.RevocationList
 	Metadata Metadata
