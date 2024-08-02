@@ -11,42 +11,40 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"strings"
+	"time"
 
 	"github.com/notaryproject/notation-core-go/revocation/crl/cache"
 )
 
 // maxCRLSize is the maximum size of CRL in bytes
-const maxCRLSize = 10 << 20 // 10 MiB
+const maxCRLSize = 64 * 1024 * 1024 // 64 MiB
 
-func fetch(ctx context.Context, cacheClient cache.Cache, crlURL string, client *http.Client) (*cache.Bundle, error) {
-	// check cache
+func fetch(ctx context.Context, c cache.Cache, crlURL string, cacheMaxAge time.Duration, httpClient *http.Client) (*cache.Bundle, error) {
+	if c == nil {
+		return download(ctx, crlURL, httpClient)
+	}
+
 	// try to get from cache
-	crlBundle, err := cacheClient.Get(ctx, tarStoreName(crlURL))
+	crlBundle, err := c.Get(ctx, tarStoreName(crlURL), cacheMaxAge)
 	if err != nil {
 		var cacheBrokenError *cache.BrokenFileError
 		if os.IsNotExist(err) || errors.As(err, &cacheBrokenError) {
-			crl, err := download(ctx, crlURL, client)
-			if err != nil {
-				return nil, err
-			}
-
-			return cache.NewBundle(crl, crlURL)
+			// download if not exist or broken
+			return download(ctx, crlURL, httpClient)
 		}
-
 		return nil, err
 	}
 
 	return crlBundle, nil
 }
 
-func download(ctx context.Context, crlURL string, client *http.Client) (*x509.RevocationList, error) {
+func download(ctx context.Context, crlURL string, client *http.Client) (*cache.Bundle, error) {
 	// validate URL
 	parsedURL, err := url.Parse(crlURL)
 	if err != nil {
 		return nil, fmt.Errorf("invalid CRL URL: %w", err)
 	}
-	if strings.ToLower(parsedURL.Scheme) != "http" {
+	if parsedURL.Scheme != "http" {
 		return nil, fmt.Errorf("unsupported scheme: %s. Only supports CRL URL in HTTP protocol", parsedURL.Scheme)
 	}
 
@@ -76,7 +74,11 @@ func download(ctx context.Context, crlURL string, client *http.Client) (*x509.Re
 		return nil, fmt.Errorf("CRL size exceeds the limit: %d", maxCRLSize)
 	}
 
-	return x509.ParseRevocationList(data)
+	crl, err := x509.ParseRevocationList(data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse CRL: %w", err)
+	}
+	return cache.NewBundle(crl, crlURL)
 }
 
 func tarStoreName(url string) string {

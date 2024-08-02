@@ -17,14 +17,18 @@ package cache
 
 import (
 	"context"
+	"time"
 )
 
 // Cache is an interface that specifies methods used for caching
 type Cache interface {
 	// Get retrieves the content with the given key
 	//
+	// maxAge is the maximum age of the content. If the content is older than
+	// maxAge, it will be considered as expired and should not be returned.
+	//
 	// - if the key does not exist, return os.ErrNotExist
-	Get(ctx context.Context, key string) (*Bundle, error)
+	Get(ctx context.Context, key string, maxAge time.Duration) (*Bundle, error)
 
 	// Set stores the content with the given key
 	Set(ctx context.Context, key string, bundle *Bundle) error

@@ -8,37 +8,26 @@ import (
 )
 
 const (
-	// DefaultTTL is the default time to live for the cache
-	DefaultTTL = 24 * 7 * time.Hour
-
 	// tempFileName is the prefix of the temporary file
 	tempFileName = "notation-*"
 )
 
-// fileSystemCache builds on top of OS file system to leverage the file system
+// fileCache builds on top of OS file system to leverage the file system
 // concurrency control and atomicity
-type fileSystemCache struct {
+type fileCache struct {
 	dir string
-	ttl time.Duration
 }
 
-// NewFileSystemCache creates a new file system store
-func NewFileSystemCache(dir string, ttl time.Duration) (Cache, error) {
+// NewFileCache creates a new file system store
+func NewFileCache(dir string, ttl time.Duration) (Cache, error) {
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return nil, err
 	}
 
-	if ttl == 0 {
-		ttl = DefaultTTL
-	}
-
-	return &fileSystemCache{
-		dir: dir,
-		ttl: ttl,
-	}, nil
+	return &fileCache{dir: dir}, nil
 }
 
-func (c *fileSystemCache) Get(ctx context.Context, key string) (*Bundle, error) {
+func (c *fileCache) Get(ctx context.Context, key string, maxAge time.Duration) (*Bundle, error) {
 	f, err := os.Open(filepath.Join(c.dir, key))
 	if err != nil {
 		return nil, err
@@ -50,14 +39,14 @@ func (c *fileSystemCache) Get(ctx context.Context, key string) (*Bundle, error) 
 		return nil, err
 	}
 
-	if time.Since(blob.Metadata.BaseCRL.CreateAt) > c.ttl {
+	if maxAge != 0 && time.Since(blob.Metadata.BaseCRL.CreateAt) > maxAge {
 		return nil, os.ErrNotExist
 	}
 
 	return blob, nil
 }
 
-func (c *fileSystemCache) Set(ctx context.Context, key string, bundle *Bundle) error {
+func (c *fileCache) Set(ctx context.Context, key string, bundle *Bundle) error {
 	tempFile, err := os.CreateTemp("", tempFileName)
 	if err != nil {
 		return err
@@ -71,10 +60,10 @@ func (c *fileSystemCache) Set(ctx context.Context, key string, bundle *Bundle) e
 	return os.Rename(tempFile.Name(), filepath.Join(c.dir, key))
 }
 
-func (c *fileSystemCache) Delete(ctx context.Context, key string) error {
+func (c *fileCache) Delete(ctx context.Context, key string) error {
 	return os.Remove(filepath.Join(c.dir, key))
 }
 
-func (c *fileSystemCache) Clear(ctx context.Context) error {
+func (c *fileCache) Clear(ctx context.Context) error {
 	return os.RemoveAll(c.dir)
 }
