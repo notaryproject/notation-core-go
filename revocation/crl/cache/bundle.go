@@ -12,10 +12,10 @@ import (
 
 const (
 	// BaseCRL is the file name of the base CRL
-	BaseCRLFile = "base.crl"
+	PathBaseCRL = "base.crl"
 
 	// Metadata is the file name of the metadata
-	MetadataFile = "metadata.json"
+	PathMetadata = "metadata.json"
 )
 
 // Bundle is in memory representation of the Bundle tarball, including base CRL
@@ -87,7 +87,7 @@ func ParseBundleFromTarball(data io.Reader) (*Bundle, error) {
 		}
 
 		switch header.Name {
-		case BaseCRLFile:
+		case PathBaseCRL:
 			// parse base.crl
 			data, err := io.ReadAll(tar)
 			if err != nil {
@@ -103,7 +103,7 @@ func ParseBundleFromTarball(data io.Reader) (*Bundle, error) {
 			}
 
 			crl.BaseCRL = baseCRL
-		case MetadataFile:
+		case PathMetadata:
 			// parse metadata
 			var metadata Metadata
 			if err := json.NewDecoder(tar).Decode(&metadata); err != nil {
@@ -159,7 +159,7 @@ func ParseBundleFromTarball(data io.Reader) (*Bundle, error) {
 func SaveAsTarball(w io.Writer, bundle *Bundle) (err error) {
 	tarWriter := tar.NewWriter(w)
 	// Add base.crl
-	if err := addToTar(BaseCRLFile, bundle.BaseCRL.Raw, bundle.Metadata.BaseCRL.CreateAt, tarWriter); err != nil {
+	if err := addToTar(PathBaseCRL, bundle.BaseCRL.Raw, bundle.Metadata.BaseCRL.CreateAt, tarWriter); err != nil {
 		return err
 	}
 
@@ -168,7 +168,7 @@ func SaveAsTarball(w io.Writer, bundle *Bundle) (err error) {
 	if err != nil {
 		return err
 	}
-	return addToTar(MetadataFile, metadataBytes, time.Now(), tarWriter)
+	return addToTar(PathMetadata, metadataBytes, time.Now(), tarWriter)
 }
 
 func addToTar(fileName string, data []byte, modTime time.Time, tw *tar.Writer) error {
