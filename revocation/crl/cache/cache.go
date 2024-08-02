@@ -24,14 +24,10 @@ type Cache interface {
 	// Get retrieves the content with the given key
 	//
 	// - if the key does not exist, return os.ErrNotExist
-	// - when request a key of a CRL, the implementation MUST return a *CRL
-	Get(ctx context.Context, key string) (any, error)
+	Get(ctx context.Context, key string) (*Bundle, error)
 
 	// Set stores the content with the given key
-	//
-	// the implementation MUST support *CRL as the type of value field to
-	// cache a CRL
-	Set(ctx context.Context, key string, value any) error
+	Set(ctx context.Context, key string, bundle *Bundle) error
 
 	// Delete removes the content with the given key
 	Delete(ctx context.Context, key string) error

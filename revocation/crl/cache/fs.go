@@ -2,7 +2,6 @@ package cache
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"path/filepath"
 	"time"
@@ -39,14 +38,14 @@ func NewFileSystemCache(dir string, ttl time.Duration) (Cache, error) {
 	}, nil
 }
 
-func (c *fileSystemCache) Get(ctx context.Context, key string) (any, error) {
+func (c *fileSystemCache) Get(ctx context.Context, key string) (*Bundle, error) {
 	f, err := os.Open(filepath.Join(c.dir, key))
 	if err != nil {
 		return nil, err
 	}
 	defer f.Close()
 
-	blob, err := ParseCRLFromTarball(f)
+	blob, err := ParseBundleFromTarball(f)
 	if err != nil {
 		return nil, err
 	}
@@ -58,20 +57,12 @@ func (c *fileSystemCache) Get(ctx context.Context, key string) (any, error) {
 	return blob, nil
 }
 
-func (c *fileSystemCache) Set(ctx context.Context, key string, value any) error {
-	var crlBlob *CRL
-	switch v := value.(type) {
-	case *CRL:
-		crlBlob = v
-	default:
-		return fmt.Errorf("invalid value type: %T", value)
-	}
-
+func (c *fileSystemCache) Set(ctx context.Context, key string, bundle *Bundle) error {
 	tempFile, err := os.CreateTemp("", tempFileName)
 	if err != nil {
 		return err
 	}
-	if err := SaveAsTarball(tempFile, crlBlob); err != nil {
+	if err := SaveAsTarball(tempFile, bundle); err != nil {
 		return err
 	}
 

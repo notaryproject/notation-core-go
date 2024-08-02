@@ -14,11 +14,11 @@ func NewDummyCache() Cache {
 	return &dummyCache{}
 }
 
-func (c *dummyCache) Get(ctx context.Context, key string) (any, error) {
+func (c *dummyCache) Get(ctx context.Context, key string) (*Bundle, error) {
 	return nil, os.ErrNotExist
 }
 
-func (c *dummyCache) Set(ctx context.Context, key string, value any) error {
+func (c *dummyCache) Set(ctx context.Context, key string, bundle *Bundle) error {
 	return nil
 }
 

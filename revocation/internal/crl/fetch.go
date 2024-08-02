@@ -13,36 +13,31 @@ import (
 	"os"
 	"strings"
 
-	"github.com/notaryproject/notation-core-go/revocation/internal/crl/cache"
+	"github.com/notaryproject/notation-core-go/revocation/crl/cache"
 )
 
 // maxCRLSize is the maximum size of CRL in bytes
 const maxCRLSize = 10 << 20 // 10 MiB
 
-func fetch(ctx context.Context, cacheClient cache.Cache, crlURL string, client *http.Client) (*cache.CRL, error) {
+func fetch(ctx context.Context, cacheClient cache.Cache, crlURL string, client *http.Client) (*cache.Bundle, error) {
 	// check cache
 	// try to get from cache
-	obj, err := cacheClient.Get(ctx, tarStoreName(crlURL))
+	crlBundle, err := cacheClient.Get(ctx, tarStoreName(crlURL))
 	if err != nil {
-		var cacheBrokenError cache.BrokenFileError
+		var cacheBrokenError *cache.BrokenFileError
 		if os.IsNotExist(err) || errors.As(err, &cacheBrokenError) {
 			crl, err := download(ctx, crlURL, client)
 			if err != nil {
 				return nil, err
 			}
 
-			return cache.NewCRL(crl, crlURL)
+			return cache.NewBundle(crl, crlURL)
 		}
 
 		return nil, err
 	}
 
-	crl, ok := obj.(*cache.CRL)
-	if !ok {
-		return nil, fmt.Errorf("invalid cache object type: %T", obj)
-	}
-
-	return crl, nil
+	return crlBundle, nil
 }
 
 func download(ctx context.Context, crlURL string, client *http.Client) (*x509.RevocationList, error) {

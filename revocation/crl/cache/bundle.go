@@ -18,16 +18,19 @@ const (
 	MetadataFile = "metadata.json"
 )
 
-// CRL is in memory representation of the CRL tarball, including CRL file and
-// metadata file, which may be cached in the file system or other storage
+// Bundle is in memory representation of the Bundle tarball, including base CRL
+// file and metadata file, which may be cached in the file system or other
+// storage
 //
 // TODO: consider adding DeltaCRL field in the future
-type CRL struct {
+type Bundle struct {
 	BaseCRL  *x509.RevocationList
 	Metadata Metadata
 }
 
 // Metadata stores the metadata infomation of the CRL
+//
+// TODO: consider adding DeltaCRL field in the future
 type Metadata struct {
 	BaseCRL FileInfo `json:"base.crl"`
 }
@@ -38,9 +41,9 @@ type FileInfo struct {
 	CreateAt time.Time `json:"createAt"`
 }
 
-// NewCRL creates a new CRL store with tarball format
-func NewCRL(baseCRL *x509.RevocationList, url string) (*CRL, error) {
-	crl := &CRL{
+// NewBundle creates a new CRL store with tarball format
+func NewBundle(baseCRL *x509.RevocationList, url string) (*Bundle, error) {
+	crl := &Bundle{
 		BaseCRL: baseCRL,
 		Metadata: Metadata{
 			BaseCRL: FileInfo{
@@ -53,7 +56,7 @@ func NewCRL(baseCRL *x509.RevocationList, url string) (*CRL, error) {
 	return crl, nil
 }
 
-// ParseCRLFromTarball parses the CRL blob from a tarball
+// ParseBundleFromTarball parses the CRL blob from a tarball
 //
 // The tarball should contain two files:
 // - base.crl: the base CRL in DER format
@@ -67,8 +70,8 @@ func NewCRL(baseCRL *x509.RevocationList, url string) (*CRL, error) {
 //		   "createAt": "2021-09-01T00:00:00Z"
 //	  }
 //	}
-func ParseCRLFromTarball(data io.Reader) (*CRL, error) {
-	crl := &CRL{}
+func ParseBundleFromTarball(data io.Reader) (*Bundle, error) {
+	crl := &Bundle{}
 
 	// parse the tarball
 	tar := tar.NewReader(data)
@@ -153,27 +156,27 @@ func ParseCRLFromTarball(data io.Reader) (*CRL, error) {
 //		   "createAt": "2021-09-01T00:00:00Z"
 //	  }
 //	}
-func SaveAsTarball(w io.Writer, crl *CRL) (err error) {
+func SaveAsTarball(w io.Writer, bundle *Bundle) (err error) {
 	tarWriter := tar.NewWriter(w)
 	// Add base.crl
-	if err := addToTar(BaseCRLFile, crl.BaseCRL.Raw, tarWriter); err != nil {
+	if err := addToTar(BaseCRLFile, bundle.BaseCRL.Raw, bundle.Metadata.BaseCRL.CreateAt, tarWriter); err != nil {
 		return err
 	}
 
 	// Add metadata.json
-	metadataBytes, err := json.Marshal(crl.Metadata)
+	metadataBytes, err := json.Marshal(bundle.Metadata)
 	if err != nil {
 		return err
 	}
-	return addToTar(MetadataFile, metadataBytes, tarWriter)
+	return addToTar(MetadataFile, metadataBytes, time.Now(), tarWriter)
 }
 
-func addToTar(fileName string, data []byte, tw *tar.Writer) error {
+func addToTar(fileName string, data []byte, modTime time.Time, tw *tar.Writer) error {
 	header := &tar.Header{
 		Name:    fileName,
 		Size:    int64(len(data)),
 		Mode:    0644,
-		ModTime: time.Now(),
+		ModTime: modTime,
 	}
 	if err := tw.WriteHeader(header); err != nil {
 		return err
