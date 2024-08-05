@@ -44,9 +44,9 @@ type ValidateContextOptions struct {
 	// been validated. REQUIRED.
 	CertChain []*x509.Certificate
 
-	// SigningTime denotes the signing time of the signature.
+	// AuthenticSigningTime denotes the authentic signing time of the signature.
 	// OPTIONAL.
-	SigningTime time.Time
+	AuthenticSigningTime time.Time
 }
 
 // Validator is an interface that provides revocation checking with
@@ -117,8 +117,8 @@ func NewWithOptions(opts Options) (Validator, error) {
 // https://github.com/notaryproject/notation-core-go/issues/125
 func (r *revocation) Validate(certChain []*x509.Certificate, signingTime time.Time) ([]*result.CertRevocationResult, error) {
 	return r.ValidateContext(context.Background(), ValidateContextOptions{
-		CertChain:   certChain,
-		SigningTime: signingTime,
+		CertChain:            certChain,
+		AuthenticSigningTime: signingTime,
 	})
 }
 
@@ -136,7 +136,7 @@ func (r *revocation) ValidateContext(ctx context.Context, validateContextOpts Va
 	return ocsp.CheckStatus(ocsp.Options{
 		CertChain:        validateContextOpts.CertChain,
 		CertChainPurpose: r.certChainPurpose,
-		SigningTime:      validateContextOpts.SigningTime,
+		SigningTime:      validateContextOpts.AuthenticSigningTime,
 		HTTPClient:       r.httpClient,
 	})
 
