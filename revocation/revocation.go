@@ -45,8 +45,10 @@ type ValidateContextOptions struct {
 	CertChain []*x509.Certificate
 
 	// AuthenticSigningTime denotes the authentic signing time of the signature.
-	// It is solely used under signing scheme notary.x509.signingAuthority.
+	// It is used to compare with the InvalidityDate during revocation check.
 	// OPTIONAL.
+	//
+	// Reference: https://github.com/notaryproject/specifications/blob/v1.0.0/specs/trust-store-trust-policy.md#revocation-checking-with-ocsp
 	AuthenticSigningTime time.Time
 }
 
