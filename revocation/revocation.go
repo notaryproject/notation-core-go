@@ -32,9 +32,9 @@ import (
 // Deprecated: Revocation exists for backwards compatibility and should not be used.
 // To perform revocation check, use [Validator].
 type Revocation interface {
-	// Validate checks the revocation status for a certificate chain using OCSP
-	// and returns an array of CertRevocationResults that contain the results
-	// and any errors that are encountered during the process
+	// Validate checks the revocation status for a code signing certificate chain
+	// using OCSP and returns an array of CertRevocationResults that contain
+	// the results and any errors that are encountered during the process
 	Validate(certChain []*x509.Certificate, signingTime time.Time) ([]*result.CertRevocationResult, error)
 }
 
@@ -50,6 +50,11 @@ type ValidateContextOptions struct {
 	//
 	// Reference: https://github.com/notaryproject/specifications/blob/v1.0.0/specs/trust-store-trust-policy.md#revocation-checking-with-ocsp
 	AuthenticSigningTime time.Time
+
+	// CertChainPurpose is the purpose of the certificate chain. Supported
+	// values are x509.ExtKeyUsageCodeSigning and x509.ExtKeyUsageTimeStamping.
+	// REQUIRED.
+	CertChainPurpose x509.ExtKeyUsage
 }
 
 // Validator is an interface that provides revocation checking with
@@ -63,8 +68,7 @@ type Validator interface {
 
 // revocation is an internal struct used for revocation checking
 type revocation struct {
-	httpClient       *http.Client
-	certChainPurpose x509.ExtKeyUsage
+	httpClient *http.Client
 }
 
 // New constructs a revocation object for code signing certificate chain.
@@ -76,8 +80,7 @@ func New(httpClient *http.Client) (Revocation, error) {
 		return nil, errors.New("invalid input: a non-nil httpClient must be specified")
 	}
 	return &revocation{
-		httpClient:       httpClient,
-		certChainPurpose: x509.ExtKeyUsageCodeSigning,
+		httpClient: httpClient,
 	}, nil
 }
 
@@ -87,11 +90,6 @@ type Options struct {
 	// a default *http.Client with timeout of 2 seconds will be used.
 	// OPTIONAL.
 	OCSPHTTPClient *http.Client
-
-	// CertChainPurpose is the purpose of the certificate chain. Supported
-	// values are x509.ExtKeyUsageCodeSigning and x509.ExtKeyUsageTimeStamping.
-	// REQUIRED.
-	CertChainPurpose x509.ExtKeyUsage
 }
 
 // NewWithOptions constructs a Validator with the specified options
@@ -100,21 +98,14 @@ func NewWithOptions(opts Options) (Validator, error) {
 		opts.OCSPHTTPClient = &http.Client{Timeout: 2 * time.Second}
 	}
 
-	switch opts.CertChainPurpose {
-	case x509.ExtKeyUsageCodeSigning, x509.ExtKeyUsageTimeStamping:
-	default:
-		return nil, fmt.Errorf("unsupported certificate chain purpose %v", opts.CertChainPurpose)
-	}
-
 	return &revocation{
-		httpClient:       opts.OCSPHTTPClient,
-		certChainPurpose: opts.CertChainPurpose,
+		httpClient: opts.OCSPHTTPClient,
 	}, nil
 }
 
-// Validate checks the revocation status for a certificate chain using OCSP and
-// returns an array of CertRevocationResults that contain the results and any
-// errors that are encountered during the process
+// Validate checks the revocation status for a code signing certificate chain
+// using OCSP and returns an array of CertRevocationResults that contain the
+// results and any errors that are encountered during the process.
 //
 // TODO: add CRL support
 // https://github.com/notaryproject/notation-core-go/issues/125
@@ -122,6 +113,7 @@ func (r *revocation) Validate(certChain []*x509.Certificate, signingTime time.Ti
 	return r.ValidateContext(context.Background(), ValidateContextOptions{
 		CertChain:            certChain,
 		AuthenticSigningTime: signingTime,
+		CertChainPurpose:     x509.ExtKeyUsageCodeSigning,
 	})
 }
 
@@ -136,9 +128,15 @@ func (r *revocation) ValidateContext(ctx context.Context, validateContextOpts Va
 		return nil, result.InvalidChainError{Err: errors.New("chain does not contain any certificates")}
 	}
 
+	switch validateContextOpts.CertChainPurpose {
+	case x509.ExtKeyUsageCodeSigning, x509.ExtKeyUsageTimeStamping:
+	default:
+		return nil, fmt.Errorf("unsupported certificate chain purpose %v", validateContextOpts.CertChainPurpose)
+	}
+
 	return ocsp.CheckStatus(ocsp.Options{
 		CertChain:        validateContextOpts.CertChain,
-		CertChainPurpose: r.certChainPurpose,
+		CertChainPurpose: validateContextOpts.CertChainPurpose,
 		SigningTime:      validateContextOpts.AuthenticSigningTime,
 		HTTPClient:       r.httpClient,
 	})
