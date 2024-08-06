@@ -45,6 +45,7 @@ type ValidateContextOptions struct {
 	CertChain []*x509.Certificate
 
 	// AuthenticSigningTime denotes the authentic signing time of the signature.
+	// It is solely used under signing scheme notary.x509.signingAuthority.
 	// OPTIONAL.
 	AuthenticSigningTime time.Time
 }
