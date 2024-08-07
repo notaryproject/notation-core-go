@@ -90,8 +90,8 @@ type Options struct {
 	OCSPHTTPClient *http.Client
 
 	// CertChainPurpose is the purpose of the certificate chain. Supported
-	// values are CodeSigning and Timestamping.
-	// REQUIRED.
+	// values are CodeSigning and Timestamping. Default value is CodeSigning.
+	// OPTIONAL.
 	CertChainPurpose purpose.Purpose
 }
 
