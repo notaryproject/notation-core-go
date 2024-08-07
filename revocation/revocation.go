@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/notaryproject/notation-core-go/revocation/ocsp"
+	"github.com/notaryproject/notation-core-go/revocation/purpose"
 	"github.com/notaryproject/notation-core-go/revocation/result"
 )
 
@@ -64,7 +65,7 @@ type Validator interface {
 // revocation is an internal struct used for revocation checking
 type revocation struct {
 	httpClient       *http.Client
-	certChainPurpose x509.ExtKeyUsage
+	certChainPurpose purpose.Purpose
 }
 
 // New constructs a revocation object for code signing certificate chain.
@@ -77,7 +78,7 @@ func New(httpClient *http.Client) (Revocation, error) {
 	}
 	return &revocation{
 		httpClient:       httpClient,
-		certChainPurpose: x509.ExtKeyUsageCodeSigning,
+		certChainPurpose: purpose.CodeSigning,
 	}, nil
 }
 
@@ -89,9 +90,9 @@ type Options struct {
 	OCSPHTTPClient *http.Client
 
 	// CertChainPurpose is the purpose of the certificate chain. Supported
-	// values are x509.ExtKeyUsageCodeSigning and x509.ExtKeyUsageTimeStamping.
+	// values are CodeSigning and TimeStamping.
 	// REQUIRED.
-	CertChainPurpose x509.ExtKeyUsage
+	CertChainPurpose purpose.Purpose
 }
 
 // NewWithOptions constructs a Validator with the specified options
@@ -101,7 +102,7 @@ func NewWithOptions(opts Options) (Validator, error) {
 	}
 
 	switch opts.CertChainPurpose {
-	case x509.ExtKeyUsageCodeSigning, x509.ExtKeyUsageTimeStamping:
+	case purpose.CodeSigning, purpose.Timestamping:
 	default:
 		return nil, fmt.Errorf("unsupported certificate chain purpose %v", opts.CertChainPurpose)
 	}

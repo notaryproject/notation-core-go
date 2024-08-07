@@ -21,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/notaryproject/notation-core-go/revocation/purpose"
 	"github.com/notaryproject/notation-core-go/revocation/result"
 	"github.com/notaryproject/notation-core-go/testhelper"
 	"golang.org/x/crypto/ocsp"
@@ -88,10 +89,9 @@ func TestCheckStatus(t *testing.T) {
 	t.Run("check non-revoked cert", func(t *testing.T) {
 		client := testhelper.MockClient(testChain, []ocsp.ResponseStatus{ocsp.Good}, nil, true)
 		opts := Options{
-			CertChain:        revokableChain,
-			CertChainPurpose: x509.ExtKeyUsageCodeSigning,
-			SigningTime:      time.Now(),
-			HTTPClient:       client,
+			CertChain:   revokableChain,
+			SigningTime: time.Now(),
+			HTTPClient:  client,
 		}
 
 		certResult := certCheckStatus(revokableChain[0], revokableChain[1], opts)
@@ -101,10 +101,9 @@ func TestCheckStatus(t *testing.T) {
 	t.Run("check cert with Unknown OCSP response", func(t *testing.T) {
 		client := testhelper.MockClient(testChain, []ocsp.ResponseStatus{ocsp.Unknown}, nil, true)
 		opts := Options{
-			CertChain:        revokableChain,
-			CertChainPurpose: x509.ExtKeyUsageCodeSigning,
-			SigningTime:      time.Now(),
-			HTTPClient:       client,
+			CertChain:   revokableChain,
+			SigningTime: time.Now(),
+			HTTPClient:  client,
 		}
 
 		certResult := certCheckStatus(revokableChain[0], revokableChain[1], opts)
@@ -119,10 +118,9 @@ func TestCheckStatus(t *testing.T) {
 	t.Run("check OCSP revoked cert", func(t *testing.T) {
 		client := testhelper.MockClient(testChain, []ocsp.ResponseStatus{ocsp.Revoked}, nil, true)
 		opts := Options{
-			CertChain:        revokableChain,
-			CertChainPurpose: x509.ExtKeyUsageCodeSigning,
-			SigningTime:      time.Now(),
-			HTTPClient:       client,
+			CertChain:   revokableChain,
+			SigningTime: time.Now(),
+			HTTPClient:  client,
 		}
 
 		certResult := certCheckStatus(revokableChain[0], revokableChain[1], opts)
@@ -138,10 +136,9 @@ func TestCheckStatus(t *testing.T) {
 		revokedTime := time.Now().Add(time.Hour)
 		client := testhelper.MockClient(testChain, []ocsp.ResponseStatus{ocsp.Revoked}, &revokedTime, true)
 		opts := Options{
-			CertChain:        revokableChain,
-			CertChainPurpose: x509.ExtKeyUsageCodeSigning,
-			SigningTime:      time.Now(),
-			HTTPClient:       client,
+			CertChain:   revokableChain,
+			SigningTime: time.Now(),
+			HTTPClient:  client,
 		}
 
 		certResult := certCheckStatus(revokableChain[0], revokableChain[1], opts)
@@ -154,10 +151,9 @@ func TestCheckStatusForSelfSignedCert(t *testing.T) {
 	selfSignedTuple := testhelper.GetRSASelfSignedSigningCertTuple("Notation revocation test self-signed cert")
 	client := testhelper.MockClient([]testhelper.RSACertTuple{selfSignedTuple}, []ocsp.ResponseStatus{ocsp.Good}, nil, true)
 	opts := Options{
-		CertChain:        []*x509.Certificate{selfSignedTuple.Cert},
-		CertChainPurpose: x509.ExtKeyUsageCodeSigning,
-		SigningTime:      time.Now(),
-		HTTPClient:       client,
+		CertChain:   []*x509.Certificate{selfSignedTuple.Cert},
+		SigningTime: time.Now(),
+		HTTPClient:  client,
 	}
 
 	certResults, err := CheckStatus(opts)
@@ -172,10 +168,9 @@ func TestCheckStatusForRootCert(t *testing.T) {
 	rootTuple := testhelper.GetRSARootCertificate()
 	client := testhelper.MockClient([]testhelper.RSACertTuple{rootTuple}, []ocsp.ResponseStatus{ocsp.Good}, nil, true)
 	opts := Options{
-		CertChain:        []*x509.Certificate{rootTuple.Cert},
-		CertChainPurpose: x509.ExtKeyUsageCodeSigning,
-		SigningTime:      time.Now(),
-		HTTPClient:       client,
+		CertChain:   []*x509.Certificate{rootTuple.Cert},
+		SigningTime: time.Now(),
+		HTTPClient:  client,
 	}
 
 	certResults, err := CheckStatus(opts)
@@ -192,10 +187,9 @@ func TestCheckStatusForNonSelfSignedSingleCert(t *testing.T) {
 	certTuple := testhelper.GetRSALeafCertificate()
 	client := testhelper.MockClient([]testhelper.RSACertTuple{certTuple}, []ocsp.ResponseStatus{ocsp.Good}, nil, true)
 	opts := Options{
-		CertChain:        []*x509.Certificate{certTuple.Cert},
-		CertChainPurpose: x509.ExtKeyUsageCodeSigning,
-		SigningTime:      time.Now(),
-		HTTPClient:       client,
+		CertChain:   []*x509.Certificate{certTuple.Cert},
+		SigningTime: time.Now(),
+		HTTPClient:  client,
 	}
 
 	certResults, err := CheckStatus(opts)
@@ -219,10 +213,9 @@ func TestCheckStatusForChain(t *testing.T) {
 
 	t.Run("empty chain", func(t *testing.T) {
 		opts := Options{
-			CertChain:        []*x509.Certificate{},
-			CertChainPurpose: x509.ExtKeyUsageCodeSigning,
-			SigningTime:      time.Now(),
-			HTTPClient:       http.DefaultClient,
+			CertChain:   []*x509.Certificate{},
+			SigningTime: time.Now(),
+			HTTPClient:  http.DefaultClient,
 		}
 		certResults, err := CheckStatus(opts)
 		expectedErr := result.InvalidChainError{Err: errors.New("chain does not contain any certificates")}
@@ -237,7 +230,7 @@ func TestCheckStatusForChain(t *testing.T) {
 		client := testhelper.MockClient(testChain, []ocsp.ResponseStatus{ocsp.Good}, nil, true)
 		opts := Options{
 			CertChain:        revokableChain,
-			CertChainPurpose: x509.ExtKeyUsageCodeSigning,
+			CertChainPurpose: purpose.CodeSigning,
 			SigningTime:      time.Now(),
 			HTTPClient:       client,
 		}
@@ -260,10 +253,9 @@ func TestCheckStatusForChain(t *testing.T) {
 		client := testhelper.MockClient(testChain, []ocsp.ResponseStatus{ocsp.Good, ocsp.Good, ocsp.Unknown, ocsp.Good}, nil, true)
 		// 3rd cert will be unknown, the rest will be good
 		opts := Options{
-			CertChain:        revokableChain,
-			CertChainPurpose: x509.ExtKeyUsageCodeSigning,
-			SigningTime:      time.Now(),
-			HTTPClient:       client,
+			CertChain:   revokableChain,
+			SigningTime: time.Now(),
+			HTTPClient:  client,
 		}
 
 		certResults, err := CheckStatus(opts)
@@ -289,10 +281,9 @@ func TestCheckStatusForChain(t *testing.T) {
 		client := testhelper.MockClient(testChain, []ocsp.ResponseStatus{ocsp.Good, ocsp.Good, ocsp.Revoked, ocsp.Good}, nil, true)
 		// 3rd cert will be revoked, the rest will be good
 		opts := Options{
-			CertChain:        revokableChain,
-			CertChainPurpose: x509.ExtKeyUsageCodeSigning,
-			SigningTime:      time.Now(),
-			HTTPClient:       client,
+			CertChain:   revokableChain,
+			SigningTime: time.Now(),
+			HTTPClient:  client,
 		}
 
 		certResults, err := CheckStatus(opts)
@@ -318,10 +309,9 @@ func TestCheckStatusForChain(t *testing.T) {
 		client := testhelper.MockClient(testChain, []ocsp.ResponseStatus{ocsp.Good, ocsp.Good, ocsp.Unknown, ocsp.Good, ocsp.Revoked, ocsp.Good}, nil, true)
 		// 3rd cert will be unknown, 5th will be revoked, the rest will be good
 		opts := Options{
-			CertChain:        revokableChain,
-			CertChainPurpose: x509.ExtKeyUsageCodeSigning,
-			SigningTime:      time.Now(),
-			HTTPClient:       client,
+			CertChain:   revokableChain,
+			SigningTime: time.Now(),
+			HTTPClient:  client,
 		}
 
 		certResults, err := CheckStatus(opts)
@@ -353,10 +343,9 @@ func TestCheckStatusForChain(t *testing.T) {
 		client := testhelper.MockClient(testChain, []ocsp.ResponseStatus{ocsp.Good, ocsp.Good, ocsp.Revoked, ocsp.Good}, &revokedTime, true)
 		// 3rd cert will be revoked, the rest will be good
 		opts := Options{
-			CertChain:        revokableChain,
-			CertChainPurpose: x509.ExtKeyUsageCodeSigning,
-			SigningTime:      time.Now(),
-			HTTPClient:       client,
+			CertChain:   revokableChain,
+			SigningTime: time.Now(),
+			HTTPClient:  client,
 		}
 
 		certResults, err := CheckStatus(opts)
@@ -378,10 +367,9 @@ func TestCheckStatusForChain(t *testing.T) {
 		client := testhelper.MockClient(testChain, []ocsp.ResponseStatus{ocsp.Good, ocsp.Good, ocsp.Unknown, ocsp.Good, ocsp.Revoked, ocsp.Good}, &revokedTime, true)
 		// 3rd cert will be unknown, 5th will be revoked, the rest will be good
 		opts := Options{
-			CertChain:        revokableChain,
-			CertChainPurpose: x509.ExtKeyUsageCodeSigning,
-			SigningTime:      time.Now(),
-			HTTPClient:       client,
+			CertChain:   revokableChain,
+			SigningTime: time.Now(),
+			HTTPClient:  client,
 		}
 
 		certResults, err := CheckStatus(opts)
@@ -407,10 +395,9 @@ func TestCheckStatusForChain(t *testing.T) {
 		client := testhelper.MockClient(testChain, []ocsp.ResponseStatus{ocsp.Good, ocsp.Good, ocsp.Revoked, ocsp.Good}, nil, true)
 		// 3rd cert will be revoked, the rest will be good
 		opts := Options{
-			CertChain:        revokableChain,
-			CertChainPurpose: x509.ExtKeyUsageCodeSigning,
-			SigningTime:      time.Now().Add(time.Hour),
-			HTTPClient:       client,
+			CertChain:   revokableChain,
+			SigningTime: time.Now().Add(time.Hour),
+			HTTPClient:  client,
 		}
 
 		certResults, err := CheckStatus(opts)
@@ -437,10 +424,9 @@ func TestCheckStatusForChain(t *testing.T) {
 		client := testhelper.MockClient(testChain, []ocsp.ResponseStatus{ocsp.Good, ocsp.Good, ocsp.Revoked, ocsp.Good}, &revokedTime, true)
 		// 3rd cert will be revoked, the rest will be good
 		opts := Options{
-			CertChain:        revokableChain,
-			CertChainPurpose: x509.ExtKeyUsageCodeSigning,
-			SigningTime:      zeroTime,
-			HTTPClient:       client,
+			CertChain:   revokableChain,
+			SigningTime: zeroTime,
+			HTTPClient:  client,
 		}
 
 		if !zeroTime.IsZero() {
@@ -498,10 +484,9 @@ func TestCheckStatusErrors(t *testing.T) {
 
 	t.Run("no OCSPServer specified", func(t *testing.T) {
 		opts := Options{
-			CertChain:        noOCSPChain,
-			CertChainPurpose: x509.ExtKeyUsageCodeSigning,
-			SigningTime:      time.Now(),
-			HTTPClient:       http.DefaultClient,
+			CertChain:   noOCSPChain,
+			SigningTime: time.Now(),
+			HTTPClient:  http.DefaultClient,
 		}
 		certResults, err := CheckStatus(opts)
 		if err != nil {
@@ -521,10 +506,9 @@ func TestCheckStatusErrors(t *testing.T) {
 
 	t.Run("chain missing root", func(t *testing.T) {
 		opts := Options{
-			CertChain:        noRootChain,
-			CertChainPurpose: x509.ExtKeyUsageCodeSigning,
-			SigningTime:      time.Now(),
-			HTTPClient:       http.DefaultClient,
+			CertChain:   noRootChain,
+			SigningTime: time.Now(),
+			HTTPClient:  http.DefaultClient,
 		}
 		certResults, err := CheckStatus(opts)
 		if err == nil || err.Error() != chainRootErr.Error() {
@@ -537,10 +521,9 @@ func TestCheckStatusErrors(t *testing.T) {
 
 	t.Run("backwards chain", func(t *testing.T) {
 		opts := Options{
-			CertChain:        backwardsChain,
-			CertChainPurpose: x509.ExtKeyUsageCodeSigning,
-			SigningTime:      time.Now(),
-			HTTPClient:       http.DefaultClient,
+			CertChain:   backwardsChain,
+			SigningTime: time.Now(),
+			HTTPClient:  http.DefaultClient,
 		}
 		certResults, err := CheckStatus(opts)
 		if err == nil || err.Error() != backwardsChainErr.Error() {
@@ -554,7 +537,7 @@ func TestCheckStatusErrors(t *testing.T) {
 	t.Run("check codesigning cert with PurposeTimestamping", func(t *testing.T) {
 		opts := Options{
 			CertChain:        okChain,
-			CertChainPurpose: x509.ExtKeyUsageTimeStamping,
+			CertChainPurpose: purpose.Timestamping,
 			SigningTime:      time.Now(),
 			HTTPClient:       http.DefaultClient,
 		}
@@ -598,10 +581,9 @@ func TestCheckStatusErrors(t *testing.T) {
 	t.Run("timeout", func(t *testing.T) {
 		timeoutClient := &http.Client{Timeout: 1 * time.Nanosecond}
 		opts := Options{
-			CertChain:        okChain,
-			CertChainPurpose: x509.ExtKeyUsageCodeSigning,
-			SigningTime:      time.Now(),
-			HTTPClient:       timeoutClient,
+			CertChain:   okChain,
+			SigningTime: time.Now(),
+			HTTPClient:  timeoutClient,
 		}
 		certResults, err := CheckStatus(opts)
 		if err != nil {
@@ -628,10 +610,9 @@ func TestCheckStatusErrors(t *testing.T) {
 	t.Run("expired ocsp response", func(t *testing.T) {
 		client := testhelper.MockClient(revokableTuples, []ocsp.ResponseStatus{ocsp.Good}, nil, true)
 		opts := Options{
-			CertChain:        expiredChain,
-			CertChainPurpose: x509.ExtKeyUsageCodeSigning,
-			SigningTime:      time.Now(),
-			HTTPClient:       client,
+			CertChain:   expiredChain,
+			SigningTime: time.Now(),
+			HTTPClient:  client,
 		}
 		certResults, err := CheckStatus(opts)
 		if err != nil {
@@ -653,10 +634,9 @@ func TestCheckStatusErrors(t *testing.T) {
 	t.Run("pkixNoCheck missing", func(t *testing.T) {
 		client := testhelper.MockClient(revokableTuples, []ocsp.ResponseStatus{ocsp.Good}, nil, false)
 		opts := Options{
-			CertChain:        okChain,
-			CertChainPurpose: x509.ExtKeyUsageCodeSigning,
-			SigningTime:      time.Now(),
-			HTTPClient:       client,
+			CertChain:   okChain,
+			SigningTime: time.Now(),
+			HTTPClient:  client,
 		}
 
 		certResults, err := CheckStatus(opts)
@@ -674,10 +654,9 @@ func TestCheckStatusErrors(t *testing.T) {
 	t.Run("non-HTTP URI error", func(t *testing.T) {
 		client := testhelper.MockClient(revokableTuples, []ocsp.ResponseStatus{ocsp.Good}, nil, true)
 		opts := Options{
-			CertChain:        noHTTPChain,
-			CertChainPurpose: x509.ExtKeyUsageCodeSigning,
-			SigningTime:      time.Now(),
-			HTTPClient:       client,
+			CertChain:   noHTTPChain,
+			SigningTime: time.Now(),
+			HTTPClient:  client,
 		}
 		certResults, err := CheckStatus(opts)
 		if err != nil {
@@ -722,10 +701,9 @@ func TestCheckOCSPInvalidChain(t *testing.T) {
 	t.Run("chain missing intermediate", func(t *testing.T) {
 		client := testhelper.MockClient(revokableTuples, []ocsp.ResponseStatus{ocsp.Good}, nil, true)
 		opts := Options{
-			CertChain:        missingIntermediateChain,
-			CertChainPurpose: x509.ExtKeyUsageCodeSigning,
-			SigningTime:      time.Now(),
-			HTTPClient:       client,
+			CertChain:   missingIntermediateChain,
+			SigningTime: time.Now(),
+			HTTPClient:  client,
 		}
 		certResults, err := CheckStatus(opts)
 		if err == nil || err.Error() != missingIntermediateErr.Error() {
@@ -739,10 +717,9 @@ func TestCheckOCSPInvalidChain(t *testing.T) {
 	t.Run("chain out of order", func(t *testing.T) {
 		client := testhelper.MockClient(misorderedIntermediateTuples, []ocsp.ResponseStatus{ocsp.Good}, nil, true)
 		opts := Options{
-			CertChain:        misorderedIntermediateChain,
-			CertChainPurpose: x509.ExtKeyUsageCodeSigning,
-			SigningTime:      time.Now(),
-			HTTPClient:       client,
+			CertChain:   misorderedIntermediateChain,
+			SigningTime: time.Now(),
+			HTTPClient:  client,
 		}
 		certResults, err := CheckStatus(opts)
 		if err == nil || err.Error() != misorderedChainErr.Error() {
