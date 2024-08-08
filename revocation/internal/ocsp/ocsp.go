@@ -31,6 +31,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/notaryproject/notation-core-go/revocation/purpose"
 	"github.com/notaryproject/notation-core-go/revocation/result"
 	coreX509 "github.com/notaryproject/notation-core-go/x509"
 	"golang.org/x/crypto/ocsp"
@@ -41,10 +42,9 @@ type Options struct {
 	CertChain []*x509.Certificate
 
 	// CertChainPurpose is the purpose of the certificate chain. Supported
-	// values are x509.ExtKeyUsageCodeSigning and x509.ExtKeyUsageTimeStamping.
-	// When not provided, the default value x509.ExtKeyUsageAny is also taken as
-	// a code signing certificate chain.
-	CertChainPurpose x509.ExtKeyUsage
+	// values are CodeSigning and Timestamping.
+	// When not provided, the default value is CodeSigning.
+	CertChainPurpose purpose.Purpose
 
 	SigningTime time.Time
 	HTTPClient  *http.Client
@@ -96,9 +96,9 @@ func CheckStatus(opts Options) ([]*result.CertRevocationResult, error) {
 	return certResults, nil
 }
 
-func ValidateCertificateChain(certChain []*x509.Certificate, certChainPurpose x509.ExtKeyUsage) error {
+func ValidateCertificateChain(certChain []*x509.Certificate, certChainPurpose purpose.Purpose) error {
 	switch certChainPurpose {
-	case x509.ExtKeyUsageAny, x509.ExtKeyUsageCodeSigning:
+	case purpose.CodeSigning:
 		// Since ValidateCodeSigningCertChain is using authentic signing time,
 		// signing time may be zero.
 		// Thus, it is better to pass nil here than fail for a cert's NotBefore
@@ -106,7 +106,7 @@ func ValidateCertificateChain(certChain []*x509.Certificate, certChainPurpose x5
 		if err := coreX509.ValidateCodeSigningCertChain(certChain, nil); err != nil {
 			return result.InvalidChainError{Err: err}
 		}
-	case x509.ExtKeyUsageTimeStamping:
+	case purpose.Timestamping:
 		if err := coreX509.ValidateTimestampingCertChain(certChain); err != nil {
 			return result.InvalidChainError{Err: err}
 		}

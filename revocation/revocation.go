@@ -26,6 +26,7 @@ import (
 
 	"github.com/notaryproject/notation-core-go/revocation/internal/crl"
 	"github.com/notaryproject/notation-core-go/revocation/internal/ocsp"
+	"github.com/notaryproject/notation-core-go/revocation/purpose"
 	"github.com/notaryproject/notation-core-go/revocation/result"
 )
 
@@ -47,9 +48,12 @@ type ValidateContextOptions struct {
 	// been validated. REQUIRED.
 	CertChain []*x509.Certificate
 
-	// SigningTime denotes the signing time of the signature.
+	// AuthenticSigningTime denotes the authentic signing time of the signature.
+	// It is used to compare with the InvalidityDate during revocation check.
 	// OPTIONAL.
-	SigningTime time.Time
+	//
+	// Reference: https://github.com/notaryproject/specifications/blob/v1.0.0/specs/trust-store-trust-policy.md#revocation-checking-with-ocsp
+	AuthenticSigningTime time.Time
 }
 
 // Validator is an interface that provides revocation checking with
@@ -65,7 +69,7 @@ type Validator interface {
 type revocation struct {
 	ocspHTTPClient   *http.Client
 	crlHTTPClient    *http.Client
-	certChainPurpose x509.ExtKeyUsage
+	certChainPurpose purpose.Purpose
 }
 
 // New constructs a revocation object for code signing certificate chain.
@@ -79,7 +83,7 @@ func New(httpClient *http.Client) (Revocation, error) {
 	return &revocation{
 		ocspHTTPClient:   httpClient,
 		crlHTTPClient:    httpClient,
-		certChainPurpose: x509.ExtKeyUsageCodeSigning,
+		certChainPurpose: purpose.CodeSigning,
 	}, nil
 }
 
@@ -94,9 +98,9 @@ type Options struct {
 	CRLHTTPClient *http.Client
 
 	// CertChainPurpose is the purpose of the certificate chain. Supported
-	// values are x509.ExtKeyUsageCodeSigning and x509.ExtKeyUsageTimeStamping.
-	// REQUIRED.
-	CertChainPurpose x509.ExtKeyUsage
+	// values are CodeSigning and Timestamping. Default value is CodeSigning.
+	// OPTIONAL.
+	CertChainPurpose purpose.Purpose
 }
 
 // NewWithOptions constructs a Validator with the specified options
@@ -110,7 +114,7 @@ func NewWithOptions(opts Options) (Validator, error) {
 	}
 
 	switch opts.CertChainPurpose {
-	case x509.ExtKeyUsageCodeSigning, x509.ExtKeyUsageTimeStamping:
+	case purpose.CodeSigning, purpose.Timestamping:
 	default:
 		return nil, fmt.Errorf("unsupported certificate chain purpose %v", opts.CertChainPurpose)
 	}
@@ -137,10 +141,9 @@ func NewWithOptions(opts Options) (Validator, error) {
 // certificate status using CRL and return certificate result with an
 // result.OCSPFallbackError.
 func (r *revocation) Validate(certChain []*x509.Certificate, signingTime time.Time) ([]*result.CertRevocationResult, error) {
-
 	return r.ValidateContext(context.Background(), ValidateContextOptions{
-		CertChain:   certChain,
-		SigningTime: signingTime,
+		CertChain:            certChain,
+		AuthenticSigningTime: signingTime,
 	})
 }
 
@@ -159,14 +162,14 @@ func (r *revocation) ValidateContext(ctx context.Context, validateContextOpts Va
 
 	ocspOpts := ocsp.Options{
 		CertChain:        validateContextOpts.CertChain,
-		SigningTime:      validateContextOpts.SigningTime,
+		SigningTime:      validateContextOpts.AuthenticSigningTime,
 		CertChainPurpose: r.certChainPurpose,
 		HTTPClient:       r.ocspHTTPClient,
 	}
 
 	crlOpts := crl.Options{
 		HTTPClient:  r.crlHTTPClient,
-		SigningTime: validateContextOpts.SigningTime,
+		SigningTime: validateContextOpts.AuthenticSigningTime,
 	}
 
 	panicChan := make(chan any, len(certChain))
