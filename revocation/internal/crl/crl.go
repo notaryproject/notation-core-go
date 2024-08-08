@@ -37,8 +37,8 @@ var oidInvalidityDate = asn1.ObjectIdentifier{2, 5, 29, 24}
 // maxCRLSize is the maximum size of CRL in bytes
 const maxCRLSize = 64 * 1024 * 1024 // 64 MiB
 
-// Options specifies values that are needed to check CRL
-type Options struct {
+// CertCheckStatusOptions specifies values that are needed to check CRL
+type CertCheckStatusOptions struct {
 	// HTTPClient is the HTTP client used to download CRL
 	HTTPClient *http.Client
 
@@ -55,7 +55,7 @@ type Options struct {
 // If the invalidity date extension is present in the CRL entry and SigningTime
 // is not zero, the certificate is considered revoked if the SigningTime is
 // after the invalidity date. (See RFC 5280, Section 5.3.2)
-func CertCheckStatus(ctx context.Context, cert, issuer *x509.Certificate, opts Options) *result.CertRevocationResult {
+func CertCheckStatus(ctx context.Context, cert, issuer *x509.Certificate, opts CertCheckStatusOptions) *result.CertRevocationResult {
 	if !Supported(cert) {
 		return &result.CertRevocationResult{
 			Result: result.ResultNonRevokable,

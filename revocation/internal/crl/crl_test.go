@@ -33,7 +33,7 @@ import (
 
 func TestCertCheckStatus(t *testing.T) {
 	t.Run("certificate does not support CRL", func(t *testing.T) {
-		r := CertCheckStatus(context.Background(), &x509.Certificate{}, &x509.Certificate{}, Options{
+		r := CertCheckStatus(context.Background(), &x509.Certificate{}, &x509.Certificate{}, CertCheckStatusOptions{
 			HTTPClient: http.DefaultClient,
 		})
 		if r.CRLResults[0].Error == nil {
@@ -45,7 +45,7 @@ func TestCertCheckStatus(t *testing.T) {
 		cert := &x509.Certificate{
 			CRLDistributionPoints: []string{"http://example.com"},
 		}
-		r := CertCheckStatus(context.Background(), cert, &x509.Certificate{}, Options{
+		r := CertCheckStatus(context.Background(), cert, &x509.Certificate{}, CertCheckStatusOptions{
 			HTTPClient: &http.Client{
 				Transport: errorRoundTripperMock{},
 			},
@@ -59,7 +59,7 @@ func TestCertCheckStatus(t *testing.T) {
 		cert := &x509.Certificate{
 			CRLDistributionPoints: []string{"http://example.com"},
 		}
-		r := CertCheckStatus(context.Background(), cert, &x509.Certificate{}, Options{
+		r := CertCheckStatus(context.Background(), cert, &x509.Certificate{}, CertCheckStatusOptions{
 			HTTPClient: &http.Client{
 				Transport: expiredCRLRoundTripperMock{},
 			},
@@ -90,7 +90,7 @@ func TestCertCheckStatus(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		r := CertCheckStatus(context.Background(), chain[0].Cert, issuerCert, Options{
+		r := CertCheckStatus(context.Background(), chain[0].Cert, issuerCert, CertCheckStatusOptions{
 			HTTPClient: &http.Client{
 				Transport: expectedRoundTripperMock{Body: crlBytes},
 			},
@@ -122,7 +122,7 @@ func TestCertCheckStatus(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		r := CertCheckStatus(context.Background(), chain[0].Cert, issuerCert, Options{
+		r := CertCheckStatus(context.Background(), chain[0].Cert, issuerCert, CertCheckStatusOptions{
 			HTTPClient: &http.Client{
 				Transport: expectedRoundTripperMock{Body: crlBytes},
 			},
@@ -141,7 +141,7 @@ func TestCertCheckStatus(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		r := CertCheckStatus(context.Background(), chain[0].Cert, issuerCert, Options{
+		r := CertCheckStatus(context.Background(), chain[0].Cert, issuerCert, CertCheckStatusOptions{
 			HTTPClient: &http.Client{
 				Transport: expectedRoundTripperMock{Body: crlBytes},
 			},
@@ -153,7 +153,7 @@ func TestCertCheckStatus(t *testing.T) {
 
 	t.Run("http client is nil", func(t *testing.T) {
 		// failed to download CRL with a mocked HTTP client
-		r := CertCheckStatus(context.Background(), chain[0].Cert, issuerCert, Options{})
+		r := CertCheckStatus(context.Background(), chain[0].Cert, issuerCert, CertCheckStatusOptions{})
 		if r.Result != result.ResultUnknown {
 			t.Fatalf("expected Unknown, got %s", r.Result)
 		}

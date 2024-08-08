@@ -169,7 +169,7 @@ func (r *revocation) ValidateContext(ctx context.Context, validateContextOpts Va
 		HTTPClient:  r.ocspHTTPClient,
 	}
 
-	crlOpts := crl.Options{
+	crlOpts := crl.CertCheckStatusOptions{
 		HTTPClient:  r.crlHTTPClient,
 		SigningTime: validateContextOpts.AuthenticSigningTime,
 	}
