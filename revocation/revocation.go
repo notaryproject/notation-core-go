@@ -24,6 +24,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/notaryproject/notation-core-go/revocation/internal/chain"
 	"github.com/notaryproject/notation-core-go/revocation/internal/crl"
 	"github.com/notaryproject/notation-core-go/revocation/internal/ocsp"
 	"github.com/notaryproject/notation-core-go/revocation/purpose"
@@ -131,15 +132,11 @@ func NewWithOptions(opts Options) (Validator, error) {
 // that contain the results and any errors that are encountered during the
 // process.
 //
-// The certificate chain is expected to be in the order of leaf to root.
-//
 // This function tries OCSP and falls back to CRL when:
 // - OCSP is not supported by the certificate
 // - OCSP returns an unknown status
 //
-// When OCSP returns an unknown status, the function will try to check the
-// certificate status using CRL and return certificate result with an
-// result.OCSPFallbackError.
+// NOTE: The certificate chain is expected to be in the order of leaf to root.
 func (r *revocation) Validate(certChain []*x509.Certificate, signingTime time.Time) ([]*result.CertRevocationResult, error) {
 	return r.ValidateContext(context.Background(), ValidateContextOptions{
 		CertChain:            certChain,
@@ -147,16 +144,23 @@ func (r *revocation) Validate(certChain []*x509.Certificate, signingTime time.Ti
 	})
 }
 
-// ValidateContext checks the revocation status for a certificate chain using
-// OCSP and returns an array of CertRevocationResults that contain the results
-// and any errors that are encountered during the process
+// ValidateContext checks the revocation status for a certificate chain using OCSP and
+// CRL if OCSP is not available. It returns an array of CertRevocationResults
+// that contain the results and any errors that are encountered during the
+// process.
+//
+// This function tries OCSP and falls back to CRL when:
+// - OCSP is not supported by the certificate
+// - OCSP returns an unknown status
+//
+// NOTE: The certificate chain is expected to be in the order of leaf to root.
 func (r *revocation) ValidateContext(ctx context.Context, validateContextOpts ValidateContextOptions) ([]*result.CertRevocationResult, error) {
 	if len(validateContextOpts.CertChain) == 0 {
 		return nil, result.InvalidChainError{Err: errors.New("chain does not contain any certificates")}
 	}
 	certChain := validateContextOpts.CertChain
 
-	if err := ocsp.ValidateCertificateChain(certChain, r.certChainPurpose); err != nil {
+	if err := chain.Validate(certChain, r.certChainPurpose); err != nil {
 		return nil, err
 	}
 

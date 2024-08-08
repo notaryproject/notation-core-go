@@ -31,9 +31,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/notaryproject/notation-core-go/revocation/internal/chain"
 	"github.com/notaryproject/notation-core-go/revocation/purpose"
 	"github.com/notaryproject/notation-core-go/revocation/result"
-	coreX509 "github.com/notaryproject/notation-core-go/x509"
 	"golang.org/x/crypto/ocsp"
 )
 
@@ -45,9 +45,8 @@ type Options struct {
 	// values are CodeSigning and Timestamping.
 	// When not provided, the default value is CodeSigning.
 	CertChainPurpose purpose.Purpose
-
-	SigningTime time.Time
-	HTTPClient  *http.Client
+	SigningTime      time.Time
+	HTTPClient       *http.Client
 }
 
 const (
@@ -67,7 +66,7 @@ func CheckStatus(opts Options) ([]*result.CertRevocationResult, error) {
 		return nil, result.InvalidChainError{Err: errors.New("chain does not contain any certificates")}
 	}
 
-	if err := ValidateCertificateChain(opts.CertChain, opts.CertChainPurpose); err != nil {
+	if err := chain.Validate(opts.CertChain, opts.CertChainPurpose); err != nil {
 		return nil, err
 	}
 
@@ -94,26 +93,6 @@ func CheckStatus(opts Options) ([]*result.CertRevocationResult, error) {
 
 	wg.Wait()
 	return certResults, nil
-}
-
-func ValidateCertificateChain(certChain []*x509.Certificate, certChainPurpose purpose.Purpose) error {
-	switch certChainPurpose {
-	case purpose.CodeSigning:
-		// Since ValidateCodeSigningCertChain is using authentic signing time,
-		// signing time may be zero.
-		// Thus, it is better to pass nil here than fail for a cert's NotBefore
-		// being after zero time
-		if err := coreX509.ValidateCodeSigningCertChain(certChain, nil); err != nil {
-			return result.InvalidChainError{Err: err}
-		}
-	case purpose.Timestamping:
-		if err := coreX509.ValidateTimestampingCertChain(certChain); err != nil {
-			return result.InvalidChainError{Err: err}
-		}
-	default:
-		return result.InvalidChainError{Err: fmt.Errorf("unsupported certificate chain purpose %v", certChainPurpose)}
-	}
-	return nil
 }
 
 // CertCheckStatus checks the revocation status of a certificate using OCSP

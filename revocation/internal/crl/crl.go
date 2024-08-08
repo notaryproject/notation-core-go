@@ -42,8 +42,8 @@ type Options struct {
 	// HTTPClient is the HTTP client used to download CRL
 	HTTPClient *http.Client
 
-	// SigningTime is the time when the certificate's private key is
-	// used to sign the data.
+	// SigningTime is used to compare with the invalidity date during revocation
+	// check
 	SigningTime time.Time
 }
 
