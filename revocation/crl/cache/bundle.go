@@ -32,28 +32,26 @@ type Bundle struct {
 //
 // TODO: consider adding DeltaCRL field in the future
 type Metadata struct {
-	BaseCRL FileInfo `json:"base.crl"`
+	BaseCRL  FileInfo  `json:"base.crl"`
+	CreateAt time.Time `json:"createAt"`
 }
 
 // FileInfo stores the URL and creation time of the file
 type FileInfo struct {
-	URL      string    `json:"url"`
-	CreateAt time.Time `json:"createAt"`
+	URL string `json:"url"`
 }
 
 // NewBundle creates a new CRL store with tarball format
 func NewBundle(baseCRL *x509.RevocationList, url string) (*Bundle, error) {
-	crl := &Bundle{
+	return &Bundle{
 		BaseCRL: baseCRL,
 		Metadata: Metadata{
 			BaseCRL: FileInfo{
-				URL:      url,
-				CreateAt: time.Now(),
+				URL: url,
 			},
+			CreateAt: time.Now(),
 		},
-	}
-
-	return crl, nil
+	}, nil
 }
 
 // ParseBundleFromTarball parses the CRL blob from a tarball
@@ -132,7 +130,7 @@ func ParseBundleFromTarball(data io.Reader) (*Bundle, error) {
 			Err: errors.New("base CRL URL is missing from cached tarball"),
 		}
 	}
-	if crl.Metadata.BaseCRL.CreateAt.IsZero() {
+	if crl.Metadata.CreateAt.IsZero() {
 		return nil, &BrokenFileError{
 			Err: errors.New("base CRL creation time is missing from cached tarball"),
 		}
@@ -159,7 +157,7 @@ func ParseBundleFromTarball(data io.Reader) (*Bundle, error) {
 func SaveAsTarball(w io.Writer, bundle *Bundle) (err error) {
 	tarWriter := tar.NewWriter(w)
 	// Add base.crl
-	if err := addToTar(PathBaseCRL, bundle.BaseCRL.Raw, bundle.Metadata.BaseCRL.CreateAt, tarWriter); err != nil {
+	if err := addToTar(PathBaseCRL, bundle.BaseCRL.Raw, bundle.Metadata.CreateAt, tarWriter); err != nil {
 		return err
 	}
 

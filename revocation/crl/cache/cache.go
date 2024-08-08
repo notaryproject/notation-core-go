@@ -20,22 +20,27 @@ import (
 	"time"
 )
 
+const (
+	// DefaultMaxAge is the default maximum age of the CRLs cache.
+	// If the CRL is older than DefaultMaxAge, it will be considered as expired.
+	DefaultMaxAge = 24 * 7 * time.Hour
+)
+
 // Cache is an interface that specifies methods used for caching
 type Cache interface {
 	// Get retrieves the content with the given key
 	//
-	// maxAge is the maximum age of the content. If the content is older than
-	// maxAge, it will be considered as expired and should not be returned.
-	//
 	// - if the key does not exist, return os.ErrNotExist
-	Get(ctx context.Context, key string, maxAge time.Duration) (*Bundle, error)
+	Get(ctx context.Context, key string) (*Bundle, error)
 
 	// Set stores the content with the given key
-	Set(ctx context.Context, key string, bundle *Bundle) error
+	//
+	// - expiration is the time duration before the content is valid
+	Set(ctx context.Context, key string, value *Bundle) error
 
 	// Delete removes the content with the given key
 	Delete(ctx context.Context, key string) error
 
-	// Clear removes all content
-	Clear(ctx context.Context) error
+	// Flush removes all content
+	Flush(ctx context.Context) error
 }
