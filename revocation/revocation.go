@@ -24,13 +24,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/notaryproject/notation-core-go/revocation/crl"
-	"github.com/notaryproject/notation-core-go/revocation/ocsp"
+	"github.com/notaryproject/notation-core-go/revocation/internal/crl"
+	"github.com/notaryproject/notation-core-go/revocation/internal/ocsp"
 	"github.com/notaryproject/notation-core-go/revocation/result"
-	coreX509 "github.com/notaryproject/notation-core-go/x509"
 )
 
-// Revocation is an interface that specifies methods used for revocation checking
+// Revocation is an interface that specifies methods used for revocation checking.
+//
+// Deprecated: Revocation exists for backwards compatibility and should not be used.
+// To perform revocation check, use [Validator].
 type Revocation interface {
 	// Validate checks the revocation status for a certificate chain using OCSP
 	// and CRL if OCSP is not available. It returns an array of
@@ -39,75 +41,81 @@ type Revocation interface {
 	Validate(certChain []*x509.Certificate, signingTime time.Time) ([]*result.CertRevocationResult, error)
 }
 
+// ValidateContextOptions provides configuration options for revocation checks
+type ValidateContextOptions struct {
+	// CertChain denotes the certificate chain whose revocation status is
+	// been validated. REQUIRED.
+	CertChain []*x509.Certificate
+
+	// SigningTime denotes the signing time of the signature.
+	// OPTIONAL.
+	SigningTime time.Time
+}
+
+// Validator is an interface that provides revocation checking with
+// context
+type Validator interface {
+	// ValidateContext checks the revocation status given caller provided options
+	// and returns an array of CertRevocationResults that contain the results
+	// and any errors that are encountered during the process
+	ValidateContext(ctx context.Context, validateContextOpts ValidateContextOptions) ([]*result.CertRevocationResult, error)
+}
+
+// revocation is an internal struct used for revocation checking
+type revocation struct {
+	ocspHTTPClient   *http.Client
+	crlHTTPClient    *http.Client
+	certChainPurpose x509.ExtKeyUsage
+}
+
+// New constructs a revocation object for code signing certificate chain.
+//
+// Deprecated: New exists for backwards compatibility and should not be used.
+// To create a revocation object, use [NewWithOptions].
+func New(httpClient *http.Client) (Revocation, error) {
+	if httpClient == nil {
+		return nil, errors.New("invalid input: a non-nil httpClient must be specified")
+	}
+	return &revocation{
+		ocspHTTPClient:   httpClient,
+		crlHTTPClient:    httpClient,
+		certChainPurpose: x509.ExtKeyUsageCodeSigning,
+	}, nil
+}
+
 // Options specifies values that are needed to check revocation
 type Options struct {
-	// OCSPHTTPClient is a required HTTP client for OCSP request
+	// OCSPHTTPClient is the HTTP client for OCSP request. If not provided,
+	// a default *http.Client with timeout of 2 seconds will be used.
+	// OPTIONAL.
 	OCSPHTTPClient *http.Client
 
 	// CRLHTTPClient is a required HTTP client for CRL request
 	CRLHTTPClient *http.Client
 
-	// CertChainPurpose is the purpose of the certificate chain
-	CertChainPurpose ocsp.Purpose
+	// CertChainPurpose is the purpose of the certificate chain. Supported
+	// values are x509.ExtKeyUsageCodeSigning and x509.ExtKeyUsageTimeStamping.
+	// REQUIRED.
+	CertChainPurpose x509.ExtKeyUsage
 }
 
-// revocation is an internal struct used for revocation checking
-type revocation struct {
-	ctx              context.Context
-	ocspHTTPClient   *http.Client
-	crlHTTPClient    *http.Client
-	certChainPurpose ocsp.Purpose
-}
-
-// New constructs a revocation object for code signing certificate chain
-func New(httpClient *http.Client) (Revocation, error) {
-	if httpClient == nil {
-		return nil, errors.New("invalid input: a non-nil httpClient must be specified")
-	}
-
-	return NewWithOptions(context.Background(), &Options{
-		OCSPHTTPClient:   httpClient,
-		CRLHTTPClient:    httpClient,
-		CertChainPurpose: ocsp.PurposeCodeSigning,
-	})
-}
-
-// NewTimestamp contructs a revocation object for timestamping certificate
-// chain
-func NewTimestamp(httpClient *http.Client) (Revocation, error) {
-	if httpClient == nil {
-		return nil, errors.New("invalid input: a non-nil httpClient must be specified")
-	}
-
-	return NewWithOptions(context.Background(), &Options{
-		OCSPHTTPClient:   httpClient,
-		CRLHTTPClient:    httpClient,
-		CertChainPurpose: ocsp.PurposeTimestamping,
-	})
-}
-
-// NewWithOptions constructs a revocation object with the specified options
-func NewWithOptions(ctx context.Context, opts *Options) (Revocation, error) {
-	if ctx == nil {
-		return nil, errors.New("invalid input: a non-nil context must be specified")
-	}
-
+// NewWithOptions constructs a Validator with the specified options
+func NewWithOptions(opts Options) (Validator, error) {
 	if opts.OCSPHTTPClient == nil {
-		return nil, errors.New("invalid input: a non-nil OCSPHTTPClient must be specified")
+		opts.OCSPHTTPClient = &http.Client{Timeout: 2 * time.Second}
 	}
 
 	if opts.CRLHTTPClient == nil {
-		return nil, errors.New("invalid input: a non-nil CRLHTTPClient must be specified")
+		opts.CRLHTTPClient = &http.Client{Timeout: 5 * time.Second}
 	}
 
 	switch opts.CertChainPurpose {
-	case ocsp.PurposeCodeSigning, ocsp.PurposeTimestamping:
+	case x509.ExtKeyUsageCodeSigning, x509.ExtKeyUsageTimeStamping:
 	default:
-		return nil, fmt.Errorf("unknown certificate chain purpose %v", opts.CertChainPurpose)
+		return nil, fmt.Errorf("unsupported certificate chain purpose %v", opts.CertChainPurpose)
 	}
 
 	return &revocation{
-		ctx:              ctx,
 		ocspHTTPClient:   opts.OCSPHTTPClient,
 		crlHTTPClient:    opts.CRLHTTPClient,
 		certChainPurpose: opts.CertChainPurpose,
@@ -129,69 +137,80 @@ func NewWithOptions(ctx context.Context, opts *Options) (Revocation, error) {
 // certificate status using CRL and return certificate result with an
 // result.OCSPFallbackError.
 func (r *revocation) Validate(certChain []*x509.Certificate, signingTime time.Time) ([]*result.CertRevocationResult, error) {
-	if len(certChain) == 0 {
+
+	return r.ValidateContext(context.Background(), ValidateContextOptions{
+		CertChain:   certChain,
+		SigningTime: signingTime,
+	})
+}
+
+// ValidateContext checks the revocation status for a certificate chain using
+// OCSP and returns an array of CertRevocationResults that contain the results
+// and any errors that are encountered during the process
+func (r *revocation) ValidateContext(ctx context.Context, validateContextOpts ValidateContextOptions) ([]*result.CertRevocationResult, error) {
+	if len(validateContextOpts.CertChain) == 0 {
 		return nil, result.InvalidChainError{Err: errors.New("chain does not contain any certificates")}
 	}
+	certChain := validateContextOpts.CertChain
 
-	// Validate cert chain structure
-	// Since this is using authentic signing time, signing time may be zero.
-	// Thus, it is better to pass nil here than fail for a cert's NotBefore
-	// being after zero time
-	switch r.certChainPurpose {
-	case ocsp.PurposeCodeSigning:
-		if err := coreX509.ValidateCodeSigningCertChain(certChain, nil); err != nil {
-			return nil, result.InvalidChainError{Err: err}
-		}
-	case ocsp.PurposeTimestamping:
-		if err := coreX509.ValidateTimestampingCertChain(certChain); err != nil {
-			return nil, result.InvalidChainError{Err: err}
-		}
-	default:
-		return nil, result.InvalidChainError{Err: fmt.Errorf("unknown certificate chain purpose %v", r.certChainPurpose)}
+	if err := ocsp.ValidateCertificateChain(certChain, r.certChainPurpose); err != nil {
+		return nil, err
 	}
 
 	ocspOpts := ocsp.Options{
-		CertChain:        certChain,
-		SigningTime:      signingTime,
+		CertChain:        validateContextOpts.CertChain,
+		SigningTime:      validateContextOpts.SigningTime,
 		CertChainPurpose: r.certChainPurpose,
 		HTTPClient:       r.ocspHTTPClient,
 	}
 
 	crlOpts := crl.Options{
 		HTTPClient:  r.crlHTTPClient,
-		SigningTime: signingTime,
+		SigningTime: validateContextOpts.SigningTime,
 	}
 
+	panicChan := make(chan any, len(certChain))
 	certResults := make([]*result.CertRevocationResult, len(certChain))
 	var wg sync.WaitGroup
 	for i, cert := range certChain[:len(certChain)-1] {
 		switch {
-		case ocsp.SupportOCSP(cert):
+		case ocsp.Supported(cert):
 			// do OCSP check for the certificate
 			wg.Add(1)
 
 			go func(i int, cert *x509.Certificate) {
 				defer wg.Done()
-				ocspResult := ocsp.CertCheckStatus(cert, certChain[i+1], ocspOpts)
-				if ocspResult != nil && ocspResult.Result == result.ResultUnknown && crl.SupportCRL(cert) {
-					// try CRL check if OCSP result is unknown
-					crlResult := crl.CertCheckStatus(r.ctx, cert, certChain[i+1], crlOpts)
-					crlResult.Error = result.OCSPFallbackError{
-						OCSPErr: ocspResult.Error,
-						CRLErr:  crlResult.Error,
+				defer func() {
+					if r := recover(); r != nil {
+						panicChan <- r
 					}
+				}()
+
+				ocspResult := ocsp.CertCheckStatus(cert, certChain[i+1], ocspOpts)
+				if ocspResult != nil && ocspResult.Result == result.ResultUnknown && crl.Supported(cert) {
+					// try CRL check if OCSP result is unknown
+					crlResult := crl.CertCheckStatus(ctx, cert, certChain[i+1], crlOpts)
+
+					// insert OCSP result into CRL result
+					crlResult.ServerResults = ocspResult.ServerResults
 					certResults[i] = crlResult
 				} else {
 					certResults[i] = ocspResult
 				}
 			}(i, cert)
-		case crl.SupportCRL(cert):
+		case crl.Supported(cert):
 			// do CRL check for the certificate
 			wg.Add(1)
 
 			go func(i int, cert *x509.Certificate) {
 				defer wg.Done()
-				certResults[i] = crl.CertCheckStatus(r.ctx, cert, certChain[i+1], crlOpts)
+				defer func() {
+					if r := recover(); r != nil {
+						panicChan <- r
+					}
+				}()
+
+				certResults[i] = crl.CertCheckStatus(ctx, cert, certChain[i+1], crlOpts)
 			}(i, cert)
 		default:
 			certResults[i] = &result.CertRevocationResult{
@@ -213,5 +232,14 @@ func (r *revocation) Validate(certChain []*x509.Certificate, signingTime time.Ti
 		}},
 	}
 	wg.Wait()
+
+	// handle panic
+	select {
+	case p := <-panicChan:
+		panic(p)
+	default:
+	}
+	close(panicChan)
+
 	return certResults, nil
 }

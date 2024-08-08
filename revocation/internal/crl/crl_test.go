@@ -32,18 +32,11 @@ import (
 )
 
 func TestCertCheckStatus(t *testing.T) {
-	t.Run("http client is nil", func(t *testing.T) {
-		r := CertCheckStatus(context.Background(), &x509.Certificate{}, &x509.Certificate{}, Options{})
-		if r.Error == nil {
-			t.Fatal("expected error")
-		}
-	})
-
 	t.Run("certificate does not support CRL", func(t *testing.T) {
 		r := CertCheckStatus(context.Background(), &x509.Certificate{}, &x509.Certificate{}, Options{
 			HTTPClient: http.DefaultClient,
 		})
-		if r.Error == nil {
+		if r.CRLResults[0].Error == nil {
 			t.Fatal("expected error")
 		}
 	})
@@ -57,7 +50,7 @@ func TestCertCheckStatus(t *testing.T) {
 				Transport: errorRoundTripperMock{},
 			},
 		})
-		if r.Error == nil {
+		if r.CRLResults[0].Error == nil {
 			t.Fatal("expected error")
 		}
 	})
@@ -71,16 +64,17 @@ func TestCertCheckStatus(t *testing.T) {
 				Transport: expiredCRLRoundTripperMock{},
 			},
 		})
-		if r.Error == nil {
+		if r.CRLResults[0].Error == nil {
 			t.Fatal("expected error")
 		}
 	})
 
-	t.Run("revoked", func(t *testing.T) {
-		chain := testhelper.GetRevokableRSAChain(2, false, true)
-		issuerCert := chain[1].Cert
-		issuerKey := chain[1].PrivateKey
+	// prepare a certificate chain
+	chain := testhelper.GetRevokableRSAChainWithRevocations(2, false, true)
+	issuerCert := chain[1].Cert
+	issuerKey := chain[1].PrivateKey
 
+	t.Run("revoked", func(t *testing.T) {
 		crlBytes, err := x509.CreateRevocationList(rand.Reader, &x509.RevocationList{
 			NextUpdate: time.Now().Add(time.Hour),
 			Number:     big.NewInt(20240720),
@@ -104,13 +98,71 @@ func TestCertCheckStatus(t *testing.T) {
 		if r.Result != result.ResultRevoked {
 			t.Fatalf("expected revoked, got %s", r.Result)
 		}
+	})
 
+	t.Run("unknown critical extension", func(t *testing.T) {
+		crlBytes, err := x509.CreateRevocationList(rand.Reader, &x509.RevocationList{
+			NextUpdate: time.Now().Add(time.Hour),
+			Number:     big.NewInt(20240720),
+			RevokedCertificateEntries: []x509.RevocationListEntry{
+				{
+					SerialNumber:   chain[0].Cert.SerialNumber,
+					RevocationTime: time.Now().Add(-time.Hour),
+					ReasonCode:     int(result.CRLReasonCodeUnspecified),
+					ExtraExtensions: []pkix.Extension{
+						{
+							Id:       []int{1, 2, 3},
+							Critical: true,
+						},
+					},
+				},
+			},
+		}, issuerCert, issuerKey)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		r := CertCheckStatus(context.Background(), chain[0].Cert, issuerCert, Options{
+			HTTPClient: &http.Client{
+				Transport: expectedRoundTripperMock{Body: crlBytes},
+			},
+		})
+		if r.CRLResults[0].Error == nil {
+			t.Fatal("expected error")
+		}
+	})
+
+	t.Run("Not revoked", func(t *testing.T) {
+		crlBytes, err := x509.CreateRevocationList(rand.Reader, &x509.RevocationList{
+			NextUpdate: time.Now().Add(time.Hour),
+			Number:     big.NewInt(20240720),
+		}, issuerCert, issuerKey)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		r := CertCheckStatus(context.Background(), chain[0].Cert, issuerCert, Options{
+			HTTPClient: &http.Client{
+				Transport: expectedRoundTripperMock{Body: crlBytes},
+			},
+		})
+		if r.Result != result.ResultOK {
+			t.Fatalf("expected OK, got %s", r.Result)
+		}
+	})
+
+	t.Run("http client is nil", func(t *testing.T) {
+		// failed to download CRL with a mocked HTTP client
+		r := CertCheckStatus(context.Background(), chain[0].Cert, issuerCert, Options{})
+		if r.Result != result.ResultUnknown {
+			t.Fatalf("expected Unknown, got %s", r.Result)
+		}
 	})
 }
 
 func TestValidate(t *testing.T) {
 	t.Run("expired CRL", func(t *testing.T) {
-		chain := testhelper.GetRevokableRSAChain(1, false, true)
+		chain := testhelper.GetRevokableRSAChainWithRevocations(1, false, true)
 		issuerCert := chain[0].Cert
 		issuerKey := chain[0].PrivateKey
 
@@ -143,7 +195,7 @@ func TestValidate(t *testing.T) {
 	})
 
 	t.Run("unsupported CRL critical extensions", func(t *testing.T) {
-		chain := testhelper.GetRevokableRSAChain(1, false, true)
+		chain := testhelper.GetRevokableRSAChainWithRevocations(1, false, true)
 		issuerCert := chain[0].Cert
 		issuerKey := chain[0].PrivateKey
 
@@ -181,15 +233,15 @@ func TestCheckRevocation(t *testing.T) {
 	signingTime := time.Now()
 
 	t.Run("certificate is nil", func(t *testing.T) {
-		r := checkRevocation(nil, &x509.RevocationList{}, signingTime)
-		if r.Error == nil {
+		_, err := checkRevocation(nil, &x509.RevocationList{}, signingTime, "")
+		if err == nil {
 			t.Fatal("expected error")
 		}
 	})
 
 	t.Run("CRL is nil", func(t *testing.T) {
-		r := checkRevocation(cert, nil, signingTime)
-		if r.Error == nil {
+		_, err := checkRevocation(cert, nil, signingTime, "")
+		if err == nil {
 			t.Fatal("expected error")
 		}
 	})
@@ -202,9 +254,9 @@ func TestCheckRevocation(t *testing.T) {
 				},
 			},
 		}
-		r := checkRevocation(cert, baseCRL, signingTime)
-		if r.Error != nil {
-			t.Fatal(r.Error)
+		r, err := checkRevocation(cert, baseCRL, signingTime, "")
+		if err != nil {
+			t.Fatal(err)
 		}
 		if r.Result != result.ResultOK {
 			t.Fatalf("unexpected result, got %s", r.Result)
@@ -221,9 +273,9 @@ func TestCheckRevocation(t *testing.T) {
 				},
 			},
 		}
-		r := checkRevocation(cert, baseCRL, signingTime)
-		if r.Error != nil {
-			t.Fatal(r.Error)
+		r, err := checkRevocation(cert, baseCRL, signingTime, "")
+		if err != nil {
+			t.Fatal(err)
 		}
 		if r.Result != result.ResultRevoked {
 			t.Fatalf("expected revoked, got %s", r.Result)
@@ -248,16 +300,16 @@ func TestCheckRevocation(t *testing.T) {
 		baseCRL := &x509.RevocationList{
 			RevokedCertificateEntries: []x509.RevocationListEntry{
 				{
-					SerialNumber:    big.NewInt(1),
-					ReasonCode:      int(result.CRLReasonCodeCertificateHold),
-					RevocationTime:  time.Now().Add(time.Hour),
-					ExtraExtensions: extensions,
+					SerialNumber:   big.NewInt(1),
+					ReasonCode:     int(result.CRLReasonCodeCertificateHold),
+					RevocationTime: time.Now().Add(time.Hour),
+					Extensions:     extensions,
 				},
 			},
 		}
-		r := checkRevocation(cert, baseCRL, signingTime)
-		if r.Error != nil {
-			t.Fatal(r.Error)
+		r, err := checkRevocation(cert, baseCRL, signingTime, "")
+		if err != nil {
+			t.Fatal(err)
 		}
 		if r.Result != result.ResultOK {
 			t.Fatalf("unexpected result, got %s", r.Result)
@@ -282,16 +334,16 @@ func TestCheckRevocation(t *testing.T) {
 		baseCRL := &x509.RevocationList{
 			RevokedCertificateEntries: []x509.RevocationListEntry{
 				{
-					SerialNumber:    big.NewInt(1),
-					ReasonCode:      int(result.CRLReasonCodeCertificateHold),
-					RevocationTime:  time.Now().Add(-time.Hour),
-					ExtraExtensions: extensions,
+					SerialNumber:   big.NewInt(1),
+					ReasonCode:     int(result.CRLReasonCodeCertificateHold),
+					RevocationTime: time.Now().Add(-time.Hour),
+					Extensions:     extensions,
 				},
 			},
 		}
-		r := checkRevocation(cert, baseCRL, signingTime)
-		if r.Error != nil {
-			t.Fatal(r.Error)
+		r, err := checkRevocation(cert, baseCRL, signingTime, "")
+		if err != nil {
+			t.Fatal(err)
 		}
 		if r.Result != result.ResultRevoked {
 			t.Fatalf("expected revoked, got %s", r.Result)
@@ -308,9 +360,9 @@ func TestCheckRevocation(t *testing.T) {
 				},
 			},
 		}
-		r := checkRevocation(cert, baseCRL, time.Time{})
-		if r.Error != nil {
-			t.Fatal(r.Error)
+		r, err := checkRevocation(cert, baseCRL, time.Time{}, "")
+		if err != nil {
+			t.Fatal(err)
 		}
 		if r.Result != result.ResultRevoked {
 			t.Fatalf("expected revoked, got %s", r.Result)
@@ -332,9 +384,9 @@ func TestCheckRevocation(t *testing.T) {
 				},
 			},
 		}
-		r := checkRevocation(cert, baseCRL, signingTime)
-		if r.Error != nil {
-			t.Fatal(r.Error)
+		r, err := checkRevocation(cert, baseCRL, signingTime, "")
+		if err != nil {
+			t.Fatal(err)
 		}
 		if r.Result != result.ResultOK {
 			t.Fatalf("unexpected result, got %s", r.Result)
@@ -356,9 +408,9 @@ func TestCheckRevocation(t *testing.T) {
 				},
 			},
 		}
-		r := checkRevocation(cert, baseCRL, signingTime)
-		if r.Error != nil {
-			t.Fatal(r.Error)
+		r, err := checkRevocation(cert, baseCRL, signingTime, "")
+		if err != nil {
+			t.Fatal(err)
 		}
 		if r.Result != result.ResultOK {
 			t.Fatalf("unexpected result, got %s", r.Result)
@@ -380,9 +432,9 @@ func TestCheckRevocation(t *testing.T) {
 				},
 			},
 		}
-		r := checkRevocation(cert, baseCRL, signingTime)
-		if r.Error != nil {
-			t.Fatal(r.Error)
+		r, err := checkRevocation(cert, baseCRL, signingTime, "")
+		if err != nil {
+			t.Fatal(err)
 		}
 		if r.Result != result.ResultRevoked {
 			t.Fatalf("expected revoked, got %s", r.Result)
@@ -414,9 +466,9 @@ func TestCheckRevocation(t *testing.T) {
 				},
 			},
 		}
-		r := checkRevocation(cert, baseCRL, signingTime)
-		if r.Error != nil {
-			t.Fatal(r.Error)
+		r, err := checkRevocation(cert, baseCRL, signingTime, "")
+		if err != nil {
+			t.Fatal(err)
 		}
 		if r.Result != result.ResultRevoked {
 			t.Fatalf("expected revoked, got %s", r.Result)
@@ -428,7 +480,7 @@ func TestCheckRevocation(t *testing.T) {
 			RevokedCertificateEntries: []x509.RevocationListEntry{
 				{
 					SerialNumber: big.NewInt(1),
-					ExtraExtensions: []pkix.Extension{
+					Extensions: []pkix.Extension{
 						{
 							Id:       []int{1, 2, 3},
 							Critical: true,
@@ -437,8 +489,8 @@ func TestCheckRevocation(t *testing.T) {
 				},
 			},
 		}
-		r := checkRevocation(cert, baseCRL, signingTime)
-		if r.Error == nil {
+		_, err := checkRevocation(cert, baseCRL, signingTime, "")
+		if err == nil {
 			t.Fatal("expected error")
 		}
 	})
@@ -447,7 +499,7 @@ func TestCheckRevocation(t *testing.T) {
 func TestParseEntryExtension(t *testing.T) {
 	t.Run("unsupported critical extension", func(t *testing.T) {
 		entry := x509.RevocationListEntry{
-			ExtraExtensions: []pkix.Extension{
+			Extensions: []pkix.Extension{
 				{
 					Id:       []int{1, 2, 3},
 					Critical: true,
@@ -461,7 +513,7 @@ func TestParseEntryExtension(t *testing.T) {
 
 	t.Run("valid extension", func(t *testing.T) {
 		entry := x509.RevocationListEntry{
-			ExtraExtensions: []pkix.Extension{
+			Extensions: []pkix.Extension{
 				{
 					Id:       []int{1, 2, 3},
 					Critical: false,
@@ -483,7 +535,7 @@ func TestParseEntryExtension(t *testing.T) {
 		}
 
 		entry := x509.RevocationListEntry{
-			ExtraExtensions: []pkix.Extension{
+			Extensions: []pkix.Extension{
 				{
 					Id:       oidInvalidityDate,
 					Critical: false,
@@ -504,7 +556,7 @@ func TestParseEntryExtension(t *testing.T) {
 	t.Run("parse invalidityDate with error", func(t *testing.T) {
 		// invalid invalidityDate extension
 		entry := x509.RevocationListEntry{
-			ExtraExtensions: []pkix.Extension{
+			Extensions: []pkix.Extension{
 				{
 					Id:       oidInvalidityDate,
 					Critical: false,
@@ -526,7 +578,7 @@ func TestParseEntryExtension(t *testing.T) {
 		invalidityDateBytes = append(invalidityDateBytes, 0x00)
 
 		entry = x509.RevocationListEntry{
-			ExtraExtensions: []pkix.Extension{
+			Extensions: []pkix.Extension{
 				{
 					Id:       oidInvalidityDate,
 					Critical: false,
@@ -619,6 +671,7 @@ type serverErrorRoundTripperMock struct{}
 
 func (rt serverErrorRoundTripperMock) RoundTrip(req *http.Request) (*http.Response, error) {
 	return &http.Response{
+		Request:    req,
 		StatusCode: http.StatusInternalServerError,
 	}, nil
 }
@@ -635,7 +688,7 @@ func (rt readFailedRoundTripperMock) RoundTrip(req *http.Request) (*http.Respons
 type expiredCRLRoundTripperMock struct{}
 
 func (rt expiredCRLRoundTripperMock) RoundTrip(req *http.Request) (*http.Response, error) {
-	chain := testhelper.GetRevokableRSAChain(1, false, true)
+	chain := testhelper.GetRevokableRSAChainWithRevocations(1, false, true)
 	issuerCert := chain[0].Cert
 	issuerKey := chain[0].PrivateKey
 
@@ -669,6 +722,7 @@ type expectedRoundTripperMock struct {
 
 func (rt expectedRoundTripperMock) RoundTrip(req *http.Request) (*http.Response, error) {
 	return &http.Response{
+		Request:    req,
 		StatusCode: http.StatusOK,
 		Body:       io.NopCloser(bytes.NewBuffer(rt.Body)),
 	}, nil

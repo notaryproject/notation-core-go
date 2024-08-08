@@ -75,8 +75,7 @@ func GetRevokableRSALeafCertificate() RSACertTuple {
 	return revokableRSALeaf
 }
 
-// GetRevokableRSAChain returns a chain of certificates that specify a local OCSP server signed using RSA algorithm
-func GetRevokableRSAChain(size int, enabledOCSP, enabledCRL bool) []RSACertTuple {
+func GetRevokableRSAChainWithRevocations(size int, enabledOCSP, enabledCRL bool) []RSACertTuple {
 	setupCertificates()
 	chain := make([]RSACertTuple, size)
 	chain[size-1] = getRevokableRSARootChainCertTuple("Notation Test Revokable RSA Chain Cert Root", size-1, enabledCRL)
@@ -85,6 +84,20 @@ func GetRevokableRSAChain(size int, enabledOCSP, enabledCRL bool) []RSACertTuple
 	}
 	if size > 1 {
 		chain[0] = getRevokableRSALeafChainCertTuple(fmt.Sprintf("Notation Test Revokable RSA Chain Cert %d", size), &chain[1], 0, true, false, enabledOCSP, enabledCRL)
+	}
+	return chain
+}
+
+// GetRevokableRSAChain returns a chain of certificates that specify a local OCSP server signed using RSA algorithm
+func GetRevokableRSAChain(size int) []RSACertTuple {
+	setupCertificates()
+	chain := make([]RSACertTuple, size)
+	chain[size-1] = getRevokableRSARootChainCertTuple("Notation Test Revokable RSA Chain Cert Root", size-1, false)
+	for i := size - 2; i > 0; i-- {
+		chain[i] = getRevokableRSAChainCertTuple(fmt.Sprintf("Notation Test Revokable RSA Chain Cert %d", size-i), &chain[i+1], i, true, false)
+	}
+	if size > 1 {
+		chain[0] = getRevokableRSALeafChainCertTuple(fmt.Sprintf("Notation Test Revokable RSA Chain Cert %d", size), &chain[1], 0, true, false, true, false)
 	}
 	return chain
 }
@@ -182,7 +195,6 @@ func getRevokableRSAChainCertTuple(cn string, previous *RSACertTuple, index int,
 	if enabledCRL {
 		template.KeyUsage |= x509.KeyUsageCRLSign
 		template.CRLDistributionPoints = []string{fmt.Sprintf("http://example.com/chain_crl/%d", index)}
-
 	}
 	return getRSACertTupleWithTemplate(template, previous.PrivateKey, previous)
 }

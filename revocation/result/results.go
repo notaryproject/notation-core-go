@@ -87,23 +87,18 @@ func NewServerResult(result Result, server string, err error) *ServerResult {
 type CRLReasonCode int
 
 const (
-	CRLReasonCodeUnspecified CRLReasonCode = iota
-	CRLReasonCodeKeyCompromise
-	CRLReasonCodeCACompromise
-	CRLReasonCodeAffiliationChanged
-	CRLReasonCodeSuperseded
-	CRLReasonCodeCessationOfOperation
-	CRLReasonCodeCertificateHold
+	CRLReasonCodeUnspecified          CRLReasonCode = 0
+	CRLReasonCodeKeyCompromise        CRLReasonCode = 1
+	CRLReasonCodeCACompromise         CRLReasonCode = 2
+	CRLReasonCodeAffiliationChanged   CRLReasonCode = 3
+	CRLReasonCodeSuperseded           CRLReasonCode = 4
+	CRLReasonCodeCessationOfOperation CRLReasonCode = 5
+	CRLReasonCodeCertificateHold      CRLReasonCode = 6
 	// value 7 is not used
-	CRLReasonCodeRemoveFromCRL CRLReasonCode = iota + 1
-	CRLReasonCodePrivilegeWithdrawn
-	CRLReasonCodeAACompromise
+	CRLReasonCodeRemoveFromCRL      CRLReasonCode = 8
+	CRLReasonCodePrivilegeWithdrawn CRLReasonCode = 9
+	CRLReasonCodeAACompromise       CRLReasonCode = 10
 )
-
-// Equal checks if the reason code is equal to the given reason code
-func (r CRLReasonCode) Equal(reasonCode int) bool {
-	return int(r) == reasonCode
-}
 
 // String provides a conversion from a ReasonCode to a string
 func (r CRLReasonCode) String() string {
@@ -135,11 +130,19 @@ func (r CRLReasonCode) String() string {
 
 // CRLResult encapsulates the result of a CRL check
 type CRLResult struct {
+	// Result of revocation for this URI
+	Result Result
+
 	// ReasonCode is the reason code for the CRL status
+	//
+	// The reason code is only set if the certificate was revoked
 	ReasonCode CRLReasonCode
 
 	// RevocationTime is the time at which the certificate was revoked
 	RevocationTime time.Time
+
+	// URI is the URI to download the CRL
+	URI string
 
 	// Error is set if there is an error associated with the revocation check
 	Error error
@@ -169,7 +172,4 @@ type CertRevocationResult struct {
 
 	// CRLResults is the result of the CRL check for this certificate
 	CRLResults []*CRLResult
-
-	// Error is set if there is an error associated with the revocation check
-	Error error
 }

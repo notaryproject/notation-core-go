@@ -83,7 +83,7 @@ func TestCRLReasonCode(t *testing.T) {
 
 	for _, e := range expected {
 		reasonCode := CRLReasonCode(e.code)
-		if !reasonCode.Equal(e.code) || reasonCode.String() != e.reason {
+		if int(reasonCode) != e.code || reasonCode.String() != e.reason {
 			t.Errorf("Expected %s but got %s", e.reason, CRLReasonCode(e.code).String())
 		}
 	}

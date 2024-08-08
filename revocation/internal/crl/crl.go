@@ -25,7 +25,6 @@ import (
 	"net/http"
 	"net/url"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/notaryproject/notation-core-go/revocation/result"
@@ -36,15 +35,15 @@ import (
 var oidInvalidityDate = asn1.ObjectIdentifier{2, 5, 29, 24}
 
 // maxCRLSize is the maximum size of CRL in bytes
-const maxCRLSize = 10 << 20 // 10 MiB
+const maxCRLSize = 64 * 1024 * 1024 // 64 MiB
 
 // Options specifies values that are needed to check CRL
 type Options struct {
 	// HTTPClient is the HTTP client used to download CRL
 	HTTPClient *http.Client
 
-	// SigningTime is the time when the certificate's private key is used to
-	// sign the data.
+	// SigningTime is the time when the certificate's private key is
+	// used to sign the data.
 	SigningTime time.Time
 }
 
@@ -57,46 +56,84 @@ type Options struct {
 // is not zero, the certificate is considered revoked if the SigningTime is
 // after the invalidity date. (See RFC 5280, Section 5.3.2)
 func CertCheckStatus(ctx context.Context, cert, issuer *x509.Certificate, opts Options) *result.CertRevocationResult {
+	if !Supported(cert) {
+		return &result.CertRevocationResult{
+			Result: result.ResultNonRevokable,
+			CRLResults: []*result.CRLResult{{
+				Error: fmt.Errorf("CRL is not supported in the certificate %s", cert.Subject.CommonName),
+			}},
+		}
+	}
+
 	if opts.HTTPClient == nil {
-		return &result.CertRevocationResult{Error: errors.New("invalid input: a non-nil httpClient must be specified")}
+		return &result.CertRevocationResult{
+			Result: result.ResultUnknown,
+			CRLResults: []*result.CRLResult{{
+				Error: errors.New("HTTP client is nil"),
+			}},
+		}
 	}
 
-	if !SupportCRL(cert) {
-		return &result.CertRevocationResult{Error: errors.New("certificate does not support CRL")}
-	}
-
-	// Check CRLs
-	crlResults := make([]*result.CRLResult, len(cert.CRLDistributionPoints))
-	for i, crlURL := range cert.CRLDistributionPoints {
+	// The CRLDistributionPoints contains the URIs of all the CRL distribution
+	// points. Since it does not distinguish the reason field, it needs to check
+	// all the URIs to avoid missing any partial CRLs.
+	//
+	// For the majority of the certificates, there is only one CRL distribution
+	// point with one CRL URI, which will be cached, so checking all the URIs is
+	// not a performance issue.
+	var (
+		crlResults []*result.CRLResult
+		lastErr    error
+		crlURL     string
+	)
+	for _, crlURL = range cert.CRLDistributionPoints {
 		baseCRL, err := download(ctx, crlURL, opts.HTTPClient)
 		if err != nil {
-			crlResults[i] = &result.CRLResult{
-				Error: fmt.Errorf("failed to download CRL from %s: %w", crlURL, err),
-			}
-			continue
+			lastErr = fmt.Errorf("failed to download CRL from %s: %w", crlURL, err)
+			break
 		}
 
-		err = validate(baseCRL, issuer)
+		if err = validate(baseCRL, issuer); err != nil {
+			lastErr = fmt.Errorf("failed to validate CRL from %s: %w", crlURL, err)
+			break
+		}
+
+		crlResult, err := checkRevocation(cert, baseCRL, opts.SigningTime, crlURL)
 		if err != nil {
+			lastErr = fmt.Errorf("failed to check revocation status from %s: %w", crlURL, err)
+			break
+		}
+		crlResults = append(crlResults, crlResult)
+
+		if crlResult.Result == result.ResultRevoked {
 			return &result.CertRevocationResult{
-				Result:     result.ResultUnknown,
+				Result:     result.ResultRevoked,
 				CRLResults: crlResults,
-				Error:      err,
 			}
 		}
+	}
 
-		return checkRevocation(cert, baseCRL, opts.SigningTime)
+	if lastErr != nil {
+		crlResults = append(crlResults, &result.CRLResult{
+			Result: result.ResultUnknown,
+			URI:    crlURL,
+			Error:  lastErr,
+		})
+		return &result.CertRevocationResult{
+			Result:     result.ResultUnknown,
+			CRLResults: crlResults,
+		}
 	}
 
 	return &result.CertRevocationResult{
-		Result:     result.ResultUnknown,
+		Result:     result.ResultOK,
 		CRLResults: crlResults,
-		Error:      crlResults[len(crlResults)-1].Error}
+	}
 }
 
-// SupportCRL checks if the certificate supports CRL.
-func SupportCRL(cert *x509.Certificate) bool {
-	return len(cert.CRLDistributionPoints) > 0
+// Supported checks if the certificate supports CRL.
+func Supported(cert *x509.Certificate) bool {
+	return cert != nil && len(cert.CRLDistributionPoints) > 0
 }
 
 func validate(crl *x509.RevocationList, issuer *x509.Certificate) error {
@@ -121,13 +158,13 @@ func validate(crl *x509.RevocationList, issuer *x509.Certificate) error {
 }
 
 // checkRevocation checks if the certificate is revoked or not
-func checkRevocation(cert *x509.Certificate, baseCRL *x509.RevocationList, signingTime time.Time) *result.CertRevocationResult {
+func checkRevocation(cert *x509.Certificate, baseCRL *x509.RevocationList, signingTime time.Time, crlURL string) (*result.CRLResult, error) {
 	if cert == nil {
-		return &result.CertRevocationResult{Error: errors.New("certificate is nil")}
+		return nil, errors.New("certificate is nil")
 	}
 
 	if baseCRL == nil {
-		return &result.CertRevocationResult{Error: errors.New("CRL is nil")}
+		return nil, errors.New("CRL is nil")
 	}
 
 	// tempRevokedEntries contains revocation entries with reasons such as
@@ -142,15 +179,7 @@ func checkRevocation(cert *x509.Certificate, baseCRL *x509.RevocationList, signi
 		if revocationEntry.SerialNumber.Cmp(cert.SerialNumber) == 0 {
 			extensions, err := parseEntryExtensions(revocationEntry)
 			if err != nil {
-				return &result.CertRevocationResult{
-					Result: result.ResultUnknown,
-					CRLResults: []*result.CRLResult{
-						{
-							Error: err,
-						},
-					},
-					Error: err,
-				}
+				return nil, err
 			}
 
 			// validate signingTime and invalidityDate
@@ -161,18 +190,18 @@ func checkRevocation(cert *x509.Certificate, baseCRL *x509.RevocationList, signi
 				continue
 			}
 
-			if result.CRLReasonCodeCertificateHold.Equal(revocationEntry.ReasonCode) ||
-				result.CRLReasonCodeRemoveFromCRL.Equal(revocationEntry.ReasonCode) {
-				// temporarily revoked
+			if int(result.CRLReasonCodeCertificateHold) == revocationEntry.ReasonCode ||
+				int(result.CRLReasonCodeRemoveFromCRL) == revocationEntry.ReasonCode {
+				// temporarily revoked or unrevoked
 				tempRevokedEntries = append(tempRevokedEntries, revocationEntry)
 			} else {
 				// permanently revoked
-				return &result.CertRevocationResult{
-					Result: result.ResultRevoked,
-					CRLResults: []*result.CRLResult{{
-						ReasonCode:     result.CRLReasonCode(revocationEntry.ReasonCode),
-						RevocationTime: revocationEntry.RevocationTime}},
-				}
+				return &result.CRLResult{
+					Result:         result.ResultRevoked,
+					ReasonCode:     result.CRLReasonCode(revocationEntry.ReasonCode),
+					RevocationTime: revocationEntry.RevocationTime,
+					URI:            crlURL,
+				}, nil
 			}
 		}
 	}
@@ -186,20 +215,20 @@ func checkRevocation(cert *x509.Certificate, baseCRL *x509.RevocationList, signi
 
 		// the revocation status depends on the most recent one
 		lastEntry := tempRevokedEntries[len(tempRevokedEntries)-1]
-		if !result.CRLReasonCodeRemoveFromCRL.Equal(lastEntry.ReasonCode) {
-			return &result.CertRevocationResult{
-				Result: result.ResultRevoked,
-				CRLResults: []*result.CRLResult{{
-					ReasonCode:     result.CRLReasonCode(lastEntry.ReasonCode),
-					RevocationTime: lastEntry.RevocationTime}},
-			}
+		if int(result.CRLReasonCodeRemoveFromCRL) != lastEntry.ReasonCode {
+			return &result.CRLResult{
+				Result:         result.ResultRevoked,
+				ReasonCode:     result.CRLReasonCode(lastEntry.ReasonCode),
+				RevocationTime: lastEntry.RevocationTime,
+				URI:            crlURL,
+			}, nil
 		}
 	}
 
-	return &result.CertRevocationResult{
-		Result:     result.ResultOK,
-		CRLResults: []*result.CRLResult{},
-	}
+	return &result.CRLResult{
+		Result: result.ResultOK,
+		URI:    crlURL,
+	}, nil
 }
 
 type entryExtensions struct {
@@ -208,8 +237,8 @@ type entryExtensions struct {
 }
 
 func parseEntryExtensions(entry x509.RevocationListEntry) (entryExtensions, error) {
-	extensions := entryExtensions{}
-	for _, ext := range entry.ExtraExtensions {
+	var extensions entryExtensions
+	for _, ext := range entry.Extensions {
 		switch {
 		case ext.Id.Equal(oidInvalidityDate):
 			var invalidityDate time.Time
@@ -218,7 +247,7 @@ func parseEntryExtensions(entry x509.RevocationListEntry) (entryExtensions, erro
 				return entryExtensions{}, fmt.Errorf("failed to parse invalidity date: %w", err)
 			}
 			if len(rest) > 0 {
-				return entryExtensions{}, fmt.Errorf("invalid invalidity date extension")
+				return entryExtensions{}, fmt.Errorf("invalid invalidity date extension: trailing data")
 			}
 
 			extensions.invalidityDate = invalidityDate
@@ -239,7 +268,7 @@ func download(ctx context.Context, crlURL string, client *http.Client) (*x509.Re
 	if err != nil {
 		return nil, fmt.Errorf("invalid CRL URL: %w", err)
 	}
-	if strings.ToLower(parsedURL.Scheme) != "http" {
+	if parsedURL.Scheme != "http" {
 		return nil, fmt.Errorf("unsupported scheme: %s. Only supports CRL URL in HTTP protocol", parsedURL.Scheme)
 	}
 
@@ -256,7 +285,7 @@ func download(ctx context.Context, crlURL string, client *http.Client) (*x509.Re
 
 	// check response
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("failed to download with status code: %d", resp.StatusCode)
+		return nil, fmt.Errorf("%s %q: failed to download with status code: %d", resp.Request.Method, resp.Request.URL, resp.StatusCode)
 	}
 
 	// read with size limit
@@ -266,7 +295,7 @@ func download(ctx context.Context, crlURL string, client *http.Client) (*x509.Re
 		return nil, fmt.Errorf("failed to read CRL response: %w", err)
 	}
 	if len(data) == maxCRLSize {
-		return nil, fmt.Errorf("CRL size exceeds the limit: %d", maxCRLSize)
+		return nil, fmt.Errorf("%s %q: CRL size reached the %d MiB size limit", resp.Request.Method, resp.Request.URL, maxCRLSize/1024/1024)
 	}
 
 	return x509.ParseRevocationList(data)
