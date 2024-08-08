@@ -21,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/notaryproject/notation-core-go/revocation/purpose"
 	"github.com/notaryproject/notation-core-go/revocation/result"
 	"github.com/notaryproject/notation-core-go/testhelper"
 	"golang.org/x/crypto/ocsp"
@@ -228,9 +229,10 @@ func TestCheckStatusForChain(t *testing.T) {
 	t.Run("check non-revoked chain", func(t *testing.T) {
 		client := testhelper.MockClient(testChain, []ocsp.ResponseStatus{ocsp.Good}, nil, true)
 		opts := Options{
-			CertChain:   revokableChain,
-			SigningTime: time.Now(),
-			HTTPClient:  client,
+			CertChain:        revokableChain,
+			CertChainPurpose: purpose.CodeSigning,
+			SigningTime:      time.Now(),
+			HTTPClient:       client,
 		}
 
 		certResults, err := CheckStatus(opts)
@@ -535,7 +537,7 @@ func TestCheckStatusErrors(t *testing.T) {
 	t.Run("check codesigning cert with PurposeTimestamping", func(t *testing.T) {
 		opts := Options{
 			CertChain:        okChain,
-			CertChainPurpose: PurposeTimestamping,
+			CertChainPurpose: purpose.Timestamping,
 			SigningTime:      time.Now(),
 			HTTPClient:       http.DefaultClient,
 		}
@@ -548,15 +550,27 @@ func TestCheckStatusErrors(t *testing.T) {
 		}
 	})
 
+	t.Run("check with default CertChainPurpose", func(t *testing.T) {
+		opts := Options{
+			CertChain:   okChain,
+			SigningTime: time.Now(),
+			HTTPClient:  http.DefaultClient,
+		}
+		_, err := CheckStatus(opts)
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+
 	t.Run("check with unknwon CertChainPurpose", func(t *testing.T) {
 		opts := Options{
 			CertChain:        okChain,
-			CertChainPurpose: 2,
+			CertChainPurpose: -1,
 			SigningTime:      time.Now(),
 			HTTPClient:       http.DefaultClient,
 		}
 		certResults, err := CheckStatus(opts)
-		if err == nil || err.Error() != "invalid chain: expected chain to be correct and complete: unknown certificate chain purpose 2" {
+		if err == nil || err.Error() != "invalid chain: expected chain to be correct and complete: unsupported certificate chain purpose -1" {
 			t.Errorf("Expected CheckStatus to fail with %v, but got: %v", timestampSigningCertErr, err)
 		}
 		if certResults != nil {
