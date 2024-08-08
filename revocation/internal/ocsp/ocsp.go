@@ -28,25 +28,16 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"sync"
 	"time"
 
-	"github.com/notaryproject/notation-core-go/revocation/internal/chain"
-	"github.com/notaryproject/notation-core-go/revocation/purpose"
 	"github.com/notaryproject/notation-core-go/revocation/result"
 	"golang.org/x/crypto/ocsp"
 )
 
 // Options specifies values that are needed to check OCSP revocation
 type Options struct {
-	CertChain []*x509.Certificate
-
-	// CertChainPurpose is the purpose of the certificate chain. Supported
-	// values are CodeSigning and Timestamping.
-	// When not provided, the default value is CodeSigning.
-	CertChainPurpose purpose.Purpose
-	SigningTime      time.Time
-	HTTPClient       *http.Client
+	SigningTime time.Time
+	HTTPClient  *http.Client
 }
 
 const (
@@ -56,44 +47,6 @@ const (
 	// Typical size is ~4 KB
 	ocspMaxResponseSize int64 = 20480 //bytes
 )
-
-// CheckStatus checks OCSP based on the passed options and returns an array of
-// result.CertRevocationResult objects that contains the results and error. The
-// length of this array will always be equal to the length of the certificate
-// chain.
-func CheckStatus(opts Options) ([]*result.CertRevocationResult, error) {
-	if len(opts.CertChain) == 0 {
-		return nil, result.InvalidChainError{Err: errors.New("chain does not contain any certificates")}
-	}
-
-	if err := chain.Validate(opts.CertChain, opts.CertChainPurpose); err != nil {
-		return nil, err
-	}
-
-	certResults := make([]*result.CertRevocationResult, len(opts.CertChain))
-
-	// Check status for each cert in cert chain
-	var wg sync.WaitGroup
-	for i, cert := range opts.CertChain[:len(opts.CertChain)-1] {
-		wg.Add(1)
-		// Assume cert chain is accurate and next cert in chain is the issuer
-		go func(i int, cert *x509.Certificate) {
-			defer wg.Done()
-			certResults[i] = CertCheckStatus(cert, opts.CertChain[i+1], opts)
-		}(i, cert)
-	}
-	// Last is root cert, which will never be revoked by OCSP
-	certResults[len(opts.CertChain)-1] = &result.CertRevocationResult{
-		Result: result.ResultNonRevokable,
-		ServerResults: []*result.ServerResult{{
-			Result: result.ResultNonRevokable,
-			Error:  nil,
-		}},
-	}
-
-	wg.Wait()
-	return certResults, nil
-}
 
 // CertCheckStatus checks the revocation status of a certificate using OCSP
 func CertCheckStatus(cert, issuer *x509.Certificate, opts Options) *result.CertRevocationResult {

@@ -165,10 +165,8 @@ func (r *revocation) ValidateContext(ctx context.Context, validateContextOpts Va
 	}
 
 	ocspOpts := ocsp.Options{
-		CertChain:        validateContextOpts.CertChain,
-		SigningTime:      validateContextOpts.AuthenticSigningTime,
-		CertChainPurpose: r.certChainPurpose,
-		HTTPClient:       r.ocspHTTPClient,
+		SigningTime: validateContextOpts.AuthenticSigningTime,
+		HTTPClient:  r.ocspHTTPClient,
 	}
 
 	crlOpts := crl.Options{
