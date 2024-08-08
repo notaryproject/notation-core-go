@@ -75,7 +75,7 @@ func TestCheckStatus(t *testing.T) {
 
 	t.Run("check non-revoked cert", func(t *testing.T) {
 		client := testhelper.MockClient(testChain, []ocsp.ResponseStatus{ocsp.Good}, nil, true)
-		opts := Options{
+		opts := CertCheckStatusOptions{
 			SigningTime: time.Now(),
 			HTTPClient:  client,
 		}
@@ -86,7 +86,7 @@ func TestCheckStatus(t *testing.T) {
 	})
 	t.Run("check cert with Unknown OCSP response", func(t *testing.T) {
 		client := testhelper.MockClient(testChain, []ocsp.ResponseStatus{ocsp.Unknown}, nil, true)
-		opts := Options{
+		opts := CertCheckStatusOptions{
 			SigningTime: time.Now(),
 			HTTPClient:  client,
 		}
@@ -102,7 +102,7 @@ func TestCheckStatus(t *testing.T) {
 	})
 	t.Run("check OCSP revoked cert", func(t *testing.T) {
 		client := testhelper.MockClient(testChain, []ocsp.ResponseStatus{ocsp.Revoked}, nil, true)
-		opts := Options{
+		opts := CertCheckStatusOptions{
 			SigningTime: time.Now(),
 			HTTPClient:  client,
 		}
@@ -119,7 +119,7 @@ func TestCheckStatus(t *testing.T) {
 	t.Run("check OCSP future revoked cert", func(t *testing.T) {
 		revokedTime := time.Now().Add(time.Hour)
 		client := testhelper.MockClient(testChain, []ocsp.ResponseStatus{ocsp.Revoked}, &revokedTime, true)
-		opts := Options{
+		opts := CertCheckStatusOptions{
 			SigningTime: time.Now(),
 			HTTPClient:  client,
 		}

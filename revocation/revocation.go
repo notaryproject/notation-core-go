@@ -164,7 +164,7 @@ func (r *revocation) ValidateContext(ctx context.Context, validateContextOpts Va
 		return nil, err
 	}
 
-	ocspOpts := ocsp.Options{
+	ocspOpts := ocsp.CertCheckStatusOptions{
 		SigningTime: validateContextOpts.AuthenticSigningTime,
 		HTTPClient:  r.ocspHTTPClient,
 	}

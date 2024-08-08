@@ -34,8 +34,8 @@ import (
 	"golang.org/x/crypto/ocsp"
 )
 
-// Options specifies values that are needed to check OCSP revocation
-type Options struct {
+// CertCheckStatusOptions specifies values that are needed to check OCSP revocation
+type CertCheckStatusOptions struct {
 	SigningTime time.Time
 	HTTPClient  *http.Client
 }
@@ -49,7 +49,7 @@ const (
 )
 
 // CertCheckStatus checks the revocation status of a certificate using OCSP
-func CertCheckStatus(cert, issuer *x509.Certificate, opts Options) *result.CertRevocationResult {
+func CertCheckStatus(cert, issuer *x509.Certificate, opts CertCheckStatusOptions) *result.CertRevocationResult {
 	if !Supported(cert) {
 		// OCSP not enabled for this certificate.
 		return &result.CertRevocationResult{
@@ -80,7 +80,7 @@ func Supported(cert *x509.Certificate) bool {
 	return cert != nil && len(cert.OCSPServer) > 0
 }
 
-func checkStatusFromServer(cert, issuer *x509.Certificate, server string, opts Options) *result.ServerResult {
+func checkStatusFromServer(cert, issuer *x509.Certificate, server string, opts CertCheckStatusOptions) *result.ServerResult {
 	// Check valid server
 	if serverURL, err := url.Parse(server); err != nil || !strings.EqualFold(serverURL.Scheme, "http") {
 		// This function is only able to check servers that are accessible via HTTP
@@ -138,7 +138,7 @@ func extensionsToMap(extensions []pkix.Extension) map[string][]byte {
 	return extensionMap
 }
 
-func executeOCSPCheck(cert, issuer *x509.Certificate, server string, opts Options) (*ocsp.Response, error) {
+func executeOCSPCheck(cert, issuer *x509.Certificate, server string, opts CertCheckStatusOptions) (*ocsp.Response, error) {
 	// TODO: Look into other alternatives for specifying the Hash
 	// https://github.com/notaryproject/notation-core-go/issues/139
 	// The following do not support SHA256 hashes:
