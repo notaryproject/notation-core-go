@@ -14,6 +14,7 @@
 package revocation
 
 import (
+	"context"
 	"crypto/x509"
 	"errors"
 	"fmt"
@@ -22,6 +23,7 @@ import (
 	"time"
 
 	revocationocsp "github.com/notaryproject/notation-core-go/revocation/ocsp"
+	"github.com/notaryproject/notation-core-go/revocation/purpose"
 	"github.com/notaryproject/notation-core-go/revocation/result"
 	"github.com/notaryproject/notation-core-go/testhelper"
 	"golang.org/x/crypto/ocsp"
@@ -99,12 +101,27 @@ func TestNew(t *testing.T) {
 	}
 }
 
-func TestNewTimestamp(t *testing.T) {
-	expectedErrMsg := "invalid input: a non-nil httpClient must be specified"
-	_, err := NewTimestamp(nil)
-	if err == nil || err.Error() != expectedErrMsg {
-		t.Fatalf("expected %s, but got %s", expectedErrMsg, err)
-	}
+func TestNewWithOptions(t *testing.T) {
+	t.Run("nil OCSP HTTP Client", func(t *testing.T) {
+		_, err := NewWithOptions(Options{
+			CertChainPurpose: purpose.CodeSigning,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	t.Run("invalid CertChainPurpose", func(t *testing.T) {
+		_, err := NewWithOptions(Options{
+			OCSPHTTPClient:   &http.Client{},
+			CertChainPurpose: -1,
+		})
+		expectedErrMsg := "unsupported certificate chain purpose -1"
+		if err == nil || err.Error() != expectedErrMsg {
+			t.Fatalf("expected %s, but got %s", expectedErrMsg, err.Error())
+		}
+	})
+
 }
 
 func TestCheckRevocationStatusForSingleCert(t *testing.T) {
@@ -477,11 +494,17 @@ func TestCheckRevocationStatusForTimestampChain(t *testing.T) {
 	}
 
 	t.Run("empty chain", func(t *testing.T) {
-		r, err := NewTimestamp(&http.Client{Timeout: 5 * time.Second})
+		r, err := NewWithOptions(Options{
+			OCSPHTTPClient:   &http.Client{Timeout: 5 * time.Second},
+			CertChainPurpose: purpose.Timestamping,
+		})
 		if err != nil {
 			t.Errorf("Expected successful creation of revocation, but received error: %v", err)
 		}
-		certResults, err := r.Validate([]*x509.Certificate{}, time.Now())
+		certResults, err := r.ValidateContext(context.Background(), ValidateContextOptions{
+			CertChain:            []*x509.Certificate{},
+			AuthenticSigningTime: time.Now(),
+		})
 		expectedErr := result.InvalidChainError{Err: errors.New("chain does not contain any certificates")}
 		if err == nil || err.Error() != expectedErr.Error() {
 			t.Errorf("Expected CheckStatus to fail with %v, but got: %v", expectedErr, err)
@@ -492,11 +515,17 @@ func TestCheckRevocationStatusForTimestampChain(t *testing.T) {
 	})
 	t.Run("check non-revoked chain", func(t *testing.T) {
 		client := testhelper.MockClient(testChain, []ocsp.ResponseStatus{ocsp.Good}, nil, true)
-		r, err := NewTimestamp(client)
+		r, err := NewWithOptions(Options{
+			OCSPHTTPClient:   client,
+			CertChainPurpose: purpose.Timestamping,
+		})
 		if err != nil {
 			t.Errorf("Expected successful creation of revocation, but received error: %v", err)
 		}
-		certResults, err := r.Validate(revokableChain, time.Now())
+		certResults, err := r.ValidateContext(context.Background(), ValidateContextOptions{
+			CertChain:            revokableChain,
+			AuthenticSigningTime: time.Now(),
+		})
 		if err != nil {
 			t.Errorf("Expected CheckStatus to succeed, but got error: %v", err)
 		}
@@ -513,11 +542,17 @@ func TestCheckRevocationStatusForTimestampChain(t *testing.T) {
 	t.Run("check chain with 1 Unknown cert", func(t *testing.T) {
 		// 3rd cert will be unknown, the rest will be good
 		client := testhelper.MockClient(testChain, []ocsp.ResponseStatus{ocsp.Good, ocsp.Good, ocsp.Unknown, ocsp.Good}, nil, true)
-		r, err := NewTimestamp(client)
+		r, err := NewWithOptions(Options{
+			OCSPHTTPClient:   client,
+			CertChainPurpose: purpose.Timestamping,
+		})
 		if err != nil {
 			t.Errorf("Expected successful creation of revocation, but received error: %v", err)
 		}
-		certResults, err := r.Validate(revokableChain, time.Now())
+		certResults, err := r.ValidateContext(context.Background(), ValidateContextOptions{
+			CertChain:            revokableChain,
+			AuthenticSigningTime: time.Now(),
+		})
 		if err != nil {
 			t.Errorf("Expected CheckStatus to succeed, but got error: %v", err)
 		}
@@ -539,11 +574,17 @@ func TestCheckRevocationStatusForTimestampChain(t *testing.T) {
 	t.Run("check OCSP with 1 revoked cert", func(t *testing.T) {
 		// 3rd cert will be revoked, the rest will be good
 		client := testhelper.MockClient(testChain, []ocsp.ResponseStatus{ocsp.Good, ocsp.Good, ocsp.Revoked, ocsp.Good}, nil, true)
-		r, err := NewTimestamp(client)
+		r, err := NewWithOptions(Options{
+			OCSPHTTPClient:   client,
+			CertChainPurpose: purpose.Timestamping,
+		})
 		if err != nil {
 			t.Errorf("Expected successful creation of revocation, but received error: %v", err)
 		}
-		certResults, err := r.Validate(revokableChain, time.Now())
+		certResults, err := r.ValidateContext(context.Background(), ValidateContextOptions{
+			CertChain:            revokableChain,
+			AuthenticSigningTime: time.Now(),
+		})
 		if err != nil {
 			t.Errorf("Expected CheckStatus to succeed, but got error: %v", err)
 		}
@@ -565,11 +606,17 @@ func TestCheckRevocationStatusForTimestampChain(t *testing.T) {
 	t.Run("check OCSP with 1 unknown and 1 revoked cert", func(t *testing.T) {
 		// 3rd cert will be unknown, 5th will be revoked, the rest will be good
 		client := testhelper.MockClient(testChain, []ocsp.ResponseStatus{ocsp.Good, ocsp.Good, ocsp.Unknown, ocsp.Good, ocsp.Revoked, ocsp.Good}, nil, true)
-		r, err := NewTimestamp(client)
+		r, err := NewWithOptions(Options{
+			OCSPHTTPClient:   client,
+			CertChainPurpose: purpose.Timestamping,
+		})
 		if err != nil {
 			t.Errorf("Expected successful creation of revocation, but received error: %v", err)
 		}
-		certResults, err := r.Validate(revokableChain, time.Now())
+		certResults, err := r.ValidateContext(context.Background(), ValidateContextOptions{
+			CertChain:            revokableChain,
+			AuthenticSigningTime: time.Now(),
+		})
 		if err != nil {
 			t.Errorf("Expected CheckStatus to succeed, but got error: %v", err)
 		}
@@ -597,11 +644,17 @@ func TestCheckRevocationStatusForTimestampChain(t *testing.T) {
 		revokedTime := time.Now().Add(time.Hour)
 		// 3rd cert will be future revoked, the rest will be good
 		client := testhelper.MockClient(testChain, []ocsp.ResponseStatus{ocsp.Good, ocsp.Good, ocsp.Revoked, ocsp.Good}, &revokedTime, true)
-		r, err := NewTimestamp(client)
+		r, err := NewWithOptions(Options{
+			OCSPHTTPClient:   client,
+			CertChainPurpose: purpose.Timestamping,
+		})
 		if err != nil {
 			t.Errorf("Expected successful creation of revocation, but received error: %v", err)
 		}
-		certResults, err := r.Validate(revokableChain, time.Now())
+		certResults, err := r.ValidateContext(context.Background(), ValidateContextOptions{
+			CertChain:            revokableChain,
+			AuthenticSigningTime: time.Now(),
+		})
 		if err != nil {
 			t.Errorf("Expected CheckStatus to succeed, but got error: %v", err)
 		}
@@ -619,11 +672,17 @@ func TestCheckRevocationStatusForTimestampChain(t *testing.T) {
 		revokedTime := time.Now().Add(time.Hour)
 		// 3rd cert will be unknown, 5th will be future revoked, the rest will be good
 		client := testhelper.MockClient(testChain, []ocsp.ResponseStatus{ocsp.Good, ocsp.Good, ocsp.Unknown, ocsp.Good, ocsp.Revoked, ocsp.Good}, &revokedTime, true)
-		r, err := NewTimestamp(client)
+		r, err := NewWithOptions(Options{
+			OCSPHTTPClient:   client,
+			CertChainPurpose: purpose.Timestamping,
+		})
 		if err != nil {
 			t.Errorf("Expected successful creation of revocation, but received error: %v", err)
 		}
-		certResults, err := r.Validate(revokableChain, time.Now())
+		certResults, err := r.ValidateContext(context.Background(), ValidateContextOptions{
+			CertChain:            revokableChain,
+			AuthenticSigningTime: time.Now(),
+		})
 		if err != nil {
 			t.Errorf("Expected CheckStatus to succeed, but got error: %v", err)
 		}
@@ -645,11 +704,17 @@ func TestCheckRevocationStatusForTimestampChain(t *testing.T) {
 	t.Run("check OCSP with 1 revoked cert before signing time", func(t *testing.T) {
 		// 3rd cert will be revoked, the rest will be good
 		client := testhelper.MockClient(testChain, []ocsp.ResponseStatus{ocsp.Good, ocsp.Good, ocsp.Revoked, ocsp.Good}, nil, true)
-		r, err := NewTimestamp(client)
+		r, err := NewWithOptions(Options{
+			OCSPHTTPClient:   client,
+			CertChainPurpose: purpose.Timestamping,
+		})
 		if err != nil {
 			t.Errorf("Expected successful creation of revocation, but received error: %v", err)
 		}
-		certResults, err := r.Validate(revokableChain, time.Now().Add(time.Hour))
+		certResults, err := r.ValidateContext(context.Background(), ValidateContextOptions{
+			CertChain:            revokableChain,
+			AuthenticSigningTime: time.Now().Add(time.Hour),
+		})
 		if err != nil {
 			t.Errorf("Expected CheckStatus to succeed, but got error: %v", err)
 		}
@@ -675,11 +740,17 @@ func TestCheckRevocationStatusForTimestampChain(t *testing.T) {
 		if !zeroTime.IsZero() {
 			t.Errorf("exected zeroTime.IsZero() to be true")
 		}
-		r, err := NewTimestamp(client)
+		r, err := NewWithOptions(Options{
+			OCSPHTTPClient:   client,
+			CertChainPurpose: purpose.Timestamping,
+		})
 		if err != nil {
 			t.Errorf("Expected successful creation of revocation, but received error: %v", err)
 		}
-		certResults, err := r.Validate(revokableChain, time.Now().Add(time.Hour))
+		certResults, err := r.ValidateContext(context.Background(), ValidateContextOptions{
+			CertChain:            revokableChain,
+			AuthenticSigningTime: time.Now().Add(time.Hour),
+		})
 		if err != nil {
 			t.Errorf("Expected CheckStatus to succeed, but got error: %v", err)
 		}
@@ -916,4 +987,18 @@ func TestCheckRevocationInvalidChain(t *testing.T) {
 			t.Error("Expected certResults to be nil when there is an error")
 		}
 	})
+}
+
+func TestValidateContext(t *testing.T) {
+	r, err := NewWithOptions(Options{
+		OCSPHTTPClient: &http.Client{},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectedErrMsg := "invalid chain: expected chain to be correct and complete: chain does not contain any certificates"
+	_, err = r.ValidateContext(context.Background(), ValidateContextOptions{})
+	if err == nil || err.Error() != expectedErrMsg {
+		t.Fatalf("expected %s, but got %s", expectedErrMsg, err)
+	}
 }
