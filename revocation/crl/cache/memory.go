@@ -21,18 +21,24 @@ type memoryCache struct {
 	maxAge time.Duration
 }
 
+type MemoryCacheOptions struct {
+	MaxAge time.Duration
+}
+
 // NewMemoryCache creates a new memory store.
 //
 //   - maxAge is the maximum age of the CRLs cache. If the CRL is older than
 //     maxAge, it will be considered as expired.
-func NewMemoryCache(maxAge time.Duration) Cache {
-	if maxAge == 0 {
-		maxAge = DefaultMaxAge
+func NewMemoryCache(opts MemoryCacheOptions) (Cache, error) {
+	c := &memoryCache{
+		maxAge: opts.MaxAge,
 	}
 
-	return &memoryCache{
-		maxAge: maxAge,
+	if c.maxAge == 0 {
+		c.maxAge = DefaultMaxAge
 	}
+
+	return c, nil
 }
 
 // Get retrieves the CRL from the memory store.

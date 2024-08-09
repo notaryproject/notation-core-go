@@ -297,8 +297,6 @@ func (r *errorReader) Read(p []byte) (n int, err error) {
 }
 
 type errorWriter struct {
-	Errors []error
-	i      int
 }
 
 func (w *errorWriter) Write(p []byte) (n int, err error) {
