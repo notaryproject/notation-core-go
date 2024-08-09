@@ -47,8 +47,9 @@ func (c *memoryCache) Get(ctx context.Context, key string) (*Bundle, error) {
 		return nil, fmt.Errorf("invalid type: %T", value)
 	}
 
-	if c.maxAge > 0 && time.Now().After(bundle.Metadata.CreateAt.Add(c.maxAge)) {
-		return nil, os.ErrNotExist
+	expires := bundle.Metadata.CreateAt.Add(c.maxAge)
+	if c.maxAge > 0 && time.Now().After(expires) {
+		return nil, &CacheExpiredError{Expires: expires}
 	}
 
 	return bundle, nil

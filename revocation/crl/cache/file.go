@@ -90,12 +90,13 @@ func (c *fileCache) Set(ctx context.Context, key string, bundle *Bundle) error {
 	}
 	tempFile.Close()
 
-	// rename is atomic on UNIX platforms
+	// rename is atomic on UNIX-like platforms
 	return os.Rename(tempFile.Name(), filepath.Join(c.dir, key))
 }
 
 // Delete removes the CRL bundle file from file system
 func (c *fileCache) Delete(ctx context.Context, key string) error {
+	// remove is atomic on UNIX-like platforms
 	return os.Remove(filepath.Join(c.dir, key))
 }
 
@@ -109,6 +110,7 @@ func (c *fileCache) Flush(ctx context.Context) error {
 			return nil
 		}
 
+		// remove is atomic on UNIX-like platforms
 		return os.Remove(path)
 	})
 }
