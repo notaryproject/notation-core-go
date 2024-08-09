@@ -11,6 +11,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package fetcher provides Fetcher interface and its implementation to fetch
+// CRL from the given URL
 package fetcher
 
 import (
@@ -23,7 +25,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"os"
 
 	"github.com/notaryproject/notation-core-go/revocation/crl/cache"
 )
@@ -73,8 +74,9 @@ func (f *cachedFetcher) Fetch(ctx context.Context, crlURL string) (bundle *cache
 	// try to get from cache
 	bundle, err = f.cacheClient.Get(ctx, tarStoreName(crlURL))
 	if err != nil {
+		var notExistError *cache.NotExistError
 		var cacheBrokenError *cache.BrokenFileError
-		if os.IsNotExist(err) || errors.As(err, &cacheBrokenError) {
+		if errors.As(err, &notExistError) || errors.As(err, &cacheBrokenError) {
 			// download if not exist or broken
 			bundle, err = f.Download(ctx, crlURL)
 			if err != nil {
