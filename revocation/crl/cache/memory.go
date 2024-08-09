@@ -3,7 +3,6 @@ package cache
 import (
 	"context"
 	"fmt"
-	"os"
 	"sync"
 	"time"
 )
@@ -45,7 +44,7 @@ func NewMemoryCache(opts MemoryCacheOptions) (Cache, error) {
 func (c *memoryCache) Get(ctx context.Context, key string) (*Bundle, error) {
 	value, ok := c.store.Load(key)
 	if !ok {
-		return nil, os.ErrNotExist
+		return nil, &NotExistError{Key: key}
 	}
 
 	bundle, ok := value.(*Bundle)
@@ -55,7 +54,7 @@ func (c *memoryCache) Get(ctx context.Context, key string) (*Bundle, error) {
 
 	expires := bundle.Metadata.CreateAt.Add(c.maxAge)
 	if c.maxAge > 0 && time.Now().After(expires) {
-		return nil, &CacheExpiredError{Expires: expires}
+		return nil, &ExpiredError{Expires: expires}
 	}
 
 	return bundle, nil

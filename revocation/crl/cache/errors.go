@@ -2,13 +2,23 @@ package cache
 
 import "time"
 
-// CacheExpiredError is an error type that indicates the cache is expired.
-type CacheExpiredError struct {
+// NotExistError is an error type that indicates the key is not found in the
+// cache.
+type NotExistError struct {
+	Key string
+}
+
+func (e *NotExistError) Error() string {
+	return "key not found: " + e.Key
+}
+
+// ExpiredError is an error type that indicates the cache is expired.
+type ExpiredError struct {
 	// Expires is the time when the cache expires.
 	Expires time.Time
 }
 
-func (e *CacheExpiredError) Error() string {
+func (e *ExpiredError) Error() string {
 	return "cache expired at " + e.Expires.String()
 }
 

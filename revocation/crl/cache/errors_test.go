@@ -8,7 +8,7 @@ import (
 
 func TestCacheExpiredError(t *testing.T) {
 	expirationTime := time.Now()
-	err := &CacheExpiredError{Expires: expirationTime}
+	err := &ExpiredError{Expires: expirationTime}
 
 	expectedMessage := "cache expired at " + expirationTime.String()
 	if err.Error() != expectedMessage {

@@ -2,6 +2,7 @@ package cache
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"time"
@@ -40,7 +41,7 @@ type FileCacheOptions struct {
 //     maxAge, it will be considered as expired.
 func NewFileCache(opts *FileCacheOptions) (Cache, error) {
 	if err := os.MkdirAll(opts.Dir, 0700); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create directory: %w", err)
 	}
 
 	cache := &fileCache{
@@ -60,6 +61,9 @@ func NewFileCache(opts *FileCacheOptions) (Cache, error) {
 func (c *fileCache) Get(ctx context.Context, key string) (*Bundle, error) {
 	f, err := os.Open(filepath.Join(c.dir, key))
 	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, &NotExistError{Key: key}
+		}
 		return nil, err
 	}
 	defer f.Close()
@@ -72,7 +76,7 @@ func (c *fileCache) Get(ctx context.Context, key string) (*Bundle, error) {
 	expires := bundle.Metadata.CreateAt.Add(c.maxAge)
 	if c.maxAge > 0 && time.Now().After(expires) {
 		// do not delete the file to maintain the idempotent behavior
-		return nil, &CacheExpiredError{Expires: expires}
+		return nil, &ExpiredError{Expires: expires}
 	}
 
 	return bundle, nil
