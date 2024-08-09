@@ -43,12 +43,11 @@ const (
 type Cache interface {
 	// Get retrieves the content with the given key
 	//
-	// - if the key does not exist, return os.ErrNotExist
+	// - if the key does not exist, return NotExistError
+	// - if the content is expired, return ExpiredError
 	Get(ctx context.Context, key string) (*Bundle, error)
 
 	// Set stores the content with the given key
-	//
-	// - expiration is the time duration before the content is valid
 	Set(ctx context.Context, key string, value *Bundle) error
 
 	// Delete removes the content with the given key
