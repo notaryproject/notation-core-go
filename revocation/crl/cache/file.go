@@ -85,7 +85,7 @@ func (c *fileCache) Set(ctx context.Context, key string, bundle *Bundle) error {
 	if err != nil {
 		return err
 	}
-	if err := SaveAsTarball(tempFile, bundle); err != nil {
+	if err := bundle.SaveAsTarball(tempFile); err != nil {
 		return err
 	}
 	tempFile.Close()

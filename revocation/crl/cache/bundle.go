@@ -64,12 +64,12 @@ func NewBundle(baseCRL *x509.RevocationList, url string) (*Bundle, error) {
 //
 //	{
 //	  "base.crl": {
-//		   "url": "https://example.com/base.crl",
-//		   "createAt": "2021-09-01T00:00:00Z"
-//	  }
+//	    "url": "https://example.com/base.crl"
+//	  },
+//	  "createAt": "2024-07-20T00:00:00Z"
 //	}
 func ParseBundleFromTarball(data io.Reader) (*Bundle, error) {
-	crl := &Bundle{}
+	bundle := &Bundle{}
 
 	// parse the tarball
 	tar := tar.NewReader(data)
@@ -99,8 +99,7 @@ func ParseBundleFromTarball(data io.Reader) (*Bundle, error) {
 					Err: fmt.Errorf("failed to parse base CRL from tarball: %w", err),
 				}
 			}
-
-			crl.BaseCRL = baseCRL
+			bundle.BaseCRL = baseCRL
 		case PathMetadata:
 			// parse metadata
 			var metadata Metadata
@@ -109,34 +108,31 @@ func ParseBundleFromTarball(data io.Reader) (*Bundle, error) {
 					Err: fmt.Errorf("failed to parse CRL metadata from tarball: %w", err),
 				}
 			}
-
-			crl.Metadata = metadata
-
+			bundle.Metadata = metadata
 		default:
 			return nil, &BrokenFileError{
 				Err: fmt.Errorf("unexpected file in CRL tarball: %s", header.Name),
 			}
 		}
 	}
-
-	// validate
-	if crl.BaseCRL == nil {
-		return nil, &BrokenFileError{
-			Err: errors.New("base CRL is missing from cached tarball"),
-		}
-	}
-	if crl.Metadata.BaseCRL.URL == "" {
-		return nil, &BrokenFileError{
-			Err: errors.New("base CRL URL is missing from cached tarball"),
-		}
-	}
-	if crl.Metadata.CreateAt.IsZero() {
-		return nil, &BrokenFileError{
-			Err: errors.New("base CRL creation time is missing from cached tarball"),
-		}
+	if err := bundle.validate(); err != nil {
+		return nil, err
 	}
 
-	return crl, nil
+	return bundle, nil
+}
+
+func (b *Bundle) validate() error {
+	if b.BaseCRL == nil {
+		return errors.New("base CRL is missing")
+	}
+	if b.Metadata.BaseCRL.URL == "" {
+		return errors.New("base CRL URL is missing")
+	}
+	if b.Metadata.CreateAt.IsZero() {
+		return errors.New("base CRL creation time is missing")
+	}
+	return nil
 }
 
 // SaveAsTar saves the CRL blob as a tarball, including the base CRL and
@@ -150,19 +146,25 @@ func ParseBundleFromTarball(data io.Reader) (*Bundle, error) {
 //
 //	{
 //	  "base.crl": {
-//		   "url": "https://example.com/base.crl",
-//		   "createAt": "2021-09-01T00:00:00Z"
-//	  }
+//	    "url": "https://example.com/base.crl"
+//	  },
+//	  "createAt": "2024-06-30T00:00:00Z"
 //	}
-func SaveAsTarball(w io.Writer, bundle *Bundle) (err error) {
+func (b *Bundle) SaveAsTarball(w io.Writer) (err error) {
+	if err := b.validate(); err != nil {
+		return err
+	}
+
 	tarWriter := tar.NewWriter(w)
+	defer tarWriter.Close()
+
 	// Add base.crl
-	if err := addToTar(PathBaseCRL, bundle.BaseCRL.Raw, bundle.Metadata.CreateAt, tarWriter); err != nil {
+	if err := addToTar(PathBaseCRL, b.BaseCRL.Raw, b.Metadata.CreateAt, tarWriter); err != nil {
 		return err
 	}
 
 	// Add metadata.json
-	metadataBytes, err := json.Marshal(bundle.Metadata)
+	metadataBytes, err := json.Marshal(b.Metadata)
 	if err != nil {
 		return err
 	}
