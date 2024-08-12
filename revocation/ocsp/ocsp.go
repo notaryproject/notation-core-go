@@ -22,8 +22,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/notaryproject/notation-core-go/revocation/internal/chain"
 	"github.com/notaryproject/notation-core-go/revocation/internal/ocsp"
+	"github.com/notaryproject/notation-core-go/revocation/internal/x509util"
 	"github.com/notaryproject/notation-core-go/revocation/purpose"
 	"github.com/notaryproject/notation-core-go/revocation/result"
 )
@@ -49,7 +49,7 @@ func CheckStatus(opts Options) ([]*result.CertRevocationResult, error) {
 		return nil, result.InvalidChainError{Err: errors.New("chain does not contain any certificates")}
 	}
 
-	if err := chain.Validate(opts.CertChain, opts.CertChainPurpose); err != nil {
+	if err := x509util.ValidateChain(opts.CertChain, opts.CertChainPurpose); err != nil {
 		return nil, err
 	}
 

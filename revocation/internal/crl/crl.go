@@ -24,7 +24,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"sort"
+	"slices"
 	"time"
 
 	"github.com/notaryproject/notation-core-go/revocation/result"
@@ -173,9 +173,9 @@ func checkRevocation(cert *x509.Certificate, baseCRL *x509.RevocationList, signi
 	// If the certificate is revoked with CertificateHold, it is temporarily
 	// revoked. If the certificate is shown in the CRL with RemoveFromCRL,
 	// it is unrevoked.
-	var tempRevokedEntries []x509.RevocationListEntry
+	var tempRevokedEntries []*x509.RevocationListEntry
 
-	for _, revocationEntry := range baseCRL.RevokedCertificateEntries {
+	for i, revocationEntry := range baseCRL.RevokedCertificateEntries {
 		if revocationEntry.SerialNumber.Cmp(cert.SerialNumber) == 0 {
 			extensions, err := parseEntryExtensions(revocationEntry)
 			if err != nil {
@@ -193,7 +193,7 @@ func checkRevocation(cert *x509.Certificate, baseCRL *x509.RevocationList, signi
 			if int(result.CRLReasonCodeCertificateHold) == revocationEntry.ReasonCode ||
 				int(result.CRLReasonCodeRemoveFromCRL) == revocationEntry.ReasonCode {
 				// temporarily revoked or unrevoked
-				tempRevokedEntries = append(tempRevokedEntries, revocationEntry)
+				tempRevokedEntries = append(tempRevokedEntries, &baseCRL.RevokedCertificateEntries[i])
 			} else {
 				// permanently revoked
 				return &result.CRLResult{
@@ -208,13 +208,11 @@ func checkRevocation(cert *x509.Certificate, baseCRL *x509.RevocationList, signi
 
 	// check if the revocation with CertificateHold or RemoveFromCRL
 	if len(tempRevokedEntries) > 0 {
-		// sort by revocation time (ascending order)
-		sort.Slice(tempRevokedEntries, func(i, j int) bool {
-			return tempRevokedEntries[i].RevocationTime.Before(tempRevokedEntries[j].RevocationTime)
+		// the revocation status depends on the most recent one
+		lastEntry := slices.MaxFunc(tempRevokedEntries, func(a, b *x509.RevocationListEntry) int {
+			return a.RevocationTime.Compare(b.RevocationTime)
 		})
 
-		// the revocation status depends on the most recent one
-		lastEntry := tempRevokedEntries[len(tempRevokedEntries)-1]
 		if int(result.CRLReasonCodeRemoveFromCRL) != lastEntry.ReasonCode {
 			return &result.CRLResult{
 				Result:         result.ResultRevoked,

@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package chain
+package x509util
 
 import (
 	"crypto/x509"
@@ -25,7 +25,7 @@ func TestValidate(t *testing.T) {
 	t.Run("unsupported_certificate_chain_purpose", func(t *testing.T) {
 		certChain := []*x509.Certificate{}
 		certChainPurpose := purpose.Purpose(-1)
-		err := Validate(certChain, certChainPurpose)
+		err := ValidateChain(certChain, certChainPurpose)
 		if err == nil {
 			t.Errorf("Validate() failed, expected error, got nil")
 		}
@@ -34,7 +34,7 @@ func TestValidate(t *testing.T) {
 	t.Run("invalid code signing certificate chain", func(t *testing.T) {
 		certChain := []*x509.Certificate{}
 		certChainPurpose := purpose.CodeSigning
-		err := Validate(certChain, certChainPurpose)
+		err := ValidateChain(certChain, certChainPurpose)
 		if err == nil {
 			t.Errorf("Validate() failed, expected error, got nil")
 		}
@@ -43,7 +43,7 @@ func TestValidate(t *testing.T) {
 	t.Run("invalid timestamping certificate chain", func(t *testing.T) {
 		certChain := []*x509.Certificate{}
 		certChainPurpose := purpose.Timestamping
-		err := Validate(certChain, certChainPurpose)
+		err := ValidateChain(certChain, certChainPurpose)
 		if err == nil {
 			t.Errorf("Validate() failed, expected error, got nil")
 		}
@@ -52,7 +52,7 @@ func TestValidate(t *testing.T) {
 	t.Run("valid code signing certificate chain", func(t *testing.T) {
 		certChain := testhelper.GetRevokableRSAChain(2)
 		certChainPurpose := purpose.CodeSigning
-		err := Validate([]*x509.Certificate{certChain[0].Cert, certChain[1].Cert}, certChainPurpose)
+		err := ValidateChain([]*x509.Certificate{certChain[0].Cert, certChain[1].Cert}, certChainPurpose)
 		if err != nil {
 			t.Errorf("Validate() failed, expected nil, got %v", err)
 		}

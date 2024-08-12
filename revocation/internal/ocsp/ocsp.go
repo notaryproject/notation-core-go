@@ -36,8 +36,11 @@ import (
 
 // CertCheckStatusOptions specifies values that are needed to check OCSP revocation
 type CertCheckStatusOptions struct {
+	// HTTPClient is the HTTP client used to perform the OCSP request
+	HTTPClient *http.Client
+
+	// SigningTime is used to compare with the invalidity date during revocation
 	SigningTime time.Time
-	HTTPClient  *http.Client
 }
 
 const (

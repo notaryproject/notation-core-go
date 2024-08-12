@@ -24,9 +24,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/notaryproject/notation-core-go/revocation/internal/chain"
 	"github.com/notaryproject/notation-core-go/revocation/internal/crl"
 	"github.com/notaryproject/notation-core-go/revocation/internal/ocsp"
+	"github.com/notaryproject/notation-core-go/revocation/internal/x509util"
 	"github.com/notaryproject/notation-core-go/revocation/purpose"
 	"github.com/notaryproject/notation-core-go/revocation/result"
 )
@@ -160,13 +160,13 @@ func (r *revocation) ValidateContext(ctx context.Context, validateContextOpts Va
 	}
 	certChain := validateContextOpts.CertChain
 
-	if err := chain.Validate(certChain, r.certChainPurpose); err != nil {
+	if err := x509util.ValidateChain(certChain, r.certChainPurpose); err != nil {
 		return nil, err
 	}
 
 	ocspOpts := ocsp.CertCheckStatusOptions{
-		SigningTime: validateContextOpts.AuthenticSigningTime,
 		HTTPClient:  r.ocspHTTPClient,
+		SigningTime: validateContextOpts.AuthenticSigningTime,
 	}
 
 	crlOpts := crl.CertCheckStatusOptions{
@@ -241,6 +241,7 @@ func (r *revocation) ValidateContext(ctx context.Context, validateContextOpts Va
 	// handle panic
 	select {
 	case p := <-panicChan:
+		close(panicChan)
 		panic(p)
 	default:
 	}

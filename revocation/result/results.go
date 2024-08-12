@@ -94,10 +94,9 @@ const (
 	CRLReasonCodeSuperseded           CRLReasonCode = 4
 	CRLReasonCodeCessationOfOperation CRLReasonCode = 5
 	CRLReasonCodeCertificateHold      CRLReasonCode = 6
-	// value 7 is not used
-	CRLReasonCodeRemoveFromCRL      CRLReasonCode = 8
-	CRLReasonCodePrivilegeWithdrawn CRLReasonCode = 9
-	CRLReasonCodeAACompromise       CRLReasonCode = 10
+	CRLReasonCodeRemoveFromCRL        CRLReasonCode = 8
+	CRLReasonCodePrivilegeWithdrawn   CRLReasonCode = 9
+	CRLReasonCodeAACompromise         CRLReasonCode = 10
 )
 
 // String provides a conversion from a ReasonCode to a string

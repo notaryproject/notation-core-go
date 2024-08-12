@@ -11,9 +11,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package chain provides the method to validate the certificate chain for a
+// Package x509util provides the method to validate the certificate chain for a
 // specific purpose, including code signing and timestamping.
-package chain
+package x509util
 
 import (
 	"crypto/x509"
@@ -24,9 +24,9 @@ import (
 	coreX509 "github.com/notaryproject/notation-core-go/x509"
 )
 
-// Validate checks the certificate chain for a specific purpose, including
+// ValidateChain checks the certificate chain for a specific purpose, including
 // code signing and timestamping.
-func Validate(certChain []*x509.Certificate, certChainPurpose purpose.Purpose) error {
+func ValidateChain(certChain []*x509.Certificate, certChainPurpose purpose.Purpose) error {
 	switch certChainPurpose {
 	case purpose.CodeSigning:
 		// Since ValidateCodeSigningCertChain is using authentic signing time,
