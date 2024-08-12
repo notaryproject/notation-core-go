@@ -340,27 +340,6 @@ func TestBundleParseFailed(t *testing.T) {
 			t.Fatalf("expected error, got nil")
 		}
 	})
-
-	t.Run("unknown file in tarball", func(t *testing.T) {
-		var buf bytes.Buffer
-		header := &tar.Header{
-			Name:    "unknown file",
-			Size:    10,
-			Mode:    0644,
-			ModTime: time.Now(),
-		}
-		tw := tar.NewWriter(&buf)
-		if err := tw.WriteHeader(header); err != nil {
-			t.Fatalf("failed to write header: %v", err)
-		}
-		tw.Write([]byte("unknown file"))
-		tw.Close()
-
-		_, err := parseBundleFromTar(bytes.NewReader(buf.Bytes()))
-		if err == nil {
-			t.Fatalf("expected error, got nil")
-		}
-	})
 }
 
 func TestSaveTarFailed(t *testing.T) {

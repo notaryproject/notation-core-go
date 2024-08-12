@@ -34,12 +34,19 @@ const (
 
 // FileCache stores in a tarball format, which contains two files: base.crl and
 // metadata.json. The base.crl file contains the base CRL in DER format, and the
-// metadata.json file contains the metadata of the CRL. The cache builds on top
-// of UNIX file system to leverage the file system concurrency control and
-// atomicity.
+// metadata.json file contains the metadata of the CRL.
 //
-// NOTE: For Windows, the atomicity is not guaranteed. Please avoid using this
-// cache on Windows when the concurrent write is required.
+// The cache builds on top of the UNIX file system to leverage the file system's
+// atomic operations. The `rename` and `remove` operations will unlink the old
+// file but keep the inode and file descriptor for existing processes to access
+// the file. The old inode will be dereferenced when all processes close the old
+// file descriptor. Additionally, the operations are proven to be atomic on
+// UNIX-like platforms, so there is no need to handle file locking.
+//
+// NOTE: For Windows, the `open`, `rename` and `remove` operations need file
+// locking to ensure atomicity. The current implementation does not handle
+// file locking, so the concurrent write from multiple processes may be failed.
+// Please do not use this cache in a multi-process environment on Windows.
 //
 // FileCache doesn't handle cache cleaning but provides the Delete and Clear
 // methods to remove the CRLs from the file system.
