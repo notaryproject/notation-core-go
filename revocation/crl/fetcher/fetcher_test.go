@@ -23,13 +23,14 @@ import (
 	"math/big"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/notaryproject/notation-core-go/revocation/crl/cache"
 	"github.com/notaryproject/notation-core-go/testhelper"
 )
 
 func TestNewCachedFetcher(t *testing.T) {
-	c, err := cache.NewMemoryCache(cache.MemoryCacheOptions{})
+	c, err := cache.NewMemoryCache()
 	if err != nil {
 		t.Errorf("NewMemoryCache() error = %v, want nil", err)
 	}
@@ -50,7 +51,7 @@ func TestNewCachedFetcher(t *testing.T) {
 
 func TestFetch(t *testing.T) {
 	// prepare cache
-	c, err := cache.NewMemoryCache(cache.MemoryCacheOptions{})
+	c, err := cache.NewMemoryCache()
 	if err != nil {
 		t.Errorf("NewMemoryCache() error = %v, want nil", err)
 	}
@@ -70,11 +71,16 @@ func TestFetch(t *testing.T) {
 	const exampleURL = "http://example.com"
 	const uncachedURL = "http://uncached.com"
 
-	bundle, err := cache.NewBundle(baseCRL, exampleURL)
-	if err != nil {
-		t.Errorf("NewBundle() error = %v, want nil", err)
+	bundle := &cache.Bundle{
+		BaseCRL: baseCRL,
+		Metadata: cache.Metadata{
+			BaseCRL: cache.CRLMetadata{
+				URL: exampleURL,
+			},
+			CreateAt: time.Now(),
+		},
 	}
-	if err := c.Set(context.Background(), tarStoreName(exampleURL), bundle); err != nil {
+	if err := c.Set(context.Background(), exampleURL, bundle); err != nil {
 		t.Errorf("Cache.Set() error = %v, want nil", err)
 	}
 
@@ -138,7 +144,7 @@ func TestFetch(t *testing.T) {
 		}
 
 		// delete cache
-		if err := c.Delete(context.Background(), tarStoreName(uncachedURL)); err != nil {
+		if err := c.Delete(context.Background(), uncachedURL); err != nil {
 			t.Errorf("Cache.Delete() error = %v, want nil", err)
 		}
 	})

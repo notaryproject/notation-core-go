@@ -14,8 +14,14 @@
 package cache
 
 import (
+	"archive/tar"
 	"context"
+	"crypto/sha256"
+	"crypto/x509"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"time"
@@ -26,7 +32,7 @@ const (
 	tempFileName = "notation-*"
 )
 
-// fileCache stores in a tarball format, which contains two files: base.crl and
+// FileCache stores in a tarball format, which contains two files: base.crl and
 // metadata.json. The base.crl file contains the base CRL in DER format, and the
 // metadata.json file contains the metadata of the CRL. The cache builds on top
 // of UNIX file system to leverage the file system concurrency control and
@@ -35,91 +41,88 @@ const (
 // NOTE: For Windows, the atomicity is not guaranteed. Please avoid using this
 // cache on Windows when the concurrent write is required.
 //
-// fileCache doesn't handle cache cleaning but provides the Delete and Clear
+// FileCache doesn't handle cache cleaning but provides the Delete and Clear
 // methods to remove the CRLs from the file system.
-type fileCache struct {
-	dir    string
-	maxAge time.Duration
-}
-
-type FileCacheOptions struct {
-	Dir    string
+type FileCache struct {
+	// MaxAge is the maximum age of the CRLs cache. If the CRL is older than
+	// MaxAge, it will be considered as expired.
 	MaxAge time.Duration
+
+	root string
 }
 
 // NewFileCache creates a new file system store
 //
-//   - dir is the directory to store the CRLs.
-//   - maxAge is the maximum age of the CRLs cache. If the CRL is older than
-//     maxAge, it will be considered as expired.
-func NewFileCache(opts *FileCacheOptions) (Cache, error) {
-	if err := os.MkdirAll(opts.Dir, 0700); err != nil {
+//   - root is the directory to store the CRLs.
+func NewFileCache(root string) (*FileCache, error) {
+	if err := os.MkdirAll(root, 0700); err != nil {
 		return nil, fmt.Errorf("failed to create directory: %w", err)
 	}
 
-	cache := &fileCache{
-		dir:    opts.Dir,
-		maxAge: opts.MaxAge,
-	}
-	if cache.maxAge == 0 {
-		cache.maxAge = DefaultMaxAge
-	}
-	return cache, nil
+	return &FileCache{
+		MaxAge: DefaultMaxAge,
+		root:   root,
+	}, nil
 }
 
 // Get retrieves the CRL bundle from the file system
 //
-// - if the key does not exist, return os.ErrNotExist
-// - if the CRL is expired, return os.ErrNotExist
-func (c *fileCache) Get(ctx context.Context, key string) (*Bundle, error) {
-	f, err := os.Open(filepath.Join(c.dir, key))
+// - if the key does not exist, return ErrNotFound
+// - if the CRL is expired, return ErrCacheMiss
+func (c *FileCache) Get(ctx context.Context, uri string) (bundle *Bundle, err error) {
+	f, err := os.Open(filepath.Join(c.root, fileName(uri)))
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, &NotExistError{Key: key}
+			return nil, ErrNotFound
 		}
 		return nil, err
 	}
-	defer f.Close()
+	defer func() {
+		if cerr := f.Close(); cerr != nil && err == nil {
+			err = cerr
+		}
+	}()
 
-	bundle, err := ParseBundleFromTarball(f)
+	bundle, err = parseBundleFromTar(f)
 	if err != nil {
 		return nil, err
 	}
 
-	expires := bundle.Metadata.CreateAt.Add(c.maxAge)
-	if c.maxAge > 0 && time.Now().After(expires) {
+	expires := bundle.Metadata.CreateAt.Add(c.MaxAge)
+	if c.MaxAge > 0 && time.Now().After(expires) {
 		// do not delete the file to maintain the idempotent behavior
-		return nil, &ExpiredError{Expires: expires}
+		return nil, ErrCacheMiss
 	}
 
 	return bundle, nil
 }
 
 // Set stores the CRL bundle in the file system
-func (c *fileCache) Set(ctx context.Context, key string, bundle *Bundle) error {
+func (c *FileCache) Set(ctx context.Context, uri string, bundle *Bundle) error {
 	// save to temp file
 	tempFile, err := os.CreateTemp("", tempFileName)
 	if err != nil {
 		return err
 	}
-	if err := bundle.SaveAsTarball(tempFile); err != nil {
+	defer tempFile.Close()
+
+	if err := saveTar(tempFile, bundle); err != nil {
 		return err
 	}
-	tempFile.Close()
 
 	// rename is atomic on UNIX-like platforms
-	return os.Rename(tempFile.Name(), filepath.Join(c.dir, key))
+	return os.Rename(tempFile.Name(), filepath.Join(c.root, fileName(uri)))
 }
 
 // Delete removes the CRL bundle file from file system
-func (c *fileCache) Delete(ctx context.Context, key string) error {
+func (c *FileCache) Delete(ctx context.Context, uri string) error {
 	// remove is atomic on UNIX-like platforms
-	return os.Remove(filepath.Join(c.dir, key))
+	return os.Remove(filepath.Join(c.root, fileName(uri)))
 }
 
 // Flush removes all CRLs from the file system
-func (c *fileCache) Flush(ctx context.Context) error {
-	return filepath.Walk(c.dir, func(path string, info os.FileInfo, err error) error {
+func (c *FileCache) Flush(ctx context.Context) error {
+	return filepath.Walk(c.root, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -130,4 +133,133 @@ func (c *fileCache) Flush(ctx context.Context) error {
 		// remove is atomic on UNIX-like platforms
 		return os.Remove(path)
 	})
+}
+
+// fileName returns the file name of the CRL bundle tarball
+func fileName(url string) string {
+	return hashURL(url) + ".tar"
+}
+
+// hashURL hashes the URL with SHA256 and returns the hex-encoded result
+func hashURL(url string) string {
+	hash := sha256.Sum256([]byte(url))
+	return hex.EncodeToString(hash[:])
+}
+
+// parseBundleFromTar parses the CRL blob from a tarball
+//
+// The tarball should contain two files:
+// - base.crl: the base CRL in DER format
+// - metadata.json: the metadata of the CRL
+//
+// example of metadata.json:
+//
+//	{
+//	  "base.crl": {
+//	    "url": "https://example.com/base.crl"
+//	  },
+//	  "createAt": "2024-07-20T00:00:00Z"
+//	}
+func parseBundleFromTar(data io.Reader) (*Bundle, error) {
+	bundle := &Bundle{}
+
+	// parse the tarball
+	tar := tar.NewReader(data)
+	for {
+		header, err := tar.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, &BrokenFileError{
+				Err: fmt.Errorf("failed to read tarball: %w", err),
+			}
+		}
+
+		switch header.Name {
+		case PathBaseCRL:
+			// parse base.crl
+			data, err := io.ReadAll(tar)
+			if err != nil {
+				return nil, err
+			}
+
+			var baseCRL *x509.RevocationList
+			baseCRL, err = x509.ParseRevocationList(data)
+			if err != nil {
+				return nil, &BrokenFileError{
+					Err: fmt.Errorf("failed to parse base CRL from tarball: %w", err),
+				}
+			}
+			bundle.BaseCRL = baseCRL
+		case PathMetadata:
+			// parse metadata
+			var metadata Metadata
+			if err := json.NewDecoder(tar).Decode(&metadata); err != nil {
+				return nil, &BrokenFileError{
+					Err: fmt.Errorf("failed to parse CRL metadata from tarball: %w", err),
+				}
+			}
+			bundle.Metadata = metadata
+		}
+	}
+	if err := bundle.Validate(); err != nil {
+		return nil, err
+	}
+
+	return bundle, nil
+}
+
+// SaveAsTar saves the CRL blob as a tarball, including the base CRL and
+// metadata
+//
+// The tarball should contain two files:
+// - base.crl: the base CRL in DER format
+// - metadata.json: the metadata of the CRL
+//
+// example of metadata.json:
+//
+//	{
+//	  "base.crl": {
+//	    "url": "https://example.com/base.crl"
+//	  },
+//	  "createAt": "2024-06-30T00:00:00Z"
+//	}
+func saveTar(w io.Writer, bundle *Bundle) (err error) {
+	if err := bundle.Validate(); err != nil {
+		return err
+	}
+
+	tarWriter := tar.NewWriter(w)
+	defer func() {
+		if cerr := tarWriter.Close(); cerr != nil && err == nil {
+			err = cerr
+		}
+	}()
+
+	// Add base.crl
+	if err := addToTar(PathBaseCRL, bundle.BaseCRL.Raw, bundle.Metadata.CreateAt, tarWriter); err != nil {
+		return err
+	}
+
+	// Add metadata.json
+	metadataBytes, err := json.Marshal(bundle.Metadata)
+	if err != nil {
+		return err
+	}
+	return addToTar(PathMetadata, metadataBytes, time.Now(), tarWriter)
+}
+
+func addToTar(fileName string, data []byte, modTime time.Time, tw *tar.Writer) error {
+	header := &tar.Header{
+		Name:    fileName,
+		Size:    int64(len(data)),
+		Mode:    0644,
+		ModTime: modTime,
+	}
+	if err := tw.WriteHeader(header); err != nil {
+		return err
+	}
+	_, err := tw.Write(data)
+	return err
 }

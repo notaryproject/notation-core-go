@@ -75,6 +75,8 @@ func GetRevokableRSALeafCertificate() RSACertTuple {
 	return revokableRSALeaf
 }
 
+// GetRevokableRSAChainWithRevocations returns a certificate chain with OCSP
+// and CRL enabled for revocation checks.
 func GetRevokableRSAChainWithRevocations(size int, enabledOCSP, enabledCRL bool) []RSACertTuple {
 	setupCertificates()
 	chain := make([]RSACertTuple, size)

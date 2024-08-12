@@ -16,18 +16,7 @@ package cache
 import (
 	"errors"
 	"testing"
-	"time"
 )
-
-func TestCacheExpiredError(t *testing.T) {
-	expirationTime := time.Now()
-	err := &ExpiredError{Expires: expirationTime}
-
-	expectedMessage := "cache expired at " + expirationTime.String()
-	if err.Error() != expectedMessage {
-		t.Errorf("expected %q, got %q", expectedMessage, err.Error())
-	}
-}
 
 func TestBrokenFileError(t *testing.T) {
 	innerErr := errors.New("inner error")

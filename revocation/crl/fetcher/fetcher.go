@@ -17,14 +17,13 @@ package fetcher
 
 import (
 	"context"
-	"crypto/sha256"
 	"crypto/x509"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/notaryproject/notation-core-go/revocation/crl/cache"
 )
@@ -72,12 +71,12 @@ func (f *cachedFetcher) Fetch(ctx context.Context, crlURL string) (bundle *cache
 	}
 
 	// try to get from cache
-	bundle, err = f.cacheClient.Get(ctx, tarStoreName(crlURL))
+	bundle, err = f.cacheClient.Get(ctx, crlURL)
 	if err != nil {
-		var notExistError *cache.NotExistError
 		var cacheBrokenError *cache.BrokenFileError
-		if errors.As(err, &notExistError) || errors.As(err, &cacheBrokenError) {
-			// download if not exist or broken
+		if errors.Is(err, cache.ErrNotFound) ||
+			errors.Is(err, cache.ErrCacheMiss) ||
+			errors.As(err, &cacheBrokenError) {
 			bundle, err = f.Download(ctx, crlURL)
 			if err != nil {
 				return nil, false, err
@@ -100,7 +99,7 @@ func (f *cachedFetcher) Download(ctx context.Context, crlURL string) (bundle *ca
 	}
 
 	// save to cache
-	if err := f.cacheClient.Set(ctx, tarStoreName(crlURL), bundle); err != nil {
+	if err := f.cacheClient.Set(ctx, crlURL, bundle); err != nil {
 		return nil, fmt.Errorf("failed to save to cache: %w", err)
 	}
 
@@ -144,15 +143,14 @@ func download(ctx context.Context, crlURL string, client *http.Client) (bundle *
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse CRL: %w", err)
 	}
-	return cache.NewBundle(crl, crlURL)
-}
 
-func tarStoreName(url string) string {
-	return hashURL(url) + ".tar"
-}
-
-// hashURL hashes the URL with SHA256 and returns the hex-encoded result
-func hashURL(url string) string {
-	hash := sha256.Sum256([]byte(url))
-	return hex.EncodeToString(hash[:])
+	return &cache.Bundle{
+		BaseCRL: crl,
+		Metadata: cache.Metadata{
+			BaseCRL: cache.CRLMetadata{
+				URL: crlURL,
+			},
+			CreateAt: time.Now(),
+		},
+	}, nil
 }

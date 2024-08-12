@@ -14,12 +14,8 @@
 package cache
 
 import (
-	"archive/tar"
 	"crypto/x509"
-	"encoding/json"
 	"errors"
-	"fmt"
-	"io"
 	"time"
 )
 
@@ -45,97 +41,22 @@ type Bundle struct {
 //
 // TODO: consider adding DeltaCRL field in the future
 type Metadata struct {
-	BaseCRL  FileInfo  `json:"base.crl"`
+	// BaseCRL stores the URL of the base CRL
+	BaseCRL CRLMetadata `json:"base.crl"`
+
+	// CreateAt stores the creation time of the CRL bundle. This is different
+	// from the `ThisUpdate` field in the CRL. The `ThisUpdate` field in the CRL
+	// is the time when the CRL was generated, while the `CreateAt` field is for
+	// caching purpose, indicating the start of cache effective period.
 	CreateAt time.Time `json:"createAt"`
 }
 
-// FileInfo stores the URL and creation time of the file
-type FileInfo struct {
+// CRLMetadata stores the URL and creation time of the file
+type CRLMetadata struct {
 	URL string `json:"url"`
 }
 
-// NewBundle creates a new CRL store with tarball format
-func NewBundle(baseCRL *x509.RevocationList, url string) (*Bundle, error) {
-	return &Bundle{
-		BaseCRL: baseCRL,
-		Metadata: Metadata{
-			BaseCRL: FileInfo{
-				URL: url,
-			},
-			CreateAt: time.Now(),
-		},
-	}, nil
-}
-
-// ParseBundleFromTarball parses the CRL blob from a tarball
-//
-// The tarball should contain two files:
-// - base.crl: the base CRL in DER format
-// - metadata.json: the metadata of the CRL
-//
-// example of metadata.json:
-//
-//	{
-//	  "base.crl": {
-//	    "url": "https://example.com/base.crl"
-//	  },
-//	  "createAt": "2024-07-20T00:00:00Z"
-//	}
-func ParseBundleFromTarball(data io.Reader) (*Bundle, error) {
-	bundle := &Bundle{}
-
-	// parse the tarball
-	tar := tar.NewReader(data)
-	for {
-		header, err := tar.Next()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return nil, &BrokenFileError{
-				Err: fmt.Errorf("failed to read tarball: %w", err),
-			}
-		}
-
-		switch header.Name {
-		case PathBaseCRL:
-			// parse base.crl
-			data, err := io.ReadAll(tar)
-			if err != nil {
-				return nil, err
-			}
-
-			var baseCRL *x509.RevocationList
-			baseCRL, err = x509.ParseRevocationList(data)
-			if err != nil {
-				return nil, &BrokenFileError{
-					Err: fmt.Errorf("failed to parse base CRL from tarball: %w", err),
-				}
-			}
-			bundle.BaseCRL = baseCRL
-		case PathMetadata:
-			// parse metadata
-			var metadata Metadata
-			if err := json.NewDecoder(tar).Decode(&metadata); err != nil {
-				return nil, &BrokenFileError{
-					Err: fmt.Errorf("failed to parse CRL metadata from tarball: %w", err),
-				}
-			}
-			bundle.Metadata = metadata
-		default:
-			return nil, &BrokenFileError{
-				Err: fmt.Errorf("unexpected file in CRL tarball: %s", header.Name),
-			}
-		}
-	}
-	if err := bundle.validate(); err != nil {
-		return nil, err
-	}
-
-	return bundle, nil
-}
-
-func (b *Bundle) validate() error {
+func (b *Bundle) Validate() error {
 	if b.BaseCRL == nil {
 		return errors.New("base CRL is missing")
 	}
@@ -146,54 +67,4 @@ func (b *Bundle) validate() error {
 		return errors.New("base CRL creation time is missing")
 	}
 	return nil
-}
-
-// SaveAsTar saves the CRL blob as a tarball, including the base CRL and
-// metadata
-//
-// The tarball should contain two files:
-// - base.crl: the base CRL in DER format
-// - metadata.json: the metadata of the CRL
-//
-// example of metadata.json:
-//
-//	{
-//	  "base.crl": {
-//	    "url": "https://example.com/base.crl"
-//	  },
-//	  "createAt": "2024-06-30T00:00:00Z"
-//	}
-func (b *Bundle) SaveAsTarball(w io.Writer) (err error) {
-	if err := b.validate(); err != nil {
-		return err
-	}
-
-	tarWriter := tar.NewWriter(w)
-	defer tarWriter.Close()
-
-	// Add base.crl
-	if err := addToTar(PathBaseCRL, b.BaseCRL.Raw, b.Metadata.CreateAt, tarWriter); err != nil {
-		return err
-	}
-
-	// Add metadata.json
-	metadataBytes, err := json.Marshal(b.Metadata)
-	if err != nil {
-		return err
-	}
-	return addToTar(PathMetadata, metadataBytes, time.Now(), tarWriter)
-}
-
-func addToTar(fileName string, data []byte, modTime time.Time, tw *tar.Writer) error {
-	header := &tar.Header{
-		Name:    fileName,
-		Size:    int64(len(data)),
-		Mode:    0644,
-		ModTime: modTime,
-	}
-	if err := tw.WriteHeader(header); err != nil {
-		return err
-	}
-	_, err := tw.Write(data)
-	return err
 }

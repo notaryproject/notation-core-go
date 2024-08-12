@@ -41,17 +41,19 @@ const (
 
 // Cache is an interface that specifies methods used for caching
 type Cache interface {
-	// Get retrieves the content with the given key
+	// Get retrieves the CRL bundle with the given uri
+	//
+	// uri is the URI of the CRL
 	//
 	// - if the key does not exist, return NotExistError
 	// - if the content is expired, return ExpiredError
-	Get(ctx context.Context, key string) (*Bundle, error)
+	Get(ctx context.Context, uri string) (*Bundle, error)
 
-	// Set stores the content with the given key
-	Set(ctx context.Context, key string, value *Bundle) error
+	// Set stores the CRL bundle with the given uri
+	Set(ctx context.Context, uri string, bundle *Bundle) error
 
-	// Delete removes the content with the given key
-	Delete(ctx context.Context, key string) error
+	// Delete removes the CRL bundle with the given uri
+	Delete(ctx context.Context, uri string) error
 
 	// Flush removes all content
 	Flush(ctx context.Context) error

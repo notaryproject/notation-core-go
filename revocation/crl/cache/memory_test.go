@@ -15,6 +15,7 @@ package cache
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 )
@@ -23,13 +24,12 @@ func TestMemoryCache(t *testing.T) {
 	ctx := context.Background()
 
 	// Test NewMemoryCache
-	opts := MemoryCacheOptions{MaxAge: 5 * time.Minute}
-	cache, err := NewMemoryCache(opts)
+	cache, err := NewMemoryCache()
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
-	if cache.(*memoryCache).maxAge != opts.MaxAge {
-		t.Fatalf("expected maxAge %v, got %v", opts.MaxAge, cache.(*memoryCache).maxAge)
+	if cache.MaxAge != DefaultMaxAge {
+		t.Fatalf("expected maxAge %v, got %v", DefaultMaxAge, cache.MaxAge)
 	}
 
 	bundle := &Bundle{Metadata: Metadata{CreateAt: time.Now()}}
@@ -48,13 +48,13 @@ func TestMemoryCache(t *testing.T) {
 	})
 
 	t.Run("GetWithExpiredBundle", func(t *testing.T) {
-		expiredBundle := &Bundle{Metadata: Metadata{CreateAt: time.Now().Add(-10 * time.Minute)}}
+		expiredBundle := &Bundle{Metadata: Metadata{CreateAt: time.Now().Add(-DefaultMaxAge - 1*time.Second)}}
 		if err := cache.Set(ctx, "expiredKey", expiredBundle); err != nil {
 			t.Fatalf("expected no error, got %v", err)
 		}
 		_, err = cache.Get(ctx, "expiredKey")
-		if _, ok := err.(*ExpiredError); !ok {
-			t.Fatalf("expected CacheExpiredError, got %v", err)
+		if !errors.Is(err, ErrCacheMiss) {
+			t.Fatalf("expected ErrCacheMiss, got %v", err)
 		}
 	})
 
@@ -63,7 +63,7 @@ func TestMemoryCache(t *testing.T) {
 			t.Fatalf("expected no error, got %v", err)
 		}
 		_, err = cache.Get(ctx, key)
-		if _, ok := err.(*NotExistError); !ok {
+		if !errors.Is(err, ErrNotFound) {
 			t.Fatalf("expected error, got nil")
 		}
 	})
@@ -79,13 +79,17 @@ func TestMemoryCache(t *testing.T) {
 			t.Fatalf("expected no error, got %v", err)
 		}
 		_, err = cache.Get(ctx, "key1")
-		if _, ok := err.(*NotExistError); !ok {
+		if !errors.Is(err, ErrNotFound) {
 			t.Fatalf("expected error, got nil")
 		}
 		_, err = cache.Get(ctx, "key2")
-		if _, ok := err.(*NotExistError); !ok {
+		if !errors.Is(err, ErrNotFound) {
 			t.Fatalf("expected error, got nil")
 		}
+	})
+
+	t.Run("Cache interface", func(t *testing.T) {
+		var _ Cache = cache
 	})
 }
 
@@ -93,11 +97,11 @@ func TestMemoryCacheFailed(t *testing.T) {
 	ctx := context.Background()
 
 	// Test Get with invalid type
-	cache, err := NewMemoryCache(MemoryCacheOptions{})
+	cache, err := NewMemoryCache()
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
-	cache.(*memoryCache).store.Store("invalidKey", "invalidValue")
+	cache.store.Store("invalidKey", "invalidValue")
 	_, err = cache.Get(ctx, "invalidKey")
 	if err == nil {
 		t.Fatalf("expected error, got nil")
