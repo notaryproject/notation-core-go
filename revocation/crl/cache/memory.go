@@ -47,6 +47,9 @@ func NewMemoryCache() (*MemoryCache, error) {
 }
 
 // Get retrieves the CRL from the memory store.
+//
+// - if the key does not exist, return ErrNotFound
+// - if the CRL is expired, return ErrCacheMiss
 func (c *MemoryCache) Get(ctx context.Context, uri string) (*Bundle, error) {
 	value, ok := c.store.Load(uri)
 	if !ok {
