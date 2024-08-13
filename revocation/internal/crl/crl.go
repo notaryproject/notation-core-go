@@ -166,8 +166,8 @@ func checkRevocation(cert *x509.Certificate, baseCRL *x509.RevocationList, signi
 		return nil, errors.New("CRL is nil")
 	}
 
-	// tempRevokedEntries contains revocation entries with reasons such as
-	// CertificateHold or RemoveFromCRL.
+	// latestTempRevokedEntries contains the most recent revocation entry with
+	// reasons such as CertificateHold or RemoveFromCRL.
 	//
 	// If the certificate is revoked with CertificateHold, it is temporarily
 	// revoked. If the certificate is shown in the CRL with RemoveFromCRL,
