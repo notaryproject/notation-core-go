@@ -83,37 +83,6 @@ func TestFileCache(t *testing.T) {
 		}
 	})
 
-	t.Run("Delete", func(t *testing.T) {
-		// Test Delete
-		if err := cache.Delete(ctx, key); err != nil {
-			t.Fatalf("expected no error, got %v", err)
-		}
-		_, err = cache.Get(ctx, key)
-		if !errors.Is(err, ErrNotFound) {
-			t.Fatalf("expected error, got nil")
-		}
-	})
-
-	t.Run("Flush", func(t *testing.T) {
-		if err := cache.Set(ctx, "key1", bundle); err != nil {
-			t.Fatalf("expected no error, got %v", err)
-		}
-		if err := cache.Set(ctx, "key2", bundle); err != nil {
-			t.Fatalf("expected no error, got %v", err)
-		}
-		if err := cache.Flush(ctx); err != nil {
-			t.Fatalf("expected no error, got %v", err)
-		}
-		_, err = cache.Get(ctx, "key1")
-		if !errors.Is(err, ErrNotFound) {
-			t.Fatalf("expected error, got nil")
-		}
-		_, err = cache.Get(ctx, "key2")
-		if !errors.Is(err, ErrNotFound) {
-			t.Fatalf("expected error, got nil")
-		}
-	})
-
 	t.Run("Cache interface", func(t *testing.T) {
 		var _ Cache = cache
 	})
@@ -193,27 +162,6 @@ func TestSetFailed(t *testing.T) {
 		bundle := &Bundle{Metadata: Metadata{CreateAt: time.Now()}}
 		if err := cache.Set(context.Background(), "invalid.tar", bundle); err == nil {
 			t.Fatalf("expected error, got nil")
-		}
-	})
-}
-
-func TestFlushFailed(t *testing.T) {
-	tempDir := t.TempDir()
-	cache, err := NewFileCache(tempDir)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-
-	t.Run("failed to remove files", func(t *testing.T) {
-		if err := os.Chmod(tempDir, 0); err != nil {
-			t.Fatalf("failed to change permission: %v", err)
-		}
-		if err := cache.Flush(context.Background()); err == nil {
-			t.Fatalf("expected error, got nil")
-		}
-		// restore permission
-		if err := os.Chmod(tempDir, 0755); err != nil {
-			t.Fatalf("failed to change permission: %v", err)
 		}
 	})
 }
@@ -343,13 +291,6 @@ func TestBundleParseFailed(t *testing.T) {
 }
 
 func TestSaveTarFailed(t *testing.T) {
-	t.Run("validate failed", func(t *testing.T) {
-		bundle := &Bundle{}
-		if err := saveTar(&errorWriter{}, bundle); err == nil {
-			t.Fatalf("expected error, got nil")
-		}
-	})
-
 	certChain := testhelper.GetRevokableRSAChainWithRevocations(2, false, true)
 	crlBytes, err := x509.CreateRevocationList(rand.Reader, &x509.RevocationList{
 		Number: big.NewInt(1),

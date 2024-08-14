@@ -142,18 +142,17 @@ func TestFetch(t *testing.T) {
 		if !bytes.Equal(fetchedBundle.BaseCRL.Raw, baseCRL.Raw) {
 			t.Errorf("Fetcher.Fetch() fetchedBundle.BaseCRL.Raw = %v, want %v", fetchedBundle.BaseCRL.Raw, baseCRL.Raw)
 		}
-
-		// delete cache
-		if err := c.Delete(context.Background(), uncachedURL); err != nil {
-			t.Errorf("Cache.Delete() error = %v, want nil", err)
-		}
 	})
 
 	t.Run("cache miss and download failed error", func(t *testing.T) {
 		httpClient := &http.Client{
 			Transport: errorRoundTripperMock{},
 		}
-		f, err := NewCachedFetcher(httpClient, c)
+		newCache, err := cache.NewMemoryCache()
+		if err != nil {
+			t.Errorf("NewMemoryCache() error = %v, want nil", err)
+		}
+		f, err := NewCachedFetcher(httpClient, newCache)
 		if err != nil {
 			t.Errorf("NewCachedFetcher() error = %v, want nil", err)
 		}

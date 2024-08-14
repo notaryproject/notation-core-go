@@ -53,7 +53,7 @@ func NewMemoryCache() (*MemoryCache, error) {
 func (c *MemoryCache) Get(ctx context.Context, uri string) (*Bundle, error) {
 	value, ok := c.store.Load(uri)
 	if !ok {
-		return nil, ErrNotFound
+		return nil, ErrCacheMiss
 	}
 	bundle, ok := value.(*Bundle)
 	if !ok {
@@ -70,21 +70,10 @@ func (c *MemoryCache) Get(ctx context.Context, uri string) (*Bundle, error) {
 
 // Set stores the CRL in the memory store.
 func (c *MemoryCache) Set(ctx context.Context, uri string, bundle *Bundle) error {
+	if err := bundle.Validate(); err != nil {
+		return err
+	}
+
 	c.store.Store(uri, bundle)
-	return nil
-}
-
-// Delete removes the CRL from the memory store.
-func (c *MemoryCache) Delete(ctx context.Context, uri string) error {
-	c.store.Delete(uri)
-	return nil
-}
-
-// Flush removes all CRLs from the memory store.
-func (c *MemoryCache) Flush(ctx context.Context) error {
-	c.store.Range(func(key, value interface{}) bool {
-		c.store.Delete(key)
-		return true
-	})
 	return nil
 }

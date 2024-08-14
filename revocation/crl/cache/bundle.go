@@ -27,14 +27,9 @@ const (
 	PathMetadata = "metadata.json"
 )
 
-// Bundle is in memory representation of the Bundle tarball, including base CRL
-// file and metadata file, which may be cached in the file system or other
-// storage
-//
-// TODO: consider adding DeltaCRL field in the future
-type Bundle struct {
-	BaseCRL  *x509.RevocationList
-	Metadata Metadata
+// CRLMetadata stores the URL and creation time of the file
+type CRLMetadata struct {
+	URL string `json:"url"`
 }
 
 // Metadata stores the metadata infomation of the CRL
@@ -51,9 +46,14 @@ type Metadata struct {
 	CreateAt time.Time `json:"createAt"`
 }
 
-// CRLMetadata stores the URL and creation time of the file
-type CRLMetadata struct {
-	URL string `json:"url"`
+// Bundle is in memory representation of the Bundle tarball, including base CRL
+// file and metadata file, which may be cached in the file system or other
+// storage
+//
+// TODO: consider adding DeltaCRL field in the future
+type Bundle struct {
+	BaseCRL  *x509.RevocationList
+	Metadata Metadata
 }
 
 func (b *Bundle) Validate() error {

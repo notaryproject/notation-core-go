@@ -31,6 +31,4 @@ func (e *BrokenFileError) Error() string {
 var (
 	// ErrCacheMiss is an error type for when a cache miss occurs
 	ErrCacheMiss = errors.New("cache miss")
-	// ErrNotFound is an error type for when a file is not found
-	ErrNotFound = errors.New("not found")
 )

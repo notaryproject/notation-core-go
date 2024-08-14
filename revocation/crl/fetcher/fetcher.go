@@ -74,8 +74,7 @@ func (f *cachedFetcher) Fetch(ctx context.Context, crlURL string) (bundle *cache
 	bundle, err = f.cacheClient.Get(ctx, crlURL)
 	if err != nil {
 		var cacheBrokenError *cache.BrokenFileError
-		if errors.Is(err, cache.ErrNotFound) ||
-			errors.Is(err, cache.ErrCacheMiss) ||
+		if errors.Is(err, cache.ErrCacheMiss) ||
 			errors.As(err, &cacheBrokenError) {
 			bundle, err = f.Download(ctx, crlURL)
 			if err != nil {

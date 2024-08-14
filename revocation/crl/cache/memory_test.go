@@ -15,13 +15,30 @@ package cache
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/x509"
 	"errors"
+	"math/big"
 	"testing"
 	"time"
+
+	"github.com/notaryproject/notation-core-go/testhelper"
 )
 
 func TestMemoryCache(t *testing.T) {
 	ctx := context.Background()
+
+	certChain := testhelper.GetRevokableRSAChainWithRevocations(2, false, true)
+	crlBytes, err := x509.CreateRevocationList(rand.Reader, &x509.RevocationList{
+		Number: big.NewInt(1),
+	}, certChain[1].Cert, certChain[1].PrivateKey)
+	if err != nil {
+		t.Fatalf("failed to create base CRL: %v", err)
+	}
+	baseCRL, err := x509.ParseRevocationList(crlBytes)
+	if err != nil {
+		t.Fatalf("failed to parse base CRL: %v", err)
+	}
 
 	// Test NewMemoryCache
 	cache, err := NewMemoryCache()
@@ -32,7 +49,14 @@ func TestMemoryCache(t *testing.T) {
 		t.Fatalf("expected maxAge %v, got %v", DefaultMaxAge, cache.MaxAge)
 	}
 
-	bundle := &Bundle{Metadata: Metadata{CreateAt: time.Now()}}
+	bundle := &Bundle{
+		BaseCRL: baseCRL,
+		Metadata: Metadata{
+			CreateAt: time.Now(),
+			BaseCRL: CRLMetadata{
+				URL: "http://crl",
+			},
+		}}
 	key := "testKey"
 	t.Run("SetAndGet", func(t *testing.T) {
 		if err := cache.Set(ctx, key, bundle); err != nil {
@@ -48,43 +72,20 @@ func TestMemoryCache(t *testing.T) {
 	})
 
 	t.Run("GetWithExpiredBundle", func(t *testing.T) {
-		expiredBundle := &Bundle{Metadata: Metadata{CreateAt: time.Now().Add(-DefaultMaxAge - 1*time.Second)}}
+		expiredBundle := &Bundle{
+			BaseCRL: baseCRL,
+			Metadata: Metadata{
+				CreateAt: time.Now().Add(-DefaultMaxAge - 1*time.Second),
+				BaseCRL: CRLMetadata{
+					URL: "http://crl",
+				},
+			}}
 		if err := cache.Set(ctx, "expiredKey", expiredBundle); err != nil {
 			t.Fatalf("expected no error, got %v", err)
 		}
 		_, err = cache.Get(ctx, "expiredKey")
 		if !errors.Is(err, ErrCacheMiss) {
 			t.Fatalf("expected ErrCacheMiss, got %v", err)
-		}
-	})
-
-	t.Run("Delete", func(t *testing.T) {
-		if err := cache.Delete(ctx, key); err != nil {
-			t.Fatalf("expected no error, got %v", err)
-		}
-		_, err = cache.Get(ctx, key)
-		if !errors.Is(err, ErrNotFound) {
-			t.Fatalf("expected error, got nil")
-		}
-	})
-
-	t.Run("Flush", func(t *testing.T) {
-		if err := cache.Set(ctx, "key1", bundle); err != nil {
-			t.Fatalf("expected no error, got %v", err)
-		}
-		if err := cache.Set(ctx, "key2", bundle); err != nil {
-			t.Fatalf("expected no error, got %v", err)
-		}
-		if err := cache.Flush(ctx); err != nil {
-			t.Fatalf("expected no error, got %v", err)
-		}
-		_, err = cache.Get(ctx, "key1")
-		if !errors.Is(err, ErrNotFound) {
-			t.Fatalf("expected error, got nil")
-		}
-		_, err = cache.Get(ctx, "key2")
-		if !errors.Is(err, ErrNotFound) {
-			t.Fatalf("expected error, got nil")
 		}
 	})
 

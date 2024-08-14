@@ -80,7 +80,7 @@ func (c *FileCache) Get(ctx context.Context, uri string) (bundle *Bundle, err er
 	f, err := os.Open(filepath.Join(c.root, fileName(uri)))
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, ErrNotFound
+			return nil, ErrCacheMiss
 		}
 		return nil, err
 	}
@@ -106,6 +106,10 @@ func (c *FileCache) Get(ctx context.Context, uri string) (bundle *Bundle, err er
 
 // Set stores the CRL bundle in the file system
 func (c *FileCache) Set(ctx context.Context, uri string, bundle *Bundle) error {
+	if err := bundle.Validate(); err != nil {
+		return err
+	}
+
 	// save to temp file
 	tempFile, err := os.CreateTemp("", tempFileName)
 	if err != nil {
@@ -119,27 +123,6 @@ func (c *FileCache) Set(ctx context.Context, uri string, bundle *Bundle) error {
 
 	// rename is atomic on UNIX-like platforms
 	return os.Rename(tempFile.Name(), filepath.Join(c.root, fileName(uri)))
-}
-
-// Delete removes the CRL bundle file from file system
-func (c *FileCache) Delete(ctx context.Context, uri string) error {
-	// remove is atomic on UNIX-like platforms
-	return os.Remove(filepath.Join(c.root, fileName(uri)))
-}
-
-// Flush removes all CRLs from the file system
-func (c *FileCache) Flush(ctx context.Context) error {
-	return filepath.Walk(c.root, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if info.IsDir() {
-			return nil
-		}
-
-		// remove is atomic on UNIX-like platforms
-		return os.Remove(path)
-	})
 }
 
 // fileName returns the file name of the CRL bundle tarball
@@ -233,10 +216,6 @@ func parseBundleFromTar(data io.Reader) (*Bundle, error) {
 //	  "createAt": "2024-06-30T00:00:00Z"
 //	}
 func saveTar(w io.Writer, bundle *Bundle) (err error) {
-	if err := bundle.Validate(); err != nil {
-		return err
-	}
-
 	tarWriter := tar.NewWriter(w)
 	defer func() {
 		if cerr := tarWriter.Close(); cerr != nil && err == nil {
