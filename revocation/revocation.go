@@ -175,6 +175,8 @@ func (r *revocation) ValidateContext(ctx context.Context, validateContextOpts Va
 	}
 
 	panicChan := make(chan any, len(certChain))
+	defer close(panicChan)
+
 	certResults := make([]*result.CertRevocationResult, len(certChain))
 	var wg sync.WaitGroup
 	for i, cert := range certChain[:len(certChain)-1] {
@@ -241,11 +243,9 @@ func (r *revocation) ValidateContext(ctx context.Context, validateContextOpts Va
 	// handle panic
 	select {
 	case p := <-panicChan:
-		close(panicChan)
 		panic(p)
 	default:
 	}
-	close(panicChan)
 
 	return certResults, nil
 }
