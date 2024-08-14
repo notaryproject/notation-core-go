@@ -23,6 +23,7 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -147,6 +148,23 @@ func TestGetFailed(t *testing.T) {
 		// restore permission
 		if err := os.Chmod(tempDir, 0755); err != nil {
 			t.Fatalf("failed to change permission: %v", err)
+		}
+	})
+
+	t.Run("invalid bundle file", func(t *testing.T) {
+		bundle := &Bundle{
+			BaseCRL:  &x509.RevocationList{Raw: []byte("invalid crl")},
+			Metadata: Metadata{CreateAt: time.Now()},
+		}
+		if err := saveTar(&bytes.Buffer{}, bundle); err != nil {
+			t.Fatalf("expected no error, got %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(tempDir, fileName("invalid")), []byte("invalid tarball"), 0644); err != nil {
+			t.Fatalf("failed to write file: %v", err)
+		}
+		_, err = cache.Get(context.Background(), "invalid")
+		if !strings.Contains(err.Error(), "failed to read tarball") {
+			t.Fatalf("expected error, got %v", err)
 		}
 	})
 }

@@ -89,6 +89,13 @@ func TestMemoryCache(t *testing.T) {
 		}
 	})
 
+	t.Run("Key doesn't exist", func(t *testing.T) {
+		_, err := cache.Get(ctx, "nonExistentKey")
+		if !errors.Is(err, ErrCacheMiss) {
+			t.Fatalf("expected ErrCacheMiss, got %v", err)
+		}
+	})
+
 	t.Run("Cache interface", func(t *testing.T) {
 		var _ Cache = cache
 	})
@@ -98,13 +105,34 @@ func TestMemoryCacheFailed(t *testing.T) {
 	ctx := context.Background()
 
 	// Test Get with invalid type
-	cache, err := NewMemoryCache()
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-	cache.store.Store("invalidKey", "invalidValue")
-	_, err = cache.Get(ctx, "invalidKey")
-	if err == nil {
-		t.Fatalf("expected error, got nil")
-	}
+	t.Run("GetWithInvalidType", func(t *testing.T) {
+		cache, err := NewMemoryCache()
+		if err != nil {
+			t.Fatalf("expected no error, got %v", err)
+		}
+		cache.store.Store("invalidKey", "invalidValue")
+		_, err = cache.Get(ctx, "invalidKey")
+		if err == nil {
+			t.Fatalf("expected error, got nil")
+		}
+	})
+
+	t.Run("ValidateFailed", func(t *testing.T) {
+		cache, err := NewMemoryCache()
+		if err != nil {
+			t.Fatalf("expected no error, got %v", err)
+		}
+		bundle := &Bundle{
+			BaseCRL: nil,
+			Metadata: Metadata{
+				CreateAt: time.Now(),
+				BaseCRL: CRLMetadata{
+					URL: "http://crl",
+				},
+			}}
+		err = cache.Set(ctx, "invalidBundle", bundle)
+		if err == nil {
+			t.Fatalf("expected error, got nil")
+		}
+	})
 }
