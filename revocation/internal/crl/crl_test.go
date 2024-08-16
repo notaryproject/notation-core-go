@@ -224,6 +224,35 @@ func TestValidate(t *testing.T) {
 			t.Fatal("expected error")
 		}
 	})
+
+	t.Run("issuing distribution point extension exists", func(t *testing.T) {
+		chain := testhelper.GetRevokableRSAChainWithRevocations(1, false, true)
+		issuerCert := chain[0].Cert
+		issuerKey := chain[0].PrivateKey
+
+		crlBytes, err := x509.CreateRevocationList(rand.Reader, &x509.RevocationList{
+			NextUpdate: time.Now().Add(time.Hour),
+			Number:     big.NewInt(20240720),
+			ExtraExtensions: []pkix.Extension{
+				{
+					Id:       oidIssuingDistributionPoint,
+					Critical: true,
+				},
+			},
+		}, issuerCert, issuerKey)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		crl, err := x509.ParseRevocationList(crlBytes)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if err := validate(crl, issuerCert); err != nil {
+			t.Fatal(err)
+		}
+	})
 }
 
 func TestCheckRevocation(t *testing.T) {

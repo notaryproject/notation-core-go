@@ -29,9 +29,15 @@ import (
 	"github.com/notaryproject/notation-core-go/revocation/result"
 )
 
-// oidInvalidityDate is the object identifier for the invalidity date
-// CRL entry extension. (See RFC 5280, Section 5.3.2)
-var oidInvalidityDate = asn1.ObjectIdentifier{2, 5, 29, 24}
+var (
+	// oidInvalidityDate is the object identifier for the invalidity date
+	// CRL entry extension. (See RFC 5280, Section 5.3.2)
+	oidInvalidityDate = asn1.ObjectIdentifier{2, 5, 29, 24}
+
+	// oidIssuingDistributionPoint is the object identifier for the issuing
+	// distribution point CRL extension. (See RFC 5280, Section 5.2.5)
+	oidIssuingDistributionPoint = asn1.ObjectIdentifier{2, 5, 29, 28}
+)
 
 // maxCRLSize is the maximum size of CRL in bytes
 const maxCRLSize = 64 * 1024 * 1024 // 64 MiB
@@ -148,8 +154,15 @@ func validate(crl *x509.RevocationList, issuer *x509.Certificate) error {
 
 	// unsupported critical extensions is not allowed. (See RFC 5280, Section 5.2)
 	for _, ext := range crl.Extensions {
-		if ext.Critical {
-			return fmt.Errorf("CRL contains unsupported critical extension: %v", ext.Id)
+		switch {
+		case ext.Id.Equal(oidIssuingDistributionPoint):
+			// IssuingDistributionPoint is a critical extension that identifies
+			// the scope of the CRL. Since we will check all the CRL
+			// distribution points, it is not necessary to check this extension.
+		default:
+			if ext.Critical {
+				return fmt.Errorf("CRL contains unsupported critical extension: %v", ext.Id)
+			}
 		}
 	}
 
@@ -166,13 +179,13 @@ func checkRevocation(cert *x509.Certificate, baseCRL *x509.RevocationList, signi
 		return nil, errors.New("CRL is nil")
 	}
 
-	// latestTempRevokedEntries contains the most recent revocation entry with
+	// latestTempRevokedEntry contains the most recent revocation entry with
 	// reasons such as CertificateHold or RemoveFromCRL.
 	//
 	// If the certificate is revoked with CertificateHold, it is temporarily
 	// revoked. If the certificate is shown in the CRL with RemoveFromCRL,
 	// it is unrevoked.
-	var latestTempRevokedEntries *x509.RevocationListEntry
+	var latestTempRevokedEntry *x509.RevocationListEntry
 	for i, revocationEntry := range baseCRL.RevokedCertificateEntries {
 		if revocationEntry.SerialNumber.Cmp(cert.SerialNumber) == 0 {
 			extensions, err := parseEntryExtensions(revocationEntry)
@@ -191,9 +204,9 @@ func checkRevocation(cert *x509.Certificate, baseCRL *x509.RevocationList, signi
 			if int(result.CRLReasonCodeCertificateHold) == revocationEntry.ReasonCode ||
 				int(result.CRLReasonCodeRemoveFromCRL) == revocationEntry.ReasonCode {
 				// temporarily revoked or unrevoked
-				if latestTempRevokedEntries == nil || latestTempRevokedEntries.RevocationTime.Before(revocationEntry.RevocationTime) {
+				if latestTempRevokedEntry == nil || latestTempRevokedEntry.RevocationTime.Before(revocationEntry.RevocationTime) {
 					// the revocation status depends on the most recent reason
-					latestTempRevokedEntries = &baseCRL.RevokedCertificateEntries[i]
+					latestTempRevokedEntry = &baseCRL.RevokedCertificateEntries[i]
 				}
 			} else {
 				// permanently revoked
@@ -208,12 +221,12 @@ func checkRevocation(cert *x509.Certificate, baseCRL *x509.RevocationList, signi
 	}
 
 	// check if the revocation with CertificateHold or RemoveFromCRL
-	if latestTempRevokedEntries != nil {
-		if int(result.CRLReasonCodeRemoveFromCRL) != latestTempRevokedEntries.ReasonCode {
+	if latestTempRevokedEntry != nil {
+		if int(result.CRLReasonCodeRemoveFromCRL) != latestTempRevokedEntry.ReasonCode {
 			return &result.CRLResult{
 				Result:         result.ResultRevoked,
-				ReasonCode:     result.CRLReasonCode(latestTempRevokedEntries.ReasonCode),
-				RevocationTime: latestTempRevokedEntries.RevocationTime,
+				ReasonCode:     result.CRLReasonCode(latestTempRevokedEntry.ReasonCode),
+				RevocationTime: latestTempRevokedEntry.RevocationTime,
 				URI:            crlURL,
 			}, nil
 		}
