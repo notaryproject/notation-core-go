@@ -30,17 +30,17 @@ import (
 )
 
 var (
-	// oidInvalidityDate is the object identifier for the invalidity date
-	// CRL entry extension. (See RFC 5280, Section 5.3.2)
-	oidInvalidityDate = asn1.ObjectIdentifier{2, 5, 29, 24}
+	// oidFreshestCRL is the object identifier for the distribution point
+	// for the delta CRL. (See RFC 5280, Section 5.2.6)
+	oidFreshestCRL = asn1.ObjectIdentifier{2, 5, 29, 46}
 
 	// oidIssuingDistributionPoint is the object identifier for the issuing
 	// distribution point CRL extension. (See RFC 5280, Section 5.2.5)
 	oidIssuingDistributionPoint = asn1.ObjectIdentifier{2, 5, 29, 28}
 
-	// oidFreshestCRL is the object identifier for the distribution point
-	// for the delta CRL. (See RFC 5280, Section 5.2.6)
-	oidFreshestCRL = asn1.ObjectIdentifier{2, 5, 29, 46}
+	// oidInvalidityDate is the object identifier for the invalidity date
+	// CRL entry extension. (See RFC 5280, Section 5.3.2)
+	oidInvalidityDate = asn1.ObjectIdentifier{2, 5, 29, 24}
 )
 
 // maxCRLSize is the maximum size of CRL in bytes
