@@ -151,6 +151,31 @@ func TestCertCheckStatus(t *testing.T) {
 		}
 	})
 
+	t.Run("CRL with delta CRL is not checked", func(t *testing.T) {
+		crlBytes, err := x509.CreateRevocationList(rand.Reader, &x509.RevocationList{
+			NextUpdate: time.Now().Add(time.Hour),
+			Number:     big.NewInt(20240720),
+			ExtraExtensions: []pkix.Extension{
+				{
+					Id:       oidFreshestCRL,
+					Critical: false,
+				},
+			},
+		}, issuerCert, issuerKey)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		r := CertCheckStatus(context.Background(), chain[0].Cert, issuerCert, CertCheckStatusOptions{
+			HTTPClient: &http.Client{
+				Transport: expectedRoundTripperMock{Body: crlBytes},
+			},
+		})
+		if r.CRLResults[0].Error != ErrDeltaCRLNotChecked {
+			t.Fatal("expected ErrDeltaCRLNotChecked")
+		}
+	})
+
 	t.Run("http client is nil", func(t *testing.T) {
 		// failed to download CRL with a mocked HTTP client
 		r := CertCheckStatus(context.Background(), chain[0].Cert, issuerCert, CertCheckStatusOptions{})

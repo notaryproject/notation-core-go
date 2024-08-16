@@ -37,6 +37,10 @@ var (
 	// oidIssuingDistributionPoint is the object identifier for the issuing
 	// distribution point CRL extension. (See RFC 5280, Section 5.2.5)
 	oidIssuingDistributionPoint = asn1.ObjectIdentifier{2, 5, 29, 28}
+
+	// oidFreshestCRL is the object identifier for the distribution point
+	// for the delta CRL. (See RFC 5280, Section 5.2.6)
+	oidFreshestCRL = asn1.ObjectIdentifier{2, 5, 29, 46}
 )
 
 // maxCRLSize is the maximum size of CRL in bytes
@@ -108,6 +112,10 @@ func CertCheckStatus(ctx context.Context, cert, issuer *x509.Certificate, opts C
 			lastErr = fmt.Errorf("failed to check revocation status from %s: %w", crlURL, err)
 			break
 		}
+		if hasDeltaCRL(baseCRL) {
+			// added an error to indicate that delta CRLs are not checked
+			crlResult.Error = ErrDeltaCRLNotChecked
+		}
 		crlResults = append(crlResults, crlResult)
 
 		if crlResult.Result == result.ResultRevoked {
@@ -169,6 +177,15 @@ func validate(crl *x509.RevocationList, issuer *x509.Certificate) error {
 	return nil
 }
 
+func hasDeltaCRL(crl *x509.RevocationList) bool {
+	for _, ext := range crl.Extensions {
+		if ext.Id.Equal(oidFreshestCRL) {
+			return true
+		}
+	}
+	return false
+}
+
 // checkRevocation checks if the certificate is revoked or not
 func checkRevocation(cert *x509.Certificate, baseCRL *x509.RevocationList, signingTime time.Time, crlURL string) (*result.CRLResult, error) {
 	if cert == nil {
@@ -220,16 +237,14 @@ func checkRevocation(cert *x509.Certificate, baseCRL *x509.RevocationList, signi
 		}
 	}
 
-	// check if the revocation with CertificateHold or RemoveFromCRL
-	if latestTempRevokedEntry != nil {
-		if int(result.CRLReasonCodeRemoveFromCRL) != latestTempRevokedEntry.ReasonCode {
-			return &result.CRLResult{
-				Result:         result.ResultRevoked,
-				ReasonCode:     result.CRLReasonCode(latestTempRevokedEntry.ReasonCode),
-				RevocationTime: latestTempRevokedEntry.RevocationTime,
-				URI:            crlURL,
-			}, nil
-		}
+	if latestTempRevokedEntry != nil && int(result.CRLReasonCodeRemoveFromCRL) != latestTempRevokedEntry.ReasonCode {
+		// revoked with CertificateHold
+		return &result.CRLResult{
+			Result:         result.ResultRevoked,
+			ReasonCode:     result.CRLReasonCode(latestTempRevokedEntry.ReasonCode),
+			RevocationTime: latestTempRevokedEntry.RevocationTime,
+			URI:            crlURL,
+		}, nil
 	}
 
 	return &result.CRLResult{
