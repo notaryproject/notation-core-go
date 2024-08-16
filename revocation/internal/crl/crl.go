@@ -201,14 +201,14 @@ func checkRevocation(cert *x509.Certificate, baseCRL *x509.RevocationList, signi
 				continue
 			}
 
-			if int(result.CRLReasonCodeCertificateHold) == revocationEntry.ReasonCode ||
-				int(result.CRLReasonCodeRemoveFromCRL) == revocationEntry.ReasonCode {
+			switch revocationEntry.ReasonCode {
+			case int(result.CRLReasonCodeCertificateHold), int(result.CRLReasonCodeRemoveFromCRL):
 				// temporarily revoked or unrevoked
 				if latestTempRevokedEntry == nil || latestTempRevokedEntry.RevocationTime.Before(revocationEntry.RevocationTime) {
 					// the revocation status depends on the most recent reason
 					latestTempRevokedEntry = &baseCRL.RevokedCertificateEntries[i]
 				}
-			} else {
+			default:
 				// permanently revoked
 				return &result.CRLResult{
 					Result:         result.ResultRevoked,
