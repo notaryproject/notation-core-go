@@ -160,17 +160,16 @@ func validate(crl *x509.RevocationList, issuer *x509.Certificate) error {
 		return fmt.Errorf("CRL is expired: %v", crl.NextUpdate)
 	}
 
-	// unsupported critical extensions is not allowed. (See RFC 5280, Section 5.2)
 	for _, ext := range crl.Extensions {
-		switch {
-		case ext.Id.Equal(oidIssuingDistributionPoint):
+		if ext.Id.Equal(oidIssuingDistributionPoint) {
 			// IssuingDistributionPoint is a critical extension that identifies
 			// the scope of the CRL. Since we will check all the CRL
 			// distribution points, it is not necessary to check this extension.
-		default:
-			if ext.Critical {
-				return fmt.Errorf("CRL contains unsupported critical extension: %v", ext.Id)
-			}
+			continue
+		}
+		if ext.Critical {
+			// unsupported critical extensions is not allowed. (See RFC 5280, Section 5.2)
+			return fmt.Errorf("CRL contains unsupported critical extension: %v", ext.Id)
 		}
 	}
 
