@@ -23,6 +23,7 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -92,6 +93,10 @@ func TestFileCache(t *testing.T) {
 func TestNewFileCache(t *testing.T) {
 	tempDir := t.TempDir()
 	t.Run("without permission to create cache directory", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("skipping test on Windows")
+		}
+
 		if err := os.Chmod(tempDir, 0); err != nil {
 			t.Fatalf("failed to change permission: %v", err)
 		}

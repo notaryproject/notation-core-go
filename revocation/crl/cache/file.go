@@ -115,11 +115,10 @@ func (c *FileCache) Set(ctx context.Context, uri string, bundle *Bundle) error {
 	if err != nil {
 		return err
 	}
-	defer tempFile.Close()
-
 	if err := saveTar(tempFile, bundle); err != nil {
 		return err
 	}
+	tempFile.Close()
 
 	// rename is atomic on UNIX-like platforms
 	return os.Rename(tempFile.Name(), filepath.Join(c.root, fileName(uri)))
