@@ -174,6 +174,7 @@ func (r *revocation) ValidateContext(ctx context.Context, validateContextOpts Va
 		SigningTime: validateContextOpts.AuthenticSigningTime,
 	}
 
+	// panicChain is used to store the panic in goroutine and handle it
 	panicChan := make(chan any, len(certChain))
 	defer close(panicChan)
 
@@ -189,6 +190,8 @@ func (r *revocation) ValidateContext(ctx context.Context, validateContextOpts Va
 				defer wg.Done()
 				defer func() {
 					if r := recover(); r != nil {
+						// catch panic and send it to panicChan to avoid
+						// losing the panic
 						panicChan <- r
 					}
 				}()
@@ -213,6 +216,8 @@ func (r *revocation) ValidateContext(ctx context.Context, validateContextOpts Va
 				defer wg.Done()
 				defer func() {
 					if r := recover(); r != nil {
+						// catch panic and send it to panicChan to avoid
+						// losing the panic
 						panicChan <- r
 					}
 				}()

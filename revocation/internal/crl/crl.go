@@ -69,7 +69,16 @@ func CertCheckStatus(ctx context.Context, cert, issuer *x509.Certificate, opts C
 		return &result.CertRevocationResult{
 			Result: result.ResultNonRevokable,
 			CRLResults: []*result.CRLResult{{
-				Error: fmt.Errorf("CRL is not supported in the certificate %s", cert.Subject.CommonName),
+				Error: fmt.Errorf("certificate %s does not support CRL", cert.Subject.CommonName),
+			}},
+		}
+	}
+
+	if issuer == nil {
+		return &result.CertRevocationResult{
+			Result: result.ResultUnknown,
+			CRLResults: []*result.CRLResult{{
+				Error: errors.New("issuer certificate should not be nil"),
 			}},
 		}
 	}
@@ -152,12 +161,13 @@ func Supported(cert *x509.Certificate) bool {
 func validate(crl *x509.RevocationList, issuer *x509.Certificate) error {
 	// check signature
 	if err := crl.CheckSignatureFrom(issuer); err != nil {
-		return fmt.Errorf("CRL signature verification failed: %w", err)
+		return fmt.Errorf("failed to verify CRL signature: %w", err)
 	}
 
 	// check validity
-	if !crl.NextUpdate.IsZero() && time.Now().After(crl.NextUpdate) {
-		return fmt.Errorf("CRL is expired: %v", crl.NextUpdate)
+	now := time.Now()
+	if !crl.NextUpdate.IsZero() && now.After(crl.NextUpdate) {
+		return fmt.Errorf("expired CRL. Current time %v is after CRL NextUpdate %v", now, crl.NextUpdate)
 	}
 
 	for _, ext := range crl.Extensions {
@@ -169,7 +179,7 @@ func validate(crl *x509.RevocationList, issuer *x509.Certificate) error {
 		}
 		if ext.Critical {
 			// unsupported critical extensions is not allowed. (See RFC 5280, Section 5.2)
-			return fmt.Errorf("CRL contains unsupported critical extension: %v", ext.Id)
+			return fmt.Errorf("unsupported critical extension found in CRL: %v", ext.Id)
 		}
 	}
 
@@ -188,11 +198,11 @@ func hasDeltaCRL(crl *x509.RevocationList) bool {
 // checkRevocation checks if the certificate is revoked or not
 func checkRevocation(cert *x509.Certificate, baseCRL *x509.RevocationList, signingTime time.Time, crlURL string) (*result.CRLResult, error) {
 	if cert == nil {
-		return nil, errors.New("certificate is nil")
+		return nil, errors.New("certificate cannot be nil")
 	}
 
 	if baseCRL == nil {
-		return nil, errors.New("CRL is nil")
+		return nil, errors.New("baseCRL cannot be nil")
 	}
 
 	// latestTempRevokedEntry contains the most recent revocation entry with
@@ -236,11 +246,11 @@ func checkRevocation(cert *x509.Certificate, baseCRL *x509.RevocationList, signi
 		}
 	}
 
-	if latestTempRevokedEntry != nil && int(result.CRLReasonCodeRemoveFromCRL) != latestTempRevokedEntry.ReasonCode {
+	if latestTempRevokedEntry != nil && latestTempRevokedEntry.ReasonCode == int(result.CRLReasonCodeCertificateHold) {
 		// revoked with CertificateHold
 		return &result.CRLResult{
 			Result:         result.ResultRevoked,
-			ReasonCode:     result.CRLReasonCode(latestTempRevokedEntry.ReasonCode),
+			ReasonCode:     result.CRLReasonCodeCertificateHold,
 			RevocationTime: latestTempRevokedEntry.RevocationTime,
 			URI:            crlURL,
 		}, nil
@@ -275,7 +285,7 @@ func parseEntryExtensions(entry x509.RevocationListEntry) (entryExtensions, erro
 		default:
 			if ext.Critical {
 				// unsupported critical extensions is not allowed. (See RFC 5280, Section 5.2)
-				return entryExtensions{}, fmt.Errorf("CRL entry contains unsupported critical extension: %v", ext.Id)
+				return entryExtensions{}, fmt.Errorf("unsupported critical extension found in CRL: %v", ext.Id)
 			}
 		}
 	}

@@ -176,6 +176,13 @@ func TestCertCheckStatus(t *testing.T) {
 		}
 	})
 
+	t.Run("nil issuer", func(t *testing.T) {
+		r := CertCheckStatus(context.Background(), chain[0].Cert, nil, CertCheckStatusOptions{})
+		if r.CRLResults[0].Error.Error() != "issuer certificate should not be nil" {
+			t.Fatalf("unexpected error, got %v", r.CRLResults[0].Error)
+		}
+	})
+
 	t.Run("http client is nil", func(t *testing.T) {
 		// failed to download CRL with a mocked HTTP client
 		r := CertCheckStatus(context.Background(), chain[0].Cert, issuerCert, CertCheckStatusOptions{})

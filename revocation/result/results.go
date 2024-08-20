@@ -32,8 +32,9 @@ const (
 	// important errors
 	ResultOK
 	// ResultNonRevokable is a Result that indicates that the certificate cannot be
-	// checked for revocation. This may be a result of no OCSP servers being
-	// specified, the cert is a root certificate, or other related situations.
+	// checked for revocation. This may be a result of no OCSP servers or CRL
+	// distribution points being specified, the cert is a root certificate, or
+	// other related situations.
 	ResultNonRevokable
 	// ResultRevoked is a Result that indicates that at least one certificate was
 	// revoked when performing a revocation check on the certificate chain

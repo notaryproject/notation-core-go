@@ -17,6 +17,6 @@ import "errors"
 
 var (
 	// ErrDeltaCRLNotChecked is returned when the CRL contains a delta CRL but
-	// the delta CRL are not checked
-	ErrDeltaCRLNotChecked = errors.New("delta CRL are not checked")
+	// the delta CRL is not checked
+	ErrDeltaCRLNotChecked = errors.New("delta CRL is not checked")
 )
