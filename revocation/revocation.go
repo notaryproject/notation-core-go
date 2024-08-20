@@ -95,7 +95,9 @@ type Options struct {
 	// OPTIONAL.
 	OCSPHTTPClient *http.Client
 
-	// CRLHTTPClient is a required HTTP client for CRL request
+	// CRLHTTPClient is the HTTP client for CRL request. If not provided,
+	// a default *http.Client with timeout of 5 seconds will be used.
+	// OPTIONAL.
 	CRLHTTPClient *http.Client
 
 	// CertChainPurpose is the purpose of the certificate chain. Supported
