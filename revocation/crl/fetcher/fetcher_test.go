@@ -77,7 +77,7 @@ func TestFetch(t *testing.T) {
 			BaseCRL: cache.CRLMetadata{
 				URL: exampleURL,
 			},
-			CreateAt: time.Now(),
+			CreatedAt: time.Now(),
 		},
 	}
 	if err := c.Set(context.Background(), exampleURL, bundle); err != nil {

@@ -149,7 +149,7 @@ func download(ctx context.Context, crlURL string, client *http.Client) (bundle *
 			BaseCRL: cache.CRLMetadata{
 				URL: crlURL,
 			},
-			CreateAt: time.Now(),
+			CreatedAt: time.Now(),
 		},
 	}, nil
 }

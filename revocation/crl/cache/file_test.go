@@ -59,7 +59,7 @@ func TestFileCache(t *testing.T) {
 	})
 
 	key := "testKey"
-	bundle := &Bundle{BaseCRL: baseCRL, Metadata: Metadata{BaseCRL: CRLMetadata{URL: "http://crl"}, CreateAt: time.Now()}}
+	bundle := &Bundle{BaseCRL: baseCRL, Metadata: Metadata{BaseCRL: CRLMetadata{URL: "http://crl"}, CreatedAt: time.Now()}}
 	t.Run("SetAndGet", func(t *testing.T) {
 		if err := cache.Set(ctx, key, bundle); err != nil {
 			t.Fatalf("expected no error, got %v", err)
@@ -68,13 +68,13 @@ func TestFileCache(t *testing.T) {
 		if err != nil {
 			t.Fatalf("expected no error, got %v", err)
 		}
-		if retrievedBundle.Metadata.CreateAt.Unix() != bundle.Metadata.CreateAt.Unix() {
+		if retrievedBundle.Metadata.CreatedAt.Unix() != bundle.Metadata.CreatedAt.Unix() {
 			t.Fatalf("expected bundle %v, got %v", bundle, retrievedBundle)
 		}
 	})
 
 	t.Run("GetWithExpiredBundle", func(t *testing.T) {
-		expiredBundle := &Bundle{BaseCRL: baseCRL, Metadata: Metadata{BaseCRL: CRLMetadata{URL: "http://crl"}, CreateAt: time.Now().Add(-DefaultMaxAge - 1*time.Second)}}
+		expiredBundle := &Bundle{BaseCRL: baseCRL, Metadata: Metadata{BaseCRL: CRLMetadata{URL: "http://crl"}, CreatedAt: time.Now().Add(-DefaultMaxAge - 1*time.Second)}}
 		if err := cache.Set(ctx, "expiredKey", expiredBundle); err != nil {
 			t.Fatalf("expected no error, got %v", err)
 		}
@@ -154,7 +154,7 @@ func TestGetFailed(t *testing.T) {
 	t.Run("invalid bundle file", func(t *testing.T) {
 		bundle := &Bundle{
 			BaseCRL:  &x509.RevocationList{Raw: []byte("invalid crl")},
-			Metadata: Metadata{CreateAt: time.Now()},
+			Metadata: Metadata{CreatedAt: time.Now()},
 		}
 		if err := saveTar(&bytes.Buffer{}, bundle); err != nil {
 			t.Fatalf("expected no error, got %v", err)
@@ -177,7 +177,7 @@ func TestSetFailed(t *testing.T) {
 	}
 
 	t.Run("failed to save tarball", func(t *testing.T) {
-		bundle := &Bundle{Metadata: Metadata{CreateAt: time.Now()}}
+		bundle := &Bundle{Metadata: Metadata{CreatedAt: time.Now()}}
 		if err := cache.Set(context.Background(), "invalid.tar", bundle); err == nil {
 			t.Fatalf("expected error, got nil")
 		}
@@ -207,7 +207,7 @@ func TestParseAndSave(t *testing.T) {
 				BaseCRL: CRLMetadata{
 					URL: exampleURL,
 				},
-				CreateAt: time.Now(),
+				CreatedAt: time.Now(),
 			},
 		}
 
@@ -231,7 +231,7 @@ func TestParseAndSave(t *testing.T) {
 			t.Errorf("expected URL to be %s, got %s", exampleURL, bundle.Metadata.BaseCRL.URL)
 		}
 
-		if bundle.Metadata.CreateAt.IsZero() {
+		if bundle.Metadata.CreatedAt.IsZero() {
 			t.Errorf("expected CreateAt to be set, got zero value")
 		}
 	})
@@ -328,7 +328,7 @@ func TestSaveTarFailed(t *testing.T) {
 				BaseCRL: CRLMetadata{
 					URL: "https://example.com/base.crl",
 				},
-				CreateAt: time.Now(),
+				CreatedAt: time.Now(),
 			},
 		}
 		if err := saveTar(&errorWriter{}, bundle); err == nil {

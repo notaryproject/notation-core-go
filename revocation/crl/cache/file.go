@@ -95,7 +95,7 @@ func (c *FileCache) Get(ctx context.Context, uri string) (bundle *Bundle, err er
 		return nil, err
 	}
 
-	expires := bundle.Metadata.CreateAt.Add(c.MaxAge)
+	expires := bundle.Metadata.CreatedAt.Add(c.MaxAge)
 	if c.MaxAge > 0 && time.Now().After(expires) {
 		// do not delete the file to maintain the idempotent behavior
 		return nil, ErrCacheMiss
@@ -224,7 +224,7 @@ func saveTar(w io.Writer, bundle *Bundle) (err error) {
 	}()
 
 	// Add base.crl
-	if err := addToTar(PathBaseCRL, bundle.BaseCRL.Raw, bundle.Metadata.CreateAt, tarWriter); err != nil {
+	if err := addToTar(PathBaseCRL, bundle.BaseCRL.Raw, bundle.Metadata.CreatedAt, tarWriter); err != nil {
 		return err
 	}
 

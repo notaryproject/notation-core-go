@@ -20,14 +20,14 @@ import (
 )
 
 const (
-	// BaseCRL is the file name of the base CRL
+	// PathBaseCRL is the file name of the base CRL
 	PathBaseCRL = "base.crl"
 
-	// Metadata is the file name of the metadata
+	// PathMetadata is the file name of the metadata
 	PathMetadata = "metadata.json"
 )
 
-// CRLMetadata stores the URL and creation time of the file
+// CRLMetadata stores the URL of the CRL
 type CRLMetadata struct {
 	URL string `json:"url"`
 }
@@ -39,11 +39,11 @@ type Metadata struct {
 	// BaseCRL stores the URL of the base CRL
 	BaseCRL CRLMetadata `json:"base.crl"`
 
-	// CreateAt stores the creation time of the CRL bundle. This is different
+	// CreatedAt stores the creation time of the CRL bundle. This is different
 	// from the `ThisUpdate` field in the CRL. The `ThisUpdate` field in the CRL
-	// is the time when the CRL was generated, while the `CreateAt` field is for
+	// is the time when the CRL was generated, while the `CreatedAt` field is for
 	// caching purpose, indicating the start of cache effective period.
-	CreateAt time.Time `json:"createAt"`
+	CreatedAt time.Time `json:"createAt"`
 }
 
 // Bundle is in memory representation of the Bundle tarball, including base CRL
@@ -63,7 +63,7 @@ func (b *Bundle) Validate() error {
 	if b.Metadata.BaseCRL.URL == "" {
 		return errors.New("base CRL URL is missing")
 	}
-	if b.Metadata.CreateAt.IsZero() {
+	if b.Metadata.CreatedAt.IsZero() {
 		return errors.New("base CRL creation time is missing")
 	}
 	return nil

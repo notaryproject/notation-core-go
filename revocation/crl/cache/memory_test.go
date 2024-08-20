@@ -52,7 +52,7 @@ func TestMemoryCache(t *testing.T) {
 	bundle := &Bundle{
 		BaseCRL: baseCRL,
 		Metadata: Metadata{
-			CreateAt: time.Now(),
+			CreatedAt: time.Now(),
 			BaseCRL: CRLMetadata{
 				URL: "http://crl",
 			},
@@ -75,7 +75,7 @@ func TestMemoryCache(t *testing.T) {
 		expiredBundle := &Bundle{
 			BaseCRL: baseCRL,
 			Metadata: Metadata{
-				CreateAt: time.Now().Add(-DefaultMaxAge - 1*time.Second),
+				CreatedAt: time.Now().Add(-DefaultMaxAge - 1*time.Second),
 				BaseCRL: CRLMetadata{
 					URL: "http://crl",
 				},
@@ -125,7 +125,7 @@ func TestMemoryCacheFailed(t *testing.T) {
 		bundle := &Bundle{
 			BaseCRL: nil,
 			Metadata: Metadata{
-				CreateAt: time.Now(),
+				CreatedAt: time.Now(),
 				BaseCRL: CRLMetadata{
 					URL: "http://crl",
 				},
