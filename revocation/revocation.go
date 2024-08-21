@@ -157,11 +157,11 @@ func (r *revocation) Validate(certChain []*x509.Certificate, signingTime time.Ti
 //
 // NOTE: The certificate chain is expected to be in the order of leaf to root.
 func (r *revocation) ValidateContext(ctx context.Context, validateContextOpts ValidateContextOptions) ([]*result.CertRevocationResult, error) {
+	// validate certificate chain
 	if len(validateContextOpts.CertChain) == 0 {
 		return nil, result.InvalidChainError{Err: errors.New("chain does not contain any certificates")}
 	}
 	certChain := validateContextOpts.CertChain
-
 	if err := x509util.ValidateChain(certChain, r.certChainPurpose); err != nil {
 		return nil, err
 	}
@@ -170,7 +170,6 @@ func (r *revocation) ValidateContext(ctx context.Context, validateContextOpts Va
 		HTTPClient:  r.ocspHTTPClient,
 		SigningTime: validateContextOpts.AuthenticSigningTime,
 	}
-
 	crlOpts := crl.CertCheckStatusOptions{
 		HTTPClient:  r.crlHTTPClient,
 		SigningTime: validateContextOpts.AuthenticSigningTime,

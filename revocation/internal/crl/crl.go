@@ -64,41 +64,10 @@ type CertCheckStatusOptions struct {
 // If the invalidity date extension is present in the CRL entry and SigningTime
 // is not zero, the certificate is considered revoked if the SigningTime is
 // after the invalidity date. (See RFC 5280, Section 5.3.2)
+//
+// Please ensure that the certificate supports CRL by calling Supported before
+// calling this function.
 func CertCheckStatus(ctx context.Context, cert, issuer *x509.Certificate, opts CertCheckStatusOptions) *result.CertRevocationResult {
-	if cert == nil {
-		return &result.CertRevocationResult{
-			Result: result.ResultUnknown,
-			CRLResults: []*result.CRLResult{{
-				Error: errors.New("certificate should not be nil"),
-			}},
-		}
-	}
-	if issuer == nil {
-		return &result.CertRevocationResult{
-			Result: result.ResultUnknown,
-			CRLResults: []*result.CRLResult{{
-				Error: errors.New("issuer certificate should not be nil"),
-			}},
-		}
-	}
-	if !Supported(cert) {
-		return &result.CertRevocationResult{
-			Result: result.ResultNonRevokable,
-			CRLResults: []*result.CRLResult{{
-				Error: fmt.Errorf("certificate %s does not support CRL", cert.Subject.CommonName),
-			}},
-		}
-	}
-
-	if opts.HTTPClient == nil {
-		return &result.CertRevocationResult{
-			Result: result.ResultUnknown,
-			CRLResults: []*result.CRLResult{{
-				Error: errors.New("HTTP client is nil"),
-			}},
-		}
-	}
-
 	// The CRLDistributionPoints contains the URIs of all the CRL distribution
 	// points. Since it does not distinguish the reason field, it needs to check
 	// all the URIs to avoid missing any partial CRLs.
