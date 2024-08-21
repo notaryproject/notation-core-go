@@ -99,6 +99,11 @@ func getOKCertResult(server string) *result.CertRevocationResult {
 func getRootCertResult() *result.CertRevocationResult {
 	return &result.CertRevocationResult{
 		Result: result.ResultNonRevokable,
+		CRLResults: []*result.CRLResult{
+			{
+				Result: result.ResultNonRevokable,
+			},
+		},
 		ServerResults: []*result.ServerResult{
 			result.NewServerResult(result.ResultNonRevokable, "", nil),
 		},
@@ -847,6 +852,11 @@ func TestCheckRevocationErrors(t *testing.T) {
 		expectedCertResults := []*result.CertRevocationResult{
 			{
 				Result: result.ResultNonRevokable,
+				CRLResults: []*result.CRLResult{
+					{
+						Result: result.ResultNonRevokable,
+					},
+				},
 				ServerResults: []*result.ServerResult{
 					result.NewServerResult(result.ResultNonRevokable, "", nil),
 				},

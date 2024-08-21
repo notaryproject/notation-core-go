@@ -228,9 +228,11 @@ func (r *revocation) ValidateContext(ctx context.Context, validateContextOpts Va
 		default:
 			certResults[i] = &result.CertRevocationResult{
 				Result: result.ResultNonRevokable,
+				CRLResults: []*result.CRLResult{{
+					Result: result.ResultNonRevokable,
+				}},
 				ServerResults: []*result.ServerResult{{
 					Result: result.ResultNonRevokable,
-					Error:  nil,
 				}},
 			}
 		}
@@ -239,9 +241,11 @@ func (r *revocation) ValidateContext(ctx context.Context, validateContextOpts Va
 	// Last is root cert, which will never be revoked by OCSP or CRL
 	certResults[len(certChain)-1] = &result.CertRevocationResult{
 		Result: result.ResultNonRevokable,
+		CRLResults: []*result.CRLResult{{
+			Result: result.ResultNonRevokable,
+		}},
 		ServerResults: []*result.ServerResult{{
 			Result: result.ResultNonRevokable,
-			Error:  nil,
 		}},
 	}
 	wg.Wait()
