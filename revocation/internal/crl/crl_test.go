@@ -699,6 +699,24 @@ func TestDownload(t *testing.T) {
 	})
 }
 
+func TestSupported(t *testing.T) {
+	t.Run("supported", func(t *testing.T) {
+		cert := &x509.Certificate{
+			CRLDistributionPoints: []string{"http://example.com"},
+		}
+		if !Supported(cert) {
+			t.Fatal("expected supported")
+		}
+	})
+
+	t.Run("unsupported", func(t *testing.T) {
+		cert := &x509.Certificate{}
+		if Supported(cert) {
+			t.Fatal("expected unsupported")
+		}
+	})
+}
+
 type errorRoundTripperMock struct{}
 
 func (rt errorRoundTripperMock) RoundTrip(req *http.Request) (*http.Response, error) {
