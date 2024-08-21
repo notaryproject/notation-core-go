@@ -20,6 +20,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/asn1"
+	"errors"
 	"fmt"
 	"io"
 	"math/big"
@@ -177,7 +178,7 @@ func TestCertCheckStatus(t *testing.T) {
 				Transport: expectedRoundTripperMock{Body: crlBytes},
 			},
 		})
-		if r.CRLResults[0].Error != ErrDeltaCRLNotSupported {
+		if !errors.Is(r.CRLResults[0].Error, ErrDeltaCRLNotSupported) {
 			t.Fatal("expected ErrDeltaCRLNotChecked")
 		}
 	})
