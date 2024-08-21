@@ -17,7 +17,7 @@ package crl
 import "github.com/notaryproject/notation-core-go/revocation/internal/crl"
 
 var (
-	// ErrDeltaCRLNotChecked is returned when the CRL contains a delta CRL but
-	// the delta CRL is not checked
-	ErrDeltaCRLNotChecked = crl.ErrDeltaCRLNotChecked
+	// ErrDeltaCRLNotSupported is returned when the CRL contains a delta CRL but
+	// the delta CRL is not supported
+	ErrDeltaCRLNotSupported = crl.ErrDeltaCRLNotSupported
 )

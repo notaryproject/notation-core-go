@@ -65,20 +65,27 @@ type CertCheckStatusOptions struct {
 // is not zero, the certificate is considered revoked if the SigningTime is
 // after the invalidity date. (See RFC 5280, Section 5.3.2)
 func CertCheckStatus(ctx context.Context, cert, issuer *x509.Certificate, opts CertCheckStatusOptions) *result.CertRevocationResult {
-	if !Supported(cert) {
+	if cert == nil {
 		return &result.CertRevocationResult{
-			Result: result.ResultNonRevokable,
+			Result: result.ResultUnknown,
 			CRLResults: []*result.CRLResult{{
-				Error: fmt.Errorf("certificate %s does not support CRL", cert.Subject.CommonName),
+				Error: errors.New("certificate should not be nil"),
 			}},
 		}
 	}
-
 	if issuer == nil {
 		return &result.CertRevocationResult{
 			Result: result.ResultUnknown,
 			CRLResults: []*result.CRLResult{{
 				Error: errors.New("issuer certificate should not be nil"),
+			}},
+		}
+	}
+	if !Supported(cert) {
+		return &result.CertRevocationResult{
+			Result: result.ResultNonRevokable,
+			CRLResults: []*result.CRLResult{{
+				Error: fmt.Errorf("certificate %s does not support CRL", cert.Subject.CommonName),
 			}},
 		}
 	}
@@ -120,10 +127,6 @@ func CertCheckStatus(ctx context.Context, cert, issuer *x509.Certificate, opts C
 		if err != nil {
 			lastErr = fmt.Errorf("failed to check revocation status from %s: %w", crlURL, err)
 			break
-		}
-		if hasDeltaCRL(baseCRL) {
-			// added an error to indicate that delta CRLs are not checked
-			crlResult.Error = ErrDeltaCRLNotChecked
 		}
 		crlResults = append(crlResults, crlResult)
 
@@ -171,28 +174,22 @@ func validate(crl *x509.RevocationList, issuer *x509.Certificate) error {
 	}
 
 	for _, ext := range crl.Extensions {
-		if ext.Id.Equal(oidIssuingDistributionPoint) {
+		switch {
+		case ext.Id.Equal(oidFreshestCRL):
+			return ErrDeltaCRLNotSupported
+		case ext.Id.Equal(oidIssuingDistributionPoint):
 			// IssuingDistributionPoint is a critical extension that identifies
 			// the scope of the CRL. Since we will check all the CRL
 			// distribution points, it is not necessary to check this extension.
-			continue
-		}
-		if ext.Critical {
-			// unsupported critical extensions is not allowed. (See RFC 5280, Section 5.2)
-			return fmt.Errorf("unsupported critical extension found in CRL: %v", ext.Id)
+		default:
+			if ext.Critical {
+				// unsupported critical extensions is not allowed. (See RFC 5280, Section 5.2)
+				return fmt.Errorf("unsupported critical extension found in CRL: %v", ext.Id)
+			}
 		}
 	}
 
 	return nil
-}
-
-func hasDeltaCRL(crl *x509.RevocationList) bool {
-	for _, ext := range crl.Extensions {
-		if ext.Id.Equal(oidFreshestCRL) {
-			return true
-		}
-	}
-	return false
 }
 
 // checkRevocation checks if the certificate is revoked or not

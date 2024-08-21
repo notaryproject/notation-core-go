@@ -32,6 +32,12 @@ import (
 )
 
 func TestCertCheckStatus(t *testing.T) {
+	t.Run("certificate is nil", func(t *testing.T) {
+		r := CertCheckStatus(context.Background(), nil, nil, CertCheckStatusOptions{})
+		if r.CRLResults[0].Error.Error() != "certificate should not be nil" {
+			t.Fatalf("unexpected error, got %v", r.CRLResults[0].Error)
+		}
+	})
 	t.Run("certificate does not support CRL", func(t *testing.T) {
 		r := CertCheckStatus(context.Background(), &x509.Certificate{}, &x509.Certificate{}, CertCheckStatusOptions{
 			HTTPClient: http.DefaultClient,
@@ -171,7 +177,7 @@ func TestCertCheckStatus(t *testing.T) {
 				Transport: expectedRoundTripperMock{Body: crlBytes},
 			},
 		})
-		if r.CRLResults[0].Error != ErrDeltaCRLNotChecked {
+		if r.CRLResults[0].Error != ErrDeltaCRLNotSupported {
 			t.Fatal("expected ErrDeltaCRLNotChecked")
 		}
 	})

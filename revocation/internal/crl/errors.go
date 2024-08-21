@@ -16,7 +16,7 @@ package crl
 import "errors"
 
 var (
-	// ErrDeltaCRLNotChecked is returned when the CRL contains a delta CRL but
-	// the delta CRL is not checked
-	ErrDeltaCRLNotChecked = errors.New("delta CRL is not checked")
+	// ErrDeltaCRLNotSupported is returned when the CRL contains a delta CRL but
+	// the delta CRL is not supported.
+	ErrDeltaCRLNotSupported = errors.New("delta CRL is not supported")
 )
