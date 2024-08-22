@@ -115,7 +115,7 @@ func CertCheckStatus(ctx context.Context, cert, issuer *x509.Certificate, opts C
 		return &result.CertRevocationResult{
 			Result: result.ResultUnknown,
 			CRLResults: []*result.CRLResult{
-				&result.CRLResult{
+				{
 					Result: result.ResultUnknown,
 					URI:    crlURL,
 					Error:  lastErr,
