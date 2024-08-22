@@ -197,12 +197,13 @@ func (r *revocation) ValidateContext(ctx context.Context, validateContextOpts Va
 					}
 				}()
 
-				ocspResult := ocsp.CertCheckStatus(cert, certChain[i+1], ocspOpts)
+				// skip the error as it will not happen
+				ocspResult, _ := ocsp.CertCheckStatus(cert, certChain[i+1], ocspOpts)
 				if ocspResult != nil && ocspResult.Result == result.ResultUnknown && crl.Supported(cert) {
 					// try CRL check if OCSP result is unknown
-					result := crl.CertCheckStatus(ctx, cert, certChain[i+1], crlOpts)
+					result, _ := crl.CertCheckStatus(ctx, cert, certChain[i+1], crlOpts)
 
-					// insert OCSP result into CRL result
+					// insert OCSP result into final result
 					result.ServerResults = ocspResult.ServerResults
 					certResults[i] = result
 				} else {
@@ -223,15 +224,15 @@ func (r *revocation) ValidateContext(ctx context.Context, validateContextOpts Va
 					}
 				}()
 
-				certResults[i] = crl.CertCheckStatus(ctx, cert, certChain[i+1], crlOpts)
+				certResults[i], _ = crl.CertCheckStatus(ctx, cert, certChain[i+1], crlOpts)
 			}(i, cert)
 		default:
 			certResults[i] = &result.CertRevocationResult{
 				Result: result.ResultNonRevokable,
-				CRLResults: []*result.CRLResult{{
+				ServerResults: []*result.ServerResult{{
 					Result: result.ResultNonRevokable,
 				}},
-				ServerResults: []*result.ServerResult{{
+				CRLResults: []*result.CRLResult{{
 					Result: result.ResultNonRevokable,
 				}},
 			}
@@ -241,10 +242,10 @@ func (r *revocation) ValidateContext(ctx context.Context, validateContextOpts Va
 	// Last is root cert, which will never be revoked by OCSP or CRL
 	certResults[len(certChain)-1] = &result.CertRevocationResult{
 		Result: result.ResultNonRevokable,
-		CRLResults: []*result.CRLResult{{
+		ServerResults: []*result.ServerResult{{
 			Result: result.ResultNonRevokable,
 		}},
-		ServerResults: []*result.ServerResult{{
+		CRLResults: []*result.CRLResult{{
 			Result: result.ResultNonRevokable,
 		}},
 	}

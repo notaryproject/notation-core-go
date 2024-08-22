@@ -159,9 +159,6 @@ type CertRevocationResult struct {
 	// Thus, in the case of more than one ServerResult, this will be ResultUnknown
 	Result Result
 
-	// CRLResults is the result of the CRL check for this certificate
-	CRLResults []*CRLResult
-
 	// An array of results for each server associated with the certificate.
 	// The length will be either 1 or the number of OCSPServers for the cert.
 	//
@@ -172,4 +169,13 @@ type CertRevocationResult struct {
 	// Otherwise, every server specified had some error that prevented the
 	// status from being retrieved. These are all contained here for evaluation
 	ServerResults []*ServerResult
+
+	// CRLResults is the result of the CRL check for this certificate. Each
+	// element in the array corresponds to a different CRL distribution point
+	// for the certificate.
+	//
+	// If the length is 0, the CRL is not checked for this certificate.
+	// The length will be at most the number of CRLDistributionPoints for the
+	// certificate, which means all CRLs were checked.
+	CRLResults []*CRLResult
 }

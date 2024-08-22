@@ -37,11 +37,14 @@ func TestCertCheckStatus(t *testing.T) {
 		cert := &x509.Certificate{
 			CRLDistributionPoints: []string{"http://example.com"},
 		}
-		r := CertCheckStatus(context.Background(), cert, &x509.Certificate{}, CertCheckStatusOptions{
+		r, err := CertCheckStatus(context.Background(), cert, &x509.Certificate{}, CertCheckStatusOptions{
 			HTTPClient: &http.Client{
 				Transport: errorRoundTripperMock{},
 			},
 		})
+		if err != nil {
+			t.Fatal(err)
+		}
 		if r.CRLResults[0].Error == nil {
 			t.Fatal("expected error")
 		}
@@ -51,11 +54,14 @@ func TestCertCheckStatus(t *testing.T) {
 		cert := &x509.Certificate{
 			CRLDistributionPoints: []string{"http://example.com"},
 		}
-		r := CertCheckStatus(context.Background(), cert, &x509.Certificate{}, CertCheckStatusOptions{
+		r, err := CertCheckStatus(context.Background(), cert, &x509.Certificate{}, CertCheckStatusOptions{
 			HTTPClient: &http.Client{
 				Transport: expiredCRLRoundTripperMock{},
 			},
 		})
+		if err != nil {
+			t.Fatal(err)
+		}
 		if r.CRLResults[0].Error == nil {
 			t.Fatal("expected error")
 		}
@@ -82,11 +88,14 @@ func TestCertCheckStatus(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		r := CertCheckStatus(context.Background(), chain[0].Cert, issuerCert, CertCheckStatusOptions{
+		r, err := CertCheckStatus(context.Background(), chain[0].Cert, issuerCert, CertCheckStatusOptions{
 			HTTPClient: &http.Client{
 				Transport: expectedRoundTripperMock{Body: crlBytes},
 			},
 		})
+		if err != nil {
+			t.Fatal(err)
+		}
 		if r.Result != result.ResultRevoked {
 			t.Fatalf("expected revoked, got %s", r.Result)
 		}
@@ -114,11 +123,14 @@ func TestCertCheckStatus(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		r := CertCheckStatus(context.Background(), chain[0].Cert, issuerCert, CertCheckStatusOptions{
+		r, err := CertCheckStatus(context.Background(), chain[0].Cert, issuerCert, CertCheckStatusOptions{
 			HTTPClient: &http.Client{
 				Transport: expectedRoundTripperMock{Body: crlBytes},
 			},
 		})
+		if err != nil {
+			t.Fatal(err)
+		}
 		if r.CRLResults[0].Error == nil {
 			t.Fatal("expected error")
 		}
@@ -133,11 +145,14 @@ func TestCertCheckStatus(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		r := CertCheckStatus(context.Background(), chain[0].Cert, issuerCert, CertCheckStatusOptions{
+		r, err := CertCheckStatus(context.Background(), chain[0].Cert, issuerCert, CertCheckStatusOptions{
 			HTTPClient: &http.Client{
 				Transport: expectedRoundTripperMock{Body: crlBytes},
 			},
 		})
+		if err != nil {
+			t.Fatal(err)
+		}
 		if r.Result != result.ResultOK {
 			t.Fatalf("expected OK, got %s", r.Result)
 		}
@@ -158,11 +173,14 @@ func TestCertCheckStatus(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		r := CertCheckStatus(context.Background(), chain[0].Cert, issuerCert, CertCheckStatusOptions{
+		r, err := CertCheckStatus(context.Background(), chain[0].Cert, issuerCert, CertCheckStatusOptions{
 			HTTPClient: &http.Client{
 				Transport: expectedRoundTripperMock{Body: crlBytes},
 			},
 		})
+		if err != nil {
+			t.Fatal(err)
+		}
 		if !errors.Is(r.CRLResults[0].Error, ErrDeltaCRLNotSupported) {
 			t.Fatal("expected ErrDeltaCRLNotChecked")
 		}

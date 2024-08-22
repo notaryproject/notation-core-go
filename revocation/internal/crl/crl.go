@@ -67,7 +67,11 @@ type CertCheckStatusOptions struct {
 //
 // Please ensure that the certificate supports CRL by calling Supported before
 // calling this function.
-func CertCheckStatus(ctx context.Context, cert, issuer *x509.Certificate, opts CertCheckStatusOptions) *result.CertRevocationResult {
+func CertCheckStatus(ctx context.Context, cert, issuer *x509.Certificate, opts CertCheckStatusOptions) (*result.CertRevocationResult, error) {
+	if !Supported(cert) {
+		return nil, fmt.Errorf("certificate %v does not support CRL", cert.Subject.CommonName)
+	}
+
 	// The CRLDistributionPoints contains the URIs of all the CRL distribution
 	// points. Since it does not distinguish the reason field, it needs to check
 	// all the URIs to avoid missing any partial CRLs.
@@ -103,26 +107,26 @@ func CertCheckStatus(ctx context.Context, cert, issuer *x509.Certificate, opts C
 			return &result.CertRevocationResult{
 				Result:     result.ResultRevoked,
 				CRLResults: crlResults,
-			}
+			}, nil
 		}
 	}
 
 	if lastErr != nil {
-		crlResults = append(crlResults, &result.CRLResult{
-			Result: result.ResultUnknown,
-			URI:    crlURL,
-			Error:  lastErr,
-		})
 		return &result.CertRevocationResult{
-			Result:     result.ResultUnknown,
-			CRLResults: crlResults,
-		}
+			Result: result.ResultUnknown,
+			CRLResults: []*result.CRLResult{
+				&result.CRLResult{
+					Result: result.ResultUnknown,
+					URI:    crlURL,
+					Error:  lastErr,
+				}},
+		}, nil
 	}
 
 	return &result.CertRevocationResult{
 		Result:     result.ResultOK,
 		CRLResults: crlResults,
-	}
+	}, nil
 }
 
 // Supported checks if the certificate supports CRL.
