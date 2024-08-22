@@ -33,6 +33,14 @@ import (
 )
 
 func TestCertCheckStatus(t *testing.T) {
+	t.Run("certtificate does not have CRLDistributionPoints", func(t *testing.T) {
+		cert := &x509.Certificate{}
+		r := CertCheckStatus(context.Background(), cert, &x509.Certificate{}, CertCheckStatusOptions{})
+		if r.Result != result.ResultNonRevokable {
+			t.Fatalf("expected NonRevokable, got %s", r.Result)
+		}
+	})
+
 	t.Run("download error", func(t *testing.T) {
 		cert := &x509.Certificate{
 			CRLDistributionPoints: []string{"http://example.com"},

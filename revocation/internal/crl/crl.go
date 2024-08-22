@@ -69,9 +69,9 @@ func CertCheckStatus(ctx context.Context, cert, issuer *x509.Certificate, opts C
 		// CRL not enabled for this certificate.
 		return &result.CertRevocationResult{
 			Result: result.ResultNonRevokable,
-			CRLResults: []*result.CRLResult{
-				{Result: result.ResultNonRevokable},
-			},
+			CRLResults: []*result.CRLResult{{
+				Result: result.ResultNonRevokable,
+			}},
 		}
 	}
 
