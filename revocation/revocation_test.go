@@ -100,9 +100,7 @@ func getRootCertResult() *result.CertRevocationResult {
 	return &result.CertRevocationResult{
 		Result: result.ResultNonRevokable,
 		CRLResults: []*result.CRLResult{
-			{
-				Result: result.ResultNonRevokable,
-			},
+			{Result: result.ResultNonRevokable},
 		},
 		ServerResults: []*result.ServerResult{
 			result.NewServerResult(result.ResultNonRevokable, "", nil),
