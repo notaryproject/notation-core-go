@@ -27,6 +27,7 @@ import (
 	"github.com/notaryproject/notation-core-go/revocation/internal/crl"
 	"github.com/notaryproject/notation-core-go/revocation/internal/ocsp"
 	"github.com/notaryproject/notation-core-go/revocation/internal/x509util"
+	ocspExternal "github.com/notaryproject/notation-core-go/revocation/ocsp"
 	"github.com/notaryproject/notation-core-go/revocation/purpose"
 	"github.com/notaryproject/notation-core-go/revocation/result"
 )
@@ -129,20 +130,17 @@ func NewWithOptions(opts Options) (Validator, error) {
 	}, nil
 }
 
-// Validate checks the revocation status for a certificate chain using OCSP and
-// CRL if OCSP is not available. It returns an array of CertRevocationResults
-// that contain the results and any errors that are encountered during the
-// process.
-//
-// This function tries OCSP and falls back to CRL when:
-// - OCSP is not supported by the certificate
-// - OCSP returns an unknown status
-//
+// Validate checks the revocation status for a certificate chain using OCSP.
+// It returns an array of CertRevocationResults that contain the results and any
+// errors that are encountered during the process.
+
 // NOTE: The certificate chain is expected to be in the order of leaf to root.
 func (r *revocation) Validate(certChain []*x509.Certificate, signingTime time.Time) ([]*result.CertRevocationResult, error) {
-	return r.ValidateContext(context.Background(), ValidateContextOptions{
-		CertChain:            certChain,
-		AuthenticSigningTime: signingTime,
+	return ocspExternal.CheckStatus(ocspExternal.Options{
+		CertChain:        certChain,
+		CertChainPurpose: r.certChainPurpose,
+		SigningTime:      signingTime,
+		HTTPClient:       r.ocspHTTPClient,
 	})
 }
 
@@ -230,12 +228,6 @@ func (r *revocation) ValidateContext(ctx context.Context, validateContextOpts Va
 		default:
 			certResults[i] = &result.CertRevocationResult{
 				Result: result.ResultNonRevokable,
-				ServerResults: []*result.ServerResult{{
-					Result: result.ResultNonRevokable,
-				}},
-				CRLResults: []*result.CRLResult{{
-					Result: result.ResultNonRevokable,
-				}},
 			}
 		}
 	}
@@ -243,12 +235,6 @@ func (r *revocation) ValidateContext(ctx context.Context, validateContextOpts Va
 	// Last is root cert, which will never be revoked by OCSP or CRL
 	certResults[len(certChain)-1] = &result.CertRevocationResult{
 		Result: result.ResultNonRevokable,
-		ServerResults: []*result.ServerResult{{
-			Result: result.ResultNonRevokable,
-		}},
-		CRLResults: []*result.CRLResult{{
-			Result: result.ResultNonRevokable,
-		}},
 	}
 	wg.Wait()
 
