@@ -55,7 +55,7 @@ const (
 func CertCheckStatus(cert, issuer *x509.Certificate, opts CertCheckStatusOptions) (*result.CertRevocationResult, error) {
 	if !Supported(cert) {
 		// OCSP not enabled for this certificate.
-		return nil, NoServerError{}
+		return nil, &NoServerError{}
 	}
 	ocspURLs := cert.OCSPServer
 
