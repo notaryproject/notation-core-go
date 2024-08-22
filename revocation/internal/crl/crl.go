@@ -69,7 +69,7 @@ type CertCheckStatusOptions struct {
 // calling this function.
 func CertCheckStatus(ctx context.Context, cert, issuer *x509.Certificate, opts CertCheckStatusOptions) (*result.CertRevocationResult, error) {
 	if !Supported(cert) {
-		return nil, fmt.Errorf("certificate %v does not support CRL", cert.Subject.CommonName)
+		return nil, errors.New("certificate doesn't support CRL")
 	}
 
 	// The CRLDistributionPoints contains the URIs of all the CRL distribution
