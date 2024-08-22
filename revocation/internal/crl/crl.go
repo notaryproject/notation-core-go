@@ -64,9 +64,6 @@ type CertCheckStatusOptions struct {
 // If the invalidity date extension is present in the CRL entry and SigningTime
 // is not zero, the certificate is considered revoked if the SigningTime is
 // after the invalidity date. (See RFC 5280, Section 5.3.2)
-//
-// Please ensure that the certificate supports CRL by calling Supported before
-// calling this function.
 func CertCheckStatus(ctx context.Context, cert, issuer *x509.Certificate, opts CertCheckStatusOptions) (*result.CertRevocationResult, error) {
 	if !Supported(cert) {
 		return nil, errors.New("certificate doesn't support CRL")
