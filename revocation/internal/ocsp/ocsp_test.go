@@ -147,7 +147,7 @@ func TestCheckStatus(t *testing.T) {
 
 	t.Run("certificate doesn't support OCSP", func(t *testing.T) {
 		_, err := CertCheckStatus(&x509.Certificate{}, revokableIssuerTuple.Cert, CertCheckStatusOptions{})
-		if !errors.Is(err, NoServerError{}) {
+		if !errors.Is(err, &NoServerError{}) {
 			t.Errorf("Expected error to be NoServerError, but got %v", err)
 		}
 
