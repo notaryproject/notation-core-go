@@ -62,23 +62,12 @@ func CheckStatus(opts Options) ([]*result.CertRevocationResult, error) {
 	// Check status for each cert in cert chain
 	var wg sync.WaitGroup
 	for i, cert := range opts.CertChain[:len(opts.CertChain)-1] {
-		if ocsp.Supported(cert) {
-			wg.Add(1)
-			// Assume cert chain is accurate and next cert in chain is
-			// the issuer
-			go func(i int, cert *x509.Certificate) {
-				defer wg.Done()
-				// skip the error as it is not possible to get error
-				certResults[i], _ = ocsp.CertCheckStatus(cert, opts.CertChain[i+1], certCheckStatusOptions)
-			}(i, cert)
-		} else {
-			certResults[i] = &result.CertRevocationResult{
-				Result: result.ResultNonRevokable,
-				ServerResults: []*result.ServerResult{{
-					Result: result.ResultNonRevokable,
-				}},
-			}
-		}
+		wg.Add(1)
+		// Assume cert chain is accurate and next cert in chain is the issuer
+		go func(i int, cert *x509.Certificate) {
+			defer wg.Done()
+			certResults[i] = ocsp.CertCheckStatus(cert, opts.CertChain[i+1], certCheckStatusOptions)
+		}(i, cert)
 	}
 	// Last is root cert, which will never be revoked by OCSP
 	certResults[len(opts.CertChain)-1] = &result.CertRevocationResult{

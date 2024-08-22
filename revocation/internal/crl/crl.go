@@ -64,9 +64,15 @@ type CertCheckStatusOptions struct {
 // If the invalidity date extension is present in the CRL entry and SigningTime
 // is not zero, the certificate is considered revoked if the SigningTime is
 // after the invalidity date. (See RFC 5280, Section 5.3.2)
-func CertCheckStatus(ctx context.Context, cert, issuer *x509.Certificate, opts CertCheckStatusOptions) (*result.CertRevocationResult, error) {
+func CertCheckStatus(ctx context.Context, cert, issuer *x509.Certificate, opts CertCheckStatusOptions) *result.CertRevocationResult {
 	if !Supported(cert) {
-		return nil, errors.New("certificate doesn't support CRL")
+		// CRL not enabled for this certificate.
+		return &result.CertRevocationResult{
+			Result: result.ResultNonRevokable,
+			CRLResults: []*result.CRLResult{
+				{Result: result.ResultNonRevokable},
+			},
+		}
 	}
 
 	// The CRLDistributionPoints contains the URIs of all the CRL distribution
@@ -104,7 +110,7 @@ func CertCheckStatus(ctx context.Context, cert, issuer *x509.Certificate, opts C
 			return &result.CertRevocationResult{
 				Result:     result.ResultRevoked,
 				CRLResults: crlResults,
-			}, nil
+			}
 		}
 	}
 
@@ -117,13 +123,13 @@ func CertCheckStatus(ctx context.Context, cert, issuer *x509.Certificate, opts C
 					URI:    crlURL,
 					Error:  lastErr,
 				}},
-		}, nil
+		}
 	}
 
 	return &result.CertRevocationResult{
 		Result:     result.ResultOK,
 		CRLResults: crlResults,
-	}, nil
+	}
 }
 
 // Supported checks if the certificate supports CRL.

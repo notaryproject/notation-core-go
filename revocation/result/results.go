@@ -20,27 +20,27 @@ import (
 	"time"
 )
 
-// Result is a type of enumerated value to help characterize errors. It can be
-// OK, Unknown, or Revoked
+// Result is a type of enumerated value to help characterize revocation result.
+// It can be OK, Unknown, NonRevokable, or Revoked
 type Result int
 
 const (
 	// ResultUnknown is a Result that indicates that some error other than a
-	// revocation was encountered during the revocation check
+	// revocation was encountered during the revocation check.
 	ResultUnknown Result = iota
 
-	// ResultOK is a Result that indicates that the revocation check resulted in no
-	// important errors
+	// ResultOK is a Result that indicates that the revocation check resulted in
+	// no important errors.
 	ResultOK
 
-	// ResultNonRevokable is a Result that indicates that the certificate cannot be
-	// checked for revocation. This may be a result of no OCSP servers or CRL
-	// distribution points being specified, the cert is a root certificate, or
-	// other related situations.
+	// ResultNonRevokable is a Result that indicates that the certificate cannot
+	// be checked for revocation. This may be due to the absence of OCSP servers
+	// or CRL distribution points, or because the certificate is a root
+	// certificate.
 	ResultNonRevokable
 
 	// ResultRevoked is a Result that indicates that at least one certificate was
-	// revoked when performing a revocation check on the certificate chain
+	// revoked when performing a revocation check on the certificate chain.
 	ResultRevoked
 )
 

@@ -15,7 +15,6 @@ package ocsp
 
 import (
 	"crypto/x509"
-	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -84,10 +83,7 @@ func TestCheckStatus(t *testing.T) {
 			HTTPClient:  client,
 		}
 
-		certResult, err := CertCheckStatus(revokableChain[0], revokableChain[1], opts)
-		if err != nil {
-			t.Errorf("Expected no error, but got %v", err)
-		}
+		certResult := CertCheckStatus(revokableChain[0], revokableChain[1], opts)
 		expectedCertResults := []*result.CertRevocationResult{getOKCertResult(ocspServer)}
 		validateEquivalentCertResults([]*result.CertRevocationResult{certResult}, expectedCertResults, t)
 	})
@@ -98,10 +94,7 @@ func TestCheckStatus(t *testing.T) {
 			HTTPClient:  client,
 		}
 
-		certResult, err := CertCheckStatus(revokableChain[0], revokableChain[1], opts)
-		if err != nil {
-			t.Errorf("Expected no error, but got %v", err)
-		}
+		certResult := CertCheckStatus(revokableChain[0], revokableChain[1], opts)
 		expectedCertResults := []*result.CertRevocationResult{{
 			Result: result.ResultUnknown,
 			ServerResults: []*result.ServerResult{
@@ -117,10 +110,7 @@ func TestCheckStatus(t *testing.T) {
 			HTTPClient:  client,
 		}
 
-		certResult, err := CertCheckStatus(revokableChain[0], revokableChain[1], opts)
-		if err != nil {
-			t.Errorf("Expected no error, but got %v", err)
-		}
+		certResult := CertCheckStatus(revokableChain[0], revokableChain[1], opts)
 		expectedCertResults := []*result.CertRevocationResult{{
 			Result: result.ResultRevoked,
 			ServerResults: []*result.ServerResult{
@@ -137,20 +127,19 @@ func TestCheckStatus(t *testing.T) {
 			HTTPClient:  client,
 		}
 
-		certResult, err := CertCheckStatus(revokableChain[0], revokableChain[1], opts)
-		if err != nil {
-			t.Errorf("Expected no error, but got %v", err)
-		}
+		certResult := CertCheckStatus(revokableChain[0], revokableChain[1], opts)
 		expectedCertResults := []*result.CertRevocationResult{getOKCertResult(ocspServer)}
 		validateEquivalentCertResults([]*result.CertRevocationResult{certResult}, expectedCertResults, t)
 	})
 
 	t.Run("certificate doesn't support OCSP", func(t *testing.T) {
-		_, err := CertCheckStatus(&x509.Certificate{}, revokableIssuerTuple.Cert, CertCheckStatusOptions{})
-		if !errors.Is(err, &NoServerError{}) {
-			t.Errorf("Expected error to be NoServerError, but got %v", err)
+		ocspResult := CertCheckStatus(&x509.Certificate{}, revokableIssuerTuple.Cert, CertCheckStatusOptions{})
+		expectedResult := &result.CertRevocationResult{
+			Result:        result.ResultNonRevokable,
+			ServerResults: []*result.ServerResult{toServerResult("", NoServerError{})},
 		}
 
+		validateEquivalentCertResults([]*result.CertRevocationResult{ocspResult}, []*result.CertRevocationResult{expectedResult}, t)
 	})
 }
 

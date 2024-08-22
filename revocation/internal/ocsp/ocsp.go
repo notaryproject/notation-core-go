@@ -52,10 +52,13 @@ const (
 )
 
 // CertCheckStatus checks the revocation status of a certificate using OCSP
-func CertCheckStatus(cert, issuer *x509.Certificate, opts CertCheckStatusOptions) (*result.CertRevocationResult, error) {
+func CertCheckStatus(cert, issuer *x509.Certificate, opts CertCheckStatusOptions) *result.CertRevocationResult {
 	if !Supported(cert) {
 		// OCSP not enabled for this certificate.
-		return nil, &NoServerError{}
+		return &result.CertRevocationResult{
+			Result:        result.ResultNonRevokable,
+			ServerResults: []*result.ServerResult{toServerResult("", NoServerError{})},
+		}
 	}
 	ocspURLs := cert.OCSPServer
 
@@ -68,11 +71,11 @@ func CertCheckStatus(cert, issuer *x509.Certificate, opts CertCheckStatusOptions
 			// A valid response has been received from an OCSP server
 			// Result should be based on only this response, not any errors from
 			// other servers
-			return serverResultsToCertRevocationResult([]*result.ServerResult{serverResult}), nil
+			return serverResultsToCertRevocationResult([]*result.ServerResult{serverResult})
 		}
 		serverResults[serverIndex] = serverResult
 	}
-	return serverResultsToCertRevocationResult(serverResults), nil
+	return serverResultsToCertRevocationResult(serverResults)
 }
 
 // Supported returns true if the certificate supports OCSP.

@@ -198,10 +198,10 @@ func (r *revocation) ValidateContext(ctx context.Context, validateContextOpts Va
 				}()
 
 				// skip the error as it will never happen
-				ocspResult, _ := ocsp.CertCheckStatus(cert, certChain[i+1], ocspOpts)
+				ocspResult := ocsp.CertCheckStatus(cert, certChain[i+1], ocspOpts)
 				if ocspResult != nil && ocspResult.Result == result.ResultUnknown && crl.Supported(cert) {
 					// try CRL check if OCSP result is unknown
-					result, _ := crl.CertCheckStatus(ctx, cert, certChain[i+1], crlOpts)
+					result := crl.CertCheckStatus(ctx, cert, certChain[i+1], crlOpts)
 
 					// insert OCSP result into final result
 					result.ServerResults = ocspResult.ServerResults
@@ -225,7 +225,7 @@ func (r *revocation) ValidateContext(ctx context.Context, validateContextOpts Va
 				}()
 
 				// skip the error as it will never happen
-				certResults[i], _ = crl.CertCheckStatus(ctx, cert, certChain[i+1], crlOpts)
+				certResults[i] = crl.CertCheckStatus(ctx, cert, certChain[i+1], crlOpts)
 			}(i, cert)
 		default:
 			certResults[i] = &result.CertRevocationResult{
