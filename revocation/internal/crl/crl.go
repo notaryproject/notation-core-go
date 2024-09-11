@@ -140,7 +140,7 @@ func Supported(cert *x509.Certificate) bool {
 func validate(crl *x509.RevocationList, issuer *x509.Certificate) error {
 	// check signature
 	if err := crl.CheckSignatureFrom(issuer); err != nil {
-		return fmt.Errorf("failed to verify CRL signature: %w", err)
+		return fmt.Errorf("CRL is not signed by CA %s: %w,", issuer.Subject, err)
 	}
 
 	// check validity
@@ -273,17 +273,17 @@ func download(ctx context.Context, crlURL string, client *http.Client) (*x509.Re
 		return nil, fmt.Errorf("invalid CRL URL: %w", err)
 	}
 	if parsedURL.Scheme != "http" {
-		return nil, fmt.Errorf("unsupported scheme: %s. Only supports CRL URL in HTTP protocol", parsedURL.Scheme)
+		return nil, fmt.Errorf("unsupported CRL endpoint: %s. Only urls with HTTP scheme is supported", crlURL)
 	}
 
 	// download CRL
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, crlURL, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create CRL request: %w", err)
+		return nil, fmt.Errorf("failed to create CRL request %q: %w", crlURL, err)
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("request failed: %w", err)
+		return nil, fmt.Errorf("request failed for %q: %w", crlURL, err)
 	}
 	defer resp.Body.Close()
 
@@ -296,7 +296,7 @@ func download(ctx context.Context, crlURL string, client *http.Client) (*x509.Re
 	limitedReader := io.LimitReader(resp.Body, maxCRLSize)
 	data, err := io.ReadAll(limitedReader)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read CRL response: %w", err)
+		return nil, fmt.Errorf("failed to read CRL response from %q: %w", resp.Request.URL, err)
 	}
 	if len(data) == maxCRLSize {
 		return nil, fmt.Errorf("%s %q: CRL size reached the %d MiB size limit", resp.Request.Method, resp.Request.URL, maxCRLSize/1024/1024)

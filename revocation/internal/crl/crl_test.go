@@ -746,6 +746,10 @@ func (rt readFailedRoundTripperMock) RoundTrip(req *http.Request) (*http.Respons
 	return &http.Response{
 		StatusCode: http.StatusOK,
 		Body:       errorReaderMock{},
+		Request: &http.Request{
+			Method: http.MethodGet,
+			URL:    req.URL,
+		},
 	}, nil
 }
 
