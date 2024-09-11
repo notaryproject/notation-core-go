@@ -199,7 +199,7 @@ func checkRevocation(cert *x509.Certificate, baseCRL *x509.RevocationList, signi
 				signingTime.Before(extensions.invalidityDate) {
 				// signing time is before the invalidity date which means the
 				// certificate is not revoked at the time of signing.
-				continue
+				break
 			}
 
 			switch revocationEntry.ReasonCode {
