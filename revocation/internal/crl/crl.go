@@ -44,7 +44,9 @@ var (
 )
 
 // maxCRLSize is the maximum size of CRL in bytes
-const maxCRLSize = 64 * 1024 * 1024 // 64 MiB
+//
+// CRL examples: https://chasersystems.com/blog/an-analysis-of-certificate-revocation-list-sizes/
+const maxCRLSize = 32 * 1024 * 1024 // 32 MiB
 
 // CertCheckStatusOptions specifies values that are needed to check CRL
 type CertCheckStatusOptions struct {
