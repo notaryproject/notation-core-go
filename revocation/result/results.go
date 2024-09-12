@@ -60,6 +60,29 @@ func (r Result) String() string {
 	}
 }
 
+// RevocationMethod is the method used to check the revocation status of
+// a certificate
+type RevocationMethod int
+
+const (
+	// RevocationMethodUnknown is used for root certificates or when the method
+	// used to check the revocation status of a certificate is unknown.
+	RevocationMethodUnknown RevocationMethod = iota
+
+	// RevocationMethodOCSP represents OCSP as the method used to check the
+	// revocation status of a certificate
+	RevocationMethodOCSP
+
+	// RevocationMethodOCSPFallbackCRL represents OCSP check with unknown error
+	// fallback to CRL as the method used to check the revocation status of a
+	// certificate
+	RevocationMethodOCSPFallbackCRL
+
+	// RevocationMethodCRL represents CRL as the method used to check the
+	// revocation status of a certificate
+	RevocationMethodCRL
+)
+
 // ServerResult encapsulates the OCSP result for a single server for a single
 // certificate in the chain
 type ServerResult struct {
@@ -75,6 +98,18 @@ type ServerResult struct {
 	// Error is set if there is an error associated with the revocation check
 	// to this server
 	Error error
+
+	// RevocationMethod is the method used to check the revocation status of the
+	// certificate
+	RevocationMethod RevocationMethod
+
+	// RevocationTime is the time at which the certificate was revoked
+	RevocationTime time.Time
+
+	// ReasonCode is the reason code for the CRL status
+	//
+	// The reason code is only set if the certificate was revoked
+	ReasonCode CRLReasonCode
 }
 
 // NewServerResult creates a ServerResult object from its individual parts: a
@@ -131,26 +166,6 @@ func (r CRLReasonCode) String() string {
 	}
 }
 
-// CRLResult encapsulates the result of a CRL check
-type CRLResult struct {
-	// Result of revocation for this URI
-	Result Result
-
-	// ReasonCode is the reason code for the CRL status
-	//
-	// The reason code is only set if the certificate was revoked
-	ReasonCode CRLReasonCode
-
-	// RevocationTime is the time at which the certificate was revoked
-	RevocationTime time.Time
-
-	// URI is the URI to download the CRL
-	URI string
-
-	// Error is set if there is an error associated with the revocation check
-	Error error
-}
-
 // CertRevocationResult encapsulates the result for a single certificate in the
 // chain as well as the results from individual servers associated with this
 // certificate
@@ -172,13 +187,4 @@ type CertRevocationResult struct {
 	// Otherwise, every server specified had some error that prevented the
 	// status from being retrieved. These are all contained here for evaluation
 	ServerResults []*ServerResult
-
-	// CRLResults is the result of the CRL check for this certificate. Each
-	// element in the array corresponds to a different CRL distribution point
-	// for the certificate.
-	//
-	// If the length is 0, the CRL is not checked for this certificate.
-	// The length will be at most the number of CRLDistributionPoints for the
-	// certificate, which means all CRLs were checked.
-	CRLResults []*CRLResult
 }

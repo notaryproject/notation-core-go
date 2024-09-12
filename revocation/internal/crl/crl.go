@@ -71,8 +71,9 @@ func CertCheckStatus(ctx context.Context, cert, issuer *x509.Certificate, opts C
 		// CRL not enabled for this certificate.
 		return &result.CertRevocationResult{
 			Result: result.ResultNonRevokable,
-			CRLResults: []*result.CRLResult{{
-				Result: result.ResultNonRevokable,
+			ServerResults: []*result.ServerResult{{
+				RevocationMethod: result.RevocationMethodCRL,
+				Result:           result.ResultNonRevokable,
 			}},
 		}
 	}
@@ -85,7 +86,7 @@ func CertCheckStatus(ctx context.Context, cert, issuer *x509.Certificate, opts C
 	// point with one CRL URI, which will be cached, so checking all the URIs is
 	// not a performance issue.
 	var (
-		crlResults []*result.CRLResult
+		crlResults []*result.ServerResult
 		lastErr    error
 		crlURL     string
 	)
@@ -110,8 +111,8 @@ func CertCheckStatus(ctx context.Context, cert, issuer *x509.Certificate, opts C
 
 		if crlResult.Result == result.ResultRevoked {
 			return &result.CertRevocationResult{
-				Result:     result.ResultRevoked,
-				CRLResults: crlResults,
+				Result:        result.ResultRevoked,
+				ServerResults: crlResults,
 			}
 		}
 	}
@@ -119,18 +120,19 @@ func CertCheckStatus(ctx context.Context, cert, issuer *x509.Certificate, opts C
 	if lastErr != nil {
 		return &result.CertRevocationResult{
 			Result: result.ResultUnknown,
-			CRLResults: []*result.CRLResult{
+			ServerResults: []*result.ServerResult{
 				{
-					Result: result.ResultUnknown,
-					URI:    crlURL,
-					Error:  lastErr,
+					Result:           result.ResultUnknown,
+					Server:           crlURL,
+					Error:            lastErr,
+					RevocationMethod: result.RevocationMethodCRL,
 				}},
 		}
 	}
 
 	return &result.CertRevocationResult{
-		Result:     result.ResultOK,
-		CRLResults: crlResults,
+		Result:        result.ResultOK,
+		ServerResults: crlResults,
 	}
 }
 
@@ -171,7 +173,7 @@ func validate(crl *x509.RevocationList, issuer *x509.Certificate) error {
 }
 
 // checkRevocation checks if the certificate is revoked or not
-func checkRevocation(cert *x509.Certificate, baseCRL *x509.RevocationList, signingTime time.Time, crlURL string) (*result.CRLResult, error) {
+func checkRevocation(cert *x509.Certificate, baseCRL *x509.RevocationList, signingTime time.Time, crlURL string) (*result.ServerResult, error) {
 	if cert == nil {
 		return nil, errors.New("certificate cannot be nil")
 	}
@@ -196,18 +198,20 @@ func checkRevocation(cert *x509.Certificate, baseCRL *x509.RevocationList, signi
 			}
 
 			// revoked
-			return &result.CRLResult{
-				Result:         result.ResultRevoked,
-				ReasonCode:     result.CRLReasonCode(revocationEntry.ReasonCode),
-				RevocationTime: revocationEntry.RevocationTime,
-				URI:            crlURL,
+			return &result.ServerResult{
+				Result:           result.ResultRevoked,
+				ReasonCode:       result.CRLReasonCode(revocationEntry.ReasonCode),
+				RevocationTime:   revocationEntry.RevocationTime,
+				Server:           crlURL,
+				RevocationMethod: result.RevocationMethodCRL,
 			}, nil
 		}
 	}
 
-	return &result.CRLResult{
-		Result: result.ResultOK,
-		URI:    crlURL,
+	return &result.ServerResult{
+		Result:           result.ResultOK,
+		Server:           crlURL,
+		RevocationMethod: result.RevocationMethodCRL,
 	}, nil
 }
 

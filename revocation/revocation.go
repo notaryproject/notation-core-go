@@ -229,10 +229,8 @@ func (r *revocation) ValidateContext(ctx context.Context, validateContextOpts Va
 			certResults[i] = &result.CertRevocationResult{
 				Result: result.ResultNonRevokable,
 				ServerResults: []*result.ServerResult{{
-					Result: result.ResultNonRevokable,
-				}},
-				CRLResults: []*result.CRLResult{{
-					Result: result.ResultNonRevokable,
+					Result:           result.ResultNonRevokable,
+					RevocationMethod: result.RevocationMethodUnknown,
 				}},
 			}
 		}
@@ -242,10 +240,8 @@ func (r *revocation) ValidateContext(ctx context.Context, validateContextOpts Va
 	certResults[len(certChain)-1] = &result.CertRevocationResult{
 		Result: result.ResultNonRevokable,
 		ServerResults: []*result.ServerResult{{
-			Result: result.ResultNonRevokable,
-		}},
-		CRLResults: []*result.CRLResult{{
-			Result: result.ResultNonRevokable,
+			Result:           result.ResultNonRevokable,
+			RevocationMethod: result.RevocationMethodUnknown,
 		}},
 	}
 	wg.Wait()

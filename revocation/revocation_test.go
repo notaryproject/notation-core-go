@@ -23,7 +23,6 @@ import (
 	"io"
 	"math/big"
 	"net/http"
-	"reflect"
 	"strconv"
 	"strings"
 	"testing"
@@ -67,23 +66,6 @@ func validateEquivalentCertResults(certResults, expectedCertResults []*result.Ce
 				t.Errorf("Expected certResults[%d].ServerResults[%d].Error to be %v, but got %v", i, j, expectedCertResults[i].ServerResults[j].Error, serverResult.Error)
 			}
 		}
-
-		if len(certResult.CRLResults) != len(expectedCertResults[i].CRLResults) {
-			t.Errorf("Length of certResults[%d].CRLResults (%d) did not match expected length (%d)", i, len(certResult.CRLResults), len(expectedCertResults[i].CRLResults))
-		}
-
-		for j, crlResult := range certResult.CRLResults {
-			if crlResult.ReasonCode != expectedCertResults[i].CRLResults[j].ReasonCode {
-				t.Errorf("Expected certResults[%d].CRLResults[%d].ReasonCode to be %s, but got %s", i, j, expectedCertResults[i].CRLResults[j].ReasonCode, crlResult.ReasonCode)
-			}
-
-			resultErrorType := reflect.TypeOf(crlResult.Error)
-			expectedErrorType := reflect.TypeOf(expectedCertResults[i].CRLResults[j].Error)
-			if resultErrorType != expectedErrorType {
-				t.Errorf("Expected certResults[%d].CRLResults[%d].Error to be of type %v, but got %v", i, j, expectedErrorType, resultErrorType)
-			}
-
-		}
 	}
 }
 
@@ -99,9 +81,6 @@ func getOKCertResult(server string) *result.CertRevocationResult {
 func getRootCertResult() *result.CertRevocationResult {
 	return &result.CertRevocationResult{
 		Result: result.ResultNonRevokable,
-		CRLResults: []*result.CRLResult{
-			{Result: result.ResultNonRevokable},
-		},
 		ServerResults: []*result.ServerResult{
 			result.NewServerResult(result.ResultNonRevokable, "", nil),
 		},
@@ -850,11 +829,6 @@ func TestCheckRevocationErrors(t *testing.T) {
 		expectedCertResults := []*result.CertRevocationResult{
 			{
 				Result: result.ResultNonRevokable,
-				CRLResults: []*result.CRLResult{
-					{
-						Result: result.ResultNonRevokable,
-					},
-				},
 				ServerResults: []*result.ServerResult{
 					result.NewServerResult(result.ResultNonRevokable, "", nil),
 				},
@@ -1062,12 +1036,18 @@ func TestCRL(t *testing.T) {
 
 		expectedCertResults := []*result.CertRevocationResult{
 			{
-				Result:     result.ResultOK,
-				CRLResults: []*result.CRLResult{{URI: "http://example.com/chain_crl/0"}},
+				Result: result.ResultOK,
+				ServerResults: []*result.ServerResult{{
+					Result: result.ResultOK,
+					Server: "http://example.com/chain_crl/0",
+				}},
 			},
 			{
-				Result:     result.ResultOK,
-				CRLResults: []*result.CRLResult{{URI: "http://example.com/chain_crl/1"}},
+				Result: result.ResultOK,
+				ServerResults: []*result.ServerResult{{
+					Result: result.ResultOK,
+					Server: "http://example.com/chain_crl/1",
+				}},
 			},
 			getRootCertResult(),
 		}
@@ -1108,17 +1088,21 @@ func TestCRL(t *testing.T) {
 		expectedCertResults := []*result.CertRevocationResult{
 			{
 				Result: result.ResultRevoked,
-				CRLResults: []*result.CRLResult{
+				ServerResults: []*result.ServerResult{
 					{
+						Result:     result.ResultRevoked,
 						ReasonCode: result.CRLReasonCodeKeyCompromise,
+						Server:     "http://example.com/chain_crl/0",
 					},
 				},
 			},
 			{
 				Result: result.ResultRevoked,
-				CRLResults: []*result.CRLResult{
+				ServerResults: []*result.ServerResult{
 					{
+						Result:     result.ResultRevoked,
 						ReasonCode: result.CRLReasonCodeKeyCompromise,
+						Server:     "http://example.com/chain_crl/1",
 					},
 				},
 			},
@@ -1164,14 +1148,11 @@ func TestCRL(t *testing.T) {
 				Result: result.ResultRevoked,
 				ServerResults: []*result.ServerResult{
 					{
-						Result: result.ResultUnknown,
-						Server: "http://example.com/chain_ocsp/0",
-						Error:  errors.New("failed to retrieve OCSP: response had status code 500"),
-					},
-				},
-				CRLResults: []*result.CRLResult{
-					{
-						ReasonCode: result.CRLReasonCodeKeyCompromise,
+						Result:           result.ResultUnknown,
+						Server:           "http://example.com/chain_ocsp/0",
+						Error:            errors.New("failed to retrieve OCSP: response had status code 500"),
+						RevocationMethod: result.RevocationMethodOCSPFallbackCRL,
+						ReasonCode:       result.CRLReasonCodeKeyCompromise,
 					},
 				},
 			},
@@ -1179,14 +1160,11 @@ func TestCRL(t *testing.T) {
 				Result: result.ResultRevoked,
 				ServerResults: []*result.ServerResult{
 					{
-						Result: result.ResultUnknown,
-						Server: "http://example.com/chain_ocsp/1",
-						Error:  errors.New("failed to retrieve OCSP: response had status code 500"),
-					},
-				},
-				CRLResults: []*result.CRLResult{
-					{
-						ReasonCode: result.CRLReasonCodeKeyCompromise,
+						Result:           result.ResultUnknown,
+						Server:           "http://example.com/chain_ocsp/1",
+						Error:            errors.New("failed to retrieve OCSP: response had status code 500"),
+						RevocationMethod: result.RevocationMethodOCSPFallbackCRL,
+						ReasonCode:       result.CRLReasonCodeKeyCompromise,
 					},
 				},
 			},

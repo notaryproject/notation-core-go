@@ -50,7 +50,7 @@ func TestCertCheckStatus(t *testing.T) {
 				Transport: errorRoundTripperMock{},
 			},
 		})
-		if r.CRLResults[0].Error == nil {
+		if r.ServerResults[0].Error == nil {
 			t.Fatal("expected error")
 		}
 	})
@@ -64,7 +64,7 @@ func TestCertCheckStatus(t *testing.T) {
 				Transport: expiredCRLRoundTripperMock{},
 			},
 		})
-		if r.CRLResults[0].Error == nil {
+		if r.ServerResults[0].Error == nil {
 			t.Fatal("expected error")
 		}
 	})
@@ -127,7 +127,7 @@ func TestCertCheckStatus(t *testing.T) {
 				Transport: expectedRoundTripperMock{Body: crlBytes},
 			},
 		})
-		if r.CRLResults[0].Error == nil {
+		if r.ServerResults[0].Error == nil {
 			t.Fatal("expected error")
 		}
 	})
@@ -171,7 +171,7 @@ func TestCertCheckStatus(t *testing.T) {
 				Transport: expectedRoundTripperMock{Body: crlBytes},
 			},
 		})
-		if !errors.Is(r.CRLResults[0].Error, ErrDeltaCRLNotSupported) {
+		if !errors.Is(r.ServerResults[0].Error, ErrDeltaCRLNotSupported) {
 			t.Fatal("expected ErrDeltaCRLNotChecked")
 		}
 	})
