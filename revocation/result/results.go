@@ -73,7 +73,7 @@ type ServerResult struct {
 	Error error
 
 	// RevocationMethod is the method used to check the revocation status of the
-	// certificate, including Unknonw(0), MethodOCSP(1), MethodCRL(2)
+	// certificate, including Unknown(0), MethodOCSP(1), MethodCRL(2)
 	RevocationMethod int
 }
 
@@ -91,11 +91,7 @@ func NewServerResult(result Result, server string, err error) *ServerResult {
 // chain as well as the results from individual servers associated with this
 // certificate
 type CertRevocationResult struct {
-	// Result of revocation for a specific cert in the chain
-	//
-	// If there are multiple ServerResults, this is because no responses were
-	// able to be retrieved, leaving each ServerResult with a Result of Unknown.
-	// Thus, in the case of more than one ServerResult, this will be ResultUnknown
+	// Result of revocation for a specific certificate in the chain.
 	Result Result
 
 	// ServerResults is an array of results for each server associated with the
@@ -119,7 +115,7 @@ type CertRevocationResult struct {
 	ServerResults []*ServerResult
 
 	// RevocationMethod is the method used to check the revocation status of the
-	// certificate, including Unknonw(0), MethodOCSP(1), MethodCRL(2) and
+	// certificate, including Unknown(0), MethodOCSP(1), MethodCRL(2) and
 	// OCSPFallbackCRL(3)
 	RevocationMethod int
 }
