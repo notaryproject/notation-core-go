@@ -103,20 +103,19 @@ type CertRevocationResult struct {
 	//
 	// When RevocationMethod is MethodOCSP, the length will be
 	// either 1 or the number of OCSPServers for the certificate.
-	// If the length is 1, then a valid status was able to be retrieved. Only
+	// If the length is 1, then a valid status was retrieved. Only
 	// this server result is contained. Any errors for other servers are
 	// discarded in favor of this valid response.
 	// Otherwise, every server specified had some error that prevented the
-	// status from being retrieved. These are all contained here for evaluation
+	// status from being retrieved. These are all contained here for evaluation.
 	//
-	// When RevocationMethod is MethodCRL, due to CRL will check
-	// all the CRL distribution points' URIs, the length will be the number of
-	// URIs when all the URIs are checked. If the result is Revoked, or with an
-	// error, the length will be 1.
+	// When RevocationMethod is MethodCRL, the length will be the number of
+	// CRL distribution points' URIs checked. If the result is Revoked, or
+	// there is an error, the length will be 1.
 	//
 	// When RevocationMethod is MethodOCSPFallbackCRL, the length
-	// will be the sum of previous two cases. The CRL result will be appended
-	// after the OCSP results.
+	// will be the sum of the previous two cases. The CRL result will be
+	// appended after the OCSP results.
 	ServerResults []*ServerResult
 
 	// RevocationMethod is the method used to check the revocation status of the
