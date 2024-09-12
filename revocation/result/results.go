@@ -14,9 +14,7 @@
 // Package result provides general objects that are used across revocation
 package result
 
-import (
-	"strconv"
-)
+import "strconv"
 
 // Result is a type of enumerated value to help characterize revocation result.
 // It can be OK, Unknown, NonRevokable, or Revoked
@@ -58,29 +56,6 @@ func (r Result) String() string {
 	}
 }
 
-// RevocationMethod is the method used to check the revocation status of
-// a certificate
-type RevocationMethod int
-
-const (
-	// RevocationMethodUnknown is used for root certificates or when the method
-	// used to check the revocation status of a certificate is unknown.
-	RevocationMethodUnknown RevocationMethod = iota
-
-	// RevocationMethodOCSP represents OCSP as the method used to check the
-	// revocation status of a certificate
-	RevocationMethodOCSP
-
-	// RevocationMethodOCSPFallbackCRL represents OCSP check with unknown error
-	// fallback to CRL as the method used to check the revocation status of a
-	// certificate
-	RevocationMethodOCSPFallbackCRL
-
-	// RevocationMethodCRL represents CRL as the method used to check the
-	// revocation status of a certificate
-	RevocationMethodCRL
-)
-
 // ServerResult encapsulates the OCSP result for a single server or the CRL
 // result for a single CRL URI for a certificate in the chain
 type ServerResult struct {
@@ -98,7 +73,7 @@ type ServerResult struct {
 	Error error
 
 	// RevocationMethod is the method used to check the revocation status of the
-	// certificate
+	// certificate, including Unknonw(0), MethodOCSP(1), MethodCRL(2)
 	RevocationMethod int
 }
 
@@ -145,6 +120,7 @@ type CertRevocationResult struct {
 	ServerResults []*ServerResult
 
 	// RevocationMethod is the method used to check the revocation status of the
-	// certificate
+	// certificate, including Unknonw(0), MethodOCSP(1), MethodCRL(2) and
+	// OCSPFallbackCRL(3)
 	RevocationMethod int
 }
