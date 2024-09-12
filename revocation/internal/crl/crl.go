@@ -29,6 +29,9 @@ import (
 	"github.com/notaryproject/notation-core-go/revocation/result"
 )
 
+// RevocationMethodCRL represents the CRL revocation method
+const RevocationMethodCRL = 2
+
 var (
 	// oidFreshestCRL is the object identifier for the distribution point
 	// for the delta CRL. (See RFC 5280, Section 5.2.6)
@@ -72,9 +75,10 @@ func CertCheckStatus(ctx context.Context, cert, issuer *x509.Certificate, opts C
 		return &result.CertRevocationResult{
 			Result: result.ResultNonRevokable,
 			ServerResults: []*result.ServerResult{{
-				RevocationMethod: result.RevocationMethodCRL,
+				RevocationMethod: RevocationMethodCRL,
 				Result:           result.ResultNonRevokable,
 			}},
+			RevocationMethod: RevocationMethodCRL,
 		}
 	}
 
@@ -86,9 +90,9 @@ func CertCheckStatus(ctx context.Context, cert, issuer *x509.Certificate, opts C
 	// point with one CRL URI, which will be cached, so checking all the URIs is
 	// not a performance issue.
 	var (
-		crlResults []*result.ServerResult
-		lastErr    error
-		crlURL     string
+		results []*result.ServerResult
+		lastErr error
+		crlURL  string
 	)
 	for _, crlURL = range cert.CRLDistributionPoints {
 		baseCRL, err := download(ctx, crlURL, opts.HTTPClient)
@@ -107,14 +111,15 @@ func CertCheckStatus(ctx context.Context, cert, issuer *x509.Certificate, opts C
 			lastErr = fmt.Errorf("failed to check revocation status from %s: %w", crlURL, err)
 			break
 		}
-		crlResults = append(crlResults, crlResult)
-
 		if crlResult.Result == result.ResultRevoked {
 			return &result.CertRevocationResult{
-				Result:        result.ResultRevoked,
-				ServerResults: crlResults,
+				Result:           result.ResultRevoked,
+				ServerResults:    []*result.ServerResult{crlResult},
+				RevocationMethod: RevocationMethodCRL,
 			}
 		}
+
+		results = append(results, crlResult)
 	}
 
 	if lastErr != nil {
@@ -125,14 +130,16 @@ func CertCheckStatus(ctx context.Context, cert, issuer *x509.Certificate, opts C
 					Result:           result.ResultUnknown,
 					Server:           crlURL,
 					Error:            lastErr,
-					RevocationMethod: result.RevocationMethodCRL,
+					RevocationMethod: RevocationMethodCRL,
 				}},
+			RevocationMethod: RevocationMethodCRL,
 		}
 	}
 
 	return &result.CertRevocationResult{
-		Result:        result.ResultOK,
-		ServerResults: crlResults,
+		Result:           result.ResultOK,
+		ServerResults:    results,
+		RevocationMethod: RevocationMethodCRL,
 	}
 }
 
@@ -200,10 +207,8 @@ func checkRevocation(cert *x509.Certificate, baseCRL *x509.RevocationList, signi
 			// revoked
 			return &result.ServerResult{
 				Result:           result.ResultRevoked,
-				ReasonCode:       result.CRLReasonCode(revocationEntry.ReasonCode),
-				RevocationTime:   revocationEntry.RevocationTime,
 				Server:           crlURL,
-				RevocationMethod: result.RevocationMethodCRL,
+				RevocationMethod: RevocationMethodCRL,
 			}, nil
 		}
 	}
@@ -211,7 +216,7 @@ func checkRevocation(cert *x509.Certificate, baseCRL *x509.RevocationList, signi
 	return &result.ServerResult{
 		Result:           result.ResultOK,
 		Server:           crlURL,
-		RevocationMethod: result.RevocationMethodCRL,
+		RevocationMethod: RevocationMethodCRL,
 	}, nil
 }
 

@@ -201,9 +201,9 @@ func (r *revocation) ValidateContext(ctx context.Context, validateContextOpts Va
 				if ocspResult != nil && ocspResult.Result == result.ResultUnknown && crl.Supported(cert) {
 					// try CRL check if OCSP result is unknown
 					result := crl.CertCheckStatus(ctx, cert, certChain[i+1], crlOpts)
-
-					// insert OCSP result into final result
-					result.ServerResults = ocspResult.ServerResults
+					// append CRL result to OCSP result
+					result.ServerResults = append(ocspResult.ServerResults, result.ServerResults...)
+					result.RevocationMethod = MethodOCSPFallbackCRL
 					certResults[i] = result
 				} else {
 					certResults[i] = ocspResult
@@ -229,8 +229,7 @@ func (r *revocation) ValidateContext(ctx context.Context, validateContextOpts Va
 			certResults[i] = &result.CertRevocationResult{
 				Result: result.ResultNonRevokable,
 				ServerResults: []*result.ServerResult{{
-					Result:           result.ResultNonRevokable,
-					RevocationMethod: result.RevocationMethodUnknown,
+					Result: result.ResultNonRevokable,
 				}},
 			}
 		}
@@ -240,8 +239,7 @@ func (r *revocation) ValidateContext(ctx context.Context, validateContextOpts Va
 	certResults[len(certChain)-1] = &result.CertRevocationResult{
 		Result: result.ResultNonRevokable,
 		ServerResults: []*result.ServerResult{{
-			Result:           result.ResultNonRevokable,
-			RevocationMethod: result.RevocationMethodUnknown,
+			Result: result.ResultNonRevokable,
 		}},
 	}
 	wg.Wait()

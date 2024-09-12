@@ -66,6 +66,9 @@ func validateEquivalentCertResults(certResults, expectedCertResults []*result.Ce
 				t.Errorf("Expected certResults[%d].ServerResults[%d].Error to be %v, but got %v", i, j, expectedCertResults[i].ServerResults[j].Error, serverResult.Error)
 			}
 		}
+		if certResult.RevocationMethod != expectedCertResults[i].RevocationMethod {
+			t.Errorf("Expected certResults[%d].RevocationMethod to be %d, but got %d", i, expectedCertResults[i].RevocationMethod, certResult.RevocationMethod)
+		}
 	}
 }
 
@@ -75,6 +78,7 @@ func getOKCertResult(server string) *result.CertRevocationResult {
 		ServerResults: []*result.ServerResult{
 			result.NewServerResult(result.ResultOK, server, nil),
 		},
+		RevocationMethod: MethodOCSP,
 	}
 }
 
@@ -167,6 +171,7 @@ func TestCheckRevocationStatusForSingleCert(t *testing.T) {
 				ServerResults: []*result.ServerResult{
 					result.NewServerResult(result.ResultUnknown, revokableChain[0].OCSPServer[0], revocationocsp.UnknownStatusError{}),
 				},
+				RevocationMethod: MethodOCSP,
 			},
 			getRootCertResult(),
 		}
@@ -189,6 +194,7 @@ func TestCheckRevocationStatusForSingleCert(t *testing.T) {
 				ServerResults: []*result.ServerResult{
 					result.NewServerResult(result.ResultRevoked, revokableChain[0].OCSPServer[0], revocationocsp.RevokedError{}),
 				},
+				RevocationMethod: MethodOCSP,
 			},
 			getRootCertResult(),
 		}
@@ -311,6 +317,7 @@ func TestCheckRevocationStatusForChain(t *testing.T) {
 				ServerResults: []*result.ServerResult{
 					result.NewServerResult(result.ResultUnknown, revokableChain[2].OCSPServer[0], revocationocsp.UnknownStatusError{}),
 				},
+				RevocationMethod: MethodOCSP,
 			},
 			getOKCertResult(revokableChain[3].OCSPServer[0]),
 			getOKCertResult(revokableChain[4].OCSPServer[0]),
@@ -338,6 +345,7 @@ func TestCheckRevocationStatusForChain(t *testing.T) {
 				ServerResults: []*result.ServerResult{
 					result.NewServerResult(result.ResultRevoked, revokableChain[2].OCSPServer[0], revocationocsp.RevokedError{}),
 				},
+				RevocationMethod: MethodOCSP,
 			},
 			getOKCertResult(revokableChain[3].OCSPServer[0]),
 			getOKCertResult(revokableChain[4].OCSPServer[0]),
@@ -365,6 +373,7 @@ func TestCheckRevocationStatusForChain(t *testing.T) {
 				ServerResults: []*result.ServerResult{
 					result.NewServerResult(result.ResultUnknown, revokableChain[2].OCSPServer[0], revocationocsp.UnknownStatusError{}),
 				},
+				RevocationMethod: MethodOCSP,
 			},
 			getOKCertResult(revokableChain[3].OCSPServer[0]),
 			{
@@ -372,6 +381,7 @@ func TestCheckRevocationStatusForChain(t *testing.T) {
 				ServerResults: []*result.ServerResult{
 					result.NewServerResult(result.ResultRevoked, revokableChain[4].OCSPServer[0], revocationocsp.RevokedError{}),
 				},
+				RevocationMethod: MethodOCSP,
 			},
 			getRootCertResult(),
 		}
@@ -421,6 +431,7 @@ func TestCheckRevocationStatusForChain(t *testing.T) {
 				ServerResults: []*result.ServerResult{
 					result.NewServerResult(result.ResultUnknown, revokableChain[2].OCSPServer[0], revocationocsp.UnknownStatusError{}),
 				},
+				RevocationMethod: MethodOCSP,
 			},
 			getOKCertResult(revokableChain[3].OCSPServer[0]),
 			getOKCertResult(revokableChain[4].OCSPServer[0]),
@@ -448,6 +459,7 @@ func TestCheckRevocationStatusForChain(t *testing.T) {
 				ServerResults: []*result.ServerResult{
 					result.NewServerResult(result.ResultRevoked, revokableChain[2].OCSPServer[0], revocationocsp.RevokedError{}),
 				},
+				RevocationMethod: MethodOCSP,
 			},
 			getOKCertResult(revokableChain[3].OCSPServer[0]),
 			getOKCertResult(revokableChain[4].OCSPServer[0]),
@@ -481,6 +493,7 @@ func TestCheckRevocationStatusForChain(t *testing.T) {
 				ServerResults: []*result.ServerResult{
 					result.NewServerResult(result.ResultRevoked, revokableChain[2].OCSPServer[0], revocationocsp.RevokedError{}),
 				},
+				RevocationMethod: MethodOCSP,
 			},
 			getOKCertResult(revokableChain[3].OCSPServer[0]),
 			getOKCertResult(revokableChain[4].OCSPServer[0]),
@@ -582,6 +595,7 @@ func TestCheckRevocationStatusForTimestampChain(t *testing.T) {
 				ServerResults: []*result.ServerResult{
 					result.NewServerResult(result.ResultUnknown, revokableChain[2].OCSPServer[0], revocationocsp.UnknownStatusError{}),
 				},
+				RevocationMethod: MethodOCSP,
 			},
 			getOKCertResult(revokableChain[3].OCSPServer[0]),
 			getOKCertResult(revokableChain[4].OCSPServer[0]),
@@ -614,6 +628,7 @@ func TestCheckRevocationStatusForTimestampChain(t *testing.T) {
 				ServerResults: []*result.ServerResult{
 					result.NewServerResult(result.ResultRevoked, revokableChain[2].OCSPServer[0], revocationocsp.RevokedError{}),
 				},
+				RevocationMethod: MethodOCSP,
 			},
 			getOKCertResult(revokableChain[3].OCSPServer[0]),
 			getOKCertResult(revokableChain[4].OCSPServer[0]),
@@ -646,6 +661,7 @@ func TestCheckRevocationStatusForTimestampChain(t *testing.T) {
 				ServerResults: []*result.ServerResult{
 					result.NewServerResult(result.ResultUnknown, revokableChain[2].OCSPServer[0], revocationocsp.UnknownStatusError{}),
 				},
+				RevocationMethod: MethodOCSP,
 			},
 			getOKCertResult(revokableChain[3].OCSPServer[0]),
 			{
@@ -653,6 +669,7 @@ func TestCheckRevocationStatusForTimestampChain(t *testing.T) {
 				ServerResults: []*result.ServerResult{
 					result.NewServerResult(result.ResultRevoked, revokableChain[4].OCSPServer[0], revocationocsp.RevokedError{}),
 				},
+				RevocationMethod: MethodOCSP,
 			},
 			getRootCertResult(),
 		}
@@ -712,6 +729,7 @@ func TestCheckRevocationStatusForTimestampChain(t *testing.T) {
 				ServerResults: []*result.ServerResult{
 					result.NewServerResult(result.ResultUnknown, revokableChain[2].OCSPServer[0], revocationocsp.UnknownStatusError{}),
 				},
+				RevocationMethod: MethodOCSP,
 			},
 			getOKCertResult(revokableChain[3].OCSPServer[0]),
 			getOKCertResult(revokableChain[4].OCSPServer[0]),
@@ -744,6 +762,7 @@ func TestCheckRevocationStatusForTimestampChain(t *testing.T) {
 				ServerResults: []*result.ServerResult{
 					result.NewServerResult(result.ResultRevoked, revokableChain[2].OCSPServer[0], revocationocsp.RevokedError{}),
 				},
+				RevocationMethod: MethodOCSP,
 			},
 			getOKCertResult(revokableChain[3].OCSPServer[0]),
 			getOKCertResult(revokableChain[4].OCSPServer[0]),
@@ -780,6 +799,7 @@ func TestCheckRevocationStatusForTimestampChain(t *testing.T) {
 				ServerResults: []*result.ServerResult{
 					result.NewServerResult(result.ResultRevoked, revokableChain[2].OCSPServer[0], revocationocsp.RevokedError{}),
 				},
+				RevocationMethod: MethodOCSP,
 			},
 			getOKCertResult(revokableChain[3].OCSPServer[0]),
 			getOKCertResult(revokableChain[4].OCSPServer[0]),
@@ -874,12 +894,14 @@ func TestCheckRevocationErrors(t *testing.T) {
 				ServerResults: []*result.ServerResult{
 					result.NewServerResult(result.ResultUnknown, okChain[0].OCSPServer[0], revocationocsp.TimeoutError{}),
 				},
+				RevocationMethod: MethodOCSP,
 			},
 			{
 				Result: result.ResultUnknown,
 				ServerResults: []*result.ServerResult{
 					result.NewServerResult(result.ResultUnknown, okChain[1].OCSPServer[0], revocationocsp.TimeoutError{}),
 				},
+				RevocationMethod: MethodOCSP,
 			},
 			getRootCertResult(),
 		}
@@ -902,6 +924,7 @@ func TestCheckRevocationErrors(t *testing.T) {
 				ServerResults: []*result.ServerResult{
 					result.NewServerResult(result.ResultUnknown, expiredChain[0].OCSPServer[0], expiredRespErr),
 				},
+				RevocationMethod: MethodOCSP,
 			},
 			getOKCertResult(expiredChain[1].OCSPServer[0]),
 			getRootCertResult(),
@@ -944,6 +967,7 @@ func TestCheckRevocationErrors(t *testing.T) {
 				ServerResults: []*result.ServerResult{
 					result.NewServerResult(result.ResultUnknown, noHTTPChain[0].OCSPServer[0], noHTTPErr),
 				},
+				RevocationMethod: MethodOCSP,
 			},
 			getOKCertResult(noHTTPChain[1].OCSPServer[0]),
 			getRootCertResult(),
@@ -1041,6 +1065,7 @@ func TestCRL(t *testing.T) {
 					Result: result.ResultOK,
 					Server: "http://example.com/chain_crl/0",
 				}},
+				RevocationMethod: MethodCRL,
 			},
 			{
 				Result: result.ResultOK,
@@ -1048,6 +1073,7 @@ func TestCRL(t *testing.T) {
 					Result: result.ResultOK,
 					Server: "http://example.com/chain_crl/1",
 				}},
+				RevocationMethod: MethodCRL,
 			},
 			getRootCertResult(),
 		}
@@ -1090,21 +1116,21 @@ func TestCRL(t *testing.T) {
 				Result: result.ResultRevoked,
 				ServerResults: []*result.ServerResult{
 					{
-						Result:     result.ResultRevoked,
-						ReasonCode: result.CRLReasonCodeKeyCompromise,
-						Server:     "http://example.com/chain_crl/0",
+						Result: result.ResultRevoked,
+						Server: "http://example.com/chain_crl/0",
 					},
 				},
+				RevocationMethod: MethodCRL,
 			},
 			{
 				Result: result.ResultRevoked,
 				ServerResults: []*result.ServerResult{
 					{
-						Result:     result.ResultRevoked,
-						ReasonCode: result.CRLReasonCodeKeyCompromise,
-						Server:     "http://example.com/chain_crl/1",
+						Result: result.ResultRevoked,
+						Server: "http://example.com/chain_crl/1",
 					},
 				},
+				RevocationMethod: MethodCRL,
 			},
 			getRootCertResult(),
 		}
@@ -1151,10 +1177,15 @@ func TestCRL(t *testing.T) {
 						Result:           result.ResultUnknown,
 						Server:           "http://example.com/chain_ocsp/0",
 						Error:            errors.New("failed to retrieve OCSP: response had status code 500"),
-						RevocationMethod: result.RevocationMethodOCSPFallbackCRL,
-						ReasonCode:       result.CRLReasonCodeKeyCompromise,
+						RevocationMethod: MethodOCSP,
+					},
+					{
+						Result:           result.ResultRevoked,
+						Server:           "http://example.com/chain_crl/0",
+						RevocationMethod: MethodCRL,
 					},
 				},
+				RevocationMethod: MethodOCSPFallbackCRL,
 			},
 			{
 				Result: result.ResultRevoked,
@@ -1163,10 +1194,15 @@ func TestCRL(t *testing.T) {
 						Result:           result.ResultUnknown,
 						Server:           "http://example.com/chain_ocsp/1",
 						Error:            errors.New("failed to retrieve OCSP: response had status code 500"),
-						RevocationMethod: result.RevocationMethodOCSPFallbackCRL,
-						ReasonCode:       result.CRLReasonCodeKeyCompromise,
+						RevocationMethod: MethodOCSPFallbackCRL,
+					},
+					{
+						Result:           result.ResultRevoked,
+						Server:           "http://example.com/chain_crl/1",
+						RevocationMethod: MethodCRL,
 					},
 				},
+				RevocationMethod: MethodOCSPFallbackCRL,
 			},
 			getRootCertResult(),
 		}
@@ -1268,7 +1304,6 @@ func (rt *crlRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 			{
 				SerialNumber:   cert.SerialNumber,
 				RevocationTime: time.Now().Add(-time.Hour),
-				ReasonCode:     int(result.CRLReasonCodeKeyCompromise),
 			},
 		}
 	}

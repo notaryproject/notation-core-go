@@ -34,6 +34,9 @@ import (
 	"golang.org/x/crypto/ocsp"
 )
 
+// RevocationMethodOCSP represents the OCSP revocation method
+const RevocationMethodOCSP = 1
+
 // CertCheckStatusOptions specifies values that are needed to check OCSP revocation
 type CertCheckStatusOptions struct {
 	// HTTPClient is the HTTP client used to perform the OCSP request
@@ -56,8 +59,9 @@ func CertCheckStatus(cert, issuer *x509.Certificate, opts CertCheckStatusOptions
 	if !Supported(cert) {
 		// OCSP not enabled for this certificate.
 		return &result.CertRevocationResult{
-			Result:        result.ResultNonRevokable,
-			ServerResults: []*result.ServerResult{toServerResult("", NoServerError{})},
+			Result:           result.ResultNonRevokable,
+			ServerResults:    []*result.ServerResult{toServerResult("", NoServerError{})},
+			RevocationMethod: RevocationMethodOCSP,
 		}
 	}
 	ocspURLs := cert.OCSPServer
@@ -215,23 +219,27 @@ func postRequest(req []byte, server string, httpClient *http.Client) (*http.Resp
 }
 
 func toServerResult(server string, err error) *result.ServerResult {
+	var serverResult *result.ServerResult
 	switch t := err.(type) {
 	case nil:
-		return result.NewServerResult(result.ResultOK, server, nil)
+		serverResult = result.NewServerResult(result.ResultOK, server, nil)
 	case NoServerError:
-		return result.NewServerResult(result.ResultNonRevokable, server, nil)
+		serverResult = result.NewServerResult(result.ResultNonRevokable, server, nil)
 	case RevokedError:
-		return result.NewServerResult(result.ResultRevoked, server, t)
+		serverResult = result.NewServerResult(result.ResultRevoked, server, t)
 	default:
 		// Includes GenericError, UnknownStatusError, result.InvalidChainError,
 		// and TimeoutError
-		return result.NewServerResult(result.ResultUnknown, server, t)
+		serverResult = result.NewServerResult(result.ResultUnknown, server, t)
 	}
+	serverResult.RevocationMethod = RevocationMethodOCSP
+	return serverResult
 }
 
 func serverResultsToCertRevocationResult(serverResults []*result.ServerResult) *result.CertRevocationResult {
 	return &result.CertRevocationResult{
-		Result:        serverResults[len(serverResults)-1].Result,
-		ServerResults: serverResults,
+		Result:           serverResults[len(serverResults)-1].Result,
+		ServerResults:    serverResults,
+		RevocationMethod: RevocationMethodOCSP,
 	}
 }

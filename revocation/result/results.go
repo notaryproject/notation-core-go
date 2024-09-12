@@ -15,9 +15,7 @@
 package result
 
 import (
-	"fmt"
 	"strconv"
-	"time"
 )
 
 // Result is a type of enumerated value to help characterize revocation result.
@@ -83,8 +81,8 @@ const (
 	RevocationMethodCRL
 )
 
-// ServerResult encapsulates the OCSP result for a single server for a single
-// certificate in the chain
+// ServerResult encapsulates the OCSP result for a single server or the CRL
+// result for a single CRL URI for a certificate in the chain
 type ServerResult struct {
 	// Result of revocation for this server (Unknown if there is an error which
 	// prevents the retrieval of a valid status)
@@ -101,15 +99,7 @@ type ServerResult struct {
 
 	// RevocationMethod is the method used to check the revocation status of the
 	// certificate
-	RevocationMethod RevocationMethod
-
-	// RevocationTime is the time at which the certificate was revoked
-	RevocationTime time.Time
-
-	// ReasonCode is the reason code for the CRL status
-	//
-	// The reason code is only set if the certificate was revoked
-	ReasonCode CRLReasonCode
+	RevocationMethod int
 }
 
 // NewServerResult creates a ServerResult object from its individual parts: a
@@ -119,50 +109,6 @@ func NewServerResult(result Result, server string, err error) *ServerResult {
 		Result: result,
 		Server: server,
 		Error:  err,
-	}
-}
-
-// CRLReasonCode is CRL reason code (See RFC 5280, section 5.3.1)
-type CRLReasonCode int
-
-const (
-	CRLReasonCodeUnspecified          CRLReasonCode = 0
-	CRLReasonCodeKeyCompromise        CRLReasonCode = 1
-	CRLReasonCodeCACompromise         CRLReasonCode = 2
-	CRLReasonCodeAffiliationChanged   CRLReasonCode = 3
-	CRLReasonCodeSuperseded           CRLReasonCode = 4
-	CRLReasonCodeCessationOfOperation CRLReasonCode = 5
-	CRLReasonCodeCertificateHold      CRLReasonCode = 6
-	CRLReasonCodeRemoveFromCRL        CRLReasonCode = 8
-	CRLReasonCodePrivilegeWithdrawn   CRLReasonCode = 9
-	CRLReasonCodeAACompromise         CRLReasonCode = 10
-)
-
-// String provides a conversion from a ReasonCode to a string
-func (r CRLReasonCode) String() string {
-	switch r {
-	case CRLReasonCodeUnspecified:
-		return "Unspecified"
-	case CRLReasonCodeKeyCompromise:
-		return "KeyCompromise"
-	case CRLReasonCodeCACompromise:
-		return "CACompromise"
-	case CRLReasonCodeAffiliationChanged:
-		return "AffiliationChanged"
-	case CRLReasonCodeSuperseded:
-		return "Superseded"
-	case CRLReasonCodeCessationOfOperation:
-		return "CessationOfOperation"
-	case CRLReasonCodeCertificateHold:
-		return "CertificateHold"
-	case CRLReasonCodeRemoveFromCRL:
-		return "RemoveFromCRL"
-	case CRLReasonCodePrivilegeWithdrawn:
-		return "PrivilegeWithdrawn"
-	case CRLReasonCodeAACompromise:
-		return "AACompromise"
-	default:
-		return fmt.Sprintf("invalid reason code with value: %d", r)
 	}
 }
 
@@ -177,14 +123,28 @@ type CertRevocationResult struct {
 	// Thus, in the case of more than one ServerResult, this will be ResultUnknown
 	Result Result
 
-	// An array of results for each server associated with the certificate.
-	// The length will be either 1 or the number of OCSPServers for the cert.
+	// ServerResults is an array of results for each server associated with the
+	// certificate.
 	//
+	// When RevocationMethod is MethodOCSP, the length will be
+	// either 1 or the number of OCSPServers for the certificate.
 	// If the length is 1, then a valid status was able to be retrieved. Only
 	// this server result is contained. Any errors for other servers are
 	// discarded in favor of this valid response.
-	//
 	// Otherwise, every server specified had some error that prevented the
 	// status from being retrieved. These are all contained here for evaluation
+	//
+	// When RevocationMethod is MethodCRL, due to CRL will check
+	// all the CRL distribution points' URIs, the length will be the number of
+	// URIs when all the URIs are checked. If the result is Revoked, or with an
+	// error, the length will be 1.
+	//
+	// When RevocationMethod is MethodOCSPFallbackCRL, the length
+	// will be the sum of previous two cases. The CRL result will be appended
+	// after the OCSP results.
 	ServerResults []*ServerResult
+
+	// RevocationMethod is the method used to check the revocation status of the
+	// certificate
+	RevocationMethod int
 }

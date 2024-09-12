@@ -82,7 +82,6 @@ func TestCertCheckStatus(t *testing.T) {
 				{
 					SerialNumber:   chain[0].Cert.SerialNumber,
 					RevocationTime: time.Now().Add(-time.Hour),
-					ReasonCode:     int(result.CRLReasonCodeUnspecified),
 				},
 			},
 		}, issuerCert, issuerKey)
@@ -108,7 +107,6 @@ func TestCertCheckStatus(t *testing.T) {
 				{
 					SerialNumber:   chain[0].Cert.SerialNumber,
 					RevocationTime: time.Now().Add(-time.Hour),
-					ReasonCode:     int(result.CRLReasonCodeUnspecified),
 					ExtraExtensions: []pkix.Extension{
 						{
 							Id:       []int{1, 2, 3},
@@ -314,7 +312,6 @@ func TestCheckRevocation(t *testing.T) {
 			RevokedCertificateEntries: []x509.RevocationListEntry{
 				{
 					SerialNumber:   big.NewInt(1),
-					ReasonCode:     int(result.CRLReasonCodeCertificateHold),
 					RevocationTime: time.Now().Add(-time.Hour),
 				},
 			},
@@ -347,7 +344,6 @@ func TestCheckRevocation(t *testing.T) {
 			RevokedCertificateEntries: []x509.RevocationListEntry{
 				{
 					SerialNumber:   big.NewInt(1),
-					ReasonCode:     int(result.CRLReasonCodeCertificateHold),
 					RevocationTime: time.Now().Add(time.Hour),
 					Extensions:     extensions,
 				},
@@ -381,7 +377,6 @@ func TestCheckRevocation(t *testing.T) {
 			RevokedCertificateEntries: []x509.RevocationListEntry{
 				{
 					SerialNumber:   big.NewInt(1),
-					ReasonCode:     int(result.CRLReasonCodeCertificateHold),
 					RevocationTime: time.Now().Add(-time.Hour),
 					Extensions:     extensions,
 				},
@@ -401,7 +396,6 @@ func TestCheckRevocation(t *testing.T) {
 			RevokedCertificateEntries: []x509.RevocationListEntry{
 				{
 					SerialNumber:   big.NewInt(1),
-					ReasonCode:     int(result.CRLReasonCodeCertificateHold),
 					RevocationTime: time.Time{},
 				},
 			},
