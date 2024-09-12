@@ -190,6 +190,17 @@ func TestCheckStatusFromServer(t *testing.T) {
 	})
 }
 
+func TestPostRequest(t *testing.T) {
+	t.Run("failed to execute request", func(t *testing.T) {
+		_, err := postRequest(nil, "http://example.com", &http.Client{
+			Transport: &failedTransport{},
+		})
+		if err == nil {
+			t.Errorf("Expected error, but got nil")
+		}
+	})
+}
+
 type failedTransport struct{}
 
 func (f *failedTransport) RoundTrip(req *http.Request) (*http.Response, error) {
