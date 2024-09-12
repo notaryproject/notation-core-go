@@ -180,14 +180,7 @@ func checkRevocation(cert *x509.Certificate, baseCRL *x509.RevocationList, signi
 		return nil, errors.New("baseCRL cannot be nil")
 	}
 
-	// latestTempRevokedEntry contains the most recent revocation entry with
-	// reasons such as CertificateHold or RemoveFromCRL.
-	//
-	// If the certificate is revoked with CertificateHold, it is temporarily
-	// revoked. If the certificate is shown in the CRL with RemoveFromCRL,
-	// it is unrevoked.
-	var latestTempRevokedEntry *x509.RevocationListEntry
-	for i, revocationEntry := range baseCRL.RevokedCertificateEntries {
+	for _, revocationEntry := range baseCRL.RevokedCertificateEntries {
 		if revocationEntry.SerialNumber.Cmp(cert.SerialNumber) == 0 {
 			extensions, err := parseEntryExtensions(revocationEntry)
 			if err != nil {
@@ -202,33 +195,14 @@ func checkRevocation(cert *x509.Certificate, baseCRL *x509.RevocationList, signi
 				break
 			}
 
-			switch revocationEntry.ReasonCode {
-			case int(result.CRLReasonCodeCertificateHold), int(result.CRLReasonCodeRemoveFromCRL):
-				// temporarily revoked or unrevoked
-				if latestTempRevokedEntry == nil || latestTempRevokedEntry.RevocationTime.Before(revocationEntry.RevocationTime) {
-					// the revocation status depends on the most recent reason
-					latestTempRevokedEntry = &baseCRL.RevokedCertificateEntries[i]
-				}
-			default:
-				// permanently revoked
-				return &result.CRLResult{
-					Result:         result.ResultRevoked,
-					ReasonCode:     result.CRLReasonCode(revocationEntry.ReasonCode),
-					RevocationTime: revocationEntry.RevocationTime,
-					URI:            crlURL,
-				}, nil
-			}
+			// revoked
+			return &result.CRLResult{
+				Result:         result.ResultRevoked,
+				ReasonCode:     result.CRLReasonCode(revocationEntry.ReasonCode),
+				RevocationTime: revocationEntry.RevocationTime,
+				URI:            crlURL,
+			}, nil
 		}
-	}
-
-	if latestTempRevokedEntry != nil && latestTempRevokedEntry.ReasonCode == int(result.CRLReasonCodeCertificateHold) {
-		// revoked with CertificateHold
-		return &result.CRLResult{
-			Result:         result.ResultRevoked,
-			ReasonCode:     result.CRLReasonCodeCertificateHold,
-			RevocationTime: latestTempRevokedEntry.RevocationTime,
-			URI:            crlURL,
-		}, nil
 	}
 
 	return &result.CRLResult{
