@@ -30,7 +30,7 @@ import (
 )
 
 // RevocationMethodCRL represents the CRL revocation method
-const RevocationMethodCRL = 2
+const RevocationMethodCRL int = 2
 
 var (
 	// oidFreshestCRL is the object identifier for the distribution point
@@ -90,9 +90,9 @@ func CertCheckStatus(ctx context.Context, cert, issuer *x509.Certificate, opts C
 	// point with one CRL URI, which will be cached, so checking all the URIs is
 	// not a performance issue.
 	var (
-		results []*result.ServerResult
-		lastErr error
-		crlURL  string
+		serverResults []*result.ServerResult
+		lastErr       error
+		crlURL        string
 	)
 	for _, crlURL = range cert.CRLDistributionPoints {
 		baseCRL, err := download(ctx, crlURL, opts.HTTPClient)
@@ -119,7 +119,7 @@ func CertCheckStatus(ctx context.Context, cert, issuer *x509.Certificate, opts C
 			}
 		}
 
-		results = append(results, crlResult)
+		serverResults = append(serverResults, crlResult)
 	}
 
 	if lastErr != nil {
@@ -138,7 +138,7 @@ func CertCheckStatus(ctx context.Context, cert, issuer *x509.Certificate, opts C
 
 	return &result.CertRevocationResult{
 		Result:           result.ResultOK,
-		ServerResults:    results,
+		ServerResults:    serverResults,
 		RevocationMethod: RevocationMethodCRL,
 	}
 }

@@ -35,7 +35,7 @@ import (
 )
 
 // RevocationMethodOCSP represents the OCSP revocation method
-const RevocationMethodOCSP = 1
+const RevocationMethodOCSP int = 1
 
 // CertCheckStatusOptions specifies values that are needed to check OCSP revocation
 type CertCheckStatusOptions struct {

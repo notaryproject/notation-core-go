@@ -25,14 +25,14 @@ const (
 
 	// MethodOCSP represents OCSP as the method used to check the
 	// revocation status of a certificate
-	MethodOCSP = ocsp.RevocationMethodOCSP
+	MethodOCSP int = ocsp.RevocationMethodOCSP
 
 	// MethodCRL represents CRL as the method used to check the
 	// revocation status of a certificate
-	MethodCRL = crl.RevocationMethodCRL
+	MethodCRL int = crl.RevocationMethodCRL
 
 	// MethodOCSPFallbackCRL represents OCSP check with unknown error
 	// fallback to CRL as the method used to check the revocation status of a
 	// certificate
-	MethodOCSPFallbackCRL = 3
+	MethodOCSPFallbackCRL int = 3
 )
