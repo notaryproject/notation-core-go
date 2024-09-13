@@ -90,11 +90,11 @@ func CertCheckStatus(ctx context.Context, cert, issuer *x509.Certificate, opts C
 	// point with one CRL URI, which will be cached, so checking all the URIs is
 	// not a performance issue.
 	var (
-		serverResults []*result.ServerResult
+		serverResults = make([]*result.ServerResult, len(cert.CRLDistributionPoints))
 		lastErr       error
 		crlURL        string
 	)
-	for _, crlURL = range cert.CRLDistributionPoints {
+	for i, crlURL := range cert.CRLDistributionPoints {
 		baseCRL, err := download(ctx, crlURL, opts.HTTPClient)
 		if err != nil {
 			lastErr = fmt.Errorf("failed to download CRL from %s: %w", crlURL, err)
@@ -119,7 +119,7 @@ func CertCheckStatus(ctx context.Context, cert, issuer *x509.Certificate, opts C
 			}
 		}
 
-		serverResults = append(serverResults, crlResult)
+		serverResults[i] = crlResult
 	}
 
 	if lastErr != nil {
