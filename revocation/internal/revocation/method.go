@@ -13,27 +13,37 @@
 
 package revocation
 
-import (
-	internalrevocation "github.com/notaryproject/notation-core-go/revocation/internal/revocation"
-)
-
-type Method = internalrevocation.Method
+type Method int
 
 const (
 	// MethodUnknown is used for root certificates or when the method
 	// used to check the revocation status of a certificate is unknown.
-	MethodUnknown = internalrevocation.MethodUnknown
+	MethodUnknown Method = iota
 
 	// MethodOCSP represents OCSP as the method used to check the
 	// revocation status of a certificate
-	MethodOCSP = internalrevocation.MethodOCSP
+	MethodOCSP
 
 	// MethodCRL represents CRL as the method used to check the
 	// revocation status of a certificate
-	MethodCRL = internalrevocation.MethodCRL
+	MethodCRL
 
 	// MethodOCSPFallbackCRL represents OCSP check with unknown error
 	// fallback to CRL as the method used to check the revocation status of a
 	// certificate
-	MethodOCSPFallbackCRL = internalrevocation.MethodOCSPFallbackCRL
+	MethodOCSPFallbackCRL
 )
+
+// String provides a conversion from a Method to a string
+func (m Method) String() string {
+	switch m {
+	case MethodOCSP:
+		return "OCSP"
+	case MethodCRL:
+		return "CRL"
+	case MethodOCSPFallbackCRL:
+		return "OCSPFallbackCRL"
+	default:
+		return "Unknown"
+	}
+}

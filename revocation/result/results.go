@@ -14,7 +14,11 @@
 // Package result provides general objects that are used across revocation
 package result
 
-import "strconv"
+import (
+	"strconv"
+
+	"github.com/notaryproject/notation-core-go/revocation/internal/revocation"
+)
 
 // Result is a type of enumerated value to help characterize revocation result.
 // It can be OK, Unknown, NonRevokable, or Revoked
@@ -74,7 +78,7 @@ type ServerResult struct {
 
 	// RevocationMethod is the method used to check the revocation status of the
 	// certificate, including Unknown(0), MethodOCSP(1), MethodCRL(2)
-	RevocationMethod int
+	RevocationMethod revocation.Method
 }
 
 // NewServerResult creates a ServerResult object from its individual parts: a
@@ -117,5 +121,5 @@ type CertRevocationResult struct {
 	// RevocationMethod is the method used to check the revocation status of the
 	// certificate, including Unknown(0), MethodOCSP(1), MethodCRL(2) and
 	// OCSPFallbackCRL(3)
-	RevocationMethod int
+	RevocationMethod revocation.Method
 }
