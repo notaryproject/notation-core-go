@@ -92,7 +92,7 @@ func CertCheckStatus(ctx context.Context, cert, issuer *x509.Certificate, opts C
 		lastErr       error
 		crlURL        string
 	)
-	for _, crlURL := range cert.CRLDistributionPoints {
+	for _, crlURL = range cert.CRLDistributionPoints {
 		baseCRL, err := download(ctx, crlURL, opts.HTTPClient)
 		if err != nil {
 			lastErr = fmt.Errorf("failed to download CRL from %s: %w", crlURL, err)
