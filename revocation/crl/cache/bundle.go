@@ -29,7 +29,14 @@ const (
 
 // CRLMetadata stores the URL of the CRL
 type CRLMetadata struct {
+	// URL stores the URL of the CRL
 	URL string `json:"url"`
+
+	// NextUpdate stores the next update time of the CRL
+	//
+	// This field extracts the `NextUpdate` field from the CRL extensions, which
+	// is an optional field in the CRL, so it may be empty.
+	NextUpdate time.Time `json:"nextUpdate"`
 }
 
 // Metadata stores the metadata infomation of the CRL
@@ -56,6 +63,7 @@ type Bundle struct {
 	Metadata Metadata
 }
 
+// Validate checks if the bundle is valid
 func (b *Bundle) Validate() error {
 	if b.BaseCRL == nil {
 		return errors.New("base CRL is missing")

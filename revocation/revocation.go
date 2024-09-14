@@ -24,6 +24,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/notaryproject/notation-core-go/revocation/crl/cache"
 	"github.com/notaryproject/notation-core-go/revocation/internal/crl"
 	"github.com/notaryproject/notation-core-go/revocation/internal/ocsp"
 	"github.com/notaryproject/notation-core-go/revocation/internal/x509util"
@@ -71,6 +72,7 @@ type revocation struct {
 	ocspHTTPClient   *http.Client
 	crlHTTPClient    *http.Client
 	certChainPurpose purpose.Purpose
+	crlCache         cache.Cache
 }
 
 // New constructs a revocation object for code signing certificate chain.
@@ -81,10 +83,16 @@ func New(httpClient *http.Client) (Revocation, error) {
 	if httpClient == nil {
 		return nil, errors.New("invalid input: a non-nil httpClient must be specified")
 	}
+	memoryCache, err := cache.NewMemoryCache()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create memory cache: %v", err)
+	}
+
 	return &revocation{
 		ocspHTTPClient:   httpClient,
 		crlHTTPClient:    httpClient,
 		certChainPurpose: purpose.CodeSigning,
+		crlCache:         memoryCache,
 	}, nil
 }
 
@@ -104,6 +112,10 @@ type Options struct {
 	// values are CodeSigning and Timestamping. Default value is CodeSigning.
 	// OPTIONAL.
 	CertChainPurpose purpose.Purpose
+
+	// CRLCache is the cache client used to store the CRL. if not provided,
+	// a default in-memory cache will be used.
+	CRLCache cache.Cache
 }
 
 // NewWithOptions constructs a Validator with the specified options
@@ -122,10 +134,19 @@ func NewWithOptions(opts Options) (Validator, error) {
 		return nil, fmt.Errorf("unsupported certificate chain purpose %v", opts.CertChainPurpose)
 	}
 
+	if opts.CRLCache == nil {
+		memoryCache, err := cache.NewMemoryCache()
+		if err != nil {
+			return nil, fmt.Errorf("failed to create memory cache: %v", err)
+		}
+		opts.CRLCache = memoryCache
+	}
+
 	return &revocation{
 		ocspHTTPClient:   opts.OCSPHTTPClient,
 		crlHTTPClient:    opts.CRLHTTPClient,
 		certChainPurpose: opts.CertChainPurpose,
+		crlCache:         opts.CRLCache,
 	}, nil
 }
 
@@ -173,6 +194,7 @@ func (r *revocation) ValidateContext(ctx context.Context, validateContextOpts Va
 	crlOpts := crl.CertCheckStatusOptions{
 		HTTPClient:  r.crlHTTPClient,
 		SigningTime: validateContextOpts.AuthenticSigningTime,
+		CacheClient: r.crlCache,
 	}
 
 	// panicChain is used to store the panic in goroutine and handle it

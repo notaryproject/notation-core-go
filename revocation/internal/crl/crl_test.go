@@ -28,12 +28,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/notaryproject/notation-core-go/revocation/crl/cache"
 	"github.com/notaryproject/notation-core-go/revocation/result"
 	"github.com/notaryproject/notation-core-go/testhelper"
 )
 
 func TestCertCheckStatus(t *testing.T) {
-	t.Run("certtificate does not have CRLDistributionPoints", func(t *testing.T) {
+	t.Run("certificate does not have CRLDistributionPoints", func(t *testing.T) {
 		cert := &x509.Certificate{}
 		r := CertCheckStatus(context.Background(), cert, &x509.Certificate{}, CertCheckStatusOptions{})
 		if r.Result != result.ResultNonRevokable {
@@ -42,6 +43,11 @@ func TestCertCheckStatus(t *testing.T) {
 	})
 
 	t.Run("download error", func(t *testing.T) {
+		memoryCache, err := cache.NewMemoryCache()
+		if err != nil {
+			t.Fatal(err)
+		}
+
 		cert := &x509.Certificate{
 			CRLDistributionPoints: []string{"http://example.com"},
 		}
@@ -49,6 +55,7 @@ func TestCertCheckStatus(t *testing.T) {
 			HTTPClient: &http.Client{
 				Transport: errorRoundTripperMock{},
 			},
+			CacheClient: memoryCache,
 		})
 		if r.ServerResults[0].Error == nil {
 			t.Fatal("expected error")
@@ -56,6 +63,11 @@ func TestCertCheckStatus(t *testing.T) {
 	})
 
 	t.Run("CRL validate failed", func(t *testing.T) {
+		memoryCache, err := cache.NewMemoryCache()
+		if err != nil {
+			t.Fatal(err)
+		}
+
 		cert := &x509.Certificate{
 			CRLDistributionPoints: []string{"http://example.com"},
 		}
@@ -63,6 +75,7 @@ func TestCertCheckStatus(t *testing.T) {
 			HTTPClient: &http.Client{
 				Transport: expiredCRLRoundTripperMock{},
 			},
+			CacheClient: memoryCache,
 		})
 		if r.ServerResults[0].Error == nil {
 			t.Fatal("expected error")
@@ -75,6 +88,11 @@ func TestCertCheckStatus(t *testing.T) {
 	issuerKey := chain[1].PrivateKey
 
 	t.Run("revoked", func(t *testing.T) {
+		memoryCache, err := cache.NewMemoryCache()
+		if err != nil {
+			t.Fatal(err)
+		}
+
 		crlBytes, err := x509.CreateRevocationList(rand.Reader, &x509.RevocationList{
 			NextUpdate: time.Now().Add(time.Hour),
 			Number:     big.NewInt(20240720),
@@ -93,6 +111,7 @@ func TestCertCheckStatus(t *testing.T) {
 			HTTPClient: &http.Client{
 				Transport: expectedRoundTripperMock{Body: crlBytes},
 			},
+			CacheClient: memoryCache,
 		})
 		if r.Result != result.ResultRevoked {
 			t.Fatalf("expected revoked, got %s", r.Result)
@@ -100,6 +119,11 @@ func TestCertCheckStatus(t *testing.T) {
 	})
 
 	t.Run("unknown critical extension", func(t *testing.T) {
+		memoryCache, err := cache.NewMemoryCache()
+		if err != nil {
+			t.Fatal(err)
+		}
+
 		crlBytes, err := x509.CreateRevocationList(rand.Reader, &x509.RevocationList{
 			NextUpdate: time.Now().Add(time.Hour),
 			Number:     big.NewInt(20240720),
@@ -124,6 +148,7 @@ func TestCertCheckStatus(t *testing.T) {
 			HTTPClient: &http.Client{
 				Transport: expectedRoundTripperMock{Body: crlBytes},
 			},
+			CacheClient: memoryCache,
 		})
 		if r.ServerResults[0].Error == nil {
 			t.Fatal("expected error")
@@ -131,6 +156,11 @@ func TestCertCheckStatus(t *testing.T) {
 	})
 
 	t.Run("Not revoked", func(t *testing.T) {
+		memoryCache, err := cache.NewMemoryCache()
+		if err != nil {
+			t.Fatal(err)
+		}
+
 		crlBytes, err := x509.CreateRevocationList(rand.Reader, &x509.RevocationList{
 			NextUpdate: time.Now().Add(time.Hour),
 			Number:     big.NewInt(20240720),
@@ -143,6 +173,7 @@ func TestCertCheckStatus(t *testing.T) {
 			HTTPClient: &http.Client{
 				Transport: expectedRoundTripperMock{Body: crlBytes},
 			},
+			CacheClient: memoryCache,
 		})
 		if r.Result != result.ResultOK {
 			t.Fatalf("expected OK, got %s", r.Result)
@@ -150,6 +181,11 @@ func TestCertCheckStatus(t *testing.T) {
 	})
 
 	t.Run("CRL with delta CRL is not checked", func(t *testing.T) {
+		memoryCache, err := cache.NewMemoryCache()
+		if err != nil {
+			t.Fatal(err)
+		}
+
 		crlBytes, err := x509.CreateRevocationList(rand.Reader, &x509.RevocationList{
 			NextUpdate: time.Now().Add(time.Hour),
 			Number:     big.NewInt(20240720),
@@ -168,6 +204,7 @@ func TestCertCheckStatus(t *testing.T) {
 			HTTPClient: &http.Client{
 				Transport: expectedRoundTripperMock{Body: crlBytes},
 			},
+			CacheClient: memoryCache,
 		})
 		if !errors.Is(r.ServerResults[0].Error, ErrDeltaCRLNotSupported) {
 			t.Fatal("expected ErrDeltaCRLNotChecked")
@@ -535,66 +572,6 @@ func marshalGeneralizedTimeToBytes(t time.Time) ([]byte, error) {
 	return asn1.Marshal(t)
 }
 
-func TestDownload(t *testing.T) {
-	t.Run("parse url error", func(t *testing.T) {
-		_, err := download(context.Background(), ":", http.DefaultClient)
-		if err == nil {
-			t.Fatal("expected error")
-		}
-	})
-	t.Run("https download", func(t *testing.T) {
-		_, err := download(context.Background(), "https://example.com", http.DefaultClient)
-		if err == nil {
-			t.Fatal("expected error")
-		}
-	})
-
-	t.Run("http.NewRequestWithContext error", func(t *testing.T) {
-		var ctx context.Context = nil
-		_, err := download(ctx, "http://example.com", &http.Client{})
-		if err == nil {
-			t.Fatal("expected error")
-		}
-	})
-
-	t.Run("client.Do error", func(t *testing.T) {
-		_, err := download(context.Background(), "http://example.com", &http.Client{
-			Transport: errorRoundTripperMock{},
-		})
-
-		if err == nil {
-			t.Fatal("expected error")
-		}
-	})
-
-	t.Run("status code is not 2xx", func(t *testing.T) {
-		_, err := download(context.Background(), "http://example.com", &http.Client{
-			Transport: serverErrorRoundTripperMock{},
-		})
-		if err == nil {
-			t.Fatal("expected error")
-		}
-	})
-
-	t.Run("readAll error", func(t *testing.T) {
-		_, err := download(context.Background(), "http://example.com", &http.Client{
-			Transport: readFailedRoundTripperMock{},
-		})
-		if err == nil {
-			t.Fatal("expected error")
-		}
-	})
-
-	t.Run("exceed the size limit", func(t *testing.T) {
-		_, err := download(context.Background(), "http://example.com", &http.Client{
-			Transport: expectedRoundTripperMock{Body: make([]byte, maxCRLSize+1)},
-		})
-		if err == nil {
-			t.Fatal("expected error")
-		}
-	})
-}
-
 func TestSupported(t *testing.T) {
 	t.Run("supported", func(t *testing.T) {
 		cert := &x509.Certificate{
@@ -619,28 +596,6 @@ func (rt errorRoundTripperMock) RoundTrip(req *http.Request) (*http.Response, er
 	return nil, fmt.Errorf("error")
 }
 
-type serverErrorRoundTripperMock struct{}
-
-func (rt serverErrorRoundTripperMock) RoundTrip(req *http.Request) (*http.Response, error) {
-	return &http.Response{
-		Request:    req,
-		StatusCode: http.StatusInternalServerError,
-	}, nil
-}
-
-type readFailedRoundTripperMock struct{}
-
-func (rt readFailedRoundTripperMock) RoundTrip(req *http.Request) (*http.Response, error) {
-	return &http.Response{
-		StatusCode: http.StatusOK,
-		Body:       errorReaderMock{},
-		Request: &http.Request{
-			Method: http.MethodGet,
-			URL:    req.URL,
-		},
-	}, nil
-}
-
 type expiredCRLRoundTripperMock struct{}
 
 func (rt expiredCRLRoundTripperMock) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -660,16 +615,6 @@ func (rt expiredCRLRoundTripperMock) RoundTrip(req *http.Request) (*http.Respons
 		StatusCode: http.StatusOK,
 		Body:       io.NopCloser(bytes.NewBuffer(crlBytes)),
 	}, nil
-}
-
-type errorReaderMock struct{}
-
-func (r errorReaderMock) Read(p []byte) (n int, err error) {
-	return 0, fmt.Errorf("error")
-}
-
-func (r errorReaderMock) Close() error {
-	return nil
 }
 
 type expectedRoundTripperMock struct {

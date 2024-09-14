@@ -29,12 +29,19 @@ import (
 )
 
 // maxCRLSize is the maximum size of CRL in bytes
-const maxCRLSize = 64 * 1024 * 1024 // 64 MiB
+//
+// CRL examples: https://chasersystems.com/blog/an-analysis-of-certificate-revocation-list-sizes/
+const maxCRLSize = 32 * 1024 * 1024 // 32 MiB
 
 // Fetcher is an interface that specifies methods used for fetching CRL
 // from the given URL
 type Fetcher interface {
+	// Fetch retrieves the CRL from the given
 	Fetch(ctx context.Context, crlURL string) (bundle *cache.Bundle, fromCache bool, err error)
+
+	// Download downloads the CRL from the given URL and saves it to the
+	// cache.
+	Download(ctx context.Context, crlURL string) (bundle *cache.Bundle, err error)
 }
 
 type cachedFetcher struct {
@@ -44,7 +51,6 @@ type cachedFetcher struct {
 
 // NewCachedFetcher creates a new Fetcher with the given HTTP client and cache client
 //   - if httpClient is nil, http.DefaultClient will be used
-//   - if cacheClient is nil, no cache will be used
 func NewCachedFetcher(httpClient *http.Client, cacheClient cache.Cache) (Fetcher, error) {
 	if httpClient == nil {
 		httpClient = http.DefaultClient
@@ -147,7 +153,8 @@ func download(ctx context.Context, crlURL string, client *http.Client) (bundle *
 		BaseCRL: crl,
 		Metadata: cache.Metadata{
 			BaseCRL: cache.CRLMetadata{
-				URL: crlURL,
+				URL:        crlURL,
+				NextUpdate: crl.NextUpdate,
 			},
 			CreatedAt: time.Now(),
 		},
