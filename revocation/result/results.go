@@ -110,7 +110,8 @@ type ServerResult struct {
 	Error error
 
 	// RevocationMethod is the method used to check the revocation status of the
-	// certificate, including MethodUnknown, MethodOCSP, MethodCRL
+	// certificate, including RevocationMethodUnknown, RevocationMethodOCSP,
+	// RevocationMethodCRL
 	RevocationMethod RevocationMethod
 }
 
@@ -152,7 +153,7 @@ type CertRevocationResult struct {
 	ServerResults []*ServerResult
 
 	// RevocationMethod is the method used to check the revocation status of the
-	// certificate, including MethodUnknown, MethodOCSP, MethodCRL and
-	// MethodOCSPFallbackCRL
+	// certificate, including RevocationMethodUnknown, RevocationMethodOCSP,
+	// RevocationMethodCRL and RevocationMethodOCSPFallbackCRL
 	RevocationMethod RevocationMethod
 }
