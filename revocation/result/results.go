@@ -120,6 +120,6 @@ type CertRevocationResult struct {
 
 	// RevocationMethod is the method used to check the revocation status of the
 	// certificate, including Unknown(0), MethodOCSP(1), MethodCRL(2) and
-	// OCSPFallbackCRL(3)
+	// MethodOCSPFallbackCRL(3)
 	RevocationMethod revocation.Method
 }
