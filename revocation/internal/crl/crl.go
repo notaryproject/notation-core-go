@@ -26,7 +26,6 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/notaryproject/notation-core-go/revocation/internal/revocation"
 	"github.com/notaryproject/notation-core-go/revocation/result"
 )
 
@@ -73,10 +72,10 @@ func CertCheckStatus(ctx context.Context, cert, issuer *x509.Certificate, opts C
 		return &result.CertRevocationResult{
 			Result: result.ResultNonRevokable,
 			ServerResults: []*result.ServerResult{{
-				RevocationMethod: revocation.MethodCRL,
+				RevocationMethod: result.RevocationMethodCRL,
 				Result:           result.ResultNonRevokable,
 			}},
-			RevocationMethod: revocation.MethodCRL,
+			RevocationMethod: result.RevocationMethodCRL,
 		}
 	}
 
@@ -113,7 +112,7 @@ func CertCheckStatus(ctx context.Context, cert, issuer *x509.Certificate, opts C
 			return &result.CertRevocationResult{
 				Result:           result.ResultRevoked,
 				ServerResults:    []*result.ServerResult{crlResult},
-				RevocationMethod: revocation.MethodCRL,
+				RevocationMethod: result.RevocationMethodCRL,
 			}
 		}
 
@@ -128,16 +127,16 @@ func CertCheckStatus(ctx context.Context, cert, issuer *x509.Certificate, opts C
 					Result:           result.ResultUnknown,
 					Server:           crlURL,
 					Error:            lastErr,
-					RevocationMethod: revocation.MethodCRL,
+					RevocationMethod: result.RevocationMethodCRL,
 				}},
-			RevocationMethod: revocation.MethodCRL,
+			RevocationMethod: result.RevocationMethodCRL,
 		}
 	}
 
 	return &result.CertRevocationResult{
 		Result:           result.ResultOK,
 		ServerResults:    serverResults,
-		RevocationMethod: revocation.MethodCRL,
+		RevocationMethod: result.RevocationMethodCRL,
 	}
 }
 
@@ -206,7 +205,7 @@ func checkRevocation(cert *x509.Certificate, baseCRL *x509.RevocationList, signi
 			return &result.ServerResult{
 				Result:           result.ResultRevoked,
 				Server:           crlURL,
-				RevocationMethod: revocation.MethodCRL,
+				RevocationMethod: result.RevocationMethodCRL,
 			}, nil
 		}
 	}
@@ -214,7 +213,7 @@ func checkRevocation(cert *x509.Certificate, baseCRL *x509.RevocationList, signi
 	return &result.ServerResult{
 		Result:           result.ResultOK,
 		Server:           crlURL,
-		RevocationMethod: revocation.MethodCRL,
+		RevocationMethod: result.RevocationMethodCRL,
 	}, nil
 }
 

@@ -14,11 +14,7 @@
 // Package result provides general objects that are used across revocation
 package result
 
-import (
-	"strconv"
-
-	"github.com/notaryproject/notation-core-go/revocation/internal/revocation"
-)
+import "strconv"
 
 // Result is a type of enumerated value to help characterize revocation result.
 // It can be OK, Unknown, NonRevokable, or Revoked
@@ -60,6 +56,43 @@ func (r Result) String() string {
 	}
 }
 
+// RevocationMethod defines the method used to check the revocation status of a
+// certificate.
+type RevocationMethod int
+
+const (
+	// RevocationMethodUnknown is used for root certificates or when the method
+	// used to check the revocation status of a certificate is unknown.
+	RevocationMethodUnknown RevocationMethod = iota
+
+	// RevocationMethodOCSP represents OCSP as the method used to check the
+	// revocation status of a certificate.
+	RevocationMethodOCSP
+
+	// RevocationMethodCRL represents CRL as the method used to check the
+	// revocation status of a certificate.
+	RevocationMethodCRL
+
+	// RevocationMethodOCSPFallbackCRL represents OCSP check with unknown error
+	// fallback to CRL as the method used to check the revocation status of a
+	// certificate.
+	RevocationMethodOCSPFallbackCRL
+)
+
+// String provides a conversion from a Method to a string
+func (m RevocationMethod) String() string {
+	switch m {
+	case RevocationMethodOCSP:
+		return "OCSP"
+	case RevocationMethodCRL:
+		return "CRL"
+	case RevocationMethodOCSPFallbackCRL:
+		return "OCSPFallbackCRL"
+	default:
+		return "Unknown"
+	}
+}
+
 // ServerResult encapsulates the OCSP result for a single server or the CRL
 // result for a single CRL URI for a certificate in the chain
 type ServerResult struct {
@@ -78,7 +111,7 @@ type ServerResult struct {
 
 	// RevocationMethod is the method used to check the revocation status of the
 	// certificate, including MethodUnknown, MethodOCSP, MethodCRL
-	RevocationMethod revocation.Method
+	RevocationMethod RevocationMethod
 }
 
 // NewServerResult creates a ServerResult object from its individual parts: a
@@ -121,5 +154,5 @@ type CertRevocationResult struct {
 	// RevocationMethod is the method used to check the revocation status of the
 	// certificate, including MethodUnknown, MethodOCSP, MethodCRL and
 	// MethodOCSPFallbackCRL
-	RevocationMethod revocation.Method
+	RevocationMethod RevocationMethod
 }

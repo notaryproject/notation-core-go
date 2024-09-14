@@ -199,12 +199,12 @@ func (r *revocation) ValidateContext(ctx context.Context, validateContextOpts Va
 
 				ocspResult := ocsp.CertCheckStatus(cert, certChain[i+1], ocspOpts)
 				if ocspResult != nil && ocspResult.Result == result.ResultUnknown && crl.Supported(cert) {
-					// try CRL check if OCSP result is unknown
-					result := crl.CertCheckStatus(ctx, cert, certChain[i+1], crlOpts)
+					// try CRL check if OCSP serverResult is unknown
+					serverResult := crl.CertCheckStatus(ctx, cert, certChain[i+1], crlOpts)
 					// append CRL result to OCSP result
-					result.ServerResults = append(ocspResult.ServerResults, result.ServerResults...)
-					result.RevocationMethod = MethodOCSPFallbackCRL
-					certResults[i] = result
+					serverResult.ServerResults = append(ocspResult.ServerResults, serverResult.ServerResults...)
+					serverResult.RevocationMethod = result.RevocationMethodOCSPFallbackCRL
+					certResults[i] = serverResult
 				} else {
 					certResults[i] = ocspResult
 				}
@@ -230,9 +230,9 @@ func (r *revocation) ValidateContext(ctx context.Context, validateContextOpts Va
 				Result: result.ResultNonRevokable,
 				ServerResults: []*result.ServerResult{{
 					Result:           result.ResultNonRevokable,
-					RevocationMethod: MethodUnknown,
+					RevocationMethod: result.RevocationMethodUnknown,
 				}},
-				RevocationMethod: MethodUnknown,
+				RevocationMethod: result.RevocationMethodUnknown,
 			}
 		}
 	}
@@ -242,9 +242,9 @@ func (r *revocation) ValidateContext(ctx context.Context, validateContextOpts Va
 		Result: result.ResultNonRevokable,
 		ServerResults: []*result.ServerResult{{
 			Result:           result.ResultNonRevokable,
-			RevocationMethod: MethodUnknown,
+			RevocationMethod: result.RevocationMethodUnknown,
 		}},
-		RevocationMethod: MethodUnknown,
+		RevocationMethod: result.RevocationMethodUnknown,
 	}
 	wg.Wait()
 

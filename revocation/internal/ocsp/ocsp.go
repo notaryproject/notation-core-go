@@ -30,7 +30,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/notaryproject/notation-core-go/revocation/internal/revocation"
 	"github.com/notaryproject/notation-core-go/revocation/result"
 	"golang.org/x/crypto/ocsp"
 )
@@ -59,7 +58,7 @@ func CertCheckStatus(cert, issuer *x509.Certificate, opts CertCheckStatusOptions
 		return &result.CertRevocationResult{
 			Result:           result.ResultNonRevokable,
 			ServerResults:    []*result.ServerResult{toServerResult("", NoServerError{})},
-			RevocationMethod: revocation.MethodOCSP,
+			RevocationMethod: result.RevocationMethodOCSP,
 		}
 	}
 	ocspURLs := cert.OCSPServer
@@ -230,7 +229,7 @@ func toServerResult(server string, err error) *result.ServerResult {
 		// and TimeoutError
 		serverResult = result.NewServerResult(result.ResultUnknown, server, t)
 	}
-	serverResult.RevocationMethod = revocation.MethodOCSP
+	serverResult.RevocationMethod = result.RevocationMethodOCSP
 	return serverResult
 }
 
@@ -238,6 +237,6 @@ func serverResultsToCertRevocationResult(serverResults []*result.ServerResult) *
 	return &result.CertRevocationResult{
 		Result:           serverResults[len(serverResults)-1].Result,
 		ServerResults:    serverResults,
-		RevocationMethod: revocation.MethodOCSP,
+		RevocationMethod: result.RevocationMethodOCSP,
 	}
 }
