@@ -11,8 +11,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package revocation provides methods for checking the revocation status of a
+// certificate
 package revocation
 
+// Method defines the method used to check the revocation status of a
+// certificate.
 type Method int
 
 const (
@@ -21,16 +25,16 @@ const (
 	MethodUnknown Method = iota
 
 	// MethodOCSP represents OCSP as the method used to check the
-	// revocation status of a certificate
+	// revocation status of a certificate.
 	MethodOCSP
 
 	// MethodCRL represents CRL as the method used to check the
-	// revocation status of a certificate
+	// revocation status of a certificate.
 	MethodCRL
 
 	// MethodOCSPFallbackCRL represents OCSP check with unknown error
 	// fallback to CRL as the method used to check the revocation status of a
-	// certificate
+	// certificate.
 	MethodOCSPFallbackCRL
 )
 

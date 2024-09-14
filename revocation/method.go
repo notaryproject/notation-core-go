@@ -17,6 +17,8 @@ import (
 	internalrevocation "github.com/notaryproject/notation-core-go/revocation/internal/revocation"
 )
 
+// Method defines the method used to check the revocation status of a
+// certificate.
 type Method = internalrevocation.Method
 
 const (
@@ -25,15 +27,15 @@ const (
 	MethodUnknown = internalrevocation.MethodUnknown
 
 	// MethodOCSP represents OCSP as the method used to check the
-	// revocation status of a certificate
+	// revocation status of a certificate.
 	MethodOCSP = internalrevocation.MethodOCSP
 
 	// MethodCRL represents CRL as the method used to check the
-	// revocation status of a certificate
+	// revocation status of a certificate.
 	MethodCRL = internalrevocation.MethodCRL
 
 	// MethodOCSPFallbackCRL represents OCSP check with unknown error
 	// fallback to CRL as the method used to check the revocation status of a
-	// certificate
+	// certificate.
 	MethodOCSPFallbackCRL = internalrevocation.MethodOCSPFallbackCRL
 )
