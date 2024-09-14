@@ -46,6 +46,27 @@ func TestResultString(t *testing.T) {
 	})
 }
 
+func TestMethodString(t *testing.T) {
+	tests := []struct {
+		method   RevocationMethod
+		expected string
+	}{
+		{RevocationMethodOCSP, "OCSP"},
+		{RevocationMethodCRL, "CRL"},
+		{RevocationMethodOCSPFallbackCRL, "OCSPFallbackCRL"},
+		{RevocationMethod(999), "Unknown"}, // Test for default case
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.expected, func(t *testing.T) {
+			result := tt.method.String()
+			if result != tt.expected {
+				t.Errorf("expected %s, got %s", tt.expected, result)
+			}
+		})
+	}
+}
+
 func TestNewServerResult(t *testing.T) {
 	expectedR := &ServerResult{
 		Result: ResultNonRevokable,
