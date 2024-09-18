@@ -67,7 +67,7 @@ func TestMemoryCache(t *testing.T) {
 		if err != nil {
 			t.Fatalf("expected no error, got %v", err)
 		}
-		if reflect.DeepEqual(bundle, retrievedBundle) {
+		if !reflect.DeepEqual(bundle, retrievedBundle) {
 			t.Fatalf("expected bundle %v, got %v", bundle, retrievedBundle)
 		}
 	})
