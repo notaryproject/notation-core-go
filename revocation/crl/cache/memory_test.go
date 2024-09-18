@@ -19,6 +19,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"math/big"
+	"reflect"
 	"testing"
 	"time"
 
@@ -58,7 +59,7 @@ func TestMemoryCache(t *testing.T) {
 			},
 		}}
 	key := "testKey"
-	t.Run("SetAndGet", func(t *testing.T) {
+	t.Run("SetAndGet comformance test", func(t *testing.T) {
 		if err := cache.Set(ctx, key, bundle); err != nil {
 			t.Fatalf("expected no error, got %v", err)
 		}
@@ -66,7 +67,7 @@ func TestMemoryCache(t *testing.T) {
 		if err != nil {
 			t.Fatalf("expected no error, got %v", err)
 		}
-		if retrievedBundle != bundle {
+		if reflect.DeepEqual(bundle, retrievedBundle) {
 			t.Fatalf("expected bundle %v, got %v", bundle, retrievedBundle)
 		}
 	})

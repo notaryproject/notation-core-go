@@ -143,12 +143,13 @@ func hashURL(url string) string {
 //
 // example of metadata.json:
 //
-//	{
-//	  "base.crl": {
-//	    "url": "https://example.com/base.crl"
-//	  },
-//	  "createAt": "2024-07-20T00:00:00Z"
-//	}
+//		{
+//		  "base.crl": {
+//		    "url": "https://example.com/base.crl",
+//	        "nextUpdate": "2024-07-20T00:00:00Z"
+//		  },
+//		  "createAt": "2024-07-20T00:00:00Z"
+//		}
 func parseBundleFromTar(data io.Reader) (*Bundle, error) {
 	bundle := &Bundle{}
 
@@ -210,7 +211,8 @@ func parseBundleFromTar(data io.Reader) (*Bundle, error) {
 //
 //	{
 //	  "base.crl": {
-//	    "url": "https://example.com/base.crl"
+//	    "url": "https://example.com/base.crl",
+//	    "nextUpdate": "2024-07-20T00:00:00Z"
 //	  },
 //	  "createAt": "2024-06-30T00:00:00Z"
 //	}

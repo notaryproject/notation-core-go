@@ -59,7 +59,10 @@ type Metadata struct {
 //
 // TODO: consider adding DeltaCRL field in the future
 type Bundle struct {
-	BaseCRL  *x509.RevocationList
+	// BaseCRL is the parsed base CRL
+	BaseCRL *x509.RevocationList
+
+	// Metadata is the metadata of the CRL bundle
 	Metadata Metadata
 }
 

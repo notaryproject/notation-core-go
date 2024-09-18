@@ -23,6 +23,7 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"strings"
 	"testing"
@@ -61,7 +62,7 @@ func TestFileCache(t *testing.T) {
 
 	key := "testKey"
 	bundle := &Bundle{BaseCRL: baseCRL, Metadata: Metadata{BaseCRL: CRLMetadata{URL: "http://crl"}, CreatedAt: time.Now()}}
-	t.Run("SetAndGet", func(t *testing.T) {
+	t.Run("SetAndGet comformance", func(t *testing.T) {
 		if err := cache.Set(ctx, key, bundle); err != nil {
 			t.Fatalf("expected no error, got %v", err)
 		}
@@ -69,7 +70,8 @@ func TestFileCache(t *testing.T) {
 		if err != nil {
 			t.Fatalf("expected no error, got %v", err)
 		}
-		if retrievedBundle.Metadata.CreatedAt.Unix() != bundle.Metadata.CreatedAt.Unix() {
+
+		if reflect.DeepEqual(bundle, retrievedBundle) {
 			t.Fatalf("expected bundle %v, got %v", bundle, retrievedBundle)
 		}
 	})
