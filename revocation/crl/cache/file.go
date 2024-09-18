@@ -151,7 +151,7 @@ func hashURL(url string) string {
 //		    "url": "https://example.com/base.crl",
 //	        "nextUpdate": "2024-07-20T00:00:00Z"
 //		  },
-//		  "createAt": "2024-07-20T00:00:00Z"
+//		  "cachedAt": "2024-07-20T00:00:00Z"
 //		}
 func parseBundleFromTar(data io.Reader) (*Bundle, error) {
 	var bundle Bundle
@@ -210,7 +210,7 @@ func parseBundleFromTar(data io.Reader) (*Bundle, error) {
 //	    "url": "https://example.com/base.crl",
 //	    "nextUpdate": "2024-07-20T00:00:00Z"
 //	  },
-//	  "createAt": "2024-06-30T00:00:00Z"
+//	  "cachedAt": "2024-06-30T00:00:00Z"
 //	}
 func saveTar(w io.Writer, bundle *Bundle) (err error) {
 	tarWriter := tar.NewWriter(w)
