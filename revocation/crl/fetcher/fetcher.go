@@ -36,7 +36,7 @@ const maxCRLSize = 32 * 1024 * 1024 // 32 MiB
 // Fetcher is an interface that specifies methods used for fetching CRL
 // from the given URL
 type Fetcher interface {
-	// Fetch retrieves the CRL from the given
+	// Fetch retrieves the CRL from the given URL.
 	Fetch(ctx context.Context, crlURL string) (bundle *cache.Bundle, fromCache bool, err error)
 
 	// Download downloads the CRL from the given URL and saves it to the

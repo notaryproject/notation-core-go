@@ -25,6 +25,7 @@ import (
 	"io"
 	"math/big"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -210,6 +211,106 @@ func TestCertCheckStatus(t *testing.T) {
 			t.Fatal("expected ErrDeltaCRLNotChecked")
 		}
 	})
+
+	t.Run("CRL cache is nil", func(t *testing.T) {
+		r := CertCheckStatus(context.Background(), chain[0].Cert, issuerCert, CertCheckStatusOptions{
+			HTTPClient: &http.Client{
+				Transport: expectedRoundTripperMock{Body: []byte{}},
+			},
+		})
+		if r.ServerResults[0].Error.Error() != "cache client is nil" {
+			t.Fatal("expected error")
+		}
+	})
+
+	memoryCache, err := cache.NewMemoryCache()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// create a stale CRL
+	crlBytes, err := x509.CreateRevocationList(rand.Reader, &x509.RevocationList{
+		NextUpdate: time.Now().Add(-time.Hour),
+		Number:     big.NewInt(20240720),
+	}, issuerCert, issuerKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	crl, err := x509.ParseRevocationList(crlBytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bundle := &cache.Bundle{
+		BaseCRL: crl,
+		Metadata: cache.Metadata{
+			BaseCRL: cache.CRLMetadata{
+				URL:        "http://example.com",
+				NextUpdate: crl.NextUpdate,
+			},
+			CreatedAt: time.Now(),
+		},
+	}
+	chain[0].Cert.CRLDistributionPoints = []string{"http://example.com"}
+
+	t.Run("invalid stale CRL cache, and re-download failed", func(t *testing.T) {
+		// save to cache
+		if err := memoryCache.Set(context.Background(), "http://example.com", bundle); err != nil {
+			t.Fatal(err)
+		}
+
+		r := CertCheckStatus(context.Background(), chain[0].Cert, issuerCert, CertCheckStatusOptions{
+			HTTPClient: &http.Client{
+				Transport: errorRoundTripperMock{},
+			},
+			CacheClient: memoryCache,
+		})
+		if !strings.HasPrefix(r.ServerResults[0].Error.Error(), "failed to download CRL from") {
+			t.Fatalf("unexpected error, got %v", r.ServerResults[0].Error)
+		}
+	})
+
+	t.Run("invalid stale CRL cache, re-download and still validate failed", func(t *testing.T) {
+		// save to cache
+		if err := memoryCache.Set(context.Background(), "http://example.com", bundle); err != nil {
+			t.Fatal(err)
+		}
+
+		r := CertCheckStatus(context.Background(), chain[0].Cert, issuerCert, CertCheckStatusOptions{
+			HTTPClient: &http.Client{
+				Transport: expectedRoundTripperMock{Body: crlBytes},
+			},
+			CacheClient: memoryCache,
+		})
+		if !strings.HasPrefix(r.ServerResults[0].Error.Error(), "failed to validate CRL from") {
+			t.Fatalf("unexpected error, got %v", r.ServerResults[0].Error)
+		}
+	})
+
+	t.Run("invalid stale CRL cache, re-download and validate seccessfully", func(t *testing.T) {
+		// save to cache
+		if err := memoryCache.Set(context.Background(), "http://example.com", bundle); err != nil {
+			t.Fatal(err)
+		}
+
+		crlBytes, err := x509.CreateRevocationList(rand.Reader, &x509.RevocationList{
+			NextUpdate: time.Now().Add(time.Hour),
+			Number:     big.NewInt(20240720),
+		}, issuerCert, issuerKey)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		r := CertCheckStatus(context.Background(), chain[0].Cert, issuerCert, CertCheckStatusOptions{
+			HTTPClient: &http.Client{
+				Transport: expectedRoundTripperMock{Body: crlBytes},
+			},
+			CacheClient: memoryCache,
+		})
+		if r.Result != result.ResultOK {
+			t.Fatalf("expected OK, got %s", r.Result)
+		}
+	})
+
 }
 
 func TestValidate(t *testing.T) {

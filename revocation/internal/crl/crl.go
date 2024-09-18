@@ -71,24 +71,19 @@ func CertCheckStatus(ctx context.Context, cert, issuer *x509.Certificate, opts C
 			Result: result.ResultNonRevokable,
 			ServerResults: []*result.ServerResult{{
 				RevocationMethod: result.RevocationMethodCRL,
+				Error:            errors.New("CRL is not supported"),
 				Result:           result.ResultNonRevokable,
 			}},
 			RevocationMethod: result.RevocationMethodCRL,
 		}
 	}
 
-	// The CRLDistributionPoints contains the URIs of all the CRL distribution
-	// points. Since it does not distinguish the reason field, it needs to check
-	// all the URIs to avoid missing any partial CRLs.
-	//
-	// For the majority of the certificates, there is only one CRL distribution
-	// point with one CRL URI, which will be cached, so checking all the URIs is
-	// not a performance issue.
 	var (
 		serverResults = make([]*result.ServerResult, 0, len(cert.CRLDistributionPoints))
 		lastErr       error
 		crlURL        string
 	)
+
 	cachedFetcher, err := fetcher.NewCachedFetcher(opts.HTTPClient, opts.CacheClient)
 	if err != nil {
 		return &result.CertRevocationResult{
@@ -102,6 +97,13 @@ func CertCheckStatus(ctx context.Context, cert, issuer *x509.Certificate, opts C
 		}
 	}
 
+	// The CRLDistributionPoints contains the URIs of all the CRL distribution
+	// points. Since it does not distinguish the reason field, it needs to check
+	// all the URIs to avoid missing any partial CRLs.
+	//
+	// For the majority of the certificates, there is only one CRL distribution
+	// point with one CRL URI, which will be cached, so checking all the URIs is
+	// not a performance issue.
 	for _, crlURL = range cert.CRLDistributionPoints {
 		bundle, fromCache, err := cachedFetcher.Fetch(ctx, crlURL)
 		if err != nil {
