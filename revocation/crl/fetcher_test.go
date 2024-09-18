@@ -76,6 +76,20 @@ func TestFetch(t *testing.T) {
 		}
 	})
 
+	t.Run("fetch without cache", func(t *testing.T) {
+		httpClient := &http.Client{
+			Transport: expectedRoundTripperMock{Body: baseCRL.Raw},
+		}
+		f := NewHTTPFetcher(httpClient)
+		base, _, err := f.Fetch(context.Background(), exampleURL)
+		if err != nil {
+			t.Errorf("Fetcher.Fetch() error = %v, want nil", err)
+		}
+		if !bytes.Equal(base.Raw, baseCRL.Raw) {
+			t.Errorf("Fetcher.Fetch() base.Raw = %v, want %v", base.Raw, baseCRL.Raw)
+		}
+	})
+
 	t.Run("cache hit", func(t *testing.T) {
 		f := NewHTTPFetcher(nil)
 		f.Cache = c
@@ -98,9 +112,6 @@ func TestFetch(t *testing.T) {
 		if err != nil {
 			t.Errorf("Fetcher.Fetch() error = %v, want nil", err)
 		}
-		if base == nil {
-			t.Errorf("Fetcher.Fetch() fetchedBundle = nil, want not nil")
-		}
 		if !bytes.Equal(base.Raw, baseCRL.Raw) {
 			t.Errorf("Fetcher.Fetch() base.Raw = %v, want %v", base.Raw, baseCRL.Raw)
 		}
@@ -116,6 +127,45 @@ func TestFetch(t *testing.T) {
 		_, _, err = f.Fetch(context.Background(), uncachedURL)
 		if err == nil {
 			t.Errorf("Fetcher.Fetch() error = nil, want not nil")
+		}
+	})
+
+	t.Run("cache expired", func(t *testing.T) {
+		expiredBundle := &cache.Bundle{
+			BaseCRL: baseCRL,
+			Metadata: cache.Metadata{
+				BaseCRL: cache.CRLMetadata{
+					URL:        exampleURL,
+					NextUpdate: time.Now().Add(-1 * time.Hour),
+				},
+				CachedAt: time.Now().Add(-1 * time.Hour),
+			},
+		}
+		if err := c.Set(context.Background(), exampleURL, expiredBundle); err != nil {
+			t.Errorf("Cache.Set() error = %v, want nil", err)
+		}
+
+		// generate a new CRL
+		// prepare crl
+		certChain := testhelper.GetRevokableRSAChainWithRevocations(2, false, true)
+		newCRLBytes, err := x509.CreateRevocationList(rand.Reader, &x509.RevocationList{
+			Number: big.NewInt(1),
+		}, certChain[1].Cert, certChain[1].PrivateKey)
+		if err != nil {
+			t.Fatalf("failed to create base CRL: %v", err)
+		}
+
+		httpClient := &http.Client{
+			Transport: expectedRoundTripperMock{Body: newCRLBytes},
+		}
+		f := NewHTTPFetcher(httpClient)
+		f.Cache = c
+		base, _, err := f.Fetch(context.Background(), exampleURL)
+		if err != nil {
+			t.Errorf("Fetcher.Fetch() error = %v, want nil", err)
+		}
+		if !bytes.Equal(base.Raw, newCRLBytes) {
+			t.Errorf("Fetcher.Fetch() base.Raw = %v, want %v", base.Raw, baseCRL.Raw)
 		}
 	})
 }

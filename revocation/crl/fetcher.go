@@ -70,29 +70,19 @@ func (f *HTTPFetcher) Fetch(ctx context.Context, uri string) (base, delta *x509.
 
 	if f.Cache == nil {
 		// no cache, download directly
-		base, err := f.download(ctx, uri)
-		return base, nil, err
+		return f.download(ctx, uri)
 	}
 
 	// try to get from cache
 	bundle, err := f.Cache.Get(ctx, uri)
 	if err != nil {
-		base, err := f.download(ctx, uri)
-		if err != nil {
-			return nil, nil, err
-		}
-		return base, nil, nil
+		return f.download(ctx, uri)
 	}
 
-	// validate NextUpdate
+	// check expiry
 	nextUpdate := bundle.Metadata.BaseCRL.NextUpdate
 	if !nextUpdate.IsZero() && time.Now().After(nextUpdate) {
-		// download and save to cache
-		base, err := f.download(ctx, uri)
-		if err != nil {
-			return nil, nil, err
-		}
-		return base, nil, nil
+		return f.download(ctx, uri)
 	}
 
 	return bundle.BaseCRL, nil, nil
@@ -100,15 +90,15 @@ func (f *HTTPFetcher) Fetch(ctx context.Context, uri string) (base, delta *x509.
 
 // Download downloads the CRL from the given URL and saves it to the
 // cache
-func (f *HTTPFetcher) download(ctx context.Context, uri string) (base *x509.RevocationList, err error) {
+func (f *HTTPFetcher) download(ctx context.Context, uri string) (base, delta *x509.RevocationList, err error) {
 	base, err = download(ctx, uri, f.httpClient)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	if f.Cache == nil {
 		// no cache, return directly
-		return base, nil
+		return base, delta, nil
 	}
 
 	bundle := &cache.Bundle{
@@ -121,11 +111,10 @@ func (f *HTTPFetcher) download(ctx context.Context, uri string) (base *x509.Revo
 			CachedAt: time.Now(),
 		},
 	}
-
 	// ignore the error, as the cache is not critical
 	_ = f.Cache.Set(ctx, uri, bundle)
 
-	return base, nil
+	return base, delta, nil
 }
 
 func download(ctx context.Context, crlURL string, client *http.Client) (*x509.RevocationList, error) {

@@ -39,8 +39,18 @@ func TestCertCheckStatus(t *testing.T) {
 	t.Run("certificate does not have CRLDistributionPoints", func(t *testing.T) {
 		cert := &x509.Certificate{}
 		r := CertCheckStatus(context.Background(), cert, &x509.Certificate{}, CertCheckStatusOptions{})
-		if r.Result != result.ResultNonRevokable {
-			t.Fatalf("expected NonRevokable, got %s", r.Result)
+		if r.ServerResults[0].Error.Error() != "CRL is not supported" {
+			t.Fatalf("expected CRL is not supported, got %v", r.ServerResults[0].Error)
+		}
+	})
+
+	t.Run("fetcher is nil", func(t *testing.T) {
+		cert := &x509.Certificate{
+			CRLDistributionPoints: []string{"http://example.com"},
+		}
+		r := CertCheckStatus(context.Background(), cert, &x509.Certificate{}, CertCheckStatusOptions{})
+		if r.ServerResults[0].Error.Error() != "CRL fetcher is nil" {
+			t.Fatalf("expected CRL fetcher is nil, got %v", r.ServerResults[0].Error)
 		}
 	})
 
@@ -290,7 +300,6 @@ func TestCertCheckStatus(t *testing.T) {
 			t.Fatalf("expected OK, got %s", r.Result)
 		}
 	})
-
 }
 
 func TestValidate(t *testing.T) {
