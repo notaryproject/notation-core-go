@@ -14,13 +14,10 @@
 package cache
 
 import (
-	"archive/tar"
-	"bytes"
 	"crypto/rand"
 	"crypto/x509"
 	"math/big"
 	"testing"
-	"time"
 
 	"github.com/notaryproject/notation-core-go/testhelper"
 )
@@ -33,78 +30,38 @@ func TestValidate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create base CRL: %v", err)
 	}
+	base, err := x509.ParseRevocationList(crlBytes)
+	if err != nil {
+		t.Fatalf("failed to parse base CRL: %v", err)
+	}
 
 	t.Run("missing BaseCRL", func(t *testing.T) {
-		var buf bytes.Buffer
-		_, err := parseBundleFromTar(bytes.NewReader(buf.Bytes()))
-		if err == nil {
-			t.Fatalf("expected error, got nil")
+		var bundle Bundle
+		if err := bundle.Validate(); err.Error() != "base CRL is missing" {
+			t.Fatalf("expected base CRL is missing, got %v", err)
 		}
 	})
 
 	t.Run("missing metadata baseCRL URL", func(t *testing.T) {
-		var buf bytes.Buffer
-		tw := tar.NewWriter(&buf)
-		baseCRLHeader := &tar.Header{
-			Name:    "base.crl",
-			Size:    int64(len(crlBytes)),
-			Mode:    0644,
-			ModTime: time.Now(),
+		bundle := Bundle{
+			BaseCRL: base,
 		}
-		if err := tw.WriteHeader(baseCRLHeader); err != nil {
-			t.Fatalf("failed to write header: %v", err)
-		}
-		tw.Write(crlBytes)
-
-		metadataContent := []byte(`{"base.crl": {}}`)
-		metadataHeader := &tar.Header{
-			Name:    "metadata.json",
-			Size:    int64(len(metadataContent)),
-			Mode:    0644,
-			ModTime: time.Now(),
-		}
-		if err := tw.WriteHeader(metadataHeader); err != nil {
-			t.Fatalf("failed to write header: %v", err)
-		}
-		tw.Write(metadataContent)
-		tw.Close()
-
-		_, err := parseBundleFromTar(bytes.NewReader(buf.Bytes()))
-		if err == nil {
-			t.Fatalf("expected error, got nil")
+		if err := bundle.Validate(); err.Error() != "base CRL URL is missing" {
+			t.Fatalf("expected base CRL URL is missing, got %v", err)
 		}
 	})
 
-	t.Run("missing metadata createAt", func(t *testing.T) {
-		var buf bytes.Buffer
-		tw := tar.NewWriter(&buf)
-		baseCRLHeader := &tar.Header{
-			Name:    "base.crl",
-			Size:    int64(len(crlBytes)),
-			Mode:    0644,
-			ModTime: time.Now(),
+	t.Run("missing metadata cachedAt", func(t *testing.T) {
+		bundle := Bundle{
+			BaseCRL: base,
+			Metadata: Metadata{
+				BaseCRL: CRLMetadata{
+					URL: "http://example.com",
+				},
+			},
 		}
-		if err := tw.WriteHeader(baseCRLHeader); err != nil {
-			t.Fatalf("failed to write header: %v", err)
-		}
-		tw.Write(crlBytes)
-
-		metadataContent := []byte(`{"base.crl": {"url": "https://example.com/base.crl"}}`)
-		metadataHeader := &tar.Header{
-			Name:    "metadata.json",
-			Size:    int64(len(metadataContent)),
-			Mode:    0644,
-			ModTime: time.Now(),
-		}
-		if err := tw.WriteHeader(metadataHeader); err != nil {
-			t.Fatalf("failed to write header: %v", err)
-		}
-		tw.Write(metadataContent)
-		tw.Close()
-
-		_, err := parseBundleFromTar(bytes.NewReader(buf.Bytes()))
-		if err == nil {
-			t.Fatalf("expected error, got nil")
+		if err := bundle.Validate(); err.Error() != "base CRL CachedAt is missing" {
+			t.Fatalf("expected base CRL CachedAt is missing, got %v", err)
 		}
 	})
 }

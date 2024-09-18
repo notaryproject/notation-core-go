@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package cache
+package cachehelper
 
 import (
 	"context"
@@ -23,6 +23,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/notaryproject/notation-core-go/revocation/crl/cache"
 	"github.com/notaryproject/notation-core-go/testhelper"
 )
 
@@ -42,25 +43,25 @@ func TestMemoryCache(t *testing.T) {
 	}
 
 	// Test NewMemoryCache
-	cache := NewMemoryCache()
-	if cache.MaxAge != DefaultMaxAge {
-		t.Fatalf("expected maxAge %v, got %v", DefaultMaxAge, cache.MaxAge)
+	c := NewMemoryCache()
+	if c.MaxAge != cache.DefaultMaxAge {
+		t.Fatalf("expected maxAge %v, got %v", cache.DefaultMaxAge, c.MaxAge)
 	}
 
-	bundle := &Bundle{
+	bundle := &cache.Bundle{
 		BaseCRL: baseCRL,
-		Metadata: Metadata{
+		Metadata: cache.Metadata{
 			CachedAt: time.Now(),
-			BaseCRL: CRLMetadata{
+			BaseCRL: cache.CRLMetadata{
 				URL: "http://crl",
 			},
 		}}
 	key := "testKey"
 	t.Run("SetAndGet comformance test", func(t *testing.T) {
-		if err := cache.Set(ctx, key, bundle); err != nil {
+		if err := c.Set(ctx, key, bundle); err != nil {
 			t.Fatalf("expected no error, got %v", err)
 		}
-		retrievedBundle, err := cache.Get(ctx, key)
+		retrievedBundle, err := c.Get(ctx, key)
 		if err != nil {
 			t.Fatalf("expected no error, got %v", err)
 		}
@@ -70,32 +71,32 @@ func TestMemoryCache(t *testing.T) {
 	})
 
 	t.Run("GetWithExpiredBundle", func(t *testing.T) {
-		expiredBundle := &Bundle{
+		expiredBundle := &cache.Bundle{
 			BaseCRL: baseCRL,
-			Metadata: Metadata{
-				CachedAt: time.Now().Add(-DefaultMaxAge - 1*time.Second),
-				BaseCRL: CRLMetadata{
+			Metadata: cache.Metadata{
+				CachedAt: time.Now().Add(-cache.DefaultMaxAge - 1*time.Second),
+				BaseCRL: cache.CRLMetadata{
 					URL: "http://crl",
 				},
 			}}
-		if err := cache.Set(ctx, "expiredKey", expiredBundle); err != nil {
+		if err := c.Set(ctx, "expiredKey", expiredBundle); err != nil {
 			t.Fatalf("expected no error, got %v", err)
 		}
-		_, err = cache.Get(ctx, "expiredKey")
-		if !errors.Is(err, ErrCacheMiss) {
+		_, err = c.Get(ctx, "expiredKey")
+		if !errors.Is(err, cache.ErrCacheMiss) {
 			t.Fatalf("expected ErrCacheMiss, got %v", err)
 		}
 	})
 
 	t.Run("Key doesn't exist", func(t *testing.T) {
-		_, err := cache.Get(ctx, "nonExistentKey")
-		if !errors.Is(err, ErrCacheMiss) {
+		_, err := c.Get(ctx, "nonExistentKey")
+		if !errors.Is(err, cache.ErrCacheMiss) {
 			t.Fatalf("expected ErrCacheMiss, got %v", err)
 		}
 	})
 
 	t.Run("Cache interface", func(t *testing.T) {
-		var _ Cache = cache
+		var _ cache.Cache = c
 	})
 }
 
@@ -113,16 +114,16 @@ func TestMemoryCacheFailed(t *testing.T) {
 	})
 
 	t.Run("ValidateFailed", func(t *testing.T) {
-		cache := NewMemoryCache()
-		bundle := &Bundle{
+		c := NewMemoryCache()
+		bundle := &cache.Bundle{
 			BaseCRL: nil,
-			Metadata: Metadata{
+			Metadata: cache.Metadata{
 				CachedAt: time.Now(),
-				BaseCRL: CRLMetadata{
+				BaseCRL: cache.CRLMetadata{
 					URL: "http://crl",
 				},
 			}}
-		err := cache.Set(ctx, "invalidBundle", bundle)
+		err := c.Set(ctx, "invalidBundle", bundle)
 		if err == nil {
 			t.Fatalf("expected error, got nil")
 		}

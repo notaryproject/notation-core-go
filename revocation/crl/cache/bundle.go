@@ -67,7 +67,7 @@ func (b *Bundle) Validate() error {
 		return errors.New("base CRL URL is missing")
 	}
 	if b.Metadata.CachedAt.IsZero() {
-		return errors.New("base CRL creation time is missing")
+		return errors.New("base CRL CachedAt is missing")
 	}
 	return nil
 }

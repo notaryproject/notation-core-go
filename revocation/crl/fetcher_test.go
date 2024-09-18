@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/notaryproject/notation-core-go/revocation/crl/cache"
+	"github.com/notaryproject/notation-core-go/revocation/internal/cachehelper"
 	"github.com/notaryproject/notation-core-go/testhelper"
 )
 
@@ -37,7 +38,7 @@ func TestNewHTTPFetcher(t *testing.T) {
 
 func TestFetch(t *testing.T) {
 	// prepare cache
-	c := cache.NewMemoryCache()
+	c := cachehelper.NewMemoryCache()
 
 	// prepare crl
 	certChain := testhelper.GetRevokableRSAChainWithRevocations(2, false, true)
@@ -121,9 +122,7 @@ func TestFetch(t *testing.T) {
 		httpClient := &http.Client{
 			Transport: errorRoundTripperMock{},
 		}
-		newCache := cache.NewMemoryCache()
 		f := NewHTTPFetcher(httpClient)
-		f.Cache = newCache
 		_, _, err = f.Fetch(context.Background(), uncachedURL)
 		if err == nil {
 			t.Errorf("Fetcher.Fetch() error = nil, want not nil")

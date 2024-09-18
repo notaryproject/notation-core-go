@@ -31,6 +31,7 @@ import (
 
 	crlutils "github.com/notaryproject/notation-core-go/revocation/crl"
 	"github.com/notaryproject/notation-core-go/revocation/crl/cache"
+	"github.com/notaryproject/notation-core-go/revocation/internal/cachehelper"
 	"github.com/notaryproject/notation-core-go/revocation/result"
 	"github.com/notaryproject/notation-core-go/testhelper"
 )
@@ -55,7 +56,7 @@ func TestCertCheckStatus(t *testing.T) {
 	})
 
 	t.Run("download error", func(t *testing.T) {
-		memoryCache := cache.NewMemoryCache()
+		memoryCache := cachehelper.NewMemoryCache()
 
 		cert := &x509.Certificate{
 			CRLDistributionPoints: []string{"http://example.com"},
@@ -75,7 +76,7 @@ func TestCertCheckStatus(t *testing.T) {
 	})
 
 	t.Run("CRL validate failed", func(t *testing.T) {
-		memoryCache := cache.NewMemoryCache()
+		memoryCache := cachehelper.NewMemoryCache()
 
 		cert := &x509.Certificate{
 			CRLDistributionPoints: []string{"http://example.com"},
@@ -99,7 +100,7 @@ func TestCertCheckStatus(t *testing.T) {
 	issuerKey := chain[1].PrivateKey
 
 	t.Run("revoked", func(t *testing.T) {
-		memoryCache := cache.NewMemoryCache()
+		memoryCache := cachehelper.NewMemoryCache()
 
 		crlBytes, err := x509.CreateRevocationList(rand.Reader, &x509.RevocationList{
 			NextUpdate: time.Now().Add(time.Hour),
@@ -128,7 +129,7 @@ func TestCertCheckStatus(t *testing.T) {
 	})
 
 	t.Run("unknown critical extension", func(t *testing.T) {
-		memoryCache := cache.NewMemoryCache()
+		memoryCache := cachehelper.NewMemoryCache()
 
 		crlBytes, err := x509.CreateRevocationList(rand.Reader, &x509.RevocationList{
 			NextUpdate: time.Now().Add(time.Hour),
@@ -163,7 +164,7 @@ func TestCertCheckStatus(t *testing.T) {
 	})
 
 	t.Run("Not revoked", func(t *testing.T) {
-		memoryCache := cache.NewMemoryCache()
+		memoryCache := cachehelper.NewMemoryCache()
 
 		crlBytes, err := x509.CreateRevocationList(rand.Reader, &x509.RevocationList{
 			NextUpdate: time.Now().Add(time.Hour),
@@ -186,7 +187,7 @@ func TestCertCheckStatus(t *testing.T) {
 	})
 
 	t.Run("CRL with delta CRL is not checked", func(t *testing.T) {
-		memoryCache := cache.NewMemoryCache()
+		memoryCache := cachehelper.NewMemoryCache()
 
 		crlBytes, err := x509.CreateRevocationList(rand.Reader, &x509.RevocationList{
 			NextUpdate: time.Now().Add(time.Hour),
@@ -213,7 +214,7 @@ func TestCertCheckStatus(t *testing.T) {
 		}
 	})
 
-	memoryCache := cache.NewMemoryCache()
+	memoryCache := cachehelper.NewMemoryCache()
 
 	// create a stale CRL
 	crlBytes, err := x509.CreateRevocationList(rand.Reader, &x509.RevocationList{

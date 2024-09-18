@@ -11,13 +11,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package cache
+package cachehelper
 
 import (
 	"context"
 	"fmt"
 	"sync"
 	"time"
+
+	"github.com/notaryproject/notation-core-go/revocation/crl/cache"
 )
 
 // MemoryCache is an in-memory cache that stores CRL bundles.
@@ -39,7 +41,7 @@ type MemoryCache struct {
 // NewMemoryCache creates a new memory store.
 func NewMemoryCache() *MemoryCache {
 	return &MemoryCache{
-		MaxAge: DefaultMaxAge,
+		MaxAge: cache.DefaultMaxAge,
 	}
 }
 
@@ -47,26 +49,26 @@ func NewMemoryCache() *MemoryCache {
 //
 // - if the key does not exist, return ErrNotFound
 // - if the CRL is expired, return ErrCacheMiss
-func (c *MemoryCache) Get(ctx context.Context, uri string) (*Bundle, error) {
+func (c *MemoryCache) Get(ctx context.Context, uri string) (*cache.Bundle, error) {
 	value, ok := c.store.Load(uri)
 	if !ok {
-		return nil, ErrCacheMiss
+		return nil, cache.ErrCacheMiss
 	}
-	bundle, ok := value.(*Bundle)
+	bundle, ok := value.(*cache.Bundle)
 	if !ok {
 		return nil, fmt.Errorf("invalid type: %T", value)
 	}
 
 	expires := bundle.Metadata.CachedAt.Add(c.MaxAge)
 	if c.MaxAge > 0 && time.Now().After(expires) {
-		return nil, ErrCacheMiss
+		return nil, cache.ErrCacheMiss
 	}
 
 	return bundle, nil
 }
 
 // Set stores the CRL in the memory store.
-func (c *MemoryCache) Set(ctx context.Context, uri string, bundle *Bundle) error {
+func (c *MemoryCache) Set(ctx context.Context, uri string, bundle *cache.Bundle) error {
 	if err := bundle.Validate(); err != nil {
 		return err
 	}

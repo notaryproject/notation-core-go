@@ -89,7 +89,8 @@ func New(httpClient *http.Client) (Revocation, error) {
 		ocspHTTPClient:   httpClient,
 		crlHTTPClient:    httpClient,
 		certChainPurpose: purpose.CodeSigning,
-		crlCache:         cache.NewMemoryCache(),
+		// no cache by default
+		crlCache: nil,
 	}, nil
 }
 
