@@ -19,14 +19,6 @@ import (
 	"time"
 )
 
-const (
-	// PathBaseCRL is the file name of the base CRL
-	PathBaseCRL = "base.crl"
-
-	// PathMetadata is the file name of the metadata
-	PathMetadata = "metadata.json"
-)
-
 // CRLMetadata stores the URL of the CRL
 type CRLMetadata struct {
 	// URL stores the URL of the CRL

@@ -28,7 +28,5 @@ func (e *BrokenFileError) Error() string {
 	return e.Err.Error()
 }
 
-var (
-	// ErrCacheMiss is an error type for when a cache miss occurs
-	ErrCacheMiss = errors.New("cache miss")
-)
+// ErrCacheMiss is an error type for when a cache miss occurs
+var ErrCacheMiss = errors.New("cache miss")

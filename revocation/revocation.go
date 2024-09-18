@@ -134,19 +134,20 @@ func NewWithOptions(opts Options) (Validator, error) {
 		return nil, fmt.Errorf("unsupported certificate chain purpose %v", opts.CertChainPurpose)
 	}
 
-	if opts.CRLCache == nil {
-		memoryCache, err := cache.NewMemoryCache()
+	crlCache := opts.CRLCache
+	if crlCache == nil {
+		newCache, err := cache.NewMemoryCache()
 		if err != nil {
 			return nil, fmt.Errorf("failed to create memory cache: %v", err)
 		}
-		opts.CRLCache = memoryCache
+		crlCache = newCache
 	}
 
 	return &revocation{
 		ocspHTTPClient:   opts.OCSPHTTPClient,
 		crlHTTPClient:    opts.CRLHTTPClient,
 		certChainPurpose: opts.CertChainPurpose,
-		crlCache:         opts.CRLCache,
+		crlCache:         crlCache,
 	}, nil
 }
 

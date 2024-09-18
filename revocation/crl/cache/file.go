@@ -28,6 +28,12 @@ import (
 )
 
 const (
+	// pathBaseCRL is the file name of the base CRL
+	pathBaseCRL = "base.crl"
+
+	// pathMetadata is the file name of the metadata
+	pathMetadata = "metadata.json"
+
 	// tempFileName is the prefix of the temporary file
 	tempFileName = "notation-*"
 )
@@ -167,7 +173,7 @@ func parseBundleFromTar(data io.Reader) (*Bundle, error) {
 		}
 
 		switch header.Name {
-		case PathBaseCRL:
+		case pathBaseCRL:
 			// parse base.crl
 			data, err := io.ReadAll(tar)
 			if err != nil {
@@ -182,7 +188,7 @@ func parseBundleFromTar(data io.Reader) (*Bundle, error) {
 				}
 			}
 			bundle.BaseCRL = baseCRL
-		case PathMetadata:
+		case pathMetadata:
 			// parse metadata
 			var metadata Metadata
 			if err := json.NewDecoder(tar).Decode(&metadata); err != nil {
@@ -225,7 +231,7 @@ func saveTar(w io.Writer, bundle *Bundle) (err error) {
 	}()
 
 	// Add base.crl
-	if err := addToTar(PathBaseCRL, bundle.BaseCRL.Raw, bundle.Metadata.CreatedAt, tarWriter); err != nil {
+	if err := addToTar(pathBaseCRL, bundle.BaseCRL.Raw, bundle.Metadata.CreatedAt, tarWriter); err != nil {
 		return err
 	}
 
@@ -234,7 +240,7 @@ func saveTar(w io.Writer, bundle *Bundle) (err error) {
 	if err != nil {
 		return err
 	}
-	return addToTar(PathMetadata, metadataBytes, time.Now(), tarWriter)
+	return addToTar(pathMetadata, metadataBytes, time.Now(), tarWriter)
 }
 
 func addToTar(fileName string, data []byte, modTime time.Time, tw *tar.Writer) error {
