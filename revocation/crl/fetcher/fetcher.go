@@ -28,10 +28,10 @@ import (
 	"github.com/notaryproject/notation-core-go/revocation/crl/cache"
 )
 
-// maxCRLSize is the maximum size of CRL in bytes
+// MaxCRLSize is the maximum size of CRL in bytes
 //
 // CRL examples: https://chasersystems.com/blog/an-analysis-of-certificate-revocation-list-sizes/
-const maxCRLSize = 32 * 1024 * 1024 // 32 MiB
+const MaxCRLSize = 32 * 1024 * 1024 // 32 MiB
 
 // Fetcher is an interface that specifies methods used for fetching CRL
 // from the given URL
@@ -135,12 +135,12 @@ func download(ctx context.Context, crlURL string, client *http.Client) (bundle *
 		return nil, fmt.Errorf("failed to download with status code: %d", resp.StatusCode)
 	}
 	// read with size limit
-	data, err := io.ReadAll(io.LimitReader(resp.Body, maxCRLSize))
+	data, err := io.ReadAll(io.LimitReader(resp.Body, MaxCRLSize))
 	if err != nil {
 		return nil, fmt.Errorf("failed to read CRL response: %w", err)
 	}
-	if len(data) == maxCRLSize {
-		return nil, fmt.Errorf("CRL size exceeds the limit: %d", maxCRLSize)
+	if len(data) == MaxCRLSize {
+		return nil, fmt.Errorf("CRL size exceeds the limit: %d", MaxCRLSize)
 	}
 
 	// parse CRL and create bundle

@@ -36,6 +36,9 @@ import (
 const (
 	// DefaultMaxAge is the default maximum age of the CRLs cache.
 	// If the CRL is older than DefaultMaxAge, it will be considered as expired.
+	//
+	// reference: Baseline Requirements for Code-Signing Certificates
+	// 4.9.7 CRL issuance frequency: https://cabforum.org/uploads/Baseline-Requirements-for-the-Issuance-and-Management-of-Code-Signing.v3.9.pdf
 	DefaultMaxAge = 24 * 7 * time.Hour
 )
 

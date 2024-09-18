@@ -215,7 +215,7 @@ func TestDownload(t *testing.T) {
 
 	t.Run("exceed the size limit", func(t *testing.T) {
 		_, err := download(context.Background(), "http://example.com", &http.Client{
-			Transport: expectedRoundTripperMock{Body: make([]byte, maxCRLSize+1)},
+			Transport: expectedRoundTripperMock{Body: make([]byte, MaxCRLSize+1)},
 		})
 		if err == nil {
 			t.Fatal("expected error")
