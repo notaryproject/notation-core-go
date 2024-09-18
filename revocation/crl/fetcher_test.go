@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package fetcher
+package crl
 
 import (
 	"bytes"
@@ -29,32 +29,15 @@ import (
 	"github.com/notaryproject/notation-core-go/testhelper"
 )
 
-func TestNewCachedFetcher(t *testing.T) {
-	c, err := cache.NewMemoryCache()
-	if err != nil {
-		t.Errorf("NewMemoryCache() error = %v, want nil", err)
-	}
+func TestNewHTTPFetcher(t *testing.T) {
 	t.Run("httpClient is nil", func(t *testing.T) {
-		_, err := NewCachedFetcher(nil, c)
-		if err != nil {
-			t.Errorf("NewCachedFetcher() error = %v, want nil", err)
-		}
-	})
-
-	t.Run("cacheClient is nil", func(t *testing.T) {
-		_, err := NewCachedFetcher(nil, nil)
-		if err == nil {
-			t.Errorf("NewCachedFetcher() error = nil, want not nil")
-		}
+		_ = NewHTTPFetcher(nil)
 	})
 }
 
 func TestFetch(t *testing.T) {
 	// prepare cache
-	c, err := cache.NewMemoryCache()
-	if err != nil {
-		t.Errorf("NewMemoryCache() error = %v, want nil", err)
-	}
+	c := cache.NewMemoryCache()
 
 	// prepare crl
 	certChain := testhelper.GetRevokableRSAChainWithRevocations(2, false, true)
@@ -77,7 +60,7 @@ func TestFetch(t *testing.T) {
 			BaseCRL: cache.CRLMetadata{
 				URL: exampleURL,
 			},
-			CreatedAt: time.Now(),
+			CachedAt: time.Now(),
 		},
 	}
 	if err := c.Set(context.Background(), exampleURL, bundle); err != nil {
@@ -85,10 +68,8 @@ func TestFetch(t *testing.T) {
 	}
 
 	t.Run("url is empty", func(t *testing.T) {
-		f, err := NewCachedFetcher(nil, c)
-		if err != nil {
-			t.Errorf("NewCachedFetcher() error = %v, want nil", err)
-		}
+		f := NewHTTPFetcher(nil)
+		f.Cache = c
 		_, _, err = f.Fetch(context.Background(), "")
 		if err == nil {
 			t.Errorf("Fetcher.Fetch() error = nil, want not nil")
@@ -96,25 +77,14 @@ func TestFetch(t *testing.T) {
 	})
 
 	t.Run("cache hit", func(t *testing.T) {
-		f, err := NewCachedFetcher(nil, c)
-		if err != nil {
-			t.Errorf("NewCachedFetcher() error = %v, want nil", err)
-		}
-		fetchedBundle, fromCache, err := f.Fetch(context.Background(), exampleURL)
+		f := NewHTTPFetcher(nil)
+		f.Cache = c
+		base, _, err := f.Fetch(context.Background(), exampleURL)
 		if err != nil {
 			t.Errorf("Fetcher.Fetch() error = %v, want nil", err)
 		}
-		if !fromCache {
-			t.Errorf("Fetcher.Fetch() fromCache = false, want true")
-		}
-		if fetchedBundle == nil {
-			t.Errorf("Fetcher.Fetch() fetchedBundle = nil, want not nil")
-		}
-		if fetchedBundle != nil && fetchedBundle.Metadata.BaseCRL.URL != exampleURL {
-			t.Errorf("Fetcher.Fetch() fetchedBundle.Metadata.BaseCRL.URL = %v, want %v", fetchedBundle.Metadata.BaseCRL.URL, exampleURL)
-		}
-		if !bytes.Equal(fetchedBundle.BaseCRL.Raw, baseCRL.Raw) {
-			t.Errorf("Fetcher.Fetch() fetchedBundle.BaseCRL.Raw = %v, want %v", fetchedBundle.BaseCRL.Raw, baseCRL.Raw)
+		if !bytes.Equal(base.Raw, baseCRL.Raw) {
+			t.Errorf("Fetcher.Fetch() base.Raw = %v, want %v", base.Raw, baseCRL.Raw)
 		}
 	})
 
@@ -122,25 +92,17 @@ func TestFetch(t *testing.T) {
 		httpClient := &http.Client{
 			Transport: expectedRoundTripperMock{Body: baseCRL.Raw},
 		}
-		f, err := NewCachedFetcher(httpClient, c)
-		if err != nil {
-			t.Errorf("NewCachedFetcher() error = %v, want nil", err)
-		}
-		fetchedBundle, fromCache, err := f.Fetch(context.Background(), uncachedURL)
+		f := NewHTTPFetcher(httpClient)
+		f.Cache = c
+		base, _, err := f.Fetch(context.Background(), uncachedURL)
 		if err != nil {
 			t.Errorf("Fetcher.Fetch() error = %v, want nil", err)
 		}
-		if fromCache {
-			t.Errorf("Fetcher.Fetch() fromCache = true, want false")
-		}
-		if fetchedBundle == nil {
+		if base == nil {
 			t.Errorf("Fetcher.Fetch() fetchedBundle = nil, want not nil")
 		}
-		if fetchedBundle != nil && fetchedBundle.Metadata.BaseCRL.URL != uncachedURL {
-			t.Errorf("Fetcher.Fetch() fetchedBundle.Metadata.BaseCRL.URL = %v, want %v", fetchedBundle.Metadata.BaseCRL.URL, exampleURL)
-		}
-		if !bytes.Equal(fetchedBundle.BaseCRL.Raw, baseCRL.Raw) {
-			t.Errorf("Fetcher.Fetch() fetchedBundle.BaseCRL.Raw = %v, want %v", fetchedBundle.BaseCRL.Raw, baseCRL.Raw)
+		if !bytes.Equal(base.Raw, baseCRL.Raw) {
+			t.Errorf("Fetcher.Fetch() base.Raw = %v, want %v", base.Raw, baseCRL.Raw)
 		}
 	})
 
@@ -148,14 +110,9 @@ func TestFetch(t *testing.T) {
 		httpClient := &http.Client{
 			Transport: errorRoundTripperMock{},
 		}
-		newCache, err := cache.NewMemoryCache()
-		if err != nil {
-			t.Errorf("NewMemoryCache() error = %v, want nil", err)
-		}
-		f, err := NewCachedFetcher(httpClient, newCache)
-		if err != nil {
-			t.Errorf("NewCachedFetcher() error = %v, want nil", err)
-		}
+		newCache := cache.NewMemoryCache()
+		f := NewHTTPFetcher(httpClient)
+		f.Cache = newCache
 		_, _, err = f.Fetch(context.Background(), uncachedURL)
 		if err == nil {
 			t.Errorf("Fetcher.Fetch() error = nil, want not nil")

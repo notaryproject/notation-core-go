@@ -61,7 +61,7 @@ func TestFileCache(t *testing.T) {
 	})
 
 	key := "testKey"
-	bundle := &Bundle{BaseCRL: baseCRL, Metadata: Metadata{BaseCRL: CRLMetadata{URL: "http://crl"}, CreatedAt: time.Now()}}
+	bundle := &Bundle{BaseCRL: baseCRL, Metadata: Metadata{BaseCRL: CRLMetadata{URL: "http://crl"}, CachedAt: time.Now()}}
 	t.Run("SetAndGet comformance", func(t *testing.T) {
 		if err := cache.Set(ctx, key, bundle); err != nil {
 			t.Fatalf("expected no error, got %v", err)
@@ -77,7 +77,7 @@ func TestFileCache(t *testing.T) {
 	})
 
 	t.Run("GetWithExpiredBundle", func(t *testing.T) {
-		expiredBundle := &Bundle{BaseCRL: baseCRL, Metadata: Metadata{BaseCRL: CRLMetadata{URL: "http://crl"}, CreatedAt: time.Now().Add(-DefaultMaxAge - 1*time.Second)}}
+		expiredBundle := &Bundle{BaseCRL: baseCRL, Metadata: Metadata{BaseCRL: CRLMetadata{URL: "http://crl"}, CachedAt: time.Now().Add(-DefaultMaxAge - 1*time.Second)}}
 		if err := cache.Set(ctx, "expiredKey", expiredBundle); err != nil {
 			t.Fatalf("expected no error, got %v", err)
 		}
@@ -161,7 +161,7 @@ func TestGetFailed(t *testing.T) {
 	t.Run("invalid bundle file", func(t *testing.T) {
 		bundle := &Bundle{
 			BaseCRL:  &x509.RevocationList{Raw: []byte("invalid crl")},
-			Metadata: Metadata{CreatedAt: time.Now()},
+			Metadata: Metadata{CachedAt: time.Now()},
 		}
 		if err := saveTar(&bytes.Buffer{}, bundle); err != nil {
 			t.Fatalf("expected no error, got %v", err)
@@ -184,7 +184,7 @@ func TestSetFailed(t *testing.T) {
 	}
 
 	t.Run("failed to save tarball", func(t *testing.T) {
-		bundle := &Bundle{Metadata: Metadata{CreatedAt: time.Now()}}
+		bundle := &Bundle{Metadata: Metadata{CachedAt: time.Now()}}
 		if err := cache.Set(context.Background(), "invalid.tar", bundle); err == nil {
 			t.Fatalf("expected error, got nil")
 		}
@@ -214,7 +214,7 @@ func TestParseAndSave(t *testing.T) {
 				BaseCRL: CRLMetadata{
 					URL: exampleURL,
 				},
-				CreatedAt: time.Now(),
+				CachedAt: time.Now(),
 			},
 		}
 
@@ -238,7 +238,7 @@ func TestParseAndSave(t *testing.T) {
 			t.Errorf("expected URL to be %s, got %s", exampleURL, bundle.Metadata.BaseCRL.URL)
 		}
 
-		if bundle.Metadata.CreatedAt.IsZero() {
+		if bundle.Metadata.CachedAt.IsZero() {
 			t.Errorf("expected CreateAt to be set, got zero value")
 		}
 	})
@@ -335,7 +335,7 @@ func TestSaveTarFailed(t *testing.T) {
 				BaseCRL: CRLMetadata{
 					URL: "https://example.com/base.crl",
 				},
-				CreatedAt: time.Now(),
+				CachedAt: time.Now(),
 			},
 		}
 		if err := saveTar(&errorWriter{}, bundle); err == nil {

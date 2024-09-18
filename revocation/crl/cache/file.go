@@ -25,6 +25,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/notaryproject/notation-core-go/revocation/internal/file"
 )
 
 const (
@@ -90,18 +92,14 @@ func (c *FileCache) Get(ctx context.Context, uri string) (bundle *Bundle, err er
 		}
 		return nil, err
 	}
-	defer func() {
-		if cerr := f.Close(); cerr != nil && err == nil {
-			err = cerr
-		}
-	}()
+	defer f.Close()
 
 	bundle, err = parseBundleFromTar(f)
 	if err != nil {
 		return nil, err
 	}
 
-	expires := bundle.Metadata.CreatedAt.Add(c.MaxAge)
+	expires := bundle.Metadata.CachedAt.Add(c.MaxAge)
 	if c.MaxAge > 0 && time.Now().After(expires) {
 		// do not delete the file to maintain the idempotent behavior
 		return nil, ErrCacheMiss
@@ -121,10 +119,9 @@ func (c *FileCache) Set(ctx context.Context, uri string, bundle *Bundle) error {
 	if err != nil {
 		return err
 	}
-	if err := saveTar(tempFile, bundle); err != nil {
-		return err
-	}
-	tempFile.Close()
+	file.Using(tempFile, func(f *os.File) error {
+		return saveTar(tempFile, bundle)
+	})
 
 	// rename is atomic on UNIX-like platforms
 	return os.Rename(tempFile.Name(), filepath.Join(c.root, fileName(uri)))
@@ -150,14 +147,14 @@ func hashURL(url string) string {
 // example of metadata.json:
 //
 //		{
-//		  "base.crl": {
+//		  "baseCRL": {
 //		    "url": "https://example.com/base.crl",
 //	        "nextUpdate": "2024-07-20T00:00:00Z"
 //		  },
 //		  "createAt": "2024-07-20T00:00:00Z"
 //		}
 func parseBundleFromTar(data io.Reader) (*Bundle, error) {
-	bundle := &Bundle{}
+	var bundle Bundle
 
 	// parse the tarball
 	tar := tar.NewReader(data)
@@ -167,9 +164,7 @@ func parseBundleFromTar(data io.Reader) (*Bundle, error) {
 			break
 		}
 		if err != nil {
-			return nil, &BrokenFileError{
-				Err: fmt.Errorf("failed to read tarball: %w", err),
-			}
+			return nil, fmt.Errorf("failed to read tarball: %w", err)
 		}
 
 		switch header.Name {
@@ -180,21 +175,16 @@ func parseBundleFromTar(data io.Reader) (*Bundle, error) {
 				return nil, err
 			}
 
-			var baseCRL *x509.RevocationList
-			baseCRL, err = x509.ParseRevocationList(data)
+			baseCRL, err := x509.ParseRevocationList(data)
 			if err != nil {
-				return nil, &BrokenFileError{
-					Err: fmt.Errorf("failed to parse base CRL from tarball: %w", err),
-				}
+				return nil, fmt.Errorf("failed to parse base CRL from tarball: %w", err)
 			}
 			bundle.BaseCRL = baseCRL
 		case pathMetadata:
 			// parse metadata
 			var metadata Metadata
 			if err := json.NewDecoder(tar).Decode(&metadata); err != nil {
-				return nil, &BrokenFileError{
-					Err: fmt.Errorf("failed to parse CRL metadata from tarball: %w", err),
-				}
+				return nil, fmt.Errorf("failed to parse CRL metadata from tarball: %w", err)
 			}
 			bundle.Metadata = metadata
 		}
@@ -203,7 +193,7 @@ func parseBundleFromTar(data io.Reader) (*Bundle, error) {
 		return nil, err
 	}
 
-	return bundle, nil
+	return &bundle, nil
 }
 
 // SaveAsTar saves the CRL blob as a tarball, including the base CRL and
@@ -216,7 +206,7 @@ func parseBundleFromTar(data io.Reader) (*Bundle, error) {
 // example of metadata.json:
 //
 //	{
-//	  "base.crl": {
+//	  "baseCRL": {
 //	    "url": "https://example.com/base.crl",
 //	    "nextUpdate": "2024-07-20T00:00:00Z"
 //	  },
@@ -231,7 +221,7 @@ func saveTar(w io.Writer, bundle *Bundle) (err error) {
 	}()
 
 	// Add base.crl
-	if err := addToTar(pathBaseCRL, bundle.BaseCRL.Raw, bundle.Metadata.CreatedAt, tarWriter); err != nil {
+	if err := addToTar(pathBaseCRL, bundle.BaseCRL.Raw, bundle.Metadata.CachedAt, tarWriter); err != nil {
 		return err
 	}
 
@@ -240,7 +230,7 @@ func saveTar(w io.Writer, bundle *Bundle) (err error) {
 	if err != nil {
 		return err
 	}
-	return addToTar(pathMetadata, metadataBytes, time.Now(), tarWriter)
+	return addToTar(pathMetadata, metadataBytes, bundle.Metadata.CachedAt, tarWriter)
 }
 
 func addToTar(fileName string, data []byte, modTime time.Time, tw *tar.Writer) error {

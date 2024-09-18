@@ -21,11 +21,9 @@ import (
 	"encoding/asn1"
 	"errors"
 	"fmt"
-	"net/http"
 	"time"
 
-	"github.com/notaryproject/notation-core-go/revocation/crl/cache"
-	"github.com/notaryproject/notation-core-go/revocation/crl/fetcher"
+	"github.com/notaryproject/notation-core-go/revocation/crl"
 	"github.com/notaryproject/notation-core-go/revocation/result"
 )
 
@@ -45,15 +43,12 @@ var (
 
 // CertCheckStatusOptions specifies values that are needed to check CRL
 type CertCheckStatusOptions struct {
-	// HTTPClient is the HTTP client used to download CRL
-	HTTPClient *http.Client
+	// HTTPClient is the HTTP client used to download the CRL
+	Fetcher crl.Fetcher
 
 	// SigningTime is used to compare with the invalidity date during revocation
 	// check
 	SigningTime time.Time
-
-	// cacheClient is the cache client used to store the CRL
-	CacheClient cache.Cache
 }
 
 // CertCheckStatus checks the revocation status of a certificate using CRL
@@ -78,24 +73,23 @@ func CertCheckStatus(ctx context.Context, cert, issuer *x509.Certificate, opts C
 		}
 	}
 
+	if opts.Fetcher == nil {
+		return &result.CertRevocationResult{
+			Result: result.ResultUnknown,
+			ServerResults: []*result.ServerResult{{
+				RevocationMethod: result.RevocationMethodCRL,
+				Error:            errors.New("CRL fetcher is nil"),
+				Result:           result.ResultUnknown,
+			}},
+			RevocationMethod: result.RevocationMethodCRL,
+		}
+	}
+
 	var (
 		serverResults = make([]*result.ServerResult, 0, len(cert.CRLDistributionPoints))
 		lastErr       error
 		crlURL        string
 	)
-
-	cachedFetcher, err := fetcher.NewCachedFetcher(opts.HTTPClient, opts.CacheClient)
-	if err != nil {
-		return &result.CertRevocationResult{
-			Result: result.ResultUnknown,
-			ServerResults: []*result.ServerResult{{
-				Result:           result.ResultUnknown,
-				Error:            err,
-				RevocationMethod: result.RevocationMethodCRL,
-			}},
-			RevocationMethod: result.RevocationMethodCRL,
-		}
-	}
 
 	// The CRLDistributionPoints contains the URIs of all the CRL distribution
 	// points. Since it does not distinguish the reason field, it needs to check
@@ -105,33 +99,19 @@ func CertCheckStatus(ctx context.Context, cert, issuer *x509.Certificate, opts C
 	// point with one CRL URI, which will be cached, so checking all the URIs is
 	// not a performance issue.
 	for _, crlURL = range cert.CRLDistributionPoints {
-		bundle, fromCache, err := cachedFetcher.Fetch(ctx, crlURL)
+		// ignore delta CRL as it is not implemented
+		base, _, err := opts.Fetcher.Fetch(ctx, crlURL)
 		if err != nil {
 			lastErr = fmt.Errorf("failed to download CRL from %s: %w", crlURL, err)
 			break
 		}
 
-		if err = validate(bundle.BaseCRL, issuer); err != nil {
-			if fromCache {
-				// the CRL may be stale, try to download again
-				bundle, err = cachedFetcher.Download(ctx, crlURL)
-				if err != nil {
-					lastErr = fmt.Errorf("failed to download CRL from %s: %w", crlURL, err)
-					break
-				}
-
-				if err = validate(bundle.BaseCRL, issuer); err != nil {
-					lastErr = fmt.Errorf("failed to validate CRL from %s: %w", crlURL, err)
-					break
-				}
-			} else {
-				// the CRL is fresh, but it is invalid
-				lastErr = fmt.Errorf("failed to validate CRL from %s: %w", crlURL, err)
-				break
-			}
+		if err = validate(base, issuer); err != nil {
+			lastErr = fmt.Errorf("failed to validate CRL from %s: %w", crlURL, err)
+			break
 		}
 
-		crlResult, err := checkRevocation(cert, bundle.BaseCRL, opts.SigningTime, crlURL)
+		crlResult, err := checkRevocation(cert, base, opts.SigningTime, crlURL)
 		if err != nil {
 			lastErr = fmt.Errorf("failed to check revocation status from %s: %w", crlURL, err)
 			break

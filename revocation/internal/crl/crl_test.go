@@ -29,6 +29,7 @@ import (
 	"testing"
 	"time"
 
+	crlutils "github.com/notaryproject/notation-core-go/revocation/crl"
 	"github.com/notaryproject/notation-core-go/revocation/crl/cache"
 	"github.com/notaryproject/notation-core-go/revocation/result"
 	"github.com/notaryproject/notation-core-go/testhelper"
@@ -44,39 +45,38 @@ func TestCertCheckStatus(t *testing.T) {
 	})
 
 	t.Run("download error", func(t *testing.T) {
-		memoryCache, err := cache.NewMemoryCache()
-		if err != nil {
-			t.Fatal(err)
-		}
+		memoryCache := cache.NewMemoryCache()
 
 		cert := &x509.Certificate{
 			CRLDistributionPoints: []string{"http://example.com"},
 		}
+		fetcher := crlutils.NewHTTPFetcher(
+			&http.Client{Transport: errorRoundTripperMock{}},
+		)
+		fetcher.Cache = memoryCache
+
 		r := CertCheckStatus(context.Background(), cert, &x509.Certificate{}, CertCheckStatusOptions{
-			HTTPClient: &http.Client{
-				Transport: errorRoundTripperMock{},
-			},
-			CacheClient: memoryCache,
+			Fetcher: fetcher,
 		})
+
 		if r.ServerResults[0].Error == nil {
 			t.Fatal("expected error")
 		}
 	})
 
 	t.Run("CRL validate failed", func(t *testing.T) {
-		memoryCache, err := cache.NewMemoryCache()
-		if err != nil {
-			t.Fatal(err)
-		}
+		memoryCache := cache.NewMemoryCache()
 
 		cert := &x509.Certificate{
 			CRLDistributionPoints: []string{"http://example.com"},
 		}
+		fetcher := crlutils.NewHTTPFetcher(
+			&http.Client{Transport: expiredCRLRoundTripperMock{}},
+		)
+		fetcher.Cache = memoryCache
+
 		r := CertCheckStatus(context.Background(), cert, &x509.Certificate{}, CertCheckStatusOptions{
-			HTTPClient: &http.Client{
-				Transport: expiredCRLRoundTripperMock{},
-			},
-			CacheClient: memoryCache,
+			Fetcher: fetcher,
 		})
 		if r.ServerResults[0].Error == nil {
 			t.Fatal("expected error")
@@ -89,10 +89,7 @@ func TestCertCheckStatus(t *testing.T) {
 	issuerKey := chain[1].PrivateKey
 
 	t.Run("revoked", func(t *testing.T) {
-		memoryCache, err := cache.NewMemoryCache()
-		if err != nil {
-			t.Fatal(err)
-		}
+		memoryCache := cache.NewMemoryCache()
 
 		crlBytes, err := x509.CreateRevocationList(rand.Reader, &x509.RevocationList{
 			NextUpdate: time.Now().Add(time.Hour),
@@ -108,11 +105,12 @@ func TestCertCheckStatus(t *testing.T) {
 			t.Fatal(err)
 		}
 
+		fetcher := crlutils.NewHTTPFetcher(
+			&http.Client{Transport: expectedRoundTripperMock{Body: crlBytes}},
+		)
+		fetcher.Cache = memoryCache
 		r := CertCheckStatus(context.Background(), chain[0].Cert, issuerCert, CertCheckStatusOptions{
-			HTTPClient: &http.Client{
-				Transport: expectedRoundTripperMock{Body: crlBytes},
-			},
-			CacheClient: memoryCache,
+			Fetcher: fetcher,
 		})
 		if r.Result != result.ResultRevoked {
 			t.Fatalf("expected revoked, got %s", r.Result)
@@ -120,10 +118,7 @@ func TestCertCheckStatus(t *testing.T) {
 	})
 
 	t.Run("unknown critical extension", func(t *testing.T) {
-		memoryCache, err := cache.NewMemoryCache()
-		if err != nil {
-			t.Fatal(err)
-		}
+		memoryCache := cache.NewMemoryCache()
 
 		crlBytes, err := x509.CreateRevocationList(rand.Reader, &x509.RevocationList{
 			NextUpdate: time.Now().Add(time.Hour),
@@ -145,11 +140,12 @@ func TestCertCheckStatus(t *testing.T) {
 			t.Fatal(err)
 		}
 
+		fetcher := crlutils.NewHTTPFetcher(
+			&http.Client{Transport: expectedRoundTripperMock{Body: crlBytes}},
+		)
+		fetcher.Cache = memoryCache
 		r := CertCheckStatus(context.Background(), chain[0].Cert, issuerCert, CertCheckStatusOptions{
-			HTTPClient: &http.Client{
-				Transport: expectedRoundTripperMock{Body: crlBytes},
-			},
-			CacheClient: memoryCache,
+			Fetcher: fetcher,
 		})
 		if r.ServerResults[0].Error == nil {
 			t.Fatal("expected error")
@@ -157,10 +153,7 @@ func TestCertCheckStatus(t *testing.T) {
 	})
 
 	t.Run("Not revoked", func(t *testing.T) {
-		memoryCache, err := cache.NewMemoryCache()
-		if err != nil {
-			t.Fatal(err)
-		}
+		memoryCache := cache.NewMemoryCache()
 
 		crlBytes, err := x509.CreateRevocationList(rand.Reader, &x509.RevocationList{
 			NextUpdate: time.Now().Add(time.Hour),
@@ -170,11 +163,12 @@ func TestCertCheckStatus(t *testing.T) {
 			t.Fatal(err)
 		}
 
+		fetcher := crlutils.NewHTTPFetcher(
+			&http.Client{Transport: expectedRoundTripperMock{Body: crlBytes}},
+		)
+		fetcher.Cache = memoryCache
 		r := CertCheckStatus(context.Background(), chain[0].Cert, issuerCert, CertCheckStatusOptions{
-			HTTPClient: &http.Client{
-				Transport: expectedRoundTripperMock{Body: crlBytes},
-			},
-			CacheClient: memoryCache,
+			Fetcher: fetcher,
 		})
 		if r.Result != result.ResultOK {
 			t.Fatalf("expected OK, got %s", r.Result)
@@ -182,10 +176,7 @@ func TestCertCheckStatus(t *testing.T) {
 	})
 
 	t.Run("CRL with delta CRL is not checked", func(t *testing.T) {
-		memoryCache, err := cache.NewMemoryCache()
-		if err != nil {
-			t.Fatal(err)
-		}
+		memoryCache := cache.NewMemoryCache()
 
 		crlBytes, err := x509.CreateRevocationList(rand.Reader, &x509.RevocationList{
 			NextUpdate: time.Now().Add(time.Hour),
@@ -200,33 +191,19 @@ func TestCertCheckStatus(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-
+		fetcher := crlutils.NewHTTPFetcher(
+			&http.Client{Transport: expectedRoundTripperMock{Body: crlBytes}},
+		)
+		fetcher.Cache = memoryCache
 		r := CertCheckStatus(context.Background(), chain[0].Cert, issuerCert, CertCheckStatusOptions{
-			HTTPClient: &http.Client{
-				Transport: expectedRoundTripperMock{Body: crlBytes},
-			},
-			CacheClient: memoryCache,
+			Fetcher: fetcher,
 		})
 		if !errors.Is(r.ServerResults[0].Error, ErrDeltaCRLNotSupported) {
 			t.Fatal("expected ErrDeltaCRLNotChecked")
 		}
 	})
 
-	t.Run("CRL cache is nil", func(t *testing.T) {
-		r := CertCheckStatus(context.Background(), chain[0].Cert, issuerCert, CertCheckStatusOptions{
-			HTTPClient: &http.Client{
-				Transport: expectedRoundTripperMock{Body: []byte{}},
-			},
-		})
-		if r.ServerResults[0].Error.Error() != "cache client is nil" {
-			t.Fatal("expected error")
-		}
-	})
-
-	memoryCache, err := cache.NewMemoryCache()
-	if err != nil {
-		t.Fatal(err)
-	}
+	memoryCache := cache.NewMemoryCache()
 
 	// create a stale CRL
 	crlBytes, err := x509.CreateRevocationList(rand.Reader, &x509.RevocationList{
@@ -247,7 +224,7 @@ func TestCertCheckStatus(t *testing.T) {
 				URL:        "http://example.com",
 				NextUpdate: crl.NextUpdate,
 			},
-			CreatedAt: time.Now(),
+			CachedAt: time.Now(),
 		},
 	}
 	chain[0].Cert.CRLDistributionPoints = []string{"http://example.com"}
@@ -258,11 +235,12 @@ func TestCertCheckStatus(t *testing.T) {
 			t.Fatal(err)
 		}
 
+		fetcher := crlutils.NewHTTPFetcher(
+			&http.Client{Transport: errorRoundTripperMock{}},
+		)
+		fetcher.Cache = memoryCache
 		r := CertCheckStatus(context.Background(), chain[0].Cert, issuerCert, CertCheckStatusOptions{
-			HTTPClient: &http.Client{
-				Transport: errorRoundTripperMock{},
-			},
-			CacheClient: memoryCache,
+			Fetcher: fetcher,
 		})
 		if !strings.HasPrefix(r.ServerResults[0].Error.Error(), "failed to download CRL from") {
 			t.Fatalf("unexpected error, got %v", r.ServerResults[0].Error)
@@ -275,11 +253,12 @@ func TestCertCheckStatus(t *testing.T) {
 			t.Fatal(err)
 		}
 
+		fetcher := crlutils.NewHTTPFetcher(
+			&http.Client{Transport: expectedRoundTripperMock{Body: crlBytes}},
+		)
+		fetcher.Cache = memoryCache
 		r := CertCheckStatus(context.Background(), chain[0].Cert, issuerCert, CertCheckStatusOptions{
-			HTTPClient: &http.Client{
-				Transport: expectedRoundTripperMock{Body: crlBytes},
-			},
-			CacheClient: memoryCache,
+			Fetcher: fetcher,
 		})
 		if !strings.HasPrefix(r.ServerResults[0].Error.Error(), "failed to validate CRL from") {
 			t.Fatalf("unexpected error, got %v", r.ServerResults[0].Error)
@@ -300,11 +279,12 @@ func TestCertCheckStatus(t *testing.T) {
 			t.Fatal(err)
 		}
 
+		fetcher := crlutils.NewHTTPFetcher(
+			&http.Client{Transport: expectedRoundTripperMock{Body: crlBytes}},
+		)
+		fetcher.Cache = memoryCache
 		r := CertCheckStatus(context.Background(), chain[0].Cert, issuerCert, CertCheckStatusOptions{
-			HTTPClient: &http.Client{
-				Transport: expectedRoundTripperMock{Body: crlBytes},
-			},
-			CacheClient: memoryCache,
+			Fetcher: fetcher,
 		})
 		if r.Result != result.ResultOK {
 			t.Fatalf("expected OK, got %s", r.Result)

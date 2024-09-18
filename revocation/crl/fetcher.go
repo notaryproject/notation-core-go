@@ -11,9 +11,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package fetcher provides Fetcher interface and its implementation to fetch
+// Package crl provides Fetcher interface and its implementation to fetch
 // CRL from the given URL
-package fetcher
+package crl
 
 import (
 	"context"
@@ -37,33 +37,25 @@ const MaxCRLSize = 32 * 1024 * 1024 // 32 MiB
 // from the given URL
 type Fetcher interface {
 	// Fetch retrieves the CRL from the given URL.
-	Fetch(ctx context.Context, crlURL string) (bundle *cache.Bundle, fromCache bool, err error)
-
-	// Download downloads the CRL from the given URL and saves it to the
-	// cache.
-	Download(ctx context.Context, crlURL string) (bundle *cache.Bundle, err error)
+	Fetch(ctx context.Context, uri string) (base, delta *x509.RevocationList, err error)
 }
 
-type cachedFetcher struct {
-	httpClient  *http.Client
-	cacheClient cache.Cache
+type HTTPFetcher struct {
+	// Cache stores fetched CRLs and reuses them with the max ages.
+	// If Cache is nil, no cache is used.
+	Cache cache.Cache
+
+	httpClient *http.Client
 }
 
-// NewCachedFetcher creates a new Fetcher with the given HTTP client and cache client
-//   - if httpClient is nil, http.DefaultClient will be used
-func NewCachedFetcher(httpClient *http.Client, cacheClient cache.Cache) (Fetcher, error) {
+func NewHTTPFetcher(httpClient *http.Client) *HTTPFetcher {
 	if httpClient == nil {
 		httpClient = http.DefaultClient
 	}
 
-	if cacheClient == nil {
-		return nil, errors.New("cache client is nil")
+	return &HTTPFetcher{
+		httpClient: httpClient,
 	}
-
-	return &cachedFetcher{
-		httpClient:  httpClient,
-		cacheClient: cacheClient,
-	}, nil
 }
 
 // Fetch retrieves the CRL from the given URL
@@ -71,47 +63,72 @@ func NewCachedFetcher(httpClient *http.Client, cacheClient cache.Cache) (Fetcher
 // Steps:
 //  1. Try to get from cache
 //  2. If not exist or broken, download and save to cache
-func (f *cachedFetcher) Fetch(ctx context.Context, crlURL string) (bundle *cache.Bundle, fromCache bool, err error) {
-	if crlURL == "" {
-		return nil, false, errors.New("CRL URL is empty")
+func (f *HTTPFetcher) Fetch(ctx context.Context, uri string) (base, delta *x509.RevocationList, err error) {
+	if uri == "" {
+		return nil, nil, errors.New("CRL URL is empty")
+	}
+
+	if f.Cache == nil {
+		// no cache, download directly
+		base, err := f.download(ctx, uri)
+		return base, nil, err
 	}
 
 	// try to get from cache
-	bundle, err = f.cacheClient.Get(ctx, crlURL)
+	bundle, err := f.Cache.Get(ctx, uri)
 	if err != nil {
-		var cacheBrokenError *cache.BrokenFileError
-		if errors.Is(err, cache.ErrCacheMiss) ||
-			errors.As(err, &cacheBrokenError) {
-			bundle, err = f.Download(ctx, crlURL)
-			if err != nil {
-				return nil, false, err
-			}
-			return bundle, false, nil
+		base, err := f.download(ctx, uri)
+		if err != nil {
+			return nil, nil, err
 		}
-
-		return nil, false, err
+		return base, nil, nil
 	}
 
-	return bundle, true, nil
+	// validate NextUpdate
+	nextUpdate := bundle.Metadata.BaseCRL.NextUpdate
+	if !nextUpdate.IsZero() && time.Now().After(nextUpdate) {
+		// download and save to cache
+		base, err := f.download(ctx, uri)
+		if err != nil {
+			return nil, nil, err
+		}
+		return base, nil, nil
+	}
+
+	return bundle.BaseCRL, nil, nil
 }
 
 // Download downloads the CRL from the given URL and saves it to the
 // cache
-func (f *cachedFetcher) Download(ctx context.Context, crlURL string) (bundle *cache.Bundle, err error) {
-	bundle, err = download(ctx, crlURL, f.httpClient)
+func (f *HTTPFetcher) download(ctx context.Context, uri string) (base *x509.RevocationList, err error) {
+	base, err = download(ctx, uri, f.httpClient)
 	if err != nil {
 		return nil, err
 	}
 
-	// save to cache
-	if err := f.cacheClient.Set(ctx, crlURL, bundle); err != nil {
-		return nil, fmt.Errorf("failed to save to cache: %w", err)
+	if f.Cache == nil {
+		// no cache, return directly
+		return base, nil
 	}
 
-	return bundle, nil
+	bundle := &cache.Bundle{
+		BaseCRL: base,
+		Metadata: cache.Metadata{
+			BaseCRL: cache.CRLMetadata{
+				URL:        uri,
+				NextUpdate: base.NextUpdate,
+			},
+			CachedAt: time.Now(),
+		},
+	}
+
+	// ignore the error, as the cache is not critical
+	_ = f.Cache.Set(ctx, uri, bundle)
+
+	return base, nil
 }
 
-func download(ctx context.Context, crlURL string, client *http.Client) (bundle *cache.Bundle, err error) {
+func download(ctx context.Context, crlURL string, client *http.Client) (*x509.RevocationList, error) {
 	// validate URL
 	parsedURL, err := url.Parse(crlURL)
 	if err != nil {
@@ -143,20 +160,6 @@ func download(ctx context.Context, crlURL string, client *http.Client) (bundle *
 		return nil, fmt.Errorf("CRL size exceeds the limit: %d", MaxCRLSize)
 	}
 
-	// parse CRL and create bundle
-	crl, err := x509.ParseRevocationList(data)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse CRL: %w", err)
-	}
-
-	return &cache.Bundle{
-		BaseCRL: crl,
-		Metadata: cache.Metadata{
-			BaseCRL: cache.CRLMetadata{
-				URL:        crlURL,
-				NextUpdate: crl.NextUpdate,
-			},
-			CreatedAt: time.Now(),
-		},
-	}, nil
+	// parse CRL
+	return x509.ParseRevocationList(data)
 }

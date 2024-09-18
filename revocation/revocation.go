@@ -24,6 +24,7 @@ import (
 	"sync"
 	"time"
 
+	crlutils "github.com/notaryproject/notation-core-go/revocation/crl"
 	"github.com/notaryproject/notation-core-go/revocation/crl/cache"
 	"github.com/notaryproject/notation-core-go/revocation/internal/crl"
 	"github.com/notaryproject/notation-core-go/revocation/internal/ocsp"
@@ -83,16 +84,12 @@ func New(httpClient *http.Client) (Revocation, error) {
 	if httpClient == nil {
 		return nil, errors.New("invalid input: a non-nil httpClient must be specified")
 	}
-	memoryCache, err := cache.NewMemoryCache()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create memory cache: %v", err)
-	}
 
 	return &revocation{
 		ocspHTTPClient:   httpClient,
 		crlHTTPClient:    httpClient,
 		certChainPurpose: purpose.CodeSigning,
-		crlCache:         memoryCache,
+		crlCache:         cache.NewMemoryCache(),
 	}, nil
 }
 
@@ -114,7 +111,11 @@ type Options struct {
 	CertChainPurpose purpose.Purpose
 
 	// CRLCache is the cache client used to store the CRL. if not provided,
-	// a default in-memory cache will be used.
+	// no cache will be used.
+	//
+	// The cache package provides built-in cache implementations:
+	// - cache.NewMemoryCache: in-memory cache
+	// - cache.NewFileCache: file-based cache
 	CRLCache cache.Cache
 }
 
@@ -134,20 +135,11 @@ func NewWithOptions(opts Options) (Validator, error) {
 		return nil, fmt.Errorf("unsupported certificate chain purpose %v", opts.CertChainPurpose)
 	}
 
-	crlCache := opts.CRLCache
-	if crlCache == nil {
-		newCache, err := cache.NewMemoryCache()
-		if err != nil {
-			return nil, fmt.Errorf("failed to create memory cache: %v", err)
-		}
-		crlCache = newCache
-	}
-
 	return &revocation{
 		ocspHTTPClient:   opts.OCSPHTTPClient,
 		crlHTTPClient:    opts.CRLHTTPClient,
 		certChainPurpose: opts.CertChainPurpose,
-		crlCache:         crlCache,
+		crlCache:         opts.CRLCache,
 	}, nil
 }
 
@@ -192,10 +184,12 @@ func (r *revocation) ValidateContext(ctx context.Context, validateContextOpts Va
 		HTTPClient:  r.ocspHTTPClient,
 		SigningTime: validateContextOpts.AuthenticSigningTime,
 	}
+
+	fetcher := crlutils.NewHTTPFetcher(r.crlHTTPClient)
+	fetcher.Cache = r.crlCache
 	crlOpts := crl.CertCheckStatusOptions{
-		HTTPClient:  r.crlHTTPClient,
+		Fetcher:     fetcher,
 		SigningTime: validateContextOpts.AuthenticSigningTime,
-		CacheClient: r.crlCache,
 	}
 
 	// panicChain is used to store the panic in goroutine and handle it

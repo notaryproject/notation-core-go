@@ -42,10 +42,7 @@ func TestMemoryCache(t *testing.T) {
 	}
 
 	// Test NewMemoryCache
-	cache, err := NewMemoryCache()
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+	cache := NewMemoryCache()
 	if cache.MaxAge != DefaultMaxAge {
 		t.Fatalf("expected maxAge %v, got %v", DefaultMaxAge, cache.MaxAge)
 	}
@@ -53,7 +50,7 @@ func TestMemoryCache(t *testing.T) {
 	bundle := &Bundle{
 		BaseCRL: baseCRL,
 		Metadata: Metadata{
-			CreatedAt: time.Now(),
+			CachedAt: time.Now(),
 			BaseCRL: CRLMetadata{
 				URL: "http://crl",
 			},
@@ -76,7 +73,7 @@ func TestMemoryCache(t *testing.T) {
 		expiredBundle := &Bundle{
 			BaseCRL: baseCRL,
 			Metadata: Metadata{
-				CreatedAt: time.Now().Add(-DefaultMaxAge - 1*time.Second),
+				CachedAt: time.Now().Add(-DefaultMaxAge - 1*time.Second),
 				BaseCRL: CRLMetadata{
 					URL: "http://crl",
 				},
@@ -107,31 +104,25 @@ func TestMemoryCacheFailed(t *testing.T) {
 
 	// Test Get with invalid type
 	t.Run("GetWithInvalidType", func(t *testing.T) {
-		cache, err := NewMemoryCache()
-		if err != nil {
-			t.Fatalf("expected no error, got %v", err)
-		}
+		cache := NewMemoryCache()
 		cache.store.Store("invalidKey", "invalidValue")
-		_, err = cache.Get(ctx, "invalidKey")
+		_, err := cache.Get(ctx, "invalidKey")
 		if err == nil {
 			t.Fatalf("expected error, got nil")
 		}
 	})
 
 	t.Run("ValidateFailed", func(t *testing.T) {
-		cache, err := NewMemoryCache()
-		if err != nil {
-			t.Fatalf("expected no error, got %v", err)
-		}
+		cache := NewMemoryCache()
 		bundle := &Bundle{
 			BaseCRL: nil,
 			Metadata: Metadata{
-				CreatedAt: time.Now(),
+				CachedAt: time.Now(),
 				BaseCRL: CRLMetadata{
 					URL: "http://crl",
 				},
 			}}
-		err = cache.Set(ctx, "invalidBundle", bundle)
+		err := cache.Set(ctx, "invalidBundle", bundle)
 		if err == nil {
 			t.Fatalf("expected error, got nil")
 		}

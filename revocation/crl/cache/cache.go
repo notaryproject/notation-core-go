@@ -39,7 +39,7 @@ const (
 	//
 	// reference: Baseline Requirements for Code-Signing Certificates
 	// 4.9.7 CRL issuance frequency: https://cabforum.org/uploads/Baseline-Requirements-for-the-Issuance-and-Management-of-Code-Signing.v3.9.pdf
-	DefaultMaxAge = 24 * 7 * time.Hour
+	DefaultMaxAge = 7 * 24 * time.Hour
 )
 
 // Cache is an interface that specifies methods used for caching

@@ -36,13 +36,13 @@ type CRLMetadata struct {
 // TODO: consider adding DeltaCRL field in the future
 type Metadata struct {
 	// BaseCRL stores the URL of the base CRL
-	BaseCRL CRLMetadata `json:"base.crl"`
+	BaseCRL CRLMetadata `json:"baseCRL"`
 
-	// CreatedAt stores the creation time of the CRL bundle. This is different
+	// CachedAt stores the creation time of the CRL bundle. This is different
 	// from the `ThisUpdate` field in the CRL. The `ThisUpdate` field in the CRL
-	// is the time when the CRL was generated, while the `CreatedAt` field is for
+	// is the time when the CRL was generated, while the `CachedAt` field is for
 	// caching purpose, indicating the start of cache effective period.
-	CreatedAt time.Time `json:"createAt"`
+	CachedAt time.Time `json:"cachedAt"`
 }
 
 // Bundle is in memory representation of the Bundle tarball, including base CRL
@@ -66,7 +66,7 @@ func (b *Bundle) Validate() error {
 	if b.Metadata.BaseCRL.URL == "" {
 		return errors.New("base CRL URL is missing")
 	}
-	if b.Metadata.CreatedAt.IsZero() {
+	if b.Metadata.CachedAt.IsZero() {
 		return errors.New("base CRL creation time is missing")
 	}
 	return nil
