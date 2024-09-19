@@ -113,10 +113,6 @@ type Options struct {
 
 	// CRLCache is the cache client used to store the CRL. if not provided,
 	// no cache will be used.
-	//
-	// The cache package provides built-in cache implementations:
-	// - cache.NewMemoryCache: in-memory cache
-	// - cache.NewFileCache: file-based cache
 	CRLCache cache.Cache
 }
 
