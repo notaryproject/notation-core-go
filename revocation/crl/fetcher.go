@@ -11,8 +11,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package crl provides Fetcher interface and its implementation to fetch
-// CRL from the given URL
+// Package crl provides Fetcher and Cache interface and implementations for
+// fetching CRLs.
 package crl
 
 import (
@@ -24,13 +24,12 @@ import (
 	"net/http"
 	"net/url"
 	"time"
-
-	"github.com/notaryproject/notation-core-go/revocation/crl/cache"
 )
 
 // MaxCRLSize is the maximum size of CRL in bytes
 //
-// CRL examples: https://chasersystems.com/blog/an-analysis-of-certificate-revocation-list-sizes/
+// The 32 MiB limit is based on investigation that even the largest CRLs
+// are less than 16 MiB. The limit is set to 32 MiB to prevent
 const MaxCRLSize = 32 * 1024 * 1024 // 32 MiB
 
 // Fetcher is an interface that specifies methods used for fetching CRL
@@ -40,10 +39,11 @@ type Fetcher interface {
 	Fetch(ctx context.Context, uri string) (base, delta *x509.RevocationList, err error)
 }
 
+// HTTPFetcher is a Fetcher implementation that fetches CRL from the given URL
 type HTTPFetcher struct {
 	// Cache stores fetched CRLs and reuses them with the max ages.
 	// If Cache is nil, no cache is used.
-	Cache cache.Cache
+	Cache Cache
 
 	httpClient *http.Client
 }
@@ -80,7 +80,7 @@ func (f *HTTPFetcher) Fetch(ctx context.Context, uri string) (base, delta *x509.
 	}
 
 	// check expiry
-	nextUpdate := bundle.Metadata.BaseCRL.NextUpdate
+	nextUpdate := bundle.BaseCRL.NextUpdate
 	if !nextUpdate.IsZero() && time.Now().After(nextUpdate) {
 		return f.download(ctx, uri)
 	}
@@ -101,15 +101,8 @@ func (f *HTTPFetcher) download(ctx context.Context, uri string) (base, delta *x5
 		return base, delta, nil
 	}
 
-	bundle := &cache.Bundle{
+	bundle := &Bundle{
 		BaseCRL: base,
-		Metadata: cache.Metadata{
-			BaseCRL: cache.CRLMetadata{
-				URL:        uri,
-				NextUpdate: base.NextUpdate,
-			},
-			CachedAt: time.Now(),
-		},
 	}
 	// ignore the error, as the cache is not critical
 	_ = f.Cache.Set(ctx, uri, bundle)

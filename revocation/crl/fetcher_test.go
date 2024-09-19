@@ -22,11 +22,9 @@ import (
 	"io"
 	"math/big"
 	"net/http"
+	"sync"
 	"testing"
-	"time"
 
-	"github.com/notaryproject/notation-core-go/revocation/crl/cache"
-	"github.com/notaryproject/notation-core-go/revocation/internal/cachehelper"
 	"github.com/notaryproject/notation-core-go/testhelper"
 )
 
@@ -38,7 +36,7 @@ func TestNewHTTPFetcher(t *testing.T) {
 
 func TestFetch(t *testing.T) {
 	// prepare cache
-	c := cachehelper.NewMemoryCache()
+	c := newMemoryCache()
 
 	// prepare crl
 	certChain := testhelper.GetRevokableRSAChainWithRevocations(2, false, true)
@@ -55,14 +53,8 @@ func TestFetch(t *testing.T) {
 	const exampleURL = "http://example.com"
 	const uncachedURL = "http://uncached.com"
 
-	bundle := &cache.Bundle{
+	bundle := &Bundle{
 		BaseCRL: baseCRL,
-		Metadata: cache.Metadata{
-			BaseCRL: cache.CRLMetadata{
-				URL: exampleURL,
-			},
-			CachedAt: time.Now(),
-		},
 	}
 	if err := c.Set(context.Background(), exampleURL, bundle); err != nil {
 		t.Errorf("Cache.Set() error = %v, want nil", err)
@@ -126,45 +118,6 @@ func TestFetch(t *testing.T) {
 		_, _, err = f.Fetch(context.Background(), uncachedURL)
 		if err == nil {
 			t.Errorf("Fetcher.Fetch() error = nil, want not nil")
-		}
-	})
-
-	t.Run("cache expired", func(t *testing.T) {
-		expiredBundle := &cache.Bundle{
-			BaseCRL: baseCRL,
-			Metadata: cache.Metadata{
-				BaseCRL: cache.CRLMetadata{
-					URL:        exampleURL,
-					NextUpdate: time.Now().Add(-1 * time.Hour),
-				},
-				CachedAt: time.Now().Add(-1 * time.Hour),
-			},
-		}
-		if err := c.Set(context.Background(), exampleURL, expiredBundle); err != nil {
-			t.Errorf("Cache.Set() error = %v, want nil", err)
-		}
-
-		// generate a new CRL
-		// prepare crl
-		certChain := testhelper.GetRevokableRSAChainWithRevocations(2, false, true)
-		newCRLBytes, err := x509.CreateRevocationList(rand.Reader, &x509.RevocationList{
-			Number: big.NewInt(1),
-		}, certChain[1].Cert, certChain[1].PrivateKey)
-		if err != nil {
-			t.Fatalf("failed to create base CRL: %v", err)
-		}
-
-		httpClient := &http.Client{
-			Transport: expectedRoundTripperMock{Body: newCRLBytes},
-		}
-		f := NewHTTPFetcher(httpClient)
-		f.Cache = c
-		base, _, err := f.Fetch(context.Background(), exampleURL)
-		if err != nil {
-			t.Errorf("Fetcher.Fetch() error = %v, want nil", err)
-		}
-		if !bytes.Equal(base.Raw, newCRLBytes) {
-			t.Errorf("Fetcher.Fetch() base.Raw = %v, want %v", base.Raw, baseCRL.Raw)
 		}
 	})
 }
@@ -282,4 +235,41 @@ func (rt expectedRoundTripperMock) RoundTrip(req *http.Request) (*http.Response,
 		StatusCode: http.StatusOK,
 		Body:       io.NopCloser(bytes.NewBuffer(rt.Body)),
 	}, nil
+}
+
+// memoryCache is an in-memory cache that stores CRL bundles for testing.
+type memoryCache struct {
+	store sync.Map
+}
+
+// newMemoryCache creates a new memory store.
+func newMemoryCache() *memoryCache {
+	return &memoryCache{}
+}
+
+// Get retrieves the CRL from the memory store.
+//
+// - if the key does not exist, return ErrNotFound
+// - if the CRL is expired, return ErrCacheMiss
+func (c *memoryCache) Get(ctx context.Context, uri string) (*Bundle, error) {
+	value, ok := c.store.Load(uri)
+	if !ok {
+		return nil, ErrCacheMiss
+	}
+	bundle, ok := value.(*Bundle)
+	if !ok {
+		return nil, fmt.Errorf("invalid type: %T", value)
+	}
+
+	return bundle, nil
+}
+
+// Set stores the CRL in the memory store.
+func (c *memoryCache) Set(ctx context.Context, uri string, bundle *Bundle) error {
+	if err := bundle.Validate(); err != nil {
+		return err
+	}
+
+	c.store.Store(uri, bundle)
+	return nil
 }

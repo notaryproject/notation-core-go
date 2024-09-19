@@ -41,13 +41,13 @@ var (
 	oidInvalidityDate = asn1.ObjectIdentifier{2, 5, 29, 24}
 )
 
-// CertCheckStatusOptions specifies values that are needed to check CRL
+// CertCheckStatusOptions specifies values that are needed to check CRL.
 type CertCheckStatusOptions struct {
-	// HTTPClient is the HTTP client used to download the CRL
+	// Fetcher is used to fetch the CRL from the CRL distribution points.
 	Fetcher crl.Fetcher
 
 	// SigningTime is used to compare with the invalidity date during revocation
-	// check
+	// check.
 	SigningTime time.Time
 }
 

@@ -26,12 +26,11 @@ import (
 	"math/big"
 	"net/http"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	crlutils "github.com/notaryproject/notation-core-go/revocation/crl"
-	"github.com/notaryproject/notation-core-go/revocation/crl/cache"
-	"github.com/notaryproject/notation-core-go/revocation/internal/cachehelper"
 	"github.com/notaryproject/notation-core-go/revocation/result"
 	"github.com/notaryproject/notation-core-go/testhelper"
 )
@@ -56,7 +55,7 @@ func TestCertCheckStatus(t *testing.T) {
 	})
 
 	t.Run("download error", func(t *testing.T) {
-		memoryCache := cachehelper.NewMemoryCache()
+		memoryCache := newMemoryCache()
 
 		cert := &x509.Certificate{
 			CRLDistributionPoints: []string{"http://example.com"},
@@ -76,7 +75,7 @@ func TestCertCheckStatus(t *testing.T) {
 	})
 
 	t.Run("CRL validate failed", func(t *testing.T) {
-		memoryCache := cachehelper.NewMemoryCache()
+		memoryCache := newMemoryCache()
 
 		cert := &x509.Certificate{
 			CRLDistributionPoints: []string{"http://example.com"},
@@ -100,7 +99,7 @@ func TestCertCheckStatus(t *testing.T) {
 	issuerKey := chain[1].PrivateKey
 
 	t.Run("revoked", func(t *testing.T) {
-		memoryCache := cachehelper.NewMemoryCache()
+		memoryCache := newMemoryCache()
 
 		crlBytes, err := x509.CreateRevocationList(rand.Reader, &x509.RevocationList{
 			NextUpdate: time.Now().Add(time.Hour),
@@ -129,7 +128,7 @@ func TestCertCheckStatus(t *testing.T) {
 	})
 
 	t.Run("unknown critical extension", func(t *testing.T) {
-		memoryCache := cachehelper.NewMemoryCache()
+		memoryCache := newMemoryCache()
 
 		crlBytes, err := x509.CreateRevocationList(rand.Reader, &x509.RevocationList{
 			NextUpdate: time.Now().Add(time.Hour),
@@ -164,7 +163,7 @@ func TestCertCheckStatus(t *testing.T) {
 	})
 
 	t.Run("Not revoked", func(t *testing.T) {
-		memoryCache := cachehelper.NewMemoryCache()
+		memoryCache := newMemoryCache()
 
 		crlBytes, err := x509.CreateRevocationList(rand.Reader, &x509.RevocationList{
 			NextUpdate: time.Now().Add(time.Hour),
@@ -187,7 +186,7 @@ func TestCertCheckStatus(t *testing.T) {
 	})
 
 	t.Run("CRL with delta CRL is not checked", func(t *testing.T) {
-		memoryCache := cachehelper.NewMemoryCache()
+		memoryCache := newMemoryCache()
 
 		crlBytes, err := x509.CreateRevocationList(rand.Reader, &x509.RevocationList{
 			NextUpdate: time.Now().Add(time.Hour),
@@ -214,7 +213,7 @@ func TestCertCheckStatus(t *testing.T) {
 		}
 	})
 
-	memoryCache := cachehelper.NewMemoryCache()
+	memoryCache := newMemoryCache()
 
 	// create a stale CRL
 	crlBytes, err := x509.CreateRevocationList(rand.Reader, &x509.RevocationList{
@@ -224,20 +223,14 @@ func TestCertCheckStatus(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	crl, err := x509.ParseRevocationList(crlBytes)
+	base, err := x509.ParseRevocationList(crlBytes)
 	if err != nil {
 		t.Fatal(err)
 	}
-	bundle := &cache.Bundle{
-		BaseCRL: crl,
-		Metadata: cache.Metadata{
-			BaseCRL: cache.CRLMetadata{
-				URL:        "http://example.com",
-				NextUpdate: crl.NextUpdate,
-			},
-			CachedAt: time.Now(),
-		},
+	bundle := &crlutils.Bundle{
+		BaseCRL: base,
 	}
+
 	chain[0].Cert.CRLDistributionPoints = []string{"http://example.com"}
 
 	t.Run("invalid stale CRL cache, and re-download failed", func(t *testing.T) {
@@ -718,4 +711,41 @@ func (rt expectedRoundTripperMock) RoundTrip(req *http.Request) (*http.Response,
 		StatusCode: http.StatusOK,
 		Body:       io.NopCloser(bytes.NewBuffer(rt.Body)),
 	}, nil
+}
+
+// memoryCache is an in-memory cache that stores CRL bundles for testing.
+type memoryCache struct {
+	store sync.Map
+}
+
+// newMemoryCache creates a new memory store.
+func newMemoryCache() *memoryCache {
+	return &memoryCache{}
+}
+
+// Get retrieves the CRL from the memory store.
+//
+// - if the key does not exist, return ErrNotFound
+// - if the CRL is expired, return ErrCacheMiss
+func (c *memoryCache) Get(ctx context.Context, uri string) (*crlutils.Bundle, error) {
+	value, ok := c.store.Load(uri)
+	if !ok {
+		return nil, crlutils.ErrCacheMiss
+	}
+	bundle, ok := value.(*crlutils.Bundle)
+	if !ok {
+		return nil, fmt.Errorf("invalid type: %T", value)
+	}
+
+	return bundle, nil
+}
+
+// Set stores the CRL in the memory store.
+func (c *memoryCache) Set(ctx context.Context, uri string, bundle *crlutils.Bundle) error {
+	if err := bundle.Validate(); err != nil {
+		return err
+	}
+
+	c.store.Store(uri, bundle)
+	return nil
 }

@@ -25,7 +25,6 @@ import (
 	"time"
 
 	crlutils "github.com/notaryproject/notation-core-go/revocation/crl"
-	"github.com/notaryproject/notation-core-go/revocation/crl/cache"
 	"github.com/notaryproject/notation-core-go/revocation/internal/crl"
 	"github.com/notaryproject/notation-core-go/revocation/internal/ocsp"
 	"github.com/notaryproject/notation-core-go/revocation/internal/x509util"
@@ -73,7 +72,7 @@ type revocation struct {
 	ocspHTTPClient   *http.Client
 	crlHTTPClient    *http.Client
 	certChainPurpose purpose.Purpose
-	crlCache         cache.Cache
+	crlCache         crlutils.Cache
 }
 
 // New constructs a revocation object for code signing certificate chain.
@@ -113,7 +112,7 @@ type Options struct {
 
 	// CRLCache is the cache client used to store the CRL. if not provided,
 	// no cache will be used.
-	CRLCache cache.Cache
+	CRLCache crlutils.Cache
 }
 
 // NewWithOptions constructs a Validator with the specified options
