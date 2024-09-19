@@ -83,6 +83,7 @@ func (f *HTTPFetcher) Fetch(ctx context.Context, url string) (bundle *Bundle, er
 	// try to get from cache
 	bundle, err = f.Cache.Get(ctx, url)
 	if err != nil {
+		// ignore cache error as it is not critical
 		return f.download(ctx, url)
 
 	}
@@ -120,6 +121,7 @@ func (f *HTTPFetcher) download(ctx context.Context, url string) (bundle *Bundle,
 		return bundle, nil
 	}
 
+	// ignore the cache error as it is not critical
 	_ = f.Cache.Set(ctx, url, bundle)
 
 	return bundle, nil
