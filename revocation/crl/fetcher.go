@@ -129,7 +129,6 @@ func (f *HTTPFetcher) download(ctx context.Context, url string) (bundle *Bundle,
 		return bundle, nil
 	}
 
-	// ignore the error, as the cache is not critical
 	cacheError := f.Cache.Set(ctx, url, bundle)
 	if cacheError != nil {
 		return bundle, &CacheError{
