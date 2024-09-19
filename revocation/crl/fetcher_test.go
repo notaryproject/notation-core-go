@@ -19,7 +19,6 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"errors"
 	"fmt"
 	"io"
 	"math/big"
@@ -139,10 +138,9 @@ func TestFetch(t *testing.T) {
 			t.Errorf("NewHTTPFetcher() error = %v, want nil", err)
 		}
 		f.Cache = c
-		var cacheError *CacheError
 		bundle, err := f.Fetch(context.Background(), uncachedURL)
-		if !errors.As(err, &cacheError) {
-			t.Errorf("Fetcher.Fetch() error = %v, want CacheError", err)
+		if err != nil {
+			t.Errorf("Fetcher.Fetch() error = %v, want nil", err)
 		}
 		if !bytes.Equal(bundle.BaseCRL.Raw, baseCRL.Raw) {
 			t.Errorf("Fetcher.Fetch() base.Raw = %v, want %v", bundle.BaseCRL.Raw, baseCRL.Raw)
@@ -234,10 +232,9 @@ func TestFetch(t *testing.T) {
 			t.Errorf("NewHTTPFetcher() error = %v, want nil", err)
 		}
 		f.Cache = c
-		var cacheError *CacheError
 		bundle, err = f.Fetch(context.Background(), exampleURL)
-		if !errors.As(err, &cacheError) {
-			t.Errorf("Fetcher.Fetch() error = %v, want CacheError", err)
+		if err != nil {
+			t.Errorf("Fetcher.Fetch() error = %v, want nil", err)
 		}
 		if !bytes.Equal(bundle.BaseCRL.Raw, baseCRL.Raw) {
 			t.Errorf("Fetcher.Fetch() base.Raw = %v, want %v", bundle.BaseCRL.Raw, baseCRL.Raw)

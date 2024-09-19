@@ -17,13 +17,3 @@ import "errors"
 
 // ErrCacheMiss is an error type for when a cache miss occurs
 var ErrCacheMiss = errors.New("cache miss")
-
-// CacheError is an error type for cache errors. The cache error is not a
-// critical error, the following operations can be performed normally.
-type CacheError struct {
-	Err error
-}
-
-func (e CacheError) Error() string {
-	return e.Err.Error()
-}

@@ -99,9 +99,8 @@ func CertCheckStatus(ctx context.Context, cert, issuer *x509.Certificate, opts C
 	// point with one CRL URI, which will be cached, so checking all the URIs is
 	// not a performance issue.
 	for _, crlURL = range cert.CRLDistributionPoints {
-		var cacheError *crl.CacheError
 		bundle, err := opts.Fetcher.Fetch(ctx, crlURL)
-		if err != nil && !errors.As(err, &cacheError) {
+		if err != nil {
 			lastErr = fmt.Errorf("failed to download CRL from %s: %w", crlURL, err)
 			break
 		}
@@ -116,10 +115,7 @@ func CertCheckStatus(ctx context.Context, cert, issuer *x509.Certificate, opts C
 			lastErr = fmt.Errorf("failed to check revocation status from %s: %w", crlURL, err)
 			break
 		}
-		if crlResult.Error == nil && cacheError != nil {
-			// insert the cache error to the result
-			crlResult.Error = cacheError
-		}
+
 		if crlResult.Result == result.ResultRevoked {
 			return &result.CertRevocationResult{
 				Result:           result.ResultRevoked,

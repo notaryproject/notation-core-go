@@ -22,7 +22,7 @@ type Bundle struct {
 
 	// DeltaCRL is the parsed delta CRL
 	//
-	// TODO: support delta CRL
+	// TODO: support delta CRL https://github.com/notaryproject/notation-core-go/issues/228
 	// It will always be nil until we support delta CRL
 	DeltaCRL *x509.RevocationList
 }
