@@ -778,8 +778,8 @@ type memoryCache struct {
 //
 // - if the key does not exist, return ErrNotFound
 // - if the CRL is expired, return ErrCacheMiss
-func (c *memoryCache) Get(ctx context.Context, uri string) (*crlutils.Bundle, error) {
-	value, ok := c.store.Load(uri)
+func (c *memoryCache) Get(ctx context.Context, url string) (*crlutils.Bundle, error) {
+	value, ok := c.store.Load(url)
 	if !ok {
 		return nil, crlutils.ErrCacheMiss
 	}
@@ -792,7 +792,7 @@ func (c *memoryCache) Get(ctx context.Context, uri string) (*crlutils.Bundle, er
 }
 
 // Set stores the CRL in the memory store.
-func (c *memoryCache) Set(ctx context.Context, uri string, bundle *crlutils.Bundle) error {
-	c.store.Store(uri, bundle)
+func (c *memoryCache) Set(ctx context.Context, url string, bundle *crlutils.Bundle) error {
+	c.store.Store(url, bundle)
 	return nil
 }
