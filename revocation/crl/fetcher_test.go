@@ -30,7 +30,10 @@ import (
 
 func TestNewHTTPFetcher(t *testing.T) {
 	t.Run("httpClient is nil", func(t *testing.T) {
-		_ = NewHTTPFetcher(nil)
+		_, err := NewHTTPFetcher(nil)
+		if err.Error() != "httpClient is nil" {
+			t.Errorf("NewHTTPFetcher() error = %v, want %v", err, "httpClient is nil")
+		}
 	})
 }
 
@@ -61,9 +64,13 @@ func TestFetch(t *testing.T) {
 	}
 
 	t.Run("url is empty", func(t *testing.T) {
-		f := NewHTTPFetcher(nil)
+		httpClient := &http.Client{}
+		f, err := NewHTTPFetcher(httpClient)
+		if err != nil {
+			t.Errorf("NewHTTPFetcher() error = %v, want nil", err)
+		}
 		f.Cache = c
-		_, _, err = f.Fetch(context.Background(), "")
+		_, err = f.Fetch(context.Background(), "")
 		if err == nil {
 			t.Errorf("Fetcher.Fetch() error = nil, want not nil")
 		}
@@ -73,25 +80,32 @@ func TestFetch(t *testing.T) {
 		httpClient := &http.Client{
 			Transport: expectedRoundTripperMock{Body: baseCRL.Raw},
 		}
-		f := NewHTTPFetcher(httpClient)
-		base, _, err := f.Fetch(context.Background(), exampleURL)
+		f, err := NewHTTPFetcher(httpClient)
+		if err != nil {
+			t.Errorf("NewHTTPFetcher() error = %v, want nil", err)
+		}
+		bundle, err := f.Fetch(context.Background(), exampleURL)
 		if err != nil {
 			t.Errorf("Fetcher.Fetch() error = %v, want nil", err)
 		}
-		if !bytes.Equal(base.Raw, baseCRL.Raw) {
-			t.Errorf("Fetcher.Fetch() base.Raw = %v, want %v", base.Raw, baseCRL.Raw)
+		if !bytes.Equal(bundle.BaseCRL.Raw, baseCRL.Raw) {
+			t.Errorf("Fetcher.Fetch() base.Raw = %v, want %v", bundle.BaseCRL.Raw, baseCRL.Raw)
 		}
 	})
 
 	t.Run("cache hit", func(t *testing.T) {
-		f := NewHTTPFetcher(nil)
+		httpClient := &http.Client{}
+		f, err := NewHTTPFetcher(httpClient)
+		if err != nil {
+			t.Errorf("NewHTTPFetcher() error = %v, want nil", err)
+		}
 		f.Cache = c
-		base, _, err := f.Fetch(context.Background(), exampleURL)
+		bundle, err := f.Fetch(context.Background(), exampleURL)
 		if err != nil {
 			t.Errorf("Fetcher.Fetch() error = %v, want nil", err)
 		}
-		if !bytes.Equal(base.Raw, baseCRL.Raw) {
-			t.Errorf("Fetcher.Fetch() base.Raw = %v, want %v", base.Raw, baseCRL.Raw)
+		if !bytes.Equal(bundle.BaseCRL.Raw, baseCRL.Raw) {
+			t.Errorf("Fetcher.Fetch() base.Raw = %v, want %v", bundle.BaseCRL.Raw, baseCRL.Raw)
 		}
 	})
 
@@ -99,14 +113,17 @@ func TestFetch(t *testing.T) {
 		httpClient := &http.Client{
 			Transport: expectedRoundTripperMock{Body: baseCRL.Raw},
 		}
-		f := NewHTTPFetcher(httpClient)
+		f, err := NewHTTPFetcher(httpClient)
+		if err != nil {
+			t.Errorf("NewHTTPFetcher() error = %v, want nil", err)
+		}
 		f.Cache = c
-		base, _, err := f.Fetch(context.Background(), uncachedURL)
+		bundle, err := f.Fetch(context.Background(), uncachedURL)
 		if err != nil {
 			t.Errorf("Fetcher.Fetch() error = %v, want nil", err)
 		}
-		if !bytes.Equal(base.Raw, baseCRL.Raw) {
-			t.Errorf("Fetcher.Fetch() base.Raw = %v, want %v", base.Raw, baseCRL.Raw)
+		if !bytes.Equal(bundle.BaseCRL.Raw, baseCRL.Raw) {
+			t.Errorf("Fetcher.Fetch() base.Raw = %v, want %v", bundle.BaseCRL.Raw, baseCRL.Raw)
 		}
 	})
 
@@ -114,8 +131,11 @@ func TestFetch(t *testing.T) {
 		httpClient := &http.Client{
 			Transport: errorRoundTripperMock{},
 		}
-		f := NewHTTPFetcher(httpClient)
-		_, _, err = f.Fetch(context.Background(), uncachedURL)
+		f, err := NewHTTPFetcher(httpClient)
+		if err != nil {
+			t.Errorf("NewHTTPFetcher() error = %v, want nil", err)
+		}
+		_, err = f.Fetch(context.Background(), uncachedURL)
 		if err == nil {
 			t.Errorf("Fetcher.Fetch() error = nil, want not nil")
 		}
@@ -174,7 +194,7 @@ func TestDownload(t *testing.T) {
 
 	t.Run("exceed the size limit", func(t *testing.T) {
 		_, err := download(context.Background(), "http://example.com", &http.Client{
-			Transport: expectedRoundTripperMock{Body: make([]byte, MaxCRLSize+1)},
+			Transport: expectedRoundTripperMock{Body: make([]byte, maxCRLSize+1)},
 		})
 		if err == nil {
 			t.Fatal("expected error")

@@ -100,18 +100,18 @@ func CertCheckStatus(ctx context.Context, cert, issuer *x509.Certificate, opts C
 	// not a performance issue.
 	for _, crlURL = range cert.CRLDistributionPoints {
 		// ignore delta CRL as it is not implemented
-		base, _, err := opts.Fetcher.Fetch(ctx, crlURL)
+		bundle, err := opts.Fetcher.Fetch(ctx, crlURL)
 		if err != nil {
 			lastErr = fmt.Errorf("failed to download CRL from %s: %w", crlURL, err)
 			break
 		}
 
-		if err = validate(base, issuer); err != nil {
+		if err = validate(bundle.BaseCRL, issuer); err != nil {
 			lastErr = fmt.Errorf("failed to validate CRL from %s: %w", crlURL, err)
 			break
 		}
 
-		crlResult, err := checkRevocation(cert, base, opts.SigningTime, crlURL)
+		crlResult, err := checkRevocation(cert, bundle.BaseCRL, opts.SigningTime, crlURL)
 		if err != nil {
 			lastErr = fmt.Errorf("failed to check revocation status from %s: %w", crlURL, err)
 			break
@@ -168,7 +168,7 @@ func validate(crl *x509.RevocationList, issuer *x509.Certificate) error {
 	for _, ext := range crl.Extensions {
 		switch {
 		case ext.Id.Equal(oidFreshestCRL):
-			return ErrDeltaCRLNotSupported
+			return errors.New("delta CRL is not supported")
 		case ext.Id.Equal(oidIssuingDistributionPoint):
 			// IssuingDistributionPoint is a critical extension that identifies
 			// the scope of the CRL. Since we will check all the CRL

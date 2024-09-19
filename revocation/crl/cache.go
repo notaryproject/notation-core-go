@@ -13,19 +13,17 @@
 
 package crl
 
-import (
-	"context"
-)
+import "context"
 
 // Cache is an interface that specifies methods used for caching
 type Cache interface {
-	// Get retrieves the CRL bundle with the given uri
+	// Get retrieves the CRL bundle with the given url
 	//
-	// uri is the URI of the CRL
+	// url is the URI of the CRL
 	//
 	// if the key does not exist or the content is expired, return ErrCacheMiss.
 	Get(ctx context.Context, url string) (*Bundle, error)
 
-	// Set stores the CRL bundle with the given uri
+	// Set stores the CRL bundle with the given url
 	Set(ctx context.Context, url string, bundle *Bundle) error
 }

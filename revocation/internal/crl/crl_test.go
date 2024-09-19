@@ -20,7 +20,6 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/asn1"
-	"errors"
 	"fmt"
 	"io"
 	"math/big"
@@ -60,9 +59,12 @@ func TestCertCheckStatus(t *testing.T) {
 		cert := &x509.Certificate{
 			CRLDistributionPoints: []string{"http://example.com"},
 		}
-		fetcher := crlutils.NewHTTPFetcher(
+		fetcher, err := crlutils.NewHTTPFetcher(
 			&http.Client{Transport: errorRoundTripperMock{}},
 		)
+		if err != nil {
+			t.Fatal(err)
+		}
 		fetcher.Cache = memoryCache
 
 		r := CertCheckStatus(context.Background(), cert, &x509.Certificate{}, CertCheckStatusOptions{
@@ -80,9 +82,12 @@ func TestCertCheckStatus(t *testing.T) {
 		cert := &x509.Certificate{
 			CRLDistributionPoints: []string{"http://example.com"},
 		}
-		fetcher := crlutils.NewHTTPFetcher(
+		fetcher, err := crlutils.NewHTTPFetcher(
 			&http.Client{Transport: expiredCRLRoundTripperMock{}},
 		)
+		if err != nil {
+			t.Fatal(err)
+		}
 		fetcher.Cache = memoryCache
 
 		r := CertCheckStatus(context.Background(), cert, &x509.Certificate{}, CertCheckStatusOptions{
@@ -115,9 +120,12 @@ func TestCertCheckStatus(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		fetcher := crlutils.NewHTTPFetcher(
+		fetcher, err := crlutils.NewHTTPFetcher(
 			&http.Client{Transport: expectedRoundTripperMock{Body: crlBytes}},
 		)
+		if err != nil {
+			t.Fatal(err)
+		}
 		fetcher.Cache = memoryCache
 		r := CertCheckStatus(context.Background(), chain[0].Cert, issuerCert, CertCheckStatusOptions{
 			Fetcher: fetcher,
@@ -150,9 +158,13 @@ func TestCertCheckStatus(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		fetcher := crlutils.NewHTTPFetcher(
+		fetcher, err := crlutils.NewHTTPFetcher(
 			&http.Client{Transport: expectedRoundTripperMock{Body: crlBytes}},
 		)
+		if err != nil {
+			t.Fatal(err)
+		}
+
 		fetcher.Cache = memoryCache
 		r := CertCheckStatus(context.Background(), chain[0].Cert, issuerCert, CertCheckStatusOptions{
 			Fetcher: fetcher,
@@ -173,9 +185,12 @@ func TestCertCheckStatus(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		fetcher := crlutils.NewHTTPFetcher(
+		fetcher, err := crlutils.NewHTTPFetcher(
 			&http.Client{Transport: expectedRoundTripperMock{Body: crlBytes}},
 		)
+		if err != nil {
+			t.Fatal(err)
+		}
 		fetcher.Cache = memoryCache
 		r := CertCheckStatus(context.Background(), chain[0].Cert, issuerCert, CertCheckStatusOptions{
 			Fetcher: fetcher,
@@ -201,15 +216,18 @@ func TestCertCheckStatus(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		fetcher := crlutils.NewHTTPFetcher(
+		fetcher, err := crlutils.NewHTTPFetcher(
 			&http.Client{Transport: expectedRoundTripperMock{Body: crlBytes}},
 		)
+		if err != nil {
+			t.Fatal(err)
+		}
 		fetcher.Cache = memoryCache
 		r := CertCheckStatus(context.Background(), chain[0].Cert, issuerCert, CertCheckStatusOptions{
 			Fetcher: fetcher,
 		})
-		if !errors.Is(r.ServerResults[0].Error, ErrDeltaCRLNotSupported) {
-			t.Fatal("expected ErrDeltaCRLNotChecked")
+		if !strings.Contains(r.ServerResults[0].Error.Error(), "delta CRL is not supported") {
+			t.Fatalf("unexpected error, got %v, expected %v", r.ServerResults[0].Error, "delta CRL is not supported")
 		}
 	})
 
@@ -239,9 +257,12 @@ func TestCertCheckStatus(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		fetcher := crlutils.NewHTTPFetcher(
+		fetcher, err := crlutils.NewHTTPFetcher(
 			&http.Client{Transport: errorRoundTripperMock{}},
 		)
+		if err != nil {
+			t.Fatal(err)
+		}
 		fetcher.Cache = memoryCache
 		r := CertCheckStatus(context.Background(), chain[0].Cert, issuerCert, CertCheckStatusOptions{
 			Fetcher: fetcher,
@@ -257,9 +278,12 @@ func TestCertCheckStatus(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		fetcher := crlutils.NewHTTPFetcher(
+		fetcher, err := crlutils.NewHTTPFetcher(
 			&http.Client{Transport: expectedRoundTripperMock{Body: crlBytes}},
 		)
+		if err != nil {
+			t.Fatal(err)
+		}
 		fetcher.Cache = memoryCache
 		r := CertCheckStatus(context.Background(), chain[0].Cert, issuerCert, CertCheckStatusOptions{
 			Fetcher: fetcher,
@@ -283,9 +307,12 @@ func TestCertCheckStatus(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		fetcher := crlutils.NewHTTPFetcher(
+		fetcher, err := crlutils.NewHTTPFetcher(
 			&http.Client{Transport: expectedRoundTripperMock{Body: crlBytes}},
 		)
+		if err != nil {
+			t.Fatal(err)
+		}
 		fetcher.Cache = memoryCache
 		r := CertCheckStatus(context.Background(), chain[0].Cert, issuerCert, CertCheckStatusOptions{
 			Fetcher: fetcher,

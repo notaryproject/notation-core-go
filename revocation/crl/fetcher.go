@@ -18,6 +18,7 @@ package crl
 import (
 	"context"
 	"crypto/x509"
+	"encoding/asn1"
 	"errors"
 	"fmt"
 	"io"
@@ -26,17 +27,21 @@ import (
 	"time"
 )
 
-// MaxCRLSize is the maximum size of CRL in bytes
+// oidFreshestCRL is the object identifier for the distribution point
+// for the delta CRL. (See RFC 5280, Section 5.2.6)
+var oidFreshestCRL = asn1.ObjectIdentifier{2, 5, 29, 46}
+
+// maxCRLSize is the maximum size of CRL in bytes
 //
 // The 32 MiB limit is based on investigation that even the largest CRLs
 // are less than 16 MiB. The limit is set to 32 MiB to prevent
-const MaxCRLSize = 32 * 1024 * 1024 // 32 MiB
+const maxCRLSize = 32 * 1024 * 1024 // 32 MiB
 
 // Fetcher is an interface that specifies methods used for fetching CRL
 // from the given URL
 type Fetcher interface {
 	// Fetch retrieves the CRL from the given URL.
-	Fetch(ctx context.Context, url string) (base, delta *x509.RevocationList, err error)
+	Fetch(ctx context.Context, url string) (bundle *Bundle, err error)
 }
 
 // HTTPFetcher is a Fetcher implementation that fetches CRL from the given URL
@@ -49,14 +54,14 @@ type HTTPFetcher struct {
 }
 
 // NewHTTPFetcher creates a new HTTPFetcher with the given HTTP client
-func NewHTTPFetcher(httpClient *http.Client) *HTTPFetcher {
+func NewHTTPFetcher(httpClient *http.Client) (*HTTPFetcher, error) {
 	if httpClient == nil {
-		httpClient = http.DefaultClient
+		return nil, errors.New("httpClient is nil")
 	}
 
 	return &HTTPFetcher{
 		httpClient: httpClient,
-	}
+	}, nil
 }
 
 // Fetch retrieves the CRL from the given URL
@@ -64,9 +69,9 @@ func NewHTTPFetcher(httpClient *http.Client) *HTTPFetcher {
 // It try to get the CRL from the cache first, if the cache is not nil or have
 // an error (e.g. cache miss), it will download the CRL from the URL, then
 // store it to the cache if the cache is not nil.
-func (f *HTTPFetcher) Fetch(ctx context.Context, url string) (base, delta *x509.RevocationList, err error) {
+func (f *HTTPFetcher) Fetch(ctx context.Context, url string) (bundle *Bundle, err error) {
 	if url == "" {
-		return nil, nil, errors.New("CRL URL is empty")
+		return nil, errors.New("CRL URL is empty")
 	}
 
 	if f.Cache == nil {
@@ -75,7 +80,7 @@ func (f *HTTPFetcher) Fetch(ctx context.Context, url string) (base, delta *x509.
 	}
 
 	// try to get from cache
-	bundle, err := f.Cache.Get(ctx, url)
+	bundle, err = f.Cache.Get(ctx, url)
 	if err != nil {
 		return f.download(ctx, url)
 	}
@@ -86,29 +91,37 @@ func (f *HTTPFetcher) Fetch(ctx context.Context, url string) (base, delta *x509.
 		return f.download(ctx, url)
 	}
 
-	return bundle.BaseCRL, nil, nil
+	return bundle, nil
 }
 
 // Download downloads the CRL from the given URL and saves it to the
 // cache
-func (f *HTTPFetcher) download(ctx context.Context, url string) (base, delta *x509.RevocationList, err error) {
-	base, err = download(ctx, url, f.httpClient)
+func (f *HTTPFetcher) download(ctx context.Context, url string) (bundle *Bundle, err error) {
+	base, err := download(ctx, url, f.httpClient)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
+	}
+	// check deltaCRL
+	for _, ext := range base.Extensions {
+		if ext.Id.Equal(oidFreshestCRL) {
+			// TODO: support delta CRL
+			return nil, errors.New("delta CRL is not supported")
+		}
+	}
+
+	bundle = &Bundle{
+		BaseCRL: base,
 	}
 
 	if f.Cache == nil {
 		// no cache, return directly
-		return base, delta, nil
+		return bundle, nil
 	}
 
-	bundle := &Bundle{
-		BaseCRL: base,
-	}
 	// ignore the error, as the cache is not critical
 	_ = f.Cache.Set(ctx, url, bundle)
 
-	return base, delta, nil
+	return bundle, nil
 }
 
 func download(ctx context.Context, baseURL string, client *http.Client) (*x509.RevocationList, error) {
@@ -135,12 +148,12 @@ func download(ctx context.Context, baseURL string, client *http.Client) (*x509.R
 		return nil, fmt.Errorf("failed to download with status code: %d", resp.StatusCode)
 	}
 	// read with size limit
-	data, err := io.ReadAll(io.LimitReader(resp.Body, MaxCRLSize))
+	data, err := io.ReadAll(io.LimitReader(resp.Body, maxCRLSize))
 	if err != nil {
 		return nil, fmt.Errorf("failed to read CRL response: %w", err)
 	}
-	if len(data) == MaxCRLSize {
-		return nil, fmt.Errorf("CRL size exceeds the limit: %d", MaxCRLSize)
+	if len(data) == maxCRLSize {
+		return nil, fmt.Errorf("CRL size exceeds the limit: %d", maxCRLSize)
 	}
 
 	// parse CRL

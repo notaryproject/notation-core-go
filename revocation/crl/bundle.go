@@ -13,14 +13,16 @@
 
 package crl
 
-import (
-	"crypto/x509"
-)
+import "crypto/x509"
 
-// Bundle is in memory representation of the Bundle tarball, including base CRL.
-//
-// TODO: consider adding DeltaCRL field in the future
+// Bundle is a collection of CRLs, including base and delta CRLs
 type Bundle struct {
 	// BaseCRL is the parsed base CRL
 	BaseCRL *x509.RevocationList
+
+	// DeltaCRL is the parsed delta CRL
+	//
+	// TODO: support delta CRL
+	// It will always be nil until we support delta CRL
+	DeltaCRL *x509.RevocationList
 }
