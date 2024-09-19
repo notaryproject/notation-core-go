@@ -41,7 +41,7 @@ type Fetcher interface {
 
 // HTTPFetcher is a Fetcher implementation that fetches CRL from the given URL
 type HTTPFetcher struct {
-	// Cache stores fetched CRLs and reuses them with the max ages.
+	// Cache stores fetched CRLs and reuses them until the CRL expires.
 	// If Cache is nil, no cache is used.
 	Cache Cache
 
