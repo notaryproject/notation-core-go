@@ -101,14 +101,10 @@ type Options struct {
 	// OPTIONAL.
 	OCSPHTTPClient *http.Client
 
-	// CRLHTTPClient is the HTTP client for CRL request. If not provided,
-	// a default *http.Client with timeout of 5 seconds will be used.
-	// OPTIONAL.
-	CRLHTTPClient *http.Client
-
-	// CRLCache is the cache client used to store the CRL. if not provided,
-	// no cache will be used.
-	CRLCache crlutil.Cache
+	// CRLFetcher is a fetcher for CRL with cache. If not provided, a default
+	// fetcher with an HTTP client and a timeout of 5 seconds will be used
+	// without cache.
+	CRLFetcher crlutil.Fetcher
 
 	// CertChainPurpose is the purpose of the certificate chain. Supported
 	// values are CodeSigning and Timestamping. Default value is CodeSigning.
@@ -122,8 +118,13 @@ func NewWithOptions(opts Options) (Validator, error) {
 		opts.OCSPHTTPClient = &http.Client{Timeout: 2 * time.Second}
 	}
 
-	if opts.CRLHTTPClient == nil {
-		opts.CRLHTTPClient = &http.Client{Timeout: 5 * time.Second}
+	fetcher := opts.CRLFetcher
+	if fetcher == nil {
+		newFetcher, err := crlutil.NewHTTPFetcher(&http.Client{Timeout: 5 * time.Second})
+		if err != nil {
+			return nil, err
+		}
+		fetcher = newFetcher
 	}
 
 	switch opts.CertChainPurpose {
@@ -131,12 +132,6 @@ func NewWithOptions(opts Options) (Validator, error) {
 	default:
 		return nil, fmt.Errorf("unsupported certificate chain purpose %v", opts.CertChainPurpose)
 	}
-
-	fetcher, err := crlutil.NewHTTPFetcher(opts.CRLHTTPClient)
-	if err != nil {
-		return nil, err
-	}
-	fetcher.Cache = opts.CRLCache
 
 	return &revocation{
 		ocspHTTPClient:   opts.OCSPHTTPClient,
