@@ -70,8 +70,8 @@ type Validator interface {
 // revocation is an internal struct used for revocation checking
 type revocation struct {
 	ocspHTTPClient   *http.Client
-	certChainPurpose purpose.Purpose
 	crlFetcher       crlutil.Fetcher
+	certChainPurpose purpose.Purpose
 }
 
 // New constructs a revocation object for code signing certificate chain.
@@ -89,8 +89,8 @@ func New(httpClient *http.Client) (Revocation, error) {
 
 	return &revocation{
 		ocspHTTPClient:   httpClient,
-		certChainPurpose: purpose.CodeSigning,
 		crlFetcher:       fetcher,
+		certChainPurpose: purpose.CodeSigning,
 	}, nil
 }
 
@@ -140,8 +140,8 @@ func NewWithOptions(opts Options) (Validator, error) {
 
 	return &revocation{
 		ocspHTTPClient:   opts.OCSPHTTPClient,
-		certChainPurpose: opts.CertChainPurpose,
 		crlFetcher:       fetcher,
+		certChainPurpose: opts.CertChainPurpose,
 	}, nil
 }
 

@@ -161,6 +161,7 @@ func validate(crl *x509.RevocationList, issuer *x509.Certificate) error {
 
 	// check validity
 	now := time.Now()
+	// TODO IsZero return error
 	if !crl.NextUpdate.IsZero() && now.After(crl.NextUpdate) {
 		return fmt.Errorf("expired CRL. Current time %v is after CRL NextUpdate %v", now, crl.NextUpdate)
 	}

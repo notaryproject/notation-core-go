@@ -41,7 +41,7 @@ const maxCRLSize = 32 * 1024 * 1024 // 32 MiB
 // from the given URL
 type Fetcher interface {
 	// Fetch retrieves the CRL from the given URL.
-	Fetch(ctx context.Context, url string) (bundle *Bundle, err error)
+	Fetch(ctx context.Context, url string) (*Bundle, error)
 }
 
 // HTTPFetcher is a Fetcher implementation that fetches CRL from the given URL
@@ -70,66 +70,60 @@ func NewHTTPFetcher(httpClient *http.Client) (*HTTPFetcher, error) {
 // If cache is not nil, try to get the CRL from the cache first. On failure
 // (e.g. cache miss), it will download the CRL from the URL and store it to the
 // cache.
-func (f *HTTPFetcher) Fetch(ctx context.Context, url string) (bundle *Bundle, err error) {
+func (f *HTTPFetcher) Fetch(ctx context.Context, url string) (*Bundle, error) {
 	if url == "" {
 		return nil, errors.New("CRL URL cannot be empty")
 	}
 
-	if f.Cache == nil {
-		// no cache, download directly
-		return f.download(ctx, url)
+	if f.Cache != nil {
+		bundle, err := f.Cache.Get(ctx, url)
+		if err == nil {
+			// check expiry
+			nextUpdate := bundle.BaseCRL.NextUpdate
+			if !nextUpdate.IsZero() && !time.Now().After(nextUpdate) {
+				return bundle, nil
+			}
+		}
+		// ignore the cache error as it is not critical
 	}
 
-	// try to get from cache
-	bundle, err = f.Cache.Get(ctx, url)
+	bundle, err := f.fetch(ctx, url)
 	if err != nil {
-		// ignore cache error as it is not critical
-		return f.download(ctx, url)
-
+		return nil, fmt.Errorf("failed to download CRL: %w", err)
 	}
 
-	// check expiry
-	nextUpdate := bundle.BaseCRL.NextUpdate
-	if !nextUpdate.IsZero() && time.Now().After(nextUpdate) {
-		return f.download(ctx, url)
+	if f.Cache != nil {
+		// ignore the cache error as it is not critical
+		_ = f.Cache.Set(ctx, url, bundle)
 	}
 
 	return bundle, nil
 }
 
-// download downloads the CRL from the given URL and saves it to the
-// cache
-func (f *HTTPFetcher) download(ctx context.Context, url string) (bundle *Bundle, err error) {
-	base, err := download(ctx, url, f.httpClient)
+// fetch downloads the CRL from the given URL and saves it to the cache
+func (f *HTTPFetcher) fetch(ctx context.Context, url string) (bundle *Bundle, err error) {
+	// fetch base CRL
+	base, err := fetchCRL(ctx, url, f.httpClient)
 	if err != nil {
 		return nil, err
 	}
-	// check deltaCRL
+
+	// check delta CRL
+	// TODO: support delta CRL https://github.com/notaryproject/notation-core-go/issues/228
 	for _, ext := range base.Extensions {
 		if ext.Id.Equal(oidFreshestCRL) {
-			// TODO: support delta CRL
 			return nil, errors.New("delta CRL is not supported")
 		}
 	}
 
-	bundle = &Bundle{
+	return &Bundle{
 		BaseCRL: base,
-	}
-
-	if f.Cache == nil {
-		// no cache, return directly
-		return bundle, nil
-	}
-
-	// ignore the cache error as it is not critical
-	_ = f.Cache.Set(ctx, url, bundle)
-
-	return bundle, nil
+	}, nil
 }
 
-func download(ctx context.Context, baseURL string, client *http.Client) (*x509.RevocationList, error) {
+func fetchCRL(ctx context.Context, crlURL string, client *http.Client) (*x509.RevocationList, error) {
 	// validate URL
-	parsedURL, err := url.Parse(baseURL)
+	parsedURL, err := url.Parse(crlURL)
 	if err != nil {
 		return nil, fmt.Errorf("invalid CRL URL: %w", err)
 	}
@@ -138,7 +132,7 @@ func download(ctx context.Context, baseURL string, client *http.Client) (*x509.R
 	}
 
 	// download CRL
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, crlURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create CRL request: %w", err)
 	}
