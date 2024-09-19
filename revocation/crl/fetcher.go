@@ -81,9 +81,19 @@ func (f *HTTPFetcher) Fetch(ctx context.Context, url string) (bundle *Bundle, er
 	}
 
 	// try to get from cache
-	bundle, err = f.Cache.Get(ctx, url)
-	if err != nil {
-		return f.download(ctx, url)
+	bundle, cacheError := f.Cache.Get(ctx, url)
+	if cacheError != nil {
+		bundle, err := f.download(ctx, url)
+		if err != nil {
+			var cacheError *CacheError
+			if errors.As(err, &cacheError) {
+				return bundle, cacheError
+			}
+			return nil, err
+		}
+		return bundle, &CacheError{
+			Err: fmt.Errorf("failed to get CRL from cache: %w", cacheError),
+		}
 	}
 
 	// check expiry
@@ -120,7 +130,12 @@ func (f *HTTPFetcher) download(ctx context.Context, url string) (bundle *Bundle,
 	}
 
 	// ignore the error, as the cache is not critical
-	_ = f.Cache.Set(ctx, url, bundle)
+	cacheError := f.Cache.Set(ctx, url, bundle)
+	if cacheError != nil {
+		return bundle, &CacheError{
+			Err: fmt.Errorf("failed to set CRL to cache: %w", cacheError),
+		}
+	}
 
 	return bundle, nil
 }

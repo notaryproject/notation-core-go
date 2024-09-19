@@ -54,7 +54,7 @@ func TestCertCheckStatus(t *testing.T) {
 	})
 
 	t.Run("download error", func(t *testing.T) {
-		memoryCache := newMemoryCache()
+		memoryCache := &memoryCache{}
 
 		cert := &x509.Certificate{
 			CRLDistributionPoints: []string{"http://example.com"},
@@ -77,7 +77,7 @@ func TestCertCheckStatus(t *testing.T) {
 	})
 
 	t.Run("CRL validate failed", func(t *testing.T) {
-		memoryCache := newMemoryCache()
+		memoryCache := &memoryCache{}
 
 		cert := &x509.Certificate{
 			CRLDistributionPoints: []string{"http://example.com"},
@@ -104,7 +104,7 @@ func TestCertCheckStatus(t *testing.T) {
 	issuerKey := chain[1].PrivateKey
 
 	t.Run("revoked", func(t *testing.T) {
-		memoryCache := newMemoryCache()
+		memoryCache := &memoryCache{}
 
 		crlBytes, err := x509.CreateRevocationList(rand.Reader, &x509.RevocationList{
 			NextUpdate: time.Now().Add(time.Hour),
@@ -136,7 +136,7 @@ func TestCertCheckStatus(t *testing.T) {
 	})
 
 	t.Run("unknown critical extension", func(t *testing.T) {
-		memoryCache := newMemoryCache()
+		memoryCache := &memoryCache{}
 
 		crlBytes, err := x509.CreateRevocationList(rand.Reader, &x509.RevocationList{
 			NextUpdate: time.Now().Add(time.Hour),
@@ -175,7 +175,7 @@ func TestCertCheckStatus(t *testing.T) {
 	})
 
 	t.Run("Not revoked", func(t *testing.T) {
-		memoryCache := newMemoryCache()
+		memoryCache := &memoryCache{}
 
 		crlBytes, err := x509.CreateRevocationList(rand.Reader, &x509.RevocationList{
 			NextUpdate: time.Now().Add(time.Hour),
@@ -201,7 +201,7 @@ func TestCertCheckStatus(t *testing.T) {
 	})
 
 	t.Run("CRL with delta CRL is not checked", func(t *testing.T) {
-		memoryCache := newMemoryCache()
+		memoryCache := &memoryCache{}
 
 		crlBytes, err := x509.CreateRevocationList(rand.Reader, &x509.RevocationList{
 			NextUpdate: time.Now().Add(time.Hour),
@@ -231,7 +231,7 @@ func TestCertCheckStatus(t *testing.T) {
 		}
 	})
 
-	memoryCache := newMemoryCache()
+	memoryCache := &memoryCache{}
 
 	// create a stale CRL
 	crlBytes, err := x509.CreateRevocationList(rand.Reader, &x509.RevocationList{
@@ -414,6 +414,35 @@ func TestValidate(t *testing.T) {
 
 		if err := validate(crl, issuerCert); err != nil {
 			t.Fatal(err)
+		}
+	})
+
+	t.Run("delta CRL is not supported", func(t *testing.T) {
+		chain := testhelper.GetRevokableRSAChainWithRevocations(1, false, true)
+		issuerCert := chain[0].Cert
+		issuerKey := chain[0].PrivateKey
+
+		crlBytes, err := x509.CreateRevocationList(rand.Reader, &x509.RevocationList{
+			NextUpdate: time.Now().Add(time.Hour),
+			Number:     big.NewInt(20240720),
+			ExtraExtensions: []pkix.Extension{
+				{
+					Id:       oidFreshestCRL,
+					Critical: false,
+				},
+			},
+		}, issuerCert, issuerKey)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		crl, err := x509.ParseRevocationList(crlBytes)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if err := validate(crl, issuerCert); err.Error() != "delta CRL is not supported" {
+			t.Fatalf("got %v, expected delta CRL is not supported", err)
 		}
 	})
 }
@@ -743,11 +772,6 @@ func (rt expectedRoundTripperMock) RoundTrip(req *http.Request) (*http.Response,
 // memoryCache is an in-memory cache that stores CRL bundles for testing.
 type memoryCache struct {
 	store sync.Map
-}
-
-// newMemoryCache creates a new memory store.
-func newMemoryCache() *memoryCache {
-	return &memoryCache{}
 }
 
 // Get retrieves the CRL from the memory store.

@@ -18,12 +18,15 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/x509"
+	"crypto/x509/pkix"
+	"errors"
 	"fmt"
 	"io"
 	"math/big"
 	"net/http"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/notaryproject/notation-core-go/testhelper"
 )
@@ -38,9 +41,6 @@ func TestNewHTTPFetcher(t *testing.T) {
 }
 
 func TestFetch(t *testing.T) {
-	// prepare cache
-	c := newMemoryCache()
-
 	// prepare crl
 	certChain := testhelper.GetRevokableRSAChainWithRevocations(2, false, true)
 	crlBytes, err := x509.CreateRevocationList(rand.Reader, &x509.RevocationList{
@@ -59,11 +59,9 @@ func TestFetch(t *testing.T) {
 	bundle := &Bundle{
 		BaseCRL: baseCRL,
 	}
-	if err := c.Set(context.Background(), exampleURL, bundle); err != nil {
-		t.Errorf("Cache.Set() error = %v, want nil", err)
-	}
 
 	t.Run("url is empty", func(t *testing.T) {
+		c := &memoryCache{}
 		httpClient := &http.Client{}
 		f, err := NewHTTPFetcher(httpClient)
 		if err != nil {
@@ -94,6 +92,12 @@ func TestFetch(t *testing.T) {
 	})
 
 	t.Run("cache hit", func(t *testing.T) {
+		// set the cache
+		c := &memoryCache{}
+		if err := c.Set(context.Background(), exampleURL, bundle); err != nil {
+			t.Errorf("Cache.Set() error = %v, want nil", err)
+		}
+
 		httpClient := &http.Client{}
 		f, err := NewHTTPFetcher(httpClient)
 		if err != nil {
@@ -109,7 +113,24 @@ func TestFetch(t *testing.T) {
 		}
 	})
 
+	t.Run("cache miss and download failed error", func(t *testing.T) {
+		c := &memoryCache{}
+		httpClient := &http.Client{
+			Transport: errorRoundTripperMock{},
+		}
+		f, err := NewHTTPFetcher(httpClient)
+		f.Cache = c
+		if err != nil {
+			t.Errorf("NewHTTPFetcher() error = %v, want nil", err)
+		}
+		_, err = f.Fetch(context.Background(), uncachedURL)
+		if err == nil {
+			t.Errorf("Fetcher.Fetch() error = nil, want not nil")
+		}
+	})
+
 	t.Run("cache miss", func(t *testing.T) {
+		c := &memoryCache{}
 		httpClient := &http.Client{
 			Transport: expectedRoundTripperMock{Body: baseCRL.Raw},
 		}
@@ -118,26 +139,108 @@ func TestFetch(t *testing.T) {
 			t.Errorf("NewHTTPFetcher() error = %v, want nil", err)
 		}
 		f.Cache = c
+		var cacheError *CacheError
 		bundle, err := f.Fetch(context.Background(), uncachedURL)
-		if err != nil {
-			t.Errorf("Fetcher.Fetch() error = %v, want nil", err)
+		if !errors.As(err, &cacheError) {
+			t.Errorf("Fetcher.Fetch() error = %v, want CacheError", err)
 		}
 		if !bytes.Equal(bundle.BaseCRL.Raw, baseCRL.Raw) {
 			t.Errorf("Fetcher.Fetch() base.Raw = %v, want %v", bundle.BaseCRL.Raw, baseCRL.Raw)
 		}
 	})
 
-	t.Run("cache miss and download failed error", func(t *testing.T) {
+	t.Run("cache expired", func(t *testing.T) {
+		c := &memoryCache{}
+		// prepare an expired CRL
+		certChain := testhelper.GetRevokableRSAChainWithRevocations(2, false, true)
+		expiredCRLBytes, err := x509.CreateRevocationList(rand.Reader, &x509.RevocationList{
+			Number:     big.NewInt(1),
+			NextUpdate: time.Now().Add(-1 * time.Hour),
+		}, certChain[1].Cert, certChain[1].PrivateKey)
+		if err != nil {
+			t.Fatalf("failed to create base CRL: %v", err)
+		}
+		expiredCRL, err := x509.ParseRevocationList(expiredCRLBytes)
+		if err != nil {
+			t.Fatalf("failed to parse base CRL: %v", err)
+		}
+		// store the expired CRL
+		const expiredCRLURL = "http://example.com/expired"
+		bundle := &Bundle{
+			BaseCRL: expiredCRL,
+		}
+		if err := c.Set(context.Background(), expiredCRLURL, bundle); err != nil {
+			t.Errorf("Cache.Set() error = %v, want nil", err)
+		}
+
+		// fetch the expired CRL
 		httpClient := &http.Client{
-			Transport: errorRoundTripperMock{},
+			Transport: expectedRoundTripperMock{Body: baseCRL.Raw},
 		}
 		f, err := NewHTTPFetcher(httpClient)
 		if err != nil {
 			t.Errorf("NewHTTPFetcher() error = %v, want nil", err)
 		}
+		f.Cache = c
+		bundle, err = f.Fetch(context.Background(), expiredCRLURL)
+		if err != nil {
+			t.Errorf("Fetcher.Fetch() error = %v, want nil", err)
+		}
+		// should re-download the CRL
+		if !bytes.Equal(bundle.BaseCRL.Raw, baseCRL.Raw) {
+			t.Errorf("Fetcher.Fetch() base.Raw = %v, want %v", bundle.BaseCRL.Raw, baseCRL.Raw)
+		}
+	})
+
+	t.Run("delta CRL is not supported", func(t *testing.T) {
+		c := &memoryCache{}
+		// prepare a CRL with refresh CRL extension
+		certChain := testhelper.GetRevokableRSAChainWithRevocations(2, false, true)
+		expiredCRLBytes, err := x509.CreateRevocationList(rand.Reader, &x509.RevocationList{
+			Number:     big.NewInt(1),
+			NextUpdate: time.Now().Add(-1 * time.Hour),
+			ExtraExtensions: []pkix.Extension{
+				{
+					Id:    oidFreshestCRL,
+					Value: []byte{0x01, 0x02, 0x03},
+				},
+			},
+		}, certChain[1].Cert, certChain[1].PrivateKey)
+		if err != nil {
+			t.Fatalf("failed to create base CRL: %v", err)
+		}
+
+		httpClient := &http.Client{
+			Transport: expectedRoundTripperMock{Body: expiredCRLBytes},
+		}
+		f, err := NewHTTPFetcher(httpClient)
+		if err != nil {
+			t.Errorf("NewHTTPFetcher() error = %v, want nil", err)
+		}
+		f.Cache = c
 		_, err = f.Fetch(context.Background(), uncachedURL)
-		if err == nil {
-			t.Errorf("Fetcher.Fetch() error = nil, want not nil")
+		if err.Error() != "delta CRL is not supported" {
+			t.Errorf("Fetcher.Fetch() error = %v, want delta CRL is not supported", err)
+		}
+	})
+
+	t.Run("Set cache error", func(t *testing.T) {
+		c := &errorCache{}
+		httpClient := &http.Client{
+			Transport: expectedRoundTripperMock{Body: baseCRL.Raw},
+		}
+		f, err := NewHTTPFetcher(httpClient)
+		if err != nil {
+			t.Errorf("NewHTTPFetcher() error = %v, want nil", err)
+		}
+		f.Cache = c
+		var cacheError *CacheError
+		bundle, err = f.Fetch(context.Background(), exampleURL)
+		if !errors.As(err, &cacheError) {
+			t.Errorf("Fetcher.Fetch() error = %v, want CacheError", err)
+		}
+		if !bytes.Equal(bundle.BaseCRL.Raw, baseCRL.Raw) {
+			t.Errorf("Fetcher.Fetch() base.Raw = %v, want %v", bundle.BaseCRL.Raw, baseCRL.Raw)
 		}
 	})
 }
@@ -262,11 +365,6 @@ type memoryCache struct {
 	store sync.Map
 }
 
-// newMemoryCache creates a new memory store.
-func newMemoryCache() *memoryCache {
-	return &memoryCache{}
-}
-
 // Get retrieves the CRL from the memory store.
 //
 // - if the key does not exist, return ErrNotFound
@@ -288,4 +386,14 @@ func (c *memoryCache) Get(ctx context.Context, uri string) (*Bundle, error) {
 func (c *memoryCache) Set(ctx context.Context, uri string, bundle *Bundle) error {
 	c.store.Store(uri, bundle)
 	return nil
+}
+
+type errorCache struct{}
+
+func (c *errorCache) Get(ctx context.Context, uri string) (*Bundle, error) {
+	return nil, fmt.Errorf("Get error")
+}
+
+func (c *errorCache) Set(ctx context.Context, uri string, bundle *Bundle) error {
+	return fmt.Errorf("Set error")
 }
