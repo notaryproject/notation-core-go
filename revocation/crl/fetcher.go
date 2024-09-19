@@ -46,7 +46,8 @@ type Fetcher interface {
 
 // HTTPFetcher is a Fetcher implementation that fetches CRL from the given URL
 type HTTPFetcher struct {
-	// Cache stores fetched CRLs and reuses them until the CRL expires.
+	// Cache stores fetched CRLs and reuses them until the CRL reaches the
+	// NextUpdate time.
 	// If Cache is nil, no cache is used.
 	Cache Cache
 
@@ -66,9 +67,9 @@ func NewHTTPFetcher(httpClient *http.Client) (*HTTPFetcher, error) {
 
 // Fetch retrieves the CRL from the given URL
 //
-// It try to get the CRL from the cache first, if the cache is not nil or have
-// an error (e.g. cache miss), it will download the CRL from the URL, then
-// store it to the cache if the cache is not nil.
+// If cache is not nil, try to get the CRL from the cache first. On failure
+// (e.g. cache miss), it will download the CRL from the URL and store it to the
+// cache.
 func (f *HTTPFetcher) Fetch(ctx context.Context, url string) (bundle *Bundle, err error) {
 	if url == "" {
 		return nil, errors.New("CRL URL is empty")
@@ -94,7 +95,7 @@ func (f *HTTPFetcher) Fetch(ctx context.Context, url string) (bundle *Bundle, er
 	return bundle, nil
 }
 
-// Download downloads the CRL from the given URL and saves it to the
+// download downloads the CRL from the given URL and saves it to the
 // cache
 func (f *HTTPFetcher) download(ctx context.Context, url string) (bundle *Bundle, err error) {
 	base, err := download(ctx, url, f.httpClient)
