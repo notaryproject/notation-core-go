@@ -57,7 +57,7 @@ type HTTPFetcher struct {
 // NewHTTPFetcher creates a new HTTPFetcher with the given HTTP client
 func NewHTTPFetcher(httpClient *http.Client) (*HTTPFetcher, error) {
 	if httpClient == nil {
-		return nil, errors.New("httpClient is nil")
+		return nil, errors.New("httpClient cannot be nil")
 	}
 
 	return &HTTPFetcher{
@@ -72,7 +72,7 @@ func NewHTTPFetcher(httpClient *http.Client) (*HTTPFetcher, error) {
 // cache.
 func (f *HTTPFetcher) Fetch(ctx context.Context, url string) (bundle *Bundle, err error) {
 	if url == "" {
-		return nil, errors.New("CRL URL is empty")
+		return nil, errors.New("CRL URL cannot be empty")
 	}
 
 	if f.Cache == nil {

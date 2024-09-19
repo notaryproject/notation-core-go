@@ -33,8 +33,8 @@ import (
 func TestNewHTTPFetcher(t *testing.T) {
 	t.Run("httpClient is nil", func(t *testing.T) {
 		_, err := NewHTTPFetcher(nil)
-		if err.Error() != "httpClient is nil" {
-			t.Errorf("NewHTTPFetcher() error = %v, want %v", err, "httpClient is nil")
+		if err.Error() != "httpClient cannot be nil" {
+			t.Errorf("NewHTTPFetcher() error = %v, want %v", err, "httpClient cannot be nil")
 		}
 	})
 }
@@ -68,8 +68,8 @@ func TestFetch(t *testing.T) {
 		}
 		f.Cache = c
 		_, err = f.Fetch(context.Background(), "")
-		if err == nil {
-			t.Errorf("Fetcher.Fetch() error = nil, want not nil")
+		if err.Error() != "CRL URL cannot be empty" {
+			t.Fatalf("Fetcher.Fetch() error = %v, want CRL URL cannot be empty", err)
 		}
 	})
 
