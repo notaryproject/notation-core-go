@@ -15,5 +15,5 @@ package crl
 
 import "errors"
 
-// ErrCacheMiss is an error type for when a cache miss occurs
+// ErrCacheMiss is returned when a cache miss occurs.
 var ErrCacheMiss = errors.New("cache miss")

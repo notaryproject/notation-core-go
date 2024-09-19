@@ -78,7 +78,7 @@ func CertCheckStatus(ctx context.Context, cert, issuer *x509.Certificate, opts C
 			Result: result.ResultUnknown,
 			ServerResults: []*result.ServerResult{{
 				RevocationMethod: result.RevocationMethodCRL,
-				Error:            errors.New("CRL fetcher is nil"),
+				Error:            errors.New("CRL fetcher cannot be nil"),
 				Result:           result.ResultUnknown,
 			}},
 			RevocationMethod: result.RevocationMethodCRL,

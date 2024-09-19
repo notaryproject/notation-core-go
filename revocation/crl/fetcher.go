@@ -11,8 +11,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package crl provides Fetcher and Cache interface and implementations for
-// fetching CRLs.
+// Package crl provides Fetcher interface with its implementation, and the
+// Cache interface.
 package crl
 
 import (
@@ -100,7 +100,7 @@ func (f *HTTPFetcher) Fetch(ctx context.Context, url string) (*Bundle, error) {
 	return bundle, nil
 }
 
-// fetch downloads the CRL from the given URL and saves it to the cache
+// fetch downloads the CRL from the given URL.
 func (f *HTTPFetcher) fetch(ctx context.Context, url string) (*Bundle, error) {
 	// fetch base CRL
 	base, err := fetchCRL(ctx, url, f.httpClient)

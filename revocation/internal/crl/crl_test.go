@@ -48,8 +48,8 @@ func TestCertCheckStatus(t *testing.T) {
 			CRLDistributionPoints: []string{"http://example.com"},
 		}
 		r := CertCheckStatus(context.Background(), cert, &x509.Certificate{}, CertCheckStatusOptions{})
-		if r.ServerResults[0].Error.Error() != "CRL fetcher is nil" {
-			t.Fatalf("expected CRL fetcher is nil, got %v", r.ServerResults[0].Error)
+		if r.ServerResults[0].Error.Error() != "CRL fetcher cannot be nil" {
+			t.Fatalf("expected CRL fetcher cannot be nil, got %v", r.ServerResults[0].Error)
 		}
 	})
 
