@@ -15,24 +15,12 @@ package crl
 
 import (
 	"crypto/x509"
-	"errors"
 )
 
-// Bundle is in memory representation of the Bundle tarball, including base CRL
-// file and metadata file, which may be cached in the file system or other
-// storage
+// Bundle is in memory representation of the Bundle tarball, including base CRL.
 //
 // TODO: consider adding DeltaCRL field in the future
 type Bundle struct {
 	// BaseCRL is the parsed base CRL
 	BaseCRL *x509.RevocationList
-}
-
-// Validate checks if the bundle is valid
-func (b *Bundle) Validate() error {
-	if b.BaseCRL == nil {
-		return errors.New("base CRL is missing")
-	}
-
-	return nil
 }

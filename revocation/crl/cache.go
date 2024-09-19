@@ -24,8 +24,8 @@ type Cache interface {
 	// uri is the URI of the CRL
 	//
 	// if the key does not exist or the content is expired, return ErrCacheMiss.
-	Get(ctx context.Context, uri string) (*Bundle, error)
+	Get(ctx context.Context, url string) (*Bundle, error)
 
 	// Set stores the CRL bundle with the given uri
-	Set(ctx context.Context, uri string, bundle *Bundle) error
+	Set(ctx context.Context, url string, bundle *Bundle) error
 }

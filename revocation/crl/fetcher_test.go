@@ -266,10 +266,6 @@ func (c *memoryCache) Get(ctx context.Context, uri string) (*Bundle, error) {
 
 // Set stores the CRL in the memory store.
 func (c *memoryCache) Set(ctx context.Context, uri string, bundle *Bundle) error {
-	if err := bundle.Validate(); err != nil {
-		return err
-	}
-
 	c.store.Store(uri, bundle)
 	return nil
 }
