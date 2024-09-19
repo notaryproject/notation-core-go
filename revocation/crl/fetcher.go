@@ -89,7 +89,7 @@ func (f *HTTPFetcher) Fetch(ctx context.Context, url string) (*Bundle, error) {
 
 	bundle, err := f.fetch(ctx, url)
 	if err != nil {
-		return nil, fmt.Errorf("failed to download CRL: %w", err)
+		return nil, fmt.Errorf("failed to retrieve CRL: %w", err)
 	}
 
 	if f.Cache != nil {
@@ -101,7 +101,7 @@ func (f *HTTPFetcher) Fetch(ctx context.Context, url string) (*Bundle, error) {
 }
 
 // fetch downloads the CRL from the given URL and saves it to the cache
-func (f *HTTPFetcher) fetch(ctx context.Context, url string) (bundle *Bundle, err error) {
+func (f *HTTPFetcher) fetch(ctx context.Context, url string) (*Bundle, error) {
 	// fetch base CRL
 	base, err := fetchCRL(ctx, url, f.httpClient)
 	if err != nil {
