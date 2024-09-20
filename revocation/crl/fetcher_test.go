@@ -141,7 +141,7 @@ func TestFetch(t *testing.T) {
 			t.Errorf("NewHTTPFetcher() error = %v, want nil", err)
 		}
 		f.Cache = c
-		f.DiscardCacheFailure = false
+		f.DiscardCacheError = false
 		bundle, err := f.Fetch(context.Background(), uncachedURL)
 		if err != nil {
 			t.Errorf("Fetcher.Fetch() error = %v, want nil", err)
@@ -184,7 +184,7 @@ func TestFetch(t *testing.T) {
 			t.Errorf("NewHTTPFetcher() error = %v, want nil", err)
 		}
 		f.Cache = c
-		f.DiscardCacheFailure = true
+		f.DiscardCacheError = true
 		bundle, err = f.Fetch(context.Background(), expiredCRLURL)
 		if err != nil {
 			t.Errorf("Fetcher.Fetch() error = %v, want nil", err)
@@ -221,7 +221,7 @@ func TestFetch(t *testing.T) {
 			t.Errorf("NewHTTPFetcher() error = %v, want nil", err)
 		}
 		f.Cache = c
-		f.DiscardCacheFailure = true
+		f.DiscardCacheError = true
 		_, err = f.Fetch(context.Background(), uncachedURL)
 		if !strings.Contains(err.Error(), "delta CRL is not supported") {
 			t.Errorf("Fetcher.Fetch() error = %v, want delta CRL is not supported", err)
@@ -241,7 +241,7 @@ func TestFetch(t *testing.T) {
 			t.Errorf("NewHTTPFetcher() error = %v, want nil", err)
 		}
 		f.Cache = c
-		f.DiscardCacheFailure = true
+		f.DiscardCacheError = true
 		bundle, err = f.Fetch(context.Background(), exampleURL)
 		if err != nil {
 			t.Errorf("Fetcher.Fetch() error = %v, want nil", err)
@@ -263,7 +263,7 @@ func TestFetch(t *testing.T) {
 			t.Errorf("NewHTTPFetcher() error = %v, want nil", err)
 		}
 		f.Cache = c
-		f.DiscardCacheFailure = false
+		f.DiscardCacheError = false
 		_, err = f.Fetch(context.Background(), exampleURL)
 		if !strings.HasPrefix(err.Error(), "failed to retrieve CRL from cache:") {
 			t.Errorf("Fetcher.Fetch() error = %v, want failed to retrieve CRL from cache:", err)
@@ -283,7 +283,7 @@ func TestFetch(t *testing.T) {
 			t.Errorf("NewHTTPFetcher() error = %v, want nil", err)
 		}
 		f.Cache = c
-		f.DiscardCacheFailure = false
+		f.DiscardCacheError = false
 		_, err = f.Fetch(context.Background(), exampleURL)
 		if !strings.HasPrefix(err.Error(), "failed to store CRL to cache:") {
 			t.Errorf("Fetcher.Fetch() error = %v, want failed to store CRL to cache:", err)

@@ -127,7 +127,7 @@ func TestCertCheckStatus(t *testing.T) {
 			t.Fatal(err)
 		}
 		fetcher.Cache = memoryCache
-		fetcher.DiscardCacheFailure = true
+		fetcher.DiscardCacheError = true
 		r := CertCheckStatus(context.Background(), chain[0].Cert, issuerCert, CertCheckStatusOptions{
 			Fetcher: fetcher,
 		})
@@ -167,7 +167,7 @@ func TestCertCheckStatus(t *testing.T) {
 		}
 
 		fetcher.Cache = memoryCache
-		fetcher.DiscardCacheFailure = true
+		fetcher.DiscardCacheError = true
 		r := CertCheckStatus(context.Background(), chain[0].Cert, issuerCert, CertCheckStatusOptions{
 			Fetcher: fetcher,
 		})
@@ -194,7 +194,7 @@ func TestCertCheckStatus(t *testing.T) {
 			t.Fatal(err)
 		}
 		fetcher.Cache = memoryCache
-		fetcher.DiscardCacheFailure = true
+		fetcher.DiscardCacheError = true
 		r := CertCheckStatus(context.Background(), chain[0].Cert, issuerCert, CertCheckStatusOptions{
 			Fetcher: fetcher,
 		})
@@ -226,7 +226,7 @@ func TestCertCheckStatus(t *testing.T) {
 			t.Fatal(err)
 		}
 		fetcher.Cache = memoryCache
-		fetcher.DiscardCacheFailure = true
+		fetcher.DiscardCacheError = true
 		r := CertCheckStatus(context.Background(), chain[0].Cert, issuerCert, CertCheckStatusOptions{
 			Fetcher: fetcher,
 		})
@@ -268,7 +268,7 @@ func TestCertCheckStatus(t *testing.T) {
 			t.Fatal(err)
 		}
 		fetcher.Cache = memoryCache
-		fetcher.DiscardCacheFailure = true
+		fetcher.DiscardCacheError = true
 		r := CertCheckStatus(context.Background(), chain[0].Cert, issuerCert, CertCheckStatusOptions{
 			Fetcher: fetcher,
 		})
@@ -290,7 +290,7 @@ func TestCertCheckStatus(t *testing.T) {
 			t.Fatal(err)
 		}
 		fetcher.Cache = memoryCache
-		fetcher.DiscardCacheFailure = true
+		fetcher.DiscardCacheError = true
 		r := CertCheckStatus(context.Background(), chain[0].Cert, issuerCert, CertCheckStatusOptions{
 			Fetcher: fetcher,
 		})
@@ -320,7 +320,7 @@ func TestCertCheckStatus(t *testing.T) {
 			t.Fatal(err)
 		}
 		fetcher.Cache = memoryCache
-		fetcher.DiscardCacheFailure = true
+		fetcher.DiscardCacheError = true
 		r := CertCheckStatus(context.Background(), chain[0].Cert, issuerCert, CertCheckStatusOptions{
 			Fetcher: fetcher,
 		})
