@@ -24,6 +24,7 @@ import (
 	"sync"
 	"time"
 
+	crlutil "github.com/notaryproject/notation-core-go/revocation/crl"
 	"github.com/notaryproject/notation-core-go/revocation/internal/crl"
 	"github.com/notaryproject/notation-core-go/revocation/internal/ocsp"
 	"github.com/notaryproject/notation-core-go/revocation/internal/x509util"
@@ -69,7 +70,7 @@ type Validator interface {
 // revocation is an internal struct used for revocation checking
 type revocation struct {
 	ocspHTTPClient   *http.Client
-	crlHTTPClient    *http.Client
+	crlFetcher       crlutil.Fetcher
 	certChainPurpose purpose.Purpose
 }
 
@@ -81,9 +82,14 @@ func New(httpClient *http.Client) (Revocation, error) {
 	if httpClient == nil {
 		return nil, errors.New("invalid input: a non-nil httpClient must be specified")
 	}
+	fetcher, err := crlutil.NewHTTPFetcher(httpClient)
+	if err != nil {
+		return nil, err
+	}
+
 	return &revocation{
 		ocspHTTPClient:   httpClient,
-		crlHTTPClient:    httpClient,
+		crlFetcher:       fetcher,
 		certChainPurpose: purpose.CodeSigning,
 	}, nil
 }
@@ -95,10 +101,10 @@ type Options struct {
 	// OPTIONAL.
 	OCSPHTTPClient *http.Client
 
-	// CRLHTTPClient is the HTTP client for CRL request. If not provided,
-	// a default *http.Client with timeout of 5 seconds will be used.
-	// OPTIONAL.
-	CRLHTTPClient *http.Client
+	// CRLFetcher is a fetcher for CRL with cache. If not provided, a default
+	// fetcher with an HTTP client and a timeout of 5 seconds will be used
+	// without cache.
+	CRLFetcher crlutil.Fetcher
 
 	// CertChainPurpose is the purpose of the certificate chain. Supported
 	// values are CodeSigning and Timestamping. Default value is CodeSigning.
@@ -112,8 +118,13 @@ func NewWithOptions(opts Options) (Validator, error) {
 		opts.OCSPHTTPClient = &http.Client{Timeout: 2 * time.Second}
 	}
 
-	if opts.CRLHTTPClient == nil {
-		opts.CRLHTTPClient = &http.Client{Timeout: 5 * time.Second}
+	fetcher := opts.CRLFetcher
+	if fetcher == nil {
+		newFetcher, err := crlutil.NewHTTPFetcher(&http.Client{Timeout: 5 * time.Second})
+		if err != nil {
+			return nil, err
+		}
+		fetcher = newFetcher
 	}
 
 	switch opts.CertChainPurpose {
@@ -124,7 +135,7 @@ func NewWithOptions(opts Options) (Validator, error) {
 
 	return &revocation{
 		ocspHTTPClient:   opts.OCSPHTTPClient,
-		crlHTTPClient:    opts.CRLHTTPClient,
+		crlFetcher:       fetcher,
 		certChainPurpose: opts.CertChainPurpose,
 	}, nil
 }
@@ -170,8 +181,9 @@ func (r *revocation) ValidateContext(ctx context.Context, validateContextOpts Va
 		HTTPClient:  r.ocspHTTPClient,
 		SigningTime: validateContextOpts.AuthenticSigningTime,
 	}
+
 	crlOpts := crl.CertCheckStatusOptions{
-		HTTPClient:  r.crlHTTPClient,
+		Fetcher:     r.crlFetcher,
 		SigningTime: validateContextOpts.AuthenticSigningTime,
 	}
 

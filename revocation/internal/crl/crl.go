@@ -21,11 +21,9 @@ import (
 	"encoding/asn1"
 	"errors"
 	"fmt"
-	"io"
-	"net/http"
-	"net/url"
 	"time"
 
+	"github.com/notaryproject/notation-core-go/revocation/crl"
 	"github.com/notaryproject/notation-core-go/revocation/result"
 )
 
@@ -43,18 +41,13 @@ var (
 	oidInvalidityDate = asn1.ObjectIdentifier{2, 5, 29, 24}
 )
 
-// maxCRLSize is the maximum size of CRL in bytes
-//
-// CRL examples: https://chasersystems.com/blog/an-analysis-of-certificate-revocation-list-sizes/
-const maxCRLSize = 32 * 1024 * 1024 // 32 MiB
-
-// CertCheckStatusOptions specifies values that are needed to check CRL
+// CertCheckStatusOptions specifies values that are needed to check CRL.
 type CertCheckStatusOptions struct {
-	// HTTPClient is the HTTP client used to download CRL
-	HTTPClient *http.Client
+	// Fetcher is used to fetch the CRL from the CRL distribution points.
+	Fetcher crl.Fetcher
 
 	// SigningTime is used to compare with the invalidity date during revocation
-	// check
+	// check.
 	SigningTime time.Time
 }
 
@@ -73,11 +66,30 @@ func CertCheckStatus(ctx context.Context, cert, issuer *x509.Certificate, opts C
 			Result: result.ResultNonRevokable,
 			ServerResults: []*result.ServerResult{{
 				RevocationMethod: result.RevocationMethodCRL,
+				Error:            errors.New("CRL is not supported"),
 				Result:           result.ResultNonRevokable,
 			}},
 			RevocationMethod: result.RevocationMethodCRL,
 		}
 	}
+
+	if opts.Fetcher == nil {
+		return &result.CertRevocationResult{
+			Result: result.ResultUnknown,
+			ServerResults: []*result.ServerResult{{
+				RevocationMethod: result.RevocationMethodCRL,
+				Error:            errors.New("CRL fetcher cannot be nil"),
+				Result:           result.ResultUnknown,
+			}},
+			RevocationMethod: result.RevocationMethodCRL,
+		}
+	}
+
+	var (
+		serverResults = make([]*result.ServerResult, 0, len(cert.CRLDistributionPoints))
+		lastErr       error
+		crlURL        string
+	)
 
 	// The CRLDistributionPoints contains the URIs of all the CRL distribution
 	// points. Since it does not distinguish the reason field, it needs to check
@@ -86,28 +98,24 @@ func CertCheckStatus(ctx context.Context, cert, issuer *x509.Certificate, opts C
 	// For the majority of the certificates, there is only one CRL distribution
 	// point with one CRL URI, which will be cached, so checking all the URIs is
 	// not a performance issue.
-	var (
-		serverResults = make([]*result.ServerResult, 0, len(cert.CRLDistributionPoints))
-		lastErr       error
-		crlURL        string
-	)
 	for _, crlURL = range cert.CRLDistributionPoints {
-		baseCRL, err := download(ctx, crlURL, opts.HTTPClient)
+		bundle, err := opts.Fetcher.Fetch(ctx, crlURL)
 		if err != nil {
 			lastErr = fmt.Errorf("failed to download CRL from %s: %w", crlURL, err)
 			break
 		}
 
-		if err = validate(baseCRL, issuer); err != nil {
+		if err = validate(bundle.BaseCRL, issuer); err != nil {
 			lastErr = fmt.Errorf("failed to validate CRL from %s: %w", crlURL, err)
 			break
 		}
 
-		crlResult, err := checkRevocation(cert, baseCRL, opts.SigningTime, crlURL)
+		crlResult, err := checkRevocation(cert, bundle.BaseCRL, opts.SigningTime, crlURL)
 		if err != nil {
 			lastErr = fmt.Errorf("failed to check revocation status from %s: %w", crlURL, err)
 			break
 		}
+
 		if crlResult.Result == result.ResultRevoked {
 			return &result.CertRevocationResult{
 				Result:           result.ResultRevoked,
@@ -152,15 +160,18 @@ func validate(crl *x509.RevocationList, issuer *x509.Certificate) error {
 	}
 
 	// check validity
+	if crl.NextUpdate.IsZero() {
+		return errors.New("CRL NextUpdate is not set")
+	}
 	now := time.Now()
-	if !crl.NextUpdate.IsZero() && now.After(crl.NextUpdate) {
+	if now.After(crl.NextUpdate) {
 		return fmt.Errorf("expired CRL. Current time %v is after CRL NextUpdate %v", now, crl.NextUpdate)
 	}
 
 	for _, ext := range crl.Extensions {
 		switch {
 		case ext.Id.Equal(oidFreshestCRL):
-			return ErrDeltaCRLNotSupported
+			return errors.New("delta CRL is not supported")
 		case ext.Id.Equal(oidIssuingDistributionPoint):
 			// IssuingDistributionPoint is a critical extension that identifies
 			// the scope of the CRL. Since we will check all the CRL
@@ -246,43 +257,4 @@ func parseEntryExtensions(entry x509.RevocationListEntry) (entryExtensions, erro
 	}
 
 	return extensions, nil
-}
-
-func download(ctx context.Context, crlURL string, client *http.Client) (*x509.RevocationList, error) {
-	// validate URL
-	parsedURL, err := url.Parse(crlURL)
-	if err != nil {
-		return nil, fmt.Errorf("invalid CRL URL: %w", err)
-	}
-	if parsedURL.Scheme != "http" {
-		return nil, fmt.Errorf("unsupported CRL endpoint: %s. Only urls with HTTP scheme is supported", crlURL)
-	}
-
-	// download CRL
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, crlURL, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create CRL request %q: %w", crlURL, err)
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("request failed for %q: %w", crlURL, err)
-	}
-	defer resp.Body.Close()
-
-	// check response
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("%s %q: failed to download with status code: %d", resp.Request.Method, resp.Request.URL, resp.StatusCode)
-	}
-
-	// read with size limit
-	limitedReader := io.LimitReader(resp.Body, maxCRLSize)
-	data, err := io.ReadAll(limitedReader)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read CRL response from %q: %w", resp.Request.URL, err)
-	}
-	if len(data) == maxCRLSize {
-		return nil, fmt.Errorf("%s %q: CRL size reached the %d MiB size limit", resp.Request.Method, resp.Request.URL, maxCRLSize/1024/1024)
-	}
-
-	return x509.ParseRevocationList(data)
 }

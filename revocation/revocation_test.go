@@ -28,6 +28,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/notaryproject/notation-core-go/revocation/crl"
 	revocationocsp "github.com/notaryproject/notation-core-go/revocation/internal/ocsp"
 	"github.com/notaryproject/notation-core-go/revocation/purpose"
 	"github.com/notaryproject/notation-core-go/revocation/result"
@@ -1035,15 +1036,20 @@ func TestCRL(t *testing.T) {
 	t.Run("CRL check valid", func(t *testing.T) {
 		chain := testhelper.GetRevokableRSAChainWithRevocations(3, false, true)
 
-		revocationClient, err := NewWithOptions(Options{
-			CRLHTTPClient: &http.Client{
-				Timeout: 5 * time.Second,
-				Transport: &crlRoundTripper{
-					CertChain: chain,
-					Revoked:   false,
-				},
+		fetcher, err := crl.NewHTTPFetcher(&http.Client{
+			Timeout: 5 * time.Second,
+			Transport: &crlRoundTripper{
+				CertChain: chain,
+				Revoked:   false,
 			},
+		})
+		if err != nil {
+			t.Errorf("Expected successful creation of fetcher, but received error: %v", err)
+		}
+
+		revocationClient, err := NewWithOptions(Options{
 			OCSPHTTPClient:   &http.Client{},
+			CRLFetcher:       fetcher,
 			CertChainPurpose: purpose.CodeSigning,
 		})
 		if err != nil {
@@ -1084,15 +1090,20 @@ func TestCRL(t *testing.T) {
 	t.Run("CRL check with revoked status", func(t *testing.T) {
 		chain := testhelper.GetRevokableRSAChainWithRevocations(3, false, true)
 
-		revocationClient, err := NewWithOptions(Options{
-			CRLHTTPClient: &http.Client{
-				Timeout: 5 * time.Second,
-				Transport: &crlRoundTripper{
-					CertChain: chain,
-					Revoked:   true,
-				},
+		fetcher, err := crl.NewHTTPFetcher(&http.Client{
+			Timeout: 5 * time.Second,
+			Transport: &crlRoundTripper{
+				CertChain: chain,
+				Revoked:   true,
 			},
+		})
+		if err != nil {
+			t.Errorf("Expected successful creation of fetcher, but received error: %v", err)
+		}
+
+		revocationClient, err := NewWithOptions(Options{
 			OCSPHTTPClient:   &http.Client{},
+			CRLFetcher:       fetcher,
 			CertChainPurpose: purpose.CodeSigning,
 		})
 		if err != nil {
@@ -1140,17 +1151,21 @@ func TestCRL(t *testing.T) {
 
 	t.Run("OCSP fallback to CRL", func(t *testing.T) {
 		chain := testhelper.GetRevokableRSAChainWithRevocations(3, true, true)
+		fetcher, err := crl.NewHTTPFetcher(&http.Client{
+			Timeout: 5 * time.Second,
+			Transport: &crlRoundTripper{
+				CertChain: chain,
+				Revoked:   true,
+				FailOCSP:  true,
+			},
+		})
+		if err != nil {
+			t.Errorf("Expected successful creation of fetcher, but received error: %v", err)
+		}
 
 		revocationClient, err := NewWithOptions(Options{
-			CRLHTTPClient: &http.Client{
-				Timeout: 5 * time.Second,
-				Transport: &crlRoundTripper{
-					CertChain: chain,
-					Revoked:   true,
-					FailOCSP:  true,
-				},
-			},
 			OCSPHTTPClient:   &http.Client{},
+			CRLFetcher:       fetcher,
 			CertChainPurpose: purpose.CodeSigning,
 		})
 		if err != nil {
@@ -1218,9 +1233,14 @@ func TestPanicHandling(t *testing.T) {
 			Transport: panicTransport{},
 		}
 
+		fetcher, err := crl.NewHTTPFetcher(client)
+		if err != nil {
+			t.Errorf("Expected successful creation of fetcher, but received error: %v", err)
+		}
+
 		r, err := NewWithOptions(Options{
 			OCSPHTTPClient:   client,
-			CRLHTTPClient:    client,
+			CRLFetcher:       fetcher,
 			CertChainPurpose: purpose.CodeSigning,
 		})
 		if err != nil {
@@ -1245,9 +1265,14 @@ func TestPanicHandling(t *testing.T) {
 			Transport: panicTransport{},
 		}
 
+		fetcher, err := crl.NewHTTPFetcher(client)
+		if err != nil {
+			t.Errorf("Expected successful creation of fetcher, but received error: %v", err)
+		}
+
 		r, err := NewWithOptions(Options{
 			OCSPHTTPClient:   client,
-			CRLHTTPClient:    client,
+			CRLFetcher:       fetcher,
 			CertChainPurpose: purpose.CodeSigning,
 		})
 		if err != nil {

@@ -13,10 +13,20 @@
 
 package crl
 
-import "errors"
+import "context"
 
-var (
-	// ErrDeltaCRLNotSupported is returned when the CRL contains a delta CRL but
-	// the delta CRL is not supported.
-	ErrDeltaCRLNotSupported = errors.New("delta CRL is not supported")
-)
+// Cache is an interface that specifies methods used for caching
+type Cache interface {
+	// Get retrieves the CRL bundle with the given url
+	//
+	// url is the key to retrieve the CRL bundle
+	//
+	// if the key does not exist or the content is expired, return ErrCacheMiss.
+	Get(ctx context.Context, url string) (*Bundle, error)
+
+	// Set stores the CRL bundle with the given url
+	//
+	// url is the key to store the CRL bundle
+	// bundle is the CRL collections to store
+	Set(ctx context.Context, url string, bundle *Bundle) error
+}

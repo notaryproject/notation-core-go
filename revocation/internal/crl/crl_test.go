@@ -20,49 +20,78 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/asn1"
-	"errors"
 	"fmt"
 	"io"
 	"math/big"
 	"net/http"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
+	crlutils "github.com/notaryproject/notation-core-go/revocation/crl"
 	"github.com/notaryproject/notation-core-go/revocation/result"
 	"github.com/notaryproject/notation-core-go/testhelper"
 )
 
 func TestCertCheckStatus(t *testing.T) {
-	t.Run("certtificate does not have CRLDistributionPoints", func(t *testing.T) {
+	t.Run("certificate does not have CRLDistributionPoints", func(t *testing.T) {
 		cert := &x509.Certificate{}
 		r := CertCheckStatus(context.Background(), cert, &x509.Certificate{}, CertCheckStatusOptions{})
-		if r.Result != result.ResultNonRevokable {
-			t.Fatalf("expected NonRevokable, got %s", r.Result)
+		if r.ServerResults[0].Error.Error() != "CRL is not supported" {
+			t.Fatalf("expected CRL is not supported, got %v", r.ServerResults[0].Error)
+		}
+	})
+
+	t.Run("fetcher is nil", func(t *testing.T) {
+		cert := &x509.Certificate{
+			CRLDistributionPoints: []string{"http://example.com"},
+		}
+		r := CertCheckStatus(context.Background(), cert, &x509.Certificate{}, CertCheckStatusOptions{})
+		if r.ServerResults[0].Error.Error() != "CRL fetcher cannot be nil" {
+			t.Fatalf("expected CRL fetcher cannot be nil, got %v", r.ServerResults[0].Error)
 		}
 	})
 
 	t.Run("download error", func(t *testing.T) {
+		memoryCache := &memoryCache{}
+
 		cert := &x509.Certificate{
 			CRLDistributionPoints: []string{"http://example.com"},
 		}
+		fetcher, err := crlutils.NewHTTPFetcher(
+			&http.Client{Transport: errorRoundTripperMock{}},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		fetcher.Cache = memoryCache
+
 		r := CertCheckStatus(context.Background(), cert, &x509.Certificate{}, CertCheckStatusOptions{
-			HTTPClient: &http.Client{
-				Transport: errorRoundTripperMock{},
-			},
+			Fetcher: fetcher,
 		})
+
 		if r.ServerResults[0].Error == nil {
 			t.Fatal("expected error")
 		}
 	})
 
 	t.Run("CRL validate failed", func(t *testing.T) {
+		memoryCache := &memoryCache{}
+
 		cert := &x509.Certificate{
 			CRLDistributionPoints: []string{"http://example.com"},
 		}
+		fetcher, err := crlutils.NewHTTPFetcher(
+			&http.Client{Transport: expiredCRLRoundTripperMock{}},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		fetcher.Cache = memoryCache
+
 		r := CertCheckStatus(context.Background(), cert, &x509.Certificate{}, CertCheckStatusOptions{
-			HTTPClient: &http.Client{
-				Transport: expiredCRLRoundTripperMock{},
-			},
+			Fetcher: fetcher,
 		})
 		if r.ServerResults[0].Error == nil {
 			t.Fatal("expected error")
@@ -75,6 +104,8 @@ func TestCertCheckStatus(t *testing.T) {
 	issuerKey := chain[1].PrivateKey
 
 	t.Run("revoked", func(t *testing.T) {
+		memoryCache := &memoryCache{}
+
 		crlBytes, err := x509.CreateRevocationList(rand.Reader, &x509.RevocationList{
 			NextUpdate: time.Now().Add(time.Hour),
 			Number:     big.NewInt(20240720),
@@ -89,10 +120,16 @@ func TestCertCheckStatus(t *testing.T) {
 			t.Fatal(err)
 		}
 
+		fetcher, err := crlutils.NewHTTPFetcher(
+			&http.Client{Transport: expectedRoundTripperMock{Body: crlBytes}},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		fetcher.Cache = memoryCache
+		fetcher.DiscardCacheError = true
 		r := CertCheckStatus(context.Background(), chain[0].Cert, issuerCert, CertCheckStatusOptions{
-			HTTPClient: &http.Client{
-				Transport: expectedRoundTripperMock{Body: crlBytes},
-			},
+			Fetcher: fetcher,
 		})
 		if r.Result != result.ResultRevoked {
 			t.Fatalf("expected revoked, got %s", r.Result)
@@ -100,6 +137,8 @@ func TestCertCheckStatus(t *testing.T) {
 	})
 
 	t.Run("unknown critical extension", func(t *testing.T) {
+		memoryCache := &memoryCache{}
+
 		crlBytes, err := x509.CreateRevocationList(rand.Reader, &x509.RevocationList{
 			NextUpdate: time.Now().Add(time.Hour),
 			Number:     big.NewInt(20240720),
@@ -120,10 +159,17 @@ func TestCertCheckStatus(t *testing.T) {
 			t.Fatal(err)
 		}
 
+		fetcher, err := crlutils.NewHTTPFetcher(
+			&http.Client{Transport: expectedRoundTripperMock{Body: crlBytes}},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		fetcher.Cache = memoryCache
+		fetcher.DiscardCacheError = true
 		r := CertCheckStatus(context.Background(), chain[0].Cert, issuerCert, CertCheckStatusOptions{
-			HTTPClient: &http.Client{
-				Transport: expectedRoundTripperMock{Body: crlBytes},
-			},
+			Fetcher: fetcher,
 		})
 		if r.ServerResults[0].Error == nil {
 			t.Fatal("expected error")
@@ -131,6 +177,8 @@ func TestCertCheckStatus(t *testing.T) {
 	})
 
 	t.Run("Not revoked", func(t *testing.T) {
+		memoryCache := &memoryCache{}
+
 		crlBytes, err := x509.CreateRevocationList(rand.Reader, &x509.RevocationList{
 			NextUpdate: time.Now().Add(time.Hour),
 			Number:     big.NewInt(20240720),
@@ -139,10 +187,16 @@ func TestCertCheckStatus(t *testing.T) {
 			t.Fatal(err)
 		}
 
+		fetcher, err := crlutils.NewHTTPFetcher(
+			&http.Client{Transport: expectedRoundTripperMock{Body: crlBytes}},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		fetcher.Cache = memoryCache
+		fetcher.DiscardCacheError = true
 		r := CertCheckStatus(context.Background(), chain[0].Cert, issuerCert, CertCheckStatusOptions{
-			HTTPClient: &http.Client{
-				Transport: expectedRoundTripperMock{Body: crlBytes},
-			},
+			Fetcher: fetcher,
 		})
 		if r.Result != result.ResultOK {
 			t.Fatalf("expected OK, got %s", r.Result)
@@ -150,6 +204,8 @@ func TestCertCheckStatus(t *testing.T) {
 	})
 
 	t.Run("CRL with delta CRL is not checked", func(t *testing.T) {
+		memoryCache := &memoryCache{}
+
 		crlBytes, err := x509.CreateRevocationList(rand.Reader, &x509.RevocationList{
 			NextUpdate: time.Now().Add(time.Hour),
 			Number:     big.NewInt(20240720),
@@ -163,14 +219,113 @@ func TestCertCheckStatus(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-
+		fetcher, err := crlutils.NewHTTPFetcher(
+			&http.Client{Transport: expectedRoundTripperMock{Body: crlBytes}},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		fetcher.Cache = memoryCache
+		fetcher.DiscardCacheError = true
 		r := CertCheckStatus(context.Background(), chain[0].Cert, issuerCert, CertCheckStatusOptions{
-			HTTPClient: &http.Client{
-				Transport: expectedRoundTripperMock{Body: crlBytes},
-			},
+			Fetcher: fetcher,
 		})
-		if !errors.Is(r.ServerResults[0].Error, ErrDeltaCRLNotSupported) {
-			t.Fatal("expected ErrDeltaCRLNotChecked")
+		if !strings.Contains(r.ServerResults[0].Error.Error(), "delta CRL is not supported") {
+			t.Fatalf("unexpected error, got %v, expected %v", r.ServerResults[0].Error, "delta CRL is not supported")
+		}
+	})
+
+	memoryCache := &memoryCache{}
+
+	// create a stale CRL
+	crlBytes, err := x509.CreateRevocationList(rand.Reader, &x509.RevocationList{
+		NextUpdate: time.Now().Add(-time.Hour),
+		Number:     big.NewInt(20240720),
+	}, issuerCert, issuerKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	base, err := x509.ParseRevocationList(crlBytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bundle := &crlutils.Bundle{
+		BaseCRL: base,
+	}
+
+	chain[0].Cert.CRLDistributionPoints = []string{"http://example.com"}
+
+	t.Run("invalid stale CRL cache, and re-download failed", func(t *testing.T) {
+		// save to cache
+		if err := memoryCache.Set(context.Background(), "http://example.com", bundle); err != nil {
+			t.Fatal(err)
+		}
+
+		fetcher, err := crlutils.NewHTTPFetcher(
+			&http.Client{Transport: errorRoundTripperMock{}},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		fetcher.Cache = memoryCache
+		fetcher.DiscardCacheError = true
+		r := CertCheckStatus(context.Background(), chain[0].Cert, issuerCert, CertCheckStatusOptions{
+			Fetcher: fetcher,
+		})
+		if !strings.HasPrefix(r.ServerResults[0].Error.Error(), "failed to download CRL from") {
+			t.Fatalf("unexpected error, got %v", r.ServerResults[0].Error)
+		}
+	})
+
+	t.Run("invalid stale CRL cache, re-download and still validate failed", func(t *testing.T) {
+		// save to cache
+		if err := memoryCache.Set(context.Background(), "http://example.com", bundle); err != nil {
+			t.Fatal(err)
+		}
+
+		fetcher, err := crlutils.NewHTTPFetcher(
+			&http.Client{Transport: expectedRoundTripperMock{Body: crlBytes}},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		fetcher.Cache = memoryCache
+		fetcher.DiscardCacheError = true
+		r := CertCheckStatus(context.Background(), chain[0].Cert, issuerCert, CertCheckStatusOptions{
+			Fetcher: fetcher,
+		})
+		if !strings.HasPrefix(r.ServerResults[0].Error.Error(), "failed to validate CRL from") {
+			t.Fatalf("unexpected error, got %v", r.ServerResults[0].Error)
+		}
+	})
+
+	t.Run("invalid stale CRL cache, re-download and validate seccessfully", func(t *testing.T) {
+		// save to cache
+		if err := memoryCache.Set(context.Background(), "http://example.com", bundle); err != nil {
+			t.Fatal(err)
+		}
+
+		crlBytes, err := x509.CreateRevocationList(rand.Reader, &x509.RevocationList{
+			NextUpdate: time.Now().Add(time.Hour),
+			Number:     big.NewInt(20240720),
+		}, issuerCert, issuerKey)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		fetcher, err := crlutils.NewHTTPFetcher(
+			&http.Client{Transport: expectedRoundTripperMock{Body: crlBytes}},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		fetcher.Cache = memoryCache
+		fetcher.DiscardCacheError = true
+		r := CertCheckStatus(context.Background(), chain[0].Cert, issuerCert, CertCheckStatusOptions{
+			Fetcher: fetcher,
+		})
+		if r.Result != result.ResultOK {
+			t.Fatalf("expected OK, got %s", r.Result)
 		}
 	})
 }
@@ -266,6 +421,35 @@ func TestValidate(t *testing.T) {
 
 		if err := validate(crl, issuerCert); err != nil {
 			t.Fatal(err)
+		}
+	})
+
+	t.Run("delta CRL is not supported", func(t *testing.T) {
+		chain := testhelper.GetRevokableRSAChainWithRevocations(1, false, true)
+		issuerCert := chain[0].Cert
+		issuerKey := chain[0].PrivateKey
+
+		crlBytes, err := x509.CreateRevocationList(rand.Reader, &x509.RevocationList{
+			NextUpdate: time.Now().Add(time.Hour),
+			Number:     big.NewInt(20240720),
+			ExtraExtensions: []pkix.Extension{
+				{
+					Id:       oidFreshestCRL,
+					Critical: false,
+				},
+			},
+		}, issuerCert, issuerKey)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		crl, err := x509.ParseRevocationList(crlBytes)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if err := validate(crl, issuerCert); err.Error() != "delta CRL is not supported" {
+			t.Fatalf("got %v, expected delta CRL is not supported", err)
 		}
 	})
 }
@@ -535,66 +719,6 @@ func marshalGeneralizedTimeToBytes(t time.Time) ([]byte, error) {
 	return asn1.Marshal(t)
 }
 
-func TestDownload(t *testing.T) {
-	t.Run("parse url error", func(t *testing.T) {
-		_, err := download(context.Background(), ":", http.DefaultClient)
-		if err == nil {
-			t.Fatal("expected error")
-		}
-	})
-	t.Run("https download", func(t *testing.T) {
-		_, err := download(context.Background(), "https://example.com", http.DefaultClient)
-		if err == nil {
-			t.Fatal("expected error")
-		}
-	})
-
-	t.Run("http.NewRequestWithContext error", func(t *testing.T) {
-		var ctx context.Context = nil
-		_, err := download(ctx, "http://example.com", &http.Client{})
-		if err == nil {
-			t.Fatal("expected error")
-		}
-	})
-
-	t.Run("client.Do error", func(t *testing.T) {
-		_, err := download(context.Background(), "http://example.com", &http.Client{
-			Transport: errorRoundTripperMock{},
-		})
-
-		if err == nil {
-			t.Fatal("expected error")
-		}
-	})
-
-	t.Run("status code is not 2xx", func(t *testing.T) {
-		_, err := download(context.Background(), "http://example.com", &http.Client{
-			Transport: serverErrorRoundTripperMock{},
-		})
-		if err == nil {
-			t.Fatal("expected error")
-		}
-	})
-
-	t.Run("readAll error", func(t *testing.T) {
-		_, err := download(context.Background(), "http://example.com", &http.Client{
-			Transport: readFailedRoundTripperMock{},
-		})
-		if err == nil {
-			t.Fatal("expected error")
-		}
-	})
-
-	t.Run("exceed the size limit", func(t *testing.T) {
-		_, err := download(context.Background(), "http://example.com", &http.Client{
-			Transport: expectedRoundTripperMock{Body: make([]byte, maxCRLSize+1)},
-		})
-		if err == nil {
-			t.Fatal("expected error")
-		}
-	})
-}
-
 func TestSupported(t *testing.T) {
 	t.Run("supported", func(t *testing.T) {
 		cert := &x509.Certificate{
@@ -619,28 +743,6 @@ func (rt errorRoundTripperMock) RoundTrip(req *http.Request) (*http.Response, er
 	return nil, fmt.Errorf("error")
 }
 
-type serverErrorRoundTripperMock struct{}
-
-func (rt serverErrorRoundTripperMock) RoundTrip(req *http.Request) (*http.Response, error) {
-	return &http.Response{
-		Request:    req,
-		StatusCode: http.StatusInternalServerError,
-	}, nil
-}
-
-type readFailedRoundTripperMock struct{}
-
-func (rt readFailedRoundTripperMock) RoundTrip(req *http.Request) (*http.Response, error) {
-	return &http.Response{
-		StatusCode: http.StatusOK,
-		Body:       errorReaderMock{},
-		Request: &http.Request{
-			Method: http.MethodGet,
-			URL:    req.URL,
-		},
-	}, nil
-}
-
 type expiredCRLRoundTripperMock struct{}
 
 func (rt expiredCRLRoundTripperMock) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -662,16 +764,6 @@ func (rt expiredCRLRoundTripperMock) RoundTrip(req *http.Request) (*http.Respons
 	}, nil
 }
 
-type errorReaderMock struct{}
-
-func (r errorReaderMock) Read(p []byte) (n int, err error) {
-	return 0, fmt.Errorf("error")
-}
-
-func (r errorReaderMock) Close() error {
-	return nil
-}
-
 type expectedRoundTripperMock struct {
 	Body []byte
 }
@@ -682,4 +774,32 @@ func (rt expectedRoundTripperMock) RoundTrip(req *http.Request) (*http.Response,
 		StatusCode: http.StatusOK,
 		Body:       io.NopCloser(bytes.NewBuffer(rt.Body)),
 	}, nil
+}
+
+// memoryCache is an in-memory cache that stores CRL bundles for testing.
+type memoryCache struct {
+	store sync.Map
+}
+
+// Get retrieves the CRL from the memory store.
+//
+// - if the key does not exist, return ErrNotFound
+// - if the CRL is expired, return ErrCacheMiss
+func (c *memoryCache) Get(ctx context.Context, url string) (*crlutils.Bundle, error) {
+	value, ok := c.store.Load(url)
+	if !ok {
+		return nil, crlutils.ErrCacheMiss
+	}
+	bundle, ok := value.(*crlutils.Bundle)
+	if !ok {
+		return nil, fmt.Errorf("invalid type: %T", value)
+	}
+
+	return bundle, nil
+}
+
+// Set stores the CRL in the memory store.
+func (c *memoryCache) Set(ctx context.Context, url string, bundle *crlutils.Bundle) error {
+	c.store.Store(url, bundle)
+	return nil
 }
