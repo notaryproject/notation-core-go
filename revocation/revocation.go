@@ -21,9 +21,13 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
-	"github.com/notaryproject/notation-core-go/revocation/ocsp"
+	crlutil "github.com/notaryproject/notation-core-go/revocation/crl"
+	"github.com/notaryproject/notation-core-go/revocation/internal/crl"
+	"github.com/notaryproject/notation-core-go/revocation/internal/ocsp"
+	"github.com/notaryproject/notation-core-go/revocation/internal/x509util"
 	"github.com/notaryproject/notation-core-go/revocation/purpose"
 	"github.com/notaryproject/notation-core-go/revocation/result"
 )
@@ -34,8 +38,9 @@ import (
 // To perform revocation check, use [Validator].
 type Revocation interface {
 	// Validate checks the revocation status for a certificate chain using OCSP
-	// and returns an array of CertRevocationResults that contain the results
-	// and any errors that are encountered during the process
+	// and CRL if OCSP is not available. It returns an array of
+	// CertRevocationResults that contain the results and any errors that are
+	// encountered during the process
 	Validate(certChain []*x509.Certificate, signingTime time.Time) ([]*result.CertRevocationResult, error)
 }
 
@@ -64,7 +69,8 @@ type Validator interface {
 
 // revocation is an internal struct used for revocation checking
 type revocation struct {
-	httpClient       *http.Client
+	ocspHTTPClient   *http.Client
+	crlFetcher       crlutil.Fetcher
 	certChainPurpose purpose.Purpose
 }
 
@@ -76,8 +82,14 @@ func New(httpClient *http.Client) (Revocation, error) {
 	if httpClient == nil {
 		return nil, errors.New("invalid input: a non-nil httpClient must be specified")
 	}
+	fetcher, err := crlutil.NewHTTPFetcher(httpClient)
+	if err != nil {
+		return nil, err
+	}
+
 	return &revocation{
-		httpClient:       httpClient,
+		ocspHTTPClient:   httpClient,
+		crlFetcher:       fetcher,
 		certChainPurpose: purpose.CodeSigning,
 	}, nil
 }
@@ -88,6 +100,11 @@ type Options struct {
 	// a default *http.Client with timeout of 2 seconds will be used.
 	// OPTIONAL.
 	OCSPHTTPClient *http.Client
+
+	// CRLFetcher is a fetcher for CRL with cache. If not provided, a default
+	// fetcher with an HTTP client and a timeout of 5 seconds will be used
+	// without cache.
+	CRLFetcher crlutil.Fetcher
 
 	// CertChainPurpose is the purpose of the certificate chain. Supported
 	// values are CodeSigning and Timestamping. Default value is CodeSigning.
@@ -101,6 +118,15 @@ func NewWithOptions(opts Options) (Validator, error) {
 		opts.OCSPHTTPClient = &http.Client{Timeout: 2 * time.Second}
 	}
 
+	fetcher := opts.CRLFetcher
+	if fetcher == nil {
+		newFetcher, err := crlutil.NewHTTPFetcher(&http.Client{Timeout: 5 * time.Second})
+		if err != nil {
+			return nil, err
+		}
+		fetcher = newFetcher
+	}
+
 	switch opts.CertChainPurpose {
 	case purpose.CodeSigning, purpose.Timestamping:
 	default:
@@ -108,17 +134,22 @@ func NewWithOptions(opts Options) (Validator, error) {
 	}
 
 	return &revocation{
-		httpClient:       opts.OCSPHTTPClient,
+		ocspHTTPClient:   opts.OCSPHTTPClient,
+		crlFetcher:       fetcher,
 		certChainPurpose: opts.CertChainPurpose,
 	}, nil
 }
 
 // Validate checks the revocation status for a certificate chain using OCSP and
-// returns an array of CertRevocationResults that contain the results and any
-// errors that are encountered during the process
+// CRL if OCSP is not available. It returns an array of CertRevocationResults
+// that contain the results and any errors that are encountered during the
+// process.
 //
-// TODO: add CRL support
-// https://github.com/notaryproject/notation-core-go/issues/125
+// This function tries OCSP and falls back to CRL when:
+// - OCSP is not supported by the certificate
+// - OCSP returns an unknown status
+//
+// NOTE: The certificate chain is expected to be in the order of leaf to root.
 func (r *revocation) Validate(certChain []*x509.Certificate, signingTime time.Time) ([]*result.CertRevocationResult, error) {
 	return r.ValidateContext(context.Background(), ValidateContextOptions{
 		CertChain:            certChain,
@@ -126,24 +157,115 @@ func (r *revocation) Validate(certChain []*x509.Certificate, signingTime time.Ti
 	})
 }
 
-// ValidateContext checks the revocation status for a certificate chain using
-// OCSP and returns an array of CertRevocationResults that contain the results
-// and any errors that are encountered during the process
+// ValidateContext checks the revocation status for a certificate chain using OCSP and
+// CRL if OCSP is not available. It returns an array of CertRevocationResults
+// that contain the results and any errors that are encountered during the
+// process.
 //
-// TODO: add CRL support
-// https://github.com/notaryproject/notation-core-go/issues/125
+// This function tries OCSP and falls back to CRL when:
+// - OCSP is not supported by the certificate
+// - OCSP returns an unknown status
+//
+// NOTE: The certificate chain is expected to be in the order of leaf to root.
 func (r *revocation) ValidateContext(ctx context.Context, validateContextOpts ValidateContextOptions) ([]*result.CertRevocationResult, error) {
+	// validate certificate chain
 	if len(validateContextOpts.CertChain) == 0 {
 		return nil, result.InvalidChainError{Err: errors.New("chain does not contain any certificates")}
 	}
+	certChain := validateContextOpts.CertChain
+	if err := x509util.ValidateChain(certChain, r.certChainPurpose); err != nil {
+		return nil, err
+	}
 
-	return ocsp.CheckStatus(ocsp.Options{
-		CertChain:        validateContextOpts.CertChain,
-		CertChainPurpose: r.certChainPurpose,
-		SigningTime:      validateContextOpts.AuthenticSigningTime,
-		HTTPClient:       r.httpClient,
-	})
+	ocspOpts := ocsp.CertCheckStatusOptions{
+		HTTPClient:  r.ocspHTTPClient,
+		SigningTime: validateContextOpts.AuthenticSigningTime,
+	}
 
-	// TODO: add CRL support
-	// https://github.com/notaryproject/notation-core-go/issues/125
+	crlOpts := crl.CertCheckStatusOptions{
+		Fetcher:     r.crlFetcher,
+		SigningTime: validateContextOpts.AuthenticSigningTime,
+	}
+
+	// panicChain is used to store the panic in goroutine and handle it
+	panicChan := make(chan any, len(certChain))
+	defer close(panicChan)
+
+	certResults := make([]*result.CertRevocationResult, len(certChain))
+	var wg sync.WaitGroup
+	for i, cert := range certChain[:len(certChain)-1] {
+		switch {
+		case ocsp.Supported(cert):
+			// do OCSP check for the certificate
+			wg.Add(1)
+
+			go func(i int, cert *x509.Certificate) {
+				defer wg.Done()
+				defer func() {
+					if r := recover(); r != nil {
+						// catch panic and send it to panicChan to avoid
+						// losing the panic
+						panicChan <- r
+					}
+				}()
+
+				ocspResult := ocsp.CertCheckStatus(cert, certChain[i+1], ocspOpts)
+				if ocspResult != nil && ocspResult.Result == result.ResultUnknown && crl.Supported(cert) {
+					// try CRL check if OCSP serverResult is unknown
+					serverResult := crl.CertCheckStatus(ctx, cert, certChain[i+1], crlOpts)
+					// append CRL result to OCSP result
+					serverResult.ServerResults = append(ocspResult.ServerResults, serverResult.ServerResults...)
+					serverResult.RevocationMethod = result.RevocationMethodOCSPFallbackCRL
+					certResults[i] = serverResult
+				} else {
+					certResults[i] = ocspResult
+				}
+			}(i, cert)
+		case crl.Supported(cert):
+			// do CRL check for the certificate
+			wg.Add(1)
+
+			go func(i int, cert *x509.Certificate) {
+				defer wg.Done()
+				defer func() {
+					if r := recover(); r != nil {
+						// catch panic and send it to panicChan to avoid
+						// losing the panic
+						panicChan <- r
+					}
+				}()
+
+				certResults[i] = crl.CertCheckStatus(ctx, cert, certChain[i+1], crlOpts)
+			}(i, cert)
+		default:
+			certResults[i] = &result.CertRevocationResult{
+				Result: result.ResultNonRevokable,
+				ServerResults: []*result.ServerResult{{
+					Result:           result.ResultNonRevokable,
+					RevocationMethod: result.RevocationMethodUnknown,
+				}},
+				RevocationMethod: result.RevocationMethodUnknown,
+			}
+		}
+	}
+
+	// Last is root cert, which will never be revoked by OCSP or CRL
+	certResults[len(certChain)-1] = &result.CertRevocationResult{
+		Result: result.ResultNonRevokable,
+		ServerResults: []*result.ServerResult{{
+			Result:           result.ResultNonRevokable,
+			RevocationMethod: result.RevocationMethodUnknown,
+		}},
+		RevocationMethod: result.RevocationMethodUnknown,
+	}
+	wg.Wait()
+
+	// handle panic
+	select {
+	case p := <-panicChan:
+		panic(p)
+	default:
+	}
+
+	return certResults, nil
 }
