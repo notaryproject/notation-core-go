@@ -140,7 +140,7 @@ func TestFetch(t *testing.T) {
 			t.Errorf("NewHTTPFetcher() error = %v, want nil", err)
 		}
 		f.Cache = c
-		f.DiscardCacheError = true
+		f.DiscardCacheFailure = false
 		bundle, err := f.Fetch(context.Background(), uncachedURL)
 		if err != nil {
 			t.Errorf("Fetcher.Fetch() error = %v, want nil", err)
@@ -183,7 +183,7 @@ func TestFetch(t *testing.T) {
 			t.Errorf("NewHTTPFetcher() error = %v, want nil", err)
 		}
 		f.Cache = c
-		f.DiscardCacheError = true
+		f.DiscardCacheFailure = true
 		bundle, err = f.Fetch(context.Background(), expiredCRLURL)
 		if err != nil {
 			t.Errorf("Fetcher.Fetch() error = %v, want nil", err)
@@ -220,7 +220,7 @@ func TestFetch(t *testing.T) {
 			t.Errorf("NewHTTPFetcher() error = %v, want nil", err)
 		}
 		f.Cache = c
-		f.DiscardCacheError = true
+		f.DiscardCacheFailure = true
 		_, err = f.Fetch(context.Background(), uncachedURL)
 		if !strings.Contains(err.Error(), "delta CRL is not supported") {
 			t.Errorf("Fetcher.Fetch() error = %v, want delta CRL is not supported", err)
@@ -237,7 +237,7 @@ func TestFetch(t *testing.T) {
 			t.Errorf("NewHTTPFetcher() error = %v, want nil", err)
 		}
 		f.Cache = c
-		f.DiscardCacheError = true
+		f.DiscardCacheFailure = true
 		bundle, err = f.Fetch(context.Background(), exampleURL)
 		if err != nil {
 			t.Errorf("Fetcher.Fetch() error = %v, want nil", err)
