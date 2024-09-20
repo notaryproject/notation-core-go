@@ -53,7 +53,7 @@ type HTTPFetcher struct {
 
 	// DiscardCacheFailure specifies whether to discard any error on cache.
 	//
-	// ErrCacheMiss is not considered as an error if DiscardCacheFailure is true
+	// ErrCacheMiss is not considered as an error
 	DiscardCacheFailure bool
 
 	httpClient *http.Client
