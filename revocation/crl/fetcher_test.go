@@ -19,6 +19,7 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"errors"
 	"fmt"
 	"io"
 	"math/big"
@@ -228,7 +229,10 @@ func TestFetch(t *testing.T) {
 	})
 
 	t.Run("Set cache error", func(t *testing.T) {
-		c := &errorCache{}
+		c := &errorCache{
+			GetError: ErrCacheMiss,
+			SetError: errors.New("cache error"),
+		}
 		httpClient := &http.Client{
 			Transport: expectedRoundTripperMock{Body: baseCRL.Raw},
 		}
@@ -244,6 +248,45 @@ func TestFetch(t *testing.T) {
 		}
 		if !bytes.Equal(bundle.BaseCRL.Raw, baseCRL.Raw) {
 			t.Errorf("Fetcher.Fetch() base.Raw = %v, want %v", bundle.BaseCRL.Raw, baseCRL.Raw)
+		}
+	})
+
+	t.Run("Get error without discard", func(t *testing.T) {
+		c := &errorCache{
+			GetError: errors.New("cache error"),
+		}
+		httpClient := &http.Client{
+			Transport: expectedRoundTripperMock{Body: baseCRL.Raw},
+		}
+		f, err := NewHTTPFetcher(httpClient)
+		if err != nil {
+			t.Errorf("NewHTTPFetcher() error = %v, want nil", err)
+		}
+		f.Cache = c
+		f.DiscardCacheFailure = false
+		_, err = f.Fetch(context.Background(), exampleURL)
+		if !strings.HasPrefix(err.Error(), "failed to retrieve CRL from cache:") {
+			t.Errorf("Fetcher.Fetch() error = %v, want failed to retrieve CRL from cache:", err)
+		}
+	})
+
+	t.Run("Set error without discard", func(t *testing.T) {
+		c := &errorCache{
+			GetError: ErrCacheMiss,
+			SetError: errors.New("cache error"),
+		}
+		httpClient := &http.Client{
+			Transport: expectedRoundTripperMock{Body: baseCRL.Raw},
+		}
+		f, err := NewHTTPFetcher(httpClient)
+		if err != nil {
+			t.Errorf("NewHTTPFetcher() error = %v, want nil", err)
+		}
+		f.Cache = c
+		f.DiscardCacheFailure = false
+		_, err = f.Fetch(context.Background(), exampleURL)
+		if !strings.HasPrefix(err.Error(), "failed to store CRL to cache:") {
+			t.Errorf("Fetcher.Fetch() error = %v, want failed to store CRL to cache:", err)
 		}
 	})
 }
@@ -391,12 +434,15 @@ func (c *memoryCache) Set(ctx context.Context, url string, bundle *Bundle) error
 	return nil
 }
 
-type errorCache struct{}
+type errorCache struct {
+	GetError error
+	SetError error
+}
 
 func (c *errorCache) Get(ctx context.Context, url string) (*Bundle, error) {
-	return nil, fmt.Errorf("Get error")
+	return nil, c.GetError
 }
 
 func (c *errorCache) Set(ctx context.Context, url string, bundle *Bundle) error {
-	return fmt.Errorf("Set error")
+	return c.SetError
 }
