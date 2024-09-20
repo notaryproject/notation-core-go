@@ -51,7 +51,7 @@ type HTTPFetcher struct {
 	// If Cache is nil, no cache is used.
 	Cache Cache
 
-	// DiscardCacheError specifies whether to discard the cache on error.
+	// DiscardCacheError specifies whether to discard any error on cache.
 	DiscardCacheError bool
 
 	httpClient *http.Client
@@ -86,8 +86,7 @@ func (f *HTTPFetcher) Fetch(ctx context.Context, url string) (*Bundle, error) {
 			if !nextUpdate.IsZero() && !time.Now().After(nextUpdate) {
 				return bundle, nil
 			}
-		}
-		if err != nil && !f.DiscardCacheError {
+		} else if !errors.Is(err, ErrCacheMiss) && !f.DiscardCacheError {
 			return nil, fmt.Errorf("failed to retrieve CRL from cache: %w", err)
 		}
 	}
