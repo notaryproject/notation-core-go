@@ -31,6 +31,18 @@ type SignatureMediaType string
 // Reference: https://github.com/notaryproject/notaryproject/blob/main/specs/signing-scheme.md
 type SigningScheme string
 
+// Constants supported by notation signature.
+const (
+	// MediaTypePayloadV1 is the supported content type for signature's payload.
+	// Reference: https://github.com/notaryproject/specifications/blob/main/specs/signature-specification.md#payload
+	MediaTypePayloadV1 = "application/vnd.cncf.notary.payload.v1+json"
+
+	// AnnotationX509ChainThumbprint contains the list of SHA-256 fingerprints
+	// of signing certificate and certificate chain.
+	// Reference: https://github.com/notaryproject/specifications/blob/main/specs/signature-specification.md#signature
+	AnnotationX509ChainThumbprint = "io.cncf.notary.x509chain.thumbprint#S256"
+)
+
 // SigningSchemes supported by notation.
 const (
 	// notary.x509 signing scheme.
