@@ -23,14 +23,6 @@ import (
 	"github.com/notaryproject/tspclient-go"
 )
 
-// SignatureMediaType list the supported media-type for signatures.
-type SignatureMediaType string
-
-// SigningScheme formalizes the feature set (guarantees) provided by
-// the signature.
-// Reference: https://github.com/notaryproject/notaryproject/blob/main/specs/signing-scheme.md
-type SigningScheme string
-
 // Constants supported by notation signature.
 const (
 	// MediaTypePayloadV1 is the supported content type for signature's payload.
@@ -42,6 +34,14 @@ const (
 	// Reference: https://github.com/notaryproject/specifications/blob/main/specs/signature-specification.md#signature
 	AnnotationX509ChainThumbprint = "io.cncf.notary.x509chain.thumbprint#S256"
 )
+
+// SignatureMediaType list the supported media-type for signatures.
+type SignatureMediaType string
+
+// SigningScheme formalizes the feature set (guarantees) provided by
+// the signature.
+// Reference: https://github.com/notaryproject/notaryproject/blob/main/specs/signing-scheme.md
+type SigningScheme string
 
 // SigningSchemes supported by notation.
 const (
