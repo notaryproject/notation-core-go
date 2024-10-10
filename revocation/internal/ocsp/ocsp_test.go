@@ -18,6 +18,7 @@ import (
 	"crypto/x509"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -191,6 +192,34 @@ func TestCheckStatusFromServer(t *testing.T) {
 			t.Errorf("Expected Error to contain %v, but got %v", errorMessage, serverResult.Error)
 		}
 	})
+
+	t.Run("ocsp request roundtrip failed", func(t *testing.T) {
+		client := testhelper.MockClient([]testhelper.RSACertTuple{revokableCertTuple, revokableIssuerTuple}, []ocsp.ResponseStatus{ocsp.Good}, nil, true)
+		server := "http://example.com"
+		serverResult := checkStatusFromServer(nil, revokableCertTuple.Cert, revokableIssuerTuple.Cert, server, CertCheckStatusOptions{
+			HTTPClient: client,
+		})
+		errorMessage := "net/http: nil Context"
+		if !strings.Contains(serverResult.Error.Error(), errorMessage) {
+			t.Errorf("Expected Error to contain %v, but got %v", errorMessage, serverResult.Error)
+		}
+	})
+
+	t.Run("ocsp request roundtrip timeout", func(t *testing.T) {
+		server := "http://example.com"
+		serverResult := checkStatusFromServer(ctx, revokableCertTuple.Cert, revokableIssuerTuple.Cert, server, CertCheckStatusOptions{
+			HTTPClient: &http.Client{
+				Timeout: 1 * time.Second,
+				Transport: &failedTransport{
+					timeout: true,
+				},
+			},
+		})
+		errorMessage := "exceeded timeout threshold of 1.00 seconds for OCSP check"
+		if !strings.Contains(serverResult.Error.Error(), errorMessage) {
+			t.Errorf("Expected Error to contain %v, but got %v", errorMessage, serverResult.Error)
+		}
+	})
 }
 
 func TestPostRequest(t *testing.T) {
@@ -206,8 +235,25 @@ func TestPostRequest(t *testing.T) {
 	})
 }
 
-type failedTransport struct{}
+type testTimeoutError struct{}
+
+func (e testTimeoutError) Error() string {
+	return "test timeout"
+}
+
+func (e testTimeoutError) Timeout() bool {
+	return true
+}
+
+type failedTransport struct {
+	timeout bool
+}
 
 func (f *failedTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	if f.timeout {
+		return nil, &url.Error{
+			Err: testTimeoutError{},
+		}
+	}
 	return nil, fmt.Errorf("failed to execute request")
 }
