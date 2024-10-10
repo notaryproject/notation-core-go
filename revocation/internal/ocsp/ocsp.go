@@ -170,7 +170,7 @@ func executeOCSPCheck(ctx context.Context, cert, issuer *x509.Certificate, serve
 				return nil, GenericError{Err: err}
 			}
 			var httpReq *http.Request
-			httpReq, err = http.NewRequestWithContext(ctx, "GET", reqURL, nil)
+			httpReq, err = http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
 			if err != nil {
 				return nil, err
 			}
@@ -219,7 +219,7 @@ func executeOCSPCheck(ctx context.Context, cert, issuer *x509.Certificate, serve
 }
 
 func postRequest(ctx context.Context, req []byte, server string, httpClient *http.Client) (*http.Response, error) {
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", server, bytes.NewReader(req))
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, server, bytes.NewReader(req))
 	if err != nil {
 		return nil, err
 	}
