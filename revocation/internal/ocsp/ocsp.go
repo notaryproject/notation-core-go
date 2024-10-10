@@ -169,7 +169,12 @@ func executeOCSPCheck(ctx context.Context, cert, issuer *x509.Certificate, serve
 			if err != nil {
 				return nil, GenericError{Err: err}
 			}
-			resp, err = opts.HTTPClient.Get(reqURL)
+			var httpReq *http.Request
+			httpReq, err = http.NewRequestWithContext(ctx, "GET", reqURL, nil)
+			if err != nil {
+				return nil, err
+			}
+			resp, err = opts.HTTPClient.Do(httpReq)
 		} else {
 			resp, err = postRequest(ctx, ocspRequest, server, opts.HTTPClient)
 		}
@@ -180,7 +185,9 @@ func executeOCSPCheck(ctx context.Context, cert, issuer *x509.Certificate, serve
 	if err != nil {
 		var urlErr *url.Error
 		if errors.As(err, &urlErr) && urlErr.Timeout() {
-			return nil, TimeoutError{}
+			return nil, TimeoutError{
+				timeout: opts.HTTPClient.Timeout,
+			}
 		}
 		return nil, GenericError{Err: err}
 	}
