@@ -223,14 +223,23 @@ func TestCheckStatusFromServer(t *testing.T) {
 }
 
 func TestPostRequest(t *testing.T) {
-	ctx := context.Background()
-
-	t.Run("failed to execute request", func(t *testing.T) {
-		_, err := postRequest(ctx, nil, "http://example.com", &http.Client{
+	t.Run("failed to generate request", func(t *testing.T) {
+		_, err := postRequest(nil, nil, "http://example.com", &http.Client{
 			Transport: &failedTransport{},
 		})
-		if err == nil {
-			t.Errorf("Expected error, but got nil")
+		expectedErrMsg := "net/http: nil Context"
+		if err == nil || err.Error() != expectedErrMsg {
+			t.Errorf("Expected error %s, but got %s", expectedErrMsg, err)
+		}
+	})
+
+	t.Run("failed to execute request", func(t *testing.T) {
+		_, err := postRequest(context.Background(), nil, "http://example.com", &http.Client{
+			Transport: &failedTransport{},
+		})
+		expectedErrMsg := "Post \"http://example.com\": failed to execute request"
+		if err == nil || err.Error() != expectedErrMsg {
+			t.Errorf("Expected error %s, but got %s", expectedErrMsg, err)
 		}
 	})
 }
