@@ -17,6 +17,7 @@ package ocsp
 
 import (
 	"bytes"
+	"context"
 	"crypto"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -52,7 +53,7 @@ const (
 )
 
 // CertCheckStatus checks the revocation status of a certificate using OCSP
-func CertCheckStatus(cert, issuer *x509.Certificate, opts CertCheckStatusOptions) *result.CertRevocationResult {
+func CertCheckStatus(ctx context.Context, cert, issuer *x509.Certificate, opts CertCheckStatusOptions) *result.CertRevocationResult {
 	if !Supported(cert) {
 		// OCSP not enabled for this certificate.
 		return &result.CertRevocationResult{
@@ -65,7 +66,7 @@ func CertCheckStatus(cert, issuer *x509.Certificate, opts CertCheckStatusOptions
 
 	serverResults := make([]*result.ServerResult, len(ocspURLs))
 	for serverIndex, server := range ocspURLs {
-		serverResult := checkStatusFromServer(cert, issuer, server, opts)
+		serverResult := checkStatusFromServer(ctx, cert, issuer, server, opts)
 		if serverResult.Result == result.ResultOK ||
 			serverResult.Result == result.ResultRevoked ||
 			(serverResult.Result == result.ResultUnknown && errors.Is(serverResult.Error, UnknownStatusError{})) {
@@ -84,7 +85,7 @@ func Supported(cert *x509.Certificate) bool {
 	return cert != nil && len(cert.OCSPServer) > 0
 }
 
-func checkStatusFromServer(cert, issuer *x509.Certificate, server string, opts CertCheckStatusOptions) *result.ServerResult {
+func checkStatusFromServer(ctx context.Context, cert, issuer *x509.Certificate, server string, opts CertCheckStatusOptions) *result.ServerResult {
 	// Check valid server
 	if serverURL, err := url.Parse(server); err != nil || !strings.EqualFold(serverURL.Scheme, "http") {
 		// This function is only able to check servers that are accessible via HTTP
@@ -92,7 +93,7 @@ func checkStatusFromServer(cert, issuer *x509.Certificate, server string, opts C
 	}
 
 	// Create OCSP Request
-	resp, err := executeOCSPCheck(cert, issuer, server, opts)
+	resp, err := executeOCSPCheck(ctx, cert, issuer, server, opts)
 	if err != nil {
 		// If there is a server error, attempt all servers before determining what to return
 		// to the user
@@ -142,7 +143,7 @@ func extensionsToMap(extensions []pkix.Extension) map[string][]byte {
 	return extensionMap
 }
 
-func executeOCSPCheck(cert, issuer *x509.Certificate, server string, opts CertCheckStatusOptions) (*ocsp.Response, error) {
+func executeOCSPCheck(ctx context.Context, cert, issuer *x509.Certificate, server string, opts CertCheckStatusOptions) (*ocsp.Response, error) {
 	// TODO: Look into other alternatives for specifying the Hash
 	// https://github.com/notaryproject/notation-core-go/issues/139
 	// The following do not support SHA256 hashes:
@@ -170,10 +171,10 @@ func executeOCSPCheck(cert, issuer *x509.Certificate, server string, opts CertCh
 			}
 			resp, err = opts.HTTPClient.Get(reqURL)
 		} else {
-			resp, err = postRequest(ocspRequest, server, opts.HTTPClient)
+			resp, err = postRequest(ctx, ocspRequest, server, opts.HTTPClient)
 		}
 	} else {
-		resp, err = postRequest(ocspRequest, server, opts.HTTPClient)
+		resp, err = postRequest(ctx, ocspRequest, server, opts.HTTPClient)
 	}
 
 	if err != nil {
@@ -210,9 +211,13 @@ func executeOCSPCheck(cert, issuer *x509.Certificate, server string, opts CertCh
 	return ocsp.ParseResponseForCert(body, cert, issuer)
 }
 
-func postRequest(req []byte, server string, httpClient *http.Client) (*http.Response, error) {
-	reader := bytes.NewReader(req)
-	return httpClient.Post(server, "application/ocsp-request", reader)
+func postRequest(ctx context.Context, req []byte, server string, httpClient *http.Client) (*http.Response, error) {
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", server, bytes.NewReader(req))
+	if err != nil {
+		return nil, err
+	}
+	httpReq.Header.Set("Content-Type", "application/ocsp-request")
+	return httpClient.Do(httpReq)
 }
 
 func toServerResult(server string, err error) *result.ServerResult {
