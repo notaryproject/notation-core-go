@@ -14,9 +14,11 @@
 package ocsp
 
 import (
+	"context"
 	"crypto/x509"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -75,6 +77,7 @@ func TestCheckStatus(t *testing.T) {
 	ocspServer := revokableCertTuple.Cert.OCSPServer[0]
 	revokableChain := []*x509.Certificate{revokableCertTuple.Cert, revokableIssuerTuple.Cert}
 	testChain := []testhelper.RSACertTuple{revokableCertTuple, revokableIssuerTuple}
+	ctx := context.Background()
 
 	t.Run("check non-revoked cert", func(t *testing.T) {
 		client := testhelper.MockClient(testChain, []ocsp.ResponseStatus{ocsp.Good}, nil, true)
@@ -83,7 +86,7 @@ func TestCheckStatus(t *testing.T) {
 			HTTPClient:  client,
 		}
 
-		certResult := CertCheckStatus(revokableChain[0], revokableChain[1], opts)
+		certResult := CertCheckStatus(ctx, revokableChain[0], revokableChain[1], opts)
 		expectedCertResults := []*result.CertRevocationResult{getOKCertResult(ocspServer)}
 		validateEquivalentCertResults([]*result.CertRevocationResult{certResult}, expectedCertResults, t)
 	})
@@ -94,7 +97,7 @@ func TestCheckStatus(t *testing.T) {
 			HTTPClient:  client,
 		}
 
-		certResult := CertCheckStatus(revokableChain[0], revokableChain[1], opts)
+		certResult := CertCheckStatus(ctx, revokableChain[0], revokableChain[1], opts)
 		expectedCertResults := []*result.CertRevocationResult{{
 			Result: result.ResultUnknown,
 			ServerResults: []*result.ServerResult{
@@ -110,7 +113,7 @@ func TestCheckStatus(t *testing.T) {
 			HTTPClient:  client,
 		}
 
-		certResult := CertCheckStatus(revokableChain[0], revokableChain[1], opts)
+		certResult := CertCheckStatus(ctx, revokableChain[0], revokableChain[1], opts)
 		expectedCertResults := []*result.CertRevocationResult{{
 			Result: result.ResultRevoked,
 			ServerResults: []*result.ServerResult{
@@ -127,13 +130,13 @@ func TestCheckStatus(t *testing.T) {
 			HTTPClient:  client,
 		}
 
-		certResult := CertCheckStatus(revokableChain[0], revokableChain[1], opts)
+		certResult := CertCheckStatus(ctx, revokableChain[0], revokableChain[1], opts)
 		expectedCertResults := []*result.CertRevocationResult{getOKCertResult(ocspServer)}
 		validateEquivalentCertResults([]*result.CertRevocationResult{certResult}, expectedCertResults, t)
 	})
 
 	t.Run("certificate doesn't support OCSP", func(t *testing.T) {
-		ocspResult := CertCheckStatus(&x509.Certificate{}, revokableIssuerTuple.Cert, CertCheckStatusOptions{})
+		ocspResult := CertCheckStatus(ctx, &x509.Certificate{}, revokableIssuerTuple.Cert, CertCheckStatusOptions{})
 		expectedResult := &result.CertRevocationResult{
 			Result:        result.ResultNonRevokable,
 			ServerResults: []*result.ServerResult{toServerResult("", NoServerError{})},
@@ -146,10 +149,11 @@ func TestCheckStatus(t *testing.T) {
 func TestCheckStatusFromServer(t *testing.T) {
 	revokableCertTuple := testhelper.GetRevokableRSALeafCertificate()
 	revokableIssuerTuple := testhelper.GetRSARootCertificate()
+	ctx := context.Background()
 
 	t.Run("server url is not http", func(t *testing.T) {
 		server := "https://example.com"
-		serverResult := checkStatusFromServer(revokableCertTuple.Cert, revokableIssuerTuple.Cert, server, CertCheckStatusOptions{})
+		serverResult := checkStatusFromServer(ctx, revokableCertTuple.Cert, revokableIssuerTuple.Cert, server, CertCheckStatusOptions{})
 		expectedResult := toServerResult(server, GenericError{Err: fmt.Errorf("OCSPServer protocol %s is not supported", "https")})
 		if serverResult.Result != expectedResult.Result {
 			t.Errorf("Expected Result to be %s, but got %s", expectedResult.Result, serverResult.Result)
@@ -166,7 +170,7 @@ func TestCheckStatusFromServer(t *testing.T) {
 
 	t.Run("request error", func(t *testing.T) {
 		server := "http://example.com"
-		serverResult := checkStatusFromServer(revokableCertTuple.Cert, revokableIssuerTuple.Cert, server, CertCheckStatusOptions{
+		serverResult := checkStatusFromServer(ctx, revokableCertTuple.Cert, revokableIssuerTuple.Cert, server, CertCheckStatusOptions{
 			HTTPClient: &http.Client{
 				Transport: &failedTransport{},
 			},
@@ -180,7 +184,7 @@ func TestCheckStatusFromServer(t *testing.T) {
 	t.Run("ocsp expired", func(t *testing.T) {
 		client := testhelper.MockClient([]testhelper.RSACertTuple{revokableCertTuple, revokableIssuerTuple}, []ocsp.ResponseStatus{ocsp.Good}, nil, true)
 		server := "http://example.com/expired_ocsp"
-		serverResult := checkStatusFromServer(revokableCertTuple.Cert, revokableIssuerTuple.Cert, server, CertCheckStatusOptions{
+		serverResult := checkStatusFromServer(ctx, revokableCertTuple.Cert, revokableIssuerTuple.Cert, server, CertCheckStatusOptions{
 			HTTPClient: client,
 		})
 		errorMessage := "expired OCSP response"
@@ -188,21 +192,77 @@ func TestCheckStatusFromServer(t *testing.T) {
 			t.Errorf("Expected Error to contain %v, but got %v", errorMessage, serverResult.Error)
 		}
 	})
-}
 
-func TestPostRequest(t *testing.T) {
-	t.Run("failed to execute request", func(t *testing.T) {
-		_, err := postRequest(nil, "http://example.com", &http.Client{
-			Transport: &failedTransport{},
+	t.Run("ocsp request roundtrip failed", func(t *testing.T) {
+		client := testhelper.MockClient([]testhelper.RSACertTuple{revokableCertTuple, revokableIssuerTuple}, []ocsp.ResponseStatus{ocsp.Good}, nil, true)
+		server := "http://example.com"
+		serverResult := checkStatusFromServer(nil, revokableCertTuple.Cert, revokableIssuerTuple.Cert, server, CertCheckStatusOptions{
+			HTTPClient: client,
 		})
-		if err == nil {
-			t.Errorf("Expected error, but got nil")
+		errorMessage := "net/http: nil Context"
+		if !strings.Contains(serverResult.Error.Error(), errorMessage) {
+			t.Errorf("Expected Error to contain %v, but got %v", errorMessage, serverResult.Error)
+		}
+	})
+
+	t.Run("ocsp request roundtrip timeout", func(t *testing.T) {
+		server := "http://example.com"
+		serverResult := checkStatusFromServer(ctx, revokableCertTuple.Cert, revokableIssuerTuple.Cert, server, CertCheckStatusOptions{
+			HTTPClient: &http.Client{
+				Timeout: 1 * time.Second,
+				Transport: &failedTransport{
+					timeout: true,
+				},
+			},
+		})
+		errorMessage := "exceeded timeout threshold of 1.00 seconds for OCSP check"
+		if !strings.Contains(serverResult.Error.Error(), errorMessage) {
+			t.Errorf("Expected Error to contain %v, but got %v", errorMessage, serverResult.Error)
 		}
 	})
 }
 
-type failedTransport struct{}
+func TestPostRequest(t *testing.T) {
+	t.Run("failed to generate request", func(t *testing.T) {
+		_, err := postRequest(nil, nil, "http://example.com", &http.Client{
+			Transport: &failedTransport{},
+		})
+		expectedErrMsg := "net/http: nil Context"
+		if err == nil || err.Error() != expectedErrMsg {
+			t.Errorf("Expected error %s, but got %s", expectedErrMsg, err)
+		}
+	})
+
+	t.Run("failed to execute request", func(t *testing.T) {
+		_, err := postRequest(context.Background(), nil, "http://example.com", &http.Client{
+			Transport: &failedTransport{},
+		})
+		expectedErrMsg := "Post \"http://example.com\": failed to execute request"
+		if err == nil || err.Error() != expectedErrMsg {
+			t.Errorf("Expected error %s, but got %s", expectedErrMsg, err)
+		}
+	})
+}
+
+type testTimeoutError struct{}
+
+func (e testTimeoutError) Error() string {
+	return "test timeout"
+}
+
+func (e testTimeoutError) Timeout() bool {
+	return true
+}
+
+type failedTransport struct {
+	timeout bool
+}
 
 func (f *failedTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	if f.timeout {
+		return nil, &url.Error{
+			Err: testTimeoutError{},
+		}
+	}
 	return nil, fmt.Errorf("failed to execute request")
 }
