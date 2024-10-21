@@ -128,7 +128,7 @@ func TestCheckStatusForNonSelfSignedSingleCert(t *testing.T) {
 	}
 
 	certResults, err := CheckStatus(opts)
-	expectedErr := result.InvalidChainError{Err: errors.New("invalid self-signed certificate. subject: \"CN=Notation Test RSA Leaf Cert,O=Notary,L=Seattle,ST=WA,C=US\". Error: crypto/rsa: verification error")}
+	expectedErr := result.InvalidChainError{Err: errors.New("invalid self-signed leaf certificate. subject: \"CN=Notation Test RSA Leaf Cert,O=Notary,L=Seattle,ST=WA,C=US\". Error: crypto/rsa: verification error")}
 	if err == nil || err.Error() != expectedErr.Error() {
 		t.Errorf("Expected CheckStatus to fail with %v, but got: %v", expectedErr, err)
 	}

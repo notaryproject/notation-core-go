@@ -63,7 +63,7 @@ func TestInvalidTimestampingChain(t *testing.T) {
 	assertErrorEqual(expectedErr, err, t)
 
 	certChain = []*x509.Certificate{timestamp_leaf}
-	expectedErr = "invalid self-signed certificate. subject: \"CN=DigiCert Timestamp 2023,O=DigiCert\\\\, Inc.,C=US\". Error: crypto/rsa: verification error"
+	expectedErr = "invalid self-signed leaf certificate. subject: \"CN=DigiCert Timestamp 2023,O=DigiCert\\\\, Inc.,C=US\". Error: crypto/rsa: verification error"
 	err = ValidateTimestampingCertChain(certChain)
 	assertErrorEqual(expectedErr, err, t)
 
