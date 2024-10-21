@@ -19,6 +19,7 @@ import (
 	_ "embed"
 	"errors"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -198,6 +199,33 @@ func TestFailEmptyChain(t *testing.T) {
 	err := ValidateCodeSigningCertChain(nil, &signingTime)
 
 	assertErrorEqual("certificate chain must contain at least one certificate", err, t)
+}
+
+func TestInvalidSelfSignedLeaf(t *testing.T) {
+	cert, err := createSelfSignedCert("valid cert", "invalid cert", false)
+	if err != nil {
+		t.Error(err)
+	}
+	certChain := []*x509.Certificate{cert}
+	signingTime := time.Now()
+
+	err = ValidateCodeSigningCertChain(certChain, &signingTime)
+	assertErrorEqual("invalid self-signed leaf certificate. subject: \"CN=valid cert\". Error: issuer and subject are not the same", err, t)
+}
+
+func TestInvalidCodeSigningCertSigningTime(t *testing.T) {
+	cert, err := createSelfSignedCert("valid cert", "valid cert", false)
+	if err != nil {
+		t.Error(err)
+	}
+	certChain := []*x509.Certificate{cert}
+	signingTime := time.Date(2021, 7, 7, 20, 48, 42, 0, time.UTC)
+
+	expectPrefix := "certificate with subject \"CN=valid cert\" was invalid at signing time of 2021-07-07 20:48:42 +0000 UTC"
+	err = ValidateCodeSigningCertChain(certChain, &signingTime)
+	if !strings.HasPrefix(err.Error(), expectPrefix) {
+		t.Errorf("expected error to start with %q, got %q", expectPrefix, err)
+	}
 }
 
 func TestFailInvalidSigningTime(t *testing.T) {

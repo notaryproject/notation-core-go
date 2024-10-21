@@ -16,6 +16,7 @@ package x509
 import (
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"strings"
 	"testing"
 )
 
@@ -36,6 +37,33 @@ func TestValidTimestampingChain(t *testing.T) {
 	err = ValidateTimestampingCertChain(certChain)
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestInvalidTimestampSelfSignedCert(t *testing.T) {
+	cert, err := createSelfSignedCert("valid cert", "valid cert", false)
+	if err != nil {
+		t.Error(err)
+	}
+	certChain := []*x509.Certificate{cert}
+
+	expectPrefix := "invalid self-signed certificate. Error: timestamp signing certificate with subject \"CN=valid cert\" must have and only have Timestamping as extended key usage"
+	err = ValidateTimestampingCertChain(certChain)
+	if !strings.HasPrefix(err.Error(), expectPrefix) {
+		t.Errorf("expected error to start with %q, got %q", expectPrefix, err)
+	}
+}
+
+func TestValidTimestampSelfSignedCert(t *testing.T) {
+	cert, err := createSelfSignedCert("valid cert", "valid cert", true)
+	if err != nil {
+		t.Error(err)
+	}
+	certChain := []*x509.Certificate{cert}
+
+	err = ValidateTimestampingCertChain(certChain)
+	if err != nil {
+		t.Error(err)
 	}
 }
 
