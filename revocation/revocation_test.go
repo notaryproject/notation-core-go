@@ -1164,7 +1164,9 @@ func TestCRL(t *testing.T) {
 		}
 
 		revocationClient, err := NewWithOptions(Options{
-			OCSPHTTPClient:   &http.Client{},
+			OCSPHTTPClient: &http.Client{
+				Transport: &serverErrorTransport{},
+			},
 			CRLFetcher:       fetcher,
 			CertChainPurpose: purpose.CodeSigning,
 		})
@@ -1350,6 +1352,15 @@ type panicTransport struct{}
 
 func (t panicTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	panic("panic")
+}
+
+type serverErrorTransport struct{}
+
+func (t serverErrorTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	return &http.Response{
+		StatusCode: http.StatusInternalServerError,
+		Body:       io.NopCloser(bytes.NewReader([]byte{})),
+	}, nil
 }
 
 func TestValidateContext(t *testing.T) {
