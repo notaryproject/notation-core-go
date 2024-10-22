@@ -23,21 +23,31 @@ import (
 	"github.com/notaryproject/notation-core-go/signature"
 )
 
-// validateSelfSignedLeaf validates a self-signed leaf certificate.
+// validateSelfSignedCert validates a self-signed certificate.
 //
-// A self-signed leaf certificate must have the same subject and issuer.
-func validateSelfSignedLeaf(cert *x509.Certificate) error {
-	if err := cert.CheckSignature(cert.SignatureAlgorithm, cert.RawTBSCertificate, cert.Signature); err != nil {
-		return fmt.Errorf("invalid self-signed leaf certificate. subject: %q. Error: %w", cert.Subject, err)
+// This function handles 2 cases for isSingleCertChian:
+//  1. True: The certificate is a self-signed leaf certificate. It is both
+//     a leaf and root certificate.
+//  2. False: The certificate is a self-signed root CA certificate.
+//
+// A self-signed certificate must have the same subject and issuer.
+func validateSelfSignedCert(cert *x509.Certificate, isSingleCertChain bool) error {
+	if isSingleCertChain {
+		// only check signature
+		if err := cert.CheckSignature(cert.SignatureAlgorithm, cert.RawTBSCertificate, cert.Signature); err != nil {
+			return fmt.Errorf("invalid self-signed leaf certificate. Subject: %q. Error: %w", cert.Subject, err)
+		}
+	} else {
+		// check root CA
+		if err := cert.CheckSignatureFrom(cert); err != nil {
+			return fmt.Errorf("root certificate with subject %q is invalid or not self-signed. Certificate chain must end with a valid self-signed root certificate. Error: %v", cert.Subject, err)
+		}
 	}
+
 	if !bytes.Equal(cert.RawSubject, cert.RawIssuer) {
-		return fmt.Errorf("invalid self-signed leaf certificate. subject: %q. Error: issuer and subject are not the same", cert.Subject)
+		return fmt.Errorf("self-signed certificate with subject %q is not self-issued. Certificate chain must end with a valid self-signed root certificate", cert.Subject)
 	}
 	return nil
-}
-
-func isSelfSigned(cert *x509.Certificate) (bool, error) {
-	return isIssuedBy(cert, cert)
 }
 
 func isIssuedBy(subject *x509.Certificate, issuer *x509.Certificate) (bool, error) {

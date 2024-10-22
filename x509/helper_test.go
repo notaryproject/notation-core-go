@@ -82,30 +82,34 @@ func TestValidateSelfSignedLeaf(t *testing.T) {
 	}
 
 	tests := []struct {
-		name    string
-		cert    *x509.Certificate
-		wantErr bool
+		name         string
+		cert         *x509.Certificate
+		isSingleCert bool
+		wantErr      bool
 	}{
 		{
-			name:    "Valid Self-Signed Certificate",
-			cert:    selfSignedCert,
-			wantErr: false,
+			name:         "Valid Self-Signed Certificate",
+			cert:         selfSignedCert,
+			isSingleCert: true,
+			wantErr:      false,
 		},
 		{
-			name:    "Empty Certificate",
-			cert:    emptyCert,
-			wantErr: true,
+			name:         "Empty Certificate",
+			cert:         emptyCert,
+			isSingleCert: true,
+			wantErr:      true,
 		},
 		{
-			name:    "Not Self-Issued Certificate",
-			cert:    notSelfIssuedCert,
-			wantErr: true,
+			name:         "Not Self-Issued Certificate",
+			cert:         notSelfIssuedCert,
+			isSingleCert: true,
+			wantErr:      true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateSelfSignedLeaf(tt.cert)
+			err := validateSelfSignedCert(tt.cert, tt.isSingleCert)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("validateSelfSignedLeaf() error = %v, wantErr %v", err, tt.wantErr)
 			}
