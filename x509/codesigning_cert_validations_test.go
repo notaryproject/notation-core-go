@@ -14,14 +14,10 @@
 package x509
 
 import (
-	"crypto/rand"
-	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	_ "embed"
-	"encoding/asn1"
 	"errors"
-	"math/big"
 	"os"
 	"strings"
 	"testing"
@@ -212,28 +208,23 @@ func TestFailNonSelfSignedLeafCert(t *testing.T) {
 	assertErrorEqual("invalid self-signed certificate. subject: \"CN=CodeSigningLeaf\". Error: crypto/rsa: verification error", err, t)
 }
 
-func TestInvalidSelfSignedLeaf(t *testing.T) {
-	cert, err := createSelfSignedCert("valid cert", "invalid cert", false)
-	if err != nil {
-		t.Error(err)
-	}
-	certChain := []*x509.Certificate{cert}
+func TestFailSelfIssuedCodeSigningCert(t *testing.T) {
+	chainTuple := testhelper.GetRevokableRSATimestampChain(2)
+	// the leaf certiifcate and the root certificate share the same private key
+	// so the leaf is also self-signed but issuer and subject are different
+	chain := []*x509.Certificate{chainTuple[0].Cert}
 	signingTime := time.Now()
-
-	err = ValidateCodeSigningCertChain(certChain, &signingTime)
-	assertErrorEqual("invalid self-signed certificate. subject: \"CN=valid cert\". Error: issuer and subject are not the same", err, t)
+	err := ValidateCodeSigningCertChain(chain, &signingTime)
+	assertErrorEqual("invalid self-signed certificate. subject: \"CN=Notation Test Revokable RSA Chain Cert 2,O=Notary,L=Seattle,ST=WA,C=US\". Error: issuer(CN=Notation Test Revokable RSA Chain Cert Root,O=Notary,L=Seattle,ST=WA,C=US) and subject(CN=Notation Test Revokable RSA Chain Cert 2,O=Notary,L=Seattle,ST=WA,C=US) are not the same", err, t)
 }
 
 func TestInvalidCodeSigningCertSigningTime(t *testing.T) {
-	cert, err := createSelfSignedCert("valid cert", "valid cert", false)
-	if err != nil {
-		t.Error(err)
-	}
-	certChain := []*x509.Certificate{cert}
+	chainTuple := testhelper.GetRevokableRSATimestampChain(2)
+	chain := []*x509.Certificate{chainTuple[1].Cert}
 	signingTime := time.Date(2021, 7, 7, 20, 48, 42, 0, time.UTC)
 
-	expectPrefix := "certificate with subject \"CN=valid cert\" was invalid at signing time of 2021-07-07 20:48:42 +0000 UTC"
-	err = ValidateCodeSigningCertChain(certChain, &signingTime)
+	expectPrefix := "certificate with subject \"CN=Notation Test Revokable RSA Chain Cert Root,O=Notary,L=Seattle,ST=WA,C=US\" was invalid at signing time of 2021-07-07 20:48:42 +0000 UTC"
+	err := ValidateCodeSigningCertChain(chain, &signingTime)
 	if !strings.HasPrefix(err.Error(), expectPrefix) {
 		t.Errorf("expected error to start with %q, got %q", expectPrefix, err)
 	}
@@ -772,48 +763,4 @@ func readSingleCertificate(path string) (*x509.Certificate, error) {
 		return nil, errors.New("no certificate in file")
 	}
 	return certs[0], nil
-}
-
-func createSelfSignedCert(subject string, issuer string, isTimestamp bool) (*x509.Certificate, error) {
-	priv, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		return nil, err
-	}
-
-	template := &x509.Certificate{
-		SerialNumber: big.NewInt(1),
-		Subject:      pkix.Name{CommonName: subject},
-		NotBefore:    time.Now(),
-		NotAfter:     time.Now().Add(365 * 24 * time.Hour),
-		KeyUsage:     x509.KeyUsageDigitalSignature,
-	}
-
-	if isTimestamp {
-		oids := []asn1.ObjectIdentifier{{1, 3, 6, 1, 5, 5, 7, 3, 8}}
-		value, err := asn1.Marshal(oids)
-		if err != nil {
-			return nil, err
-		}
-		template.ExtraExtensions = []pkix.Extension{{
-			Id:       oid.ExtKeyUsage,
-			Critical: true,
-			Value:    value,
-		}}
-		template.ExtKeyUsage = []x509.ExtKeyUsage{x509.ExtKeyUsageTimeStamping}
-	}
-
-	parentTemplate := &x509.Certificate{
-		SerialNumber: big.NewInt(2),
-		Subject:      pkix.Name{CommonName: issuer},
-		NotBefore:    time.Now(),
-		NotAfter:     time.Now().Add(365 * 24 * time.Hour),
-		KeyUsage:     x509.KeyUsageCertSign,
-	}
-
-	certDER, err := x509.CreateCertificate(rand.Reader, template, parentTemplate, &priv.PublicKey, priv)
-	if err != nil {
-		return nil, err
-	}
-
-	return x509.ParseCertificate(certDER)
 }
