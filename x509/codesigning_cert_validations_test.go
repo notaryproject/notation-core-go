@@ -210,7 +210,7 @@ func TestInvalidSelfSignedLeaf(t *testing.T) {
 	signingTime := time.Now()
 
 	err = ValidateCodeSigningCertChain(certChain, &signingTime)
-	assertErrorEqual("self-signed certificate with subject \"CN=valid cert\" is not self-issued. Certificate chain must end with a valid self-signed root certificate", err, t)
+	assertErrorEqual("invalid self-signed leaf certificate. subject: \"CN=valid cert\". Error: issuer and subject are not the same", err, t)
 }
 
 func TestInvalidCodeSigningCertSigningTime(t *testing.T) {
@@ -320,17 +320,13 @@ func TestFailInvalidPathLen(t *testing.T) {
 }
 
 func TestRootCertIdentified(t *testing.T) {
-	if err := validateSelfSignedCert(codeSigningCert, false); err == nil {
-		t.Error("expected error as leaf certificate is not self-signed")
-	}
-	if err := validateSelfSignedCert(intermediateCert1, false); err == nil {
-		t.Error("expected error as intermediate certificate is not self-signed")
-	}
-	if err := validateSelfSignedCert(intermediateCert2, false); err == nil {
-		t.Error("expected error as intermediate certificate is not self-signed")
-	}
-	if err := validateSelfSignedCert(rootCert, false); err != nil {
-		t.Errorf("unexpected error: %v", err)
+	selfSignedCodeSigning, _ := isSelfSigned(codeSigningCert)
+	selfSignedIntermediateCert1, _ := isSelfSigned(intermediateCert1)
+	selfSignedIntermediateCert2, _ := isSelfSigned(intermediateCert2)
+	selfSignedRootCert, _ := isSelfSigned(rootCert)
+	if selfSignedCodeSigning || selfSignedIntermediateCert1 ||
+		selfSignedIntermediateCert2 || !selfSignedRootCert {
+		t.Fatal("Root cert was not correctly identified")
 	}
 }
 

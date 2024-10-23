@@ -833,7 +833,7 @@ func TestCheckRevocationErrors(t *testing.T) {
 	noHTTPChain := []*x509.Certificate{noHTTPLeaf, revokableTuples[1].Cert, revokableTuples[2].Cert}
 
 	backwardsChainErr := result.InvalidChainError{Err: errors.New("leaf certificate with subject \"CN=Notation Test Revokable RSA Chain Cert Root,O=Notary,L=Seattle,ST=WA,C=US\" is self-signed. Certificate chain must not contain self-signed leaf certificate")}
-	chainRootErr := result.InvalidChainError{Err: errors.New("self-signed certificate with subject \"CN=Notation Test Revokable RSA Chain Cert 2,O=Notary,L=Seattle,ST=WA,C=US\" is not self-issued. Certificate chain must end with a valid self-signed root certificate")}
+	chainRootErr := result.InvalidChainError{Err: errors.New("root certificate with subject \"CN=Notation Test Revokable RSA Chain Cert 2,O=Notary,L=Seattle,ST=WA,C=US\" is not self-signed. Certificate chain must end with a valid self-signed root certificate")}
 	expiredRespErr := revocationocsp.GenericError{Err: errors.New("expired OCSP response")}
 	noHTTPErr := revocationocsp.GenericError{Err: errors.New("OCSPServer protocol ldap is not supported")}
 

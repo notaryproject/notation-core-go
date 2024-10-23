@@ -34,7 +34,7 @@ func ValidateCodeSigningCertChain(certChain []*x509.Certificate, signingTime *ti
 	// For self-signed signing certificate (not a CA)
 	if len(certChain) == 1 {
 		cert := certChain[0]
-		if err := validateSelfSignedCert(cert, true); err != nil {
+		if err := validateSelfSignedLeaf(cert); err != nil {
 			return err
 		}
 		if signedTimeError := validateSigningTime(cert, signingTime); signedTimeError != nil {
@@ -51,18 +51,22 @@ func ValidateCodeSigningCertChain(certChain []*x509.Certificate, signingTime *ti
 			return signedTimeError
 		}
 		if i == len(certChain)-1 {
-			if err := validateSelfSignedCert(cert, false); err != nil {
-				return err
+			selfSigned, selfSignedError := isSelfSigned(cert)
+			if selfSignedError != nil {
+				return fmt.Errorf("root certificate with subject %q is invalid or not self-signed. Certificate chain must end with a valid self-signed root certificate. Error: %v", cert.Subject, selfSignedError)
+			}
+			if !selfSigned {
+				return fmt.Errorf("root certificate with subject %q is not self-signed. Certificate chain must end with a valid self-signed root certificate", cert.Subject)
 			}
 		} else {
 			// This is to avoid extra/redundant multiple root cert at the end
 			// of certificate-chain
-			selfSignedError := validateSelfSignedCert(cert, false)
+			selfSigned, selfSignedError := isSelfSigned(cert)
 			// not checking selfSignedError != nil here because we expect
 			// a non-nil err. For a non-root certificate, it shouldn't be
 			// self-signed, hence CheckSignatureFrom would return a non-nil
 			// error.
-			if selfSignedError == nil {
+			if selfSignedError == nil && selfSigned {
 				if i == 0 {
 					return fmt.Errorf("leaf certificate with subject %q is self-signed. Certificate chain must not contain self-signed leaf certificate", cert.Subject)
 				}
