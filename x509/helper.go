@@ -25,15 +25,12 @@ import (
 
 // validateSelfSignedCert validates a self-signed certificate.
 //
-// Parameters:
-//   - cert: The certificate to validate.
-//   - isSingleCertChain: A boolean value indicating whether the certificate is
-//     the only certificate in the chain.
-//     1. is true: The certificate is both a self-signed leaf and root
-//     certificate.
-//     2. is false: The certificate is a self-signed root CA certificate.
+// This function handles 2 cases for isSingleCertChian:
+//  1. True: The certificate is a self-signed leaf certificate. It is both
+//     a leaf and root certificate.
+//  2. False: The certificate is a self-signed root CA certificate.
 //
-// Note: A self-signed certificate must have the same subject and issuer.
+// A self-signed certificate must have the same subject and issuer.
 func validateSelfSignedCert(cert *x509.Certificate, isSingleCertChain bool) error {
 	if isSingleCertChain {
 		// only check signature
