@@ -23,19 +23,6 @@ import (
 	"github.com/notaryproject/notation-core-go/signature"
 )
 
-// validateSelfSignedLeaf validates a self-signed leaf certificate.
-//
-// A self-signed leaf certificate must have the same subject and issuer.
-func validateSelfSignedLeaf(cert *x509.Certificate) error {
-	if err := cert.CheckSignature(cert.SignatureAlgorithm, cert.RawTBSCertificate, cert.Signature); err != nil {
-		return fmt.Errorf("invalid self-signed leaf certificate. subject: %q. Error: %w", cert.Subject, err)
-	}
-	if !bytes.Equal(cert.RawSubject, cert.RawIssuer) {
-		return fmt.Errorf("invalid self-signed leaf certificate. subject: %q. Error: issuer and subject are not the same", cert.Subject)
-	}
-	return nil
-}
-
 func isSelfSigned(cert *x509.Certificate) (bool, error) {
 	return isIssuedBy(cert, cert)
 }

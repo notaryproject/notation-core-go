@@ -14,6 +14,7 @@
 package x509
 
 import (
+	"bytes"
 	"crypto/x509"
 	"errors"
 	"fmt"
@@ -33,8 +34,13 @@ func ValidateTimestampingCertChain(certChain []*x509.Certificate) error {
 	// For self-signed signing certificate (not a CA)
 	if len(certChain) == 1 {
 		cert := certChain[0]
-		if err := validateSelfSignedLeaf(cert); err != nil {
-			return err
+		// check self-signed
+		if err := cert.CheckSignature(cert.SignatureAlgorithm, cert.RawTBSCertificate, cert.Signature); err != nil {
+			return fmt.Errorf("invalid self-signed leaf certificate. subject: %q. Error: %w", cert.Subject, err)
+		}
+		// check self-issued
+		if !bytes.Equal(cert.RawSubject, cert.RawIssuer) {
+			return fmt.Errorf("invalid self-signed leaf certificate. subject: %q. Error: issuer and subject are not the same", cert.Subject)
 		}
 		if err := validateTimestampingLeafCertificate(cert); err != nil {
 			return fmt.Errorf("invalid self-signed certificate. Error: %w", err)
