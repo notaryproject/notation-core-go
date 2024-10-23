@@ -18,6 +18,8 @@ import (
 	"crypto/x509/pkix"
 	"strings"
 	"testing"
+
+	"github.com/notaryproject/notation-core-go/testhelper"
 )
 
 func TestValidTimestampingChain(t *testing.T) {
@@ -91,7 +93,7 @@ func TestInvalidTimestampingChain(t *testing.T) {
 	assertErrorEqual(expectedErr, err, t)
 
 	certChain = []*x509.Certificate{timestamp_leaf}
-	expectedErr = "invalid self-signed leaf certificate. subject: \"CN=DigiCert Timestamp 2023,O=DigiCert\\\\, Inc.,C=US\". Error: crypto/rsa: verification error"
+	expectedErr = "invalid self-signed certificate. subject: \"CN=DigiCert Timestamp 2023,O=DigiCert\\\\, Inc.,C=US\". Error: crypto/rsa: verification error"
 	err = ValidateTimestampingCertChain(certChain)
 	assertErrorEqual(expectedErr, err, t)
 
@@ -242,4 +244,13 @@ func TestEkuToString(t *testing.T) {
 	if ekuToString(x509.ExtKeyUsageIPSECUser) != "7" {
 		t.Fatalf("expected 7")
 	}
+}
+
+func TestFailSelfIssued(t *testing.T) {
+	chainTuple := testhelper.GetRevokableRSATimestampChain(2)
+	// the leaf certiifcate and the root certificate share the same private key
+	// so the leaf is also self-signed but issuer and subject are different
+	chain := []*x509.Certificate{chainTuple[0].Cert}
+	err := ValidateTimestampingCertChain(chain)
+	assertErrorEqual("invalid self-signed certificate. subject: \"CN=Notation Test Revokable RSA Chain Cert 2,O=Notary,L=Seattle,ST=WA,C=US\". Error: issuer (CN=Notation Test Revokable RSA Chain Cert Root,O=Notary,L=Seattle,ST=WA,C=US) and subject (CN=Notation Test Revokable RSA Chain Cert 2,O=Notary,L=Seattle,ST=WA,C=US) are not the same", err, t)
 }

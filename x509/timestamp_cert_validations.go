@@ -36,11 +36,11 @@ func ValidateTimestampingCertChain(certChain []*x509.Certificate) error {
 		cert := certChain[0]
 		// check self-signed
 		if err := cert.CheckSignature(cert.SignatureAlgorithm, cert.RawTBSCertificate, cert.Signature); err != nil {
-			return fmt.Errorf("invalid self-signed leaf certificate. subject: %q. Error: %w", cert.Subject, err)
+			return fmt.Errorf("invalid self-signed certificate. subject: %q. Error: %w", cert.Subject, err)
 		}
 		// check self-issued
 		if !bytes.Equal(cert.RawSubject, cert.RawIssuer) {
-			return fmt.Errorf("invalid self-signed leaf certificate. subject: %q. Error: issuer and subject are not the same", cert.Subject)
+			return fmt.Errorf("invalid self-signed certificate. subject: %q. Error: issuer (%s) and subject (%s) are not the same", cert.Subject, cert.Issuer, cert.Subject)
 		}
 		if err := validateTimestampingLeafCertificate(cert); err != nil {
 			return fmt.Errorf("invalid self-signed certificate. Error: %w", err)

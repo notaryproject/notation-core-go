@@ -205,6 +205,13 @@ func TestFailEmptyChain(t *testing.T) {
 	assertErrorEqual("certificate chain must contain at least one certificate", err, t)
 }
 
+func TestFailNonSelfSignedLeafCert(t *testing.T) {
+	signingTime := time.Now()
+	err := ValidateCodeSigningCertChain([]*x509.Certificate{codeSigningCert}, &signingTime)
+
+	assertErrorEqual("invalid self-signed certificate. subject: \"CN=CodeSigningLeaf\". Error: crypto/rsa: verification error", err, t)
+}
+
 func TestInvalidSelfSignedLeaf(t *testing.T) {
 	cert, err := createSelfSignedCert("valid cert", "invalid cert", false)
 	if err != nil {
@@ -214,7 +221,7 @@ func TestInvalidSelfSignedLeaf(t *testing.T) {
 	signingTime := time.Now()
 
 	err = ValidateCodeSigningCertChain(certChain, &signingTime)
-	assertErrorEqual("invalid self-signed leaf certificate. subject: \"CN=valid cert\". Error: issuer and subject are not the same", err, t)
+	assertErrorEqual("invalid self-signed certificate. subject: \"CN=valid cert\". Error: issuer and subject are not the same", err, t)
 }
 
 func TestInvalidCodeSigningCertSigningTime(t *testing.T) {
