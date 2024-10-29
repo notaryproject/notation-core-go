@@ -410,13 +410,13 @@ func TestCheckStatusErrors(t *testing.T) {
 	expiredLeaf, _ := x509.ParseCertificate(revokableTuples[0].Cert.Raw)
 	expiredLeaf.IsCA = false
 	expiredLeaf.KeyUsage = x509.KeyUsageDigitalSignature
-	expiredLeaf.OCSPServer = []string{"http://example.com/expired_ocsp"}
+	expiredLeaf.OCSPServer = []string{"http://example.fake/expired_ocsp"}
 	expiredChain := []*x509.Certificate{expiredLeaf, revokableTuples[1].Cert, revokableTuples[2].Cert}
 
 	noHTTPLeaf, _ := x509.ParseCertificate(revokableTuples[0].Cert.Raw)
 	noHTTPLeaf.IsCA = false
 	noHTTPLeaf.KeyUsage = x509.KeyUsageDigitalSignature
-	noHTTPLeaf.OCSPServer = []string{"ldap://ds.example.com:123/chain_ocsp/0"}
+	noHTTPLeaf.OCSPServer = []string{"ldap://ds.example.fake:123/chain_ocsp/0"}
 	noHTTPChain := []*x509.Certificate{noHTTPLeaf, revokableTuples[1].Cert, revokableTuples[2].Cert}
 
 	timestampSigningCertErr := result.InvalidChainError{Err: errors.New("timestamp signing certificate with subject \"CN=Notation Test Revokable RSA Chain Cert 3,O=Notary,L=Seattle,ST=WA,C=US\" must have and only have Timestamping as extended key usage")}
@@ -633,7 +633,7 @@ func TestCheckOCSPInvalidChain(t *testing.T) {
 	for i, cert := range misorderedIntermediateChain {
 		if i != (len(misorderedIntermediateChain) - 1) {
 			// Skip root which won't have an OCSP Server
-			cert.OCSPServer[0] = fmt.Sprintf("http://example.com/chain_ocsp/%d", i)
+			cert.OCSPServer[0] = fmt.Sprintf("http://example.fake/chain_ocsp/%d", i)
 		}
 	}
 
@@ -641,7 +641,7 @@ func TestCheckOCSPInvalidChain(t *testing.T) {
 	for i, cert := range missingIntermediateChain {
 		if i != (len(missingIntermediateChain) - 1) {
 			// Skip root which won't have an OCSP Server
-			cert.OCSPServer[0] = fmt.Sprintf("http://example.com/chain_ocsp/%d", i)
+			cert.OCSPServer[0] = fmt.Sprintf("http://example.fake/chain_ocsp/%d", i)
 		}
 	}
 
