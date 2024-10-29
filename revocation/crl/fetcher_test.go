@@ -55,7 +55,7 @@ func TestFetch(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to parse base CRL: %v", err)
 	}
-	const exampleURL = "http://example.fake"
+	const exampleURL = "http://localhost.test"
 	const uncachedURL = "http://uncached.com"
 
 	bundle := &Bundle{
@@ -167,7 +167,7 @@ func TestFetch(t *testing.T) {
 			t.Fatalf("failed to parse base CRL: %v", err)
 		}
 		// store the expired CRL
-		const expiredCRLURL = "http://example.fake/expired"
+		const expiredCRLURL = "http://localhost.test/expired"
 		bundle := &Bundle{
 			BaseCRL: expiredCRL,
 		}
@@ -299,7 +299,7 @@ func TestDownload(t *testing.T) {
 		}
 	})
 	t.Run("https download", func(t *testing.T) {
-		_, err := fetchCRL(context.Background(), "https://example.fake", http.DefaultClient)
+		_, err := fetchCRL(context.Background(), "https://localhost.test", http.DefaultClient)
 		if err == nil {
 			t.Fatal("expected error")
 		}
@@ -307,14 +307,14 @@ func TestDownload(t *testing.T) {
 
 	t.Run("http.NewRequestWithContext error", func(t *testing.T) {
 		var ctx context.Context = nil
-		_, err := fetchCRL(ctx, "http://example.fake", &http.Client{})
+		_, err := fetchCRL(ctx, "http://localhost.test", &http.Client{})
 		if err == nil {
 			t.Fatal("expected error")
 		}
 	})
 
 	t.Run("client.Do error", func(t *testing.T) {
-		_, err := fetchCRL(context.Background(), "http://example.fake", &http.Client{
+		_, err := fetchCRL(context.Background(), "http://localhost.test", &http.Client{
 			Transport: errorRoundTripperMock{},
 		})
 
@@ -324,7 +324,7 @@ func TestDownload(t *testing.T) {
 	})
 
 	t.Run("status code is not 2xx", func(t *testing.T) {
-		_, err := fetchCRL(context.Background(), "http://example.fake", &http.Client{
+		_, err := fetchCRL(context.Background(), "http://localhost.test", &http.Client{
 			Transport: serverErrorRoundTripperMock{},
 		})
 		if err == nil {
@@ -333,7 +333,7 @@ func TestDownload(t *testing.T) {
 	})
 
 	t.Run("readAll error", func(t *testing.T) {
-		_, err := fetchCRL(context.Background(), "http://example.fake", &http.Client{
+		_, err := fetchCRL(context.Background(), "http://localhost.test", &http.Client{
 			Transport: readFailedRoundTripperMock{},
 		})
 		if err == nil {
@@ -342,7 +342,7 @@ func TestDownload(t *testing.T) {
 	})
 
 	t.Run("exceed the size limit", func(t *testing.T) {
-		_, err := fetchCRL(context.Background(), "http://example.fake", &http.Client{
+		_, err := fetchCRL(context.Background(), "http://localhost.test", &http.Client{
 			Transport: expectedRoundTripperMock{Body: make([]byte, maxCRLSize+1)},
 		})
 		if err == nil {
@@ -351,7 +351,7 @@ func TestDownload(t *testing.T) {
 	})
 
 	t.Run("invalid crl", func(t *testing.T) {
-		_, err := fetchCRL(context.Background(), "http://example.fake", &http.Client{
+		_, err := fetchCRL(context.Background(), "http://localhost.test", &http.Client{
 			Transport: expectedRoundTripperMock{Body: []byte("invalid crl")},
 		})
 		if err == nil {
