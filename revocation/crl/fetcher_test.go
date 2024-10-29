@@ -56,7 +56,7 @@ func TestFetch(t *testing.T) {
 		t.Fatalf("failed to parse base CRL: %v", err)
 	}
 	const exampleURL = "http://localhost.test"
-	const uncachedURL = "http://uncached.com"
+	const uncachedURL = "http://uncached.test"
 
 	bundle := &Bundle{
 		BaseCRL: baseCRL,
