@@ -193,7 +193,7 @@ func executeOCSPCheck(ctx context.Context, cert, issuer *x509.Certificate, serve
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+	if resp.StatusCode != 200 {
 		return nil, fmt.Errorf("failed to retrieve OCSP: response had status code %d", resp.StatusCode)
 	}
 

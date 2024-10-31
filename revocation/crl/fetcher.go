@@ -150,7 +150,7 @@ func fetchCRL(ctx context.Context, crlURL string, client *http.Client) (*x509.Re
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+	if resp.StatusCode != 200 {
 		return nil, fmt.Errorf("failed to download with status code: %d", resp.StatusCode)
 	}
 	// read with size limit
