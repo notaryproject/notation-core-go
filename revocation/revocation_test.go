@@ -823,13 +823,13 @@ func TestCheckRevocationErrors(t *testing.T) {
 	expiredLeaf, _ := x509.ParseCertificate(revokableTuples[0].Cert.Raw)
 	expiredLeaf.IsCA = false
 	expiredLeaf.KeyUsage = x509.KeyUsageDigitalSignature
-	expiredLeaf.OCSPServer = []string{"http://example.com/expired_ocsp"}
+	expiredLeaf.OCSPServer = []string{"http://localhost.test/expired_ocsp"}
 	expiredChain := []*x509.Certificate{expiredLeaf, revokableTuples[1].Cert, revokableTuples[2].Cert}
 
 	noHTTPLeaf, _ := x509.ParseCertificate(revokableTuples[0].Cert.Raw)
 	noHTTPLeaf.IsCA = false
 	noHTTPLeaf.KeyUsage = x509.KeyUsageDigitalSignature
-	noHTTPLeaf.OCSPServer = []string{"ldap://ds.example.com:123/chain_ocsp/0"}
+	noHTTPLeaf.OCSPServer = []string{"ldap://ds.localhost.test:123/chain_ocsp/0"}
 	noHTTPChain := []*x509.Certificate{noHTTPLeaf, revokableTuples[1].Cert, revokableTuples[2].Cert}
 
 	backwardsChainErr := result.InvalidChainError{Err: errors.New("leaf certificate with subject \"CN=Notation Test Revokable RSA Chain Cert Root,O=Notary,L=Seattle,ST=WA,C=US\" is self-signed. Certificate chain must not contain self-signed leaf certificate")}
@@ -984,7 +984,7 @@ func TestCheckRevocationInvalidChain(t *testing.T) {
 	for i, cert := range misorderedIntermediateChain {
 		if i != (len(misorderedIntermediateChain) - 1) {
 			// Skip root which won't have an OCSP Server
-			cert.OCSPServer[0] = fmt.Sprintf("http://example.com/chain_ocsp/%d", i)
+			cert.OCSPServer[0] = fmt.Sprintf("http://localhost.test/chain_ocsp/%d", i)
 		}
 	}
 
@@ -992,7 +992,7 @@ func TestCheckRevocationInvalidChain(t *testing.T) {
 	for i, cert := range missingIntermediateChain {
 		if i != (len(missingIntermediateChain) - 1) {
 			// Skip root which won't have an OCSP Server
-			cert.OCSPServer[0] = fmt.Sprintf("http://example.com/chain_ocsp/%d", i)
+			cert.OCSPServer[0] = fmt.Sprintf("http://localhost.test/chain_ocsp/%d", i)
 		}
 	}
 
@@ -1069,7 +1069,7 @@ func TestCRL(t *testing.T) {
 				Result: result.ResultOK,
 				ServerResults: []*result.ServerResult{{
 					Result: result.ResultOK,
-					Server: "http://example.com/chain_crl/0",
+					Server: "http://localhost.test/chain_crl/0",
 				}},
 				RevocationMethod: result.RevocationMethodCRL,
 			},
@@ -1077,7 +1077,7 @@ func TestCRL(t *testing.T) {
 				Result: result.ResultOK,
 				ServerResults: []*result.ServerResult{{
 					Result: result.ResultOK,
-					Server: "http://example.com/chain_crl/1",
+					Server: "http://localhost.test/chain_crl/1",
 				}},
 				RevocationMethod: result.RevocationMethodCRL,
 			},
@@ -1128,7 +1128,7 @@ func TestCRL(t *testing.T) {
 				ServerResults: []*result.ServerResult{
 					{
 						Result: result.ResultRevoked,
-						Server: "http://example.com/chain_crl/0",
+						Server: "http://localhost.test/chain_crl/0",
 					},
 				},
 				RevocationMethod: result.RevocationMethodCRL,
@@ -1138,7 +1138,7 @@ func TestCRL(t *testing.T) {
 				ServerResults: []*result.ServerResult{
 					{
 						Result: result.ResultRevoked,
-						Server: "http://example.com/chain_crl/1",
+						Server: "http://localhost.test/chain_crl/1",
 					},
 				},
 				RevocationMethod: result.RevocationMethodCRL,
@@ -1164,7 +1164,9 @@ func TestCRL(t *testing.T) {
 		}
 
 		revocationClient, err := NewWithOptions(Options{
-			OCSPHTTPClient:   &http.Client{},
+			OCSPHTTPClient: &http.Client{
+				Transport: &serverErrorTransport{},
+			},
 			CRLFetcher:       fetcher,
 			CertChainPurpose: purpose.CodeSigning,
 		})
@@ -1190,13 +1192,13 @@ func TestCRL(t *testing.T) {
 				ServerResults: []*result.ServerResult{
 					{
 						Result:           result.ResultUnknown,
-						Server:           "http://example.com/chain_ocsp/0",
+						Server:           "http://localhost.test/chain_ocsp/0",
 						Error:            errors.New("failed to retrieve OCSP: response had status code 500"),
 						RevocationMethod: result.RevocationMethodOCSP,
 					},
 					{
 						Result:           result.ResultRevoked,
-						Server:           "http://example.com/chain_crl/0",
+						Server:           "http://localhost.test/chain_crl/0",
 						RevocationMethod: result.RevocationMethodCRL,
 					},
 				},
@@ -1207,13 +1209,13 @@ func TestCRL(t *testing.T) {
 				ServerResults: []*result.ServerResult{
 					{
 						Result:           result.ResultUnknown,
-						Server:           "http://example.com/chain_ocsp/1",
+						Server:           "http://localhost.test/chain_ocsp/1",
 						Error:            errors.New("failed to retrieve OCSP: response had status code 500"),
 						RevocationMethod: result.RevocationMethodOCSPFallbackCRL,
 					},
 					{
 						Result:           result.ResultRevoked,
-						Server:           "http://example.com/chain_crl/1",
+						Server:           "http://localhost.test/chain_crl/1",
 						RevocationMethod: result.RevocationMethodCRL,
 					},
 				},
@@ -1298,8 +1300,8 @@ type crlRoundTripper struct {
 }
 
 func (rt *crlRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	// e.g. ocsp URL: http://example.com/chain_ocsp/0
-	// e.g. crl URL: http://example.com/chain_crl/0
+	// e.g. ocsp URL: http://localhost.test/chain_ocsp/0
+	// e.g. crl URL: http://localhost.test/chain_crl/0
 	parts := strings.Split(req.URL.Path, "/")
 
 	isOCSP := parts[len(parts)-2] == "chain_ocsp"
@@ -1309,7 +1311,7 @@ func (rt *crlRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 	}
 
 	// choose the cert suffix based on suffix of request url
-	// e.g. http://example.com/chain_crl/0 -> 0
+	// e.g. http://localhost.test/chain_crl/0 -> 0
 	i, err := strconv.Atoi(parts[len(parts)-1])
 	if err != nil {
 		return nil, err
@@ -1350,6 +1352,15 @@ type panicTransport struct{}
 
 func (t panicTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	panic("panic")
+}
+
+type serverErrorTransport struct{}
+
+func (t serverErrorTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	return &http.Response{
+		StatusCode: http.StatusInternalServerError,
+		Body:       io.NopCloser(bytes.NewReader([]byte{})),
+	}, nil
 }
 
 func TestValidateContext(t *testing.T) {
