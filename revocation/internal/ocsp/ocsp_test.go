@@ -244,6 +244,26 @@ func TestPostRequest(t *testing.T) {
 	})
 }
 
+func TestExecuteOCSPCheck(t *testing.T) {
+	revokableCertTuple := testhelper.GetRevokableRSALeafCertificate()
+	revokableIssuerTuple := testhelper.GetRSARootCertificate()
+	ctx := context.Background()
+
+	t.Run("http status response is not 200", func(t *testing.T) {
+		_, err := executeOCSPCheck(ctx, revokableCertTuple.Cert, revokableIssuerTuple.Cert, "localhost.test", CertCheckStatusOptions{
+			HTTPClient: &http.Client{
+				Transport: &failedTransport{
+					statusCode: http.StatusNotFound,
+				},
+			},
+		})
+		expectedErrMsg := "failed to retrieve OCSP: response had status code 404"
+		if err == nil || err.Error() != expectedErrMsg {
+			t.Errorf("Expected error %s, but got %s", expectedErrMsg, err)
+		}
+	})
+}
+
 type testTimeoutError struct{}
 
 func (e testTimeoutError) Error() string {
@@ -255,7 +275,8 @@ func (e testTimeoutError) Timeout() bool {
 }
 
 type failedTransport struct {
-	timeout bool
+	timeout    bool
+	statusCode int
 }
 
 func (f *failedTransport) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -264,5 +285,12 @@ func (f *failedTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 			Err: testTimeoutError{},
 		}
 	}
+
+	if f.statusCode != 0 {
+		return &http.Response{
+			StatusCode: f.statusCode,
+		}, nil
+	}
+
 	return nil, fmt.Errorf("failed to execute request")
 }
