@@ -249,7 +249,7 @@ func TestExecuteOCSPCheck(t *testing.T) {
 	revokableIssuerTuple := testhelper.GetRSARootCertificate()
 	ctx := context.Background()
 
-	t.Run("http status response is not 200", func(t *testing.T) {
+	t.Run("http response status is not 200", func(t *testing.T) {
 		_, err := executeOCSPCheck(ctx, revokableCertTuple.Cert, revokableIssuerTuple.Cert, "localhost.test", CertCheckStatusOptions{
 			HTTPClient: &http.Client{
 				Transport: &failedTransport{
