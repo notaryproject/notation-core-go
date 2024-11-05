@@ -109,6 +109,21 @@ func TestTimestamp(t *testing.T) {
 	expectedErr = "failed to verify signed token: cms verification failure: crypto/rsa: verification error"
 	_, err = Timestamp(req, opts)
 	assertErrorEqual(expectedErr, err, t)
+
+	req = &signature.SignRequest{
+		Timestamper: timestamper,
+		TSARootCAs:  rootCAs,
+		SigningTime: time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC),
+	}
+	opts = tspclient.RequestOptions{
+		Content:       []byte("notation"),
+		HashAlgorithm: crypto.SHA256,
+	}
+	expectedErr = "failed to verify signed token: cms verification failure: x509: certificate has expired or is not yet valid: current time 2009-11-10T23:00:00Z"
+	_, err = Timestamp(req, opts)
+	if err == nil || !strings.Contains(err.Error(), expectedErr) {
+		t.Fatalf("expected error to include %s, but got %s", expectedErr, err)
+	}
 }
 
 func assertErrorEqual(expected string, err error, t *testing.T) {

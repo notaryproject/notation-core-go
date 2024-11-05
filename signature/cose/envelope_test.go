@@ -14,6 +14,7 @@
 package cose
 
 import (
+	"context"
 	"crypto"
 	"crypto/x509"
 	"errors"
@@ -341,11 +342,8 @@ func TestSignErrors(t *testing.T) {
 		if err != nil {
 			t.Fatalf("getSignRequest() failed. Error = %v", err)
 		}
-		signRequest.Timestamper, err = tspclient.NewHTTPTimestamper(nil, "invalid")
-		if err != nil {
-			t.Fatal(err)
-		}
-		expected := errors.New("timestamp: Post \"invalid\": unsupported protocol scheme \"\"")
+		signRequest.Timestamper = &dummyTimestamper{}
+		expected := errors.New("timestamp: failed to timestamp")
 		encoded, err := env.Sign(signRequest)
 		if !isErrEqual(expected, err) {
 			t.Fatalf("Sign() expects error: %v, but got: %v.", expected, err)
@@ -1100,4 +1098,10 @@ func generateTestRawMessage(raw cbor.RawMessage, label string, unmarshalError bo
 	}
 
 	return resRaw
+}
+
+type dummyTimestamper tspclient.Timestamp
+
+func (dts *dummyTimestamper) Timestamp(context.Context, *tspclient.Request) (*tspclient.Response, error) {
+	return nil, errors.New("failed to timestamp")
 }
