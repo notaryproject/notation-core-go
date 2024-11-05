@@ -19,6 +19,7 @@ import (
 	_ "embed"
 	"errors"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -198,6 +199,35 @@ func TestFailEmptyChain(t *testing.T) {
 	err := ValidateCodeSigningCertChain(nil, &signingTime)
 
 	assertErrorEqual("certificate chain must contain at least one certificate", err, t)
+}
+
+func TestFailNonSelfSignedLeafCert(t *testing.T) {
+	signingTime := time.Now()
+	err := ValidateCodeSigningCertChain([]*x509.Certificate{codeSigningCert}, &signingTime)
+
+	assertErrorEqual("invalid self-signed certificate. subject: \"CN=CodeSigningLeaf\". Error: crypto/rsa: verification error", err, t)
+}
+
+func TestFailSelfIssuedCodeSigningCert(t *testing.T) {
+	chainTuple := testhelper.GetRevokableRSATimestampChain(2)
+	// the leaf certiifcate and the root certificate share the same private key
+	// so the leaf is also self-signed but issuer and subject are different
+	chain := []*x509.Certificate{chainTuple[0].Cert}
+	signingTime := time.Now()
+	err := ValidateCodeSigningCertChain(chain, &signingTime)
+	assertErrorEqual("invalid self-signed certificate. subject: \"CN=Notation Test Revokable RSA Chain Cert 2,O=Notary,L=Seattle,ST=WA,C=US\". Error: issuer(CN=Notation Test Revokable RSA Chain Cert Root,O=Notary,L=Seattle,ST=WA,C=US) and subject(CN=Notation Test Revokable RSA Chain Cert 2,O=Notary,L=Seattle,ST=WA,C=US) are not the same", err, t)
+}
+
+func TestInvalidCodeSigningCertSigningTime(t *testing.T) {
+	chainTuple := testhelper.GetRevokableRSATimestampChain(2)
+	chain := []*x509.Certificate{chainTuple[1].Cert}
+	signingTime := time.Date(2021, 7, 7, 20, 48, 42, 0, time.UTC)
+
+	expectPrefix := "certificate with subject \"CN=Notation Test Revokable RSA Chain Cert Root,O=Notary,L=Seattle,ST=WA,C=US\" was invalid at signing time of 2021-07-07 20:48:42 +0000 UTC"
+	err := ValidateCodeSigningCertChain(chain, &signingTime)
+	if !strings.HasPrefix(err.Error(), expectPrefix) {
+		t.Errorf("expected error to start with %q, got %q", expectPrefix, err)
+	}
 }
 
 func TestFailInvalidSigningTime(t *testing.T) {
