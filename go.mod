@@ -4,7 +4,7 @@ go 1.22
 
 require (
 	github.com/fxamacker/cbor/v2 v2.7.0
-	github.com/golang-jwt/jwt/v4 v4.5.0
+	github.com/golang-jwt/jwt/v4 v4.5.1
 	github.com/notaryproject/tspclient-go v0.2.0
 	github.com/veraison/go-cose v1.3.0
 	golang.org/x/crypto v0.28.0
