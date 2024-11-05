@@ -45,7 +45,7 @@ func TestCertCheckStatus(t *testing.T) {
 
 	t.Run("fetcher is nil", func(t *testing.T) {
 		cert := &x509.Certificate{
-			CRLDistributionPoints: []string{"http://example.com"},
+			CRLDistributionPoints: []string{"http://localhost.test"},
 		}
 		r := CertCheckStatus(context.Background(), cert, &x509.Certificate{}, CertCheckStatusOptions{})
 		if r.ServerResults[0].Error.Error() != "CRL fetcher cannot be nil" {
@@ -57,7 +57,7 @@ func TestCertCheckStatus(t *testing.T) {
 		memoryCache := &memoryCache{}
 
 		cert := &x509.Certificate{
-			CRLDistributionPoints: []string{"http://example.com"},
+			CRLDistributionPoints: []string{"http://localhost.test"},
 		}
 		fetcher, err := crlutils.NewHTTPFetcher(
 			&http.Client{Transport: errorRoundTripperMock{}},
@@ -80,7 +80,7 @@ func TestCertCheckStatus(t *testing.T) {
 		memoryCache := &memoryCache{}
 
 		cert := &x509.Certificate{
-			CRLDistributionPoints: []string{"http://example.com"},
+			CRLDistributionPoints: []string{"http://localhost.test"},
 		}
 		fetcher, err := crlutils.NewHTTPFetcher(
 			&http.Client{Transport: expiredCRLRoundTripperMock{}},
@@ -253,11 +253,11 @@ func TestCertCheckStatus(t *testing.T) {
 		BaseCRL: base,
 	}
 
-	chain[0].Cert.CRLDistributionPoints = []string{"http://example.com"}
+	chain[0].Cert.CRLDistributionPoints = []string{"http://localhost.test"}
 
 	t.Run("invalid stale CRL cache, and re-download failed", func(t *testing.T) {
 		// save to cache
-		if err := memoryCache.Set(context.Background(), "http://example.com", bundle); err != nil {
+		if err := memoryCache.Set(context.Background(), "http://localhost.test", bundle); err != nil {
 			t.Fatal(err)
 		}
 
@@ -279,7 +279,7 @@ func TestCertCheckStatus(t *testing.T) {
 
 	t.Run("invalid stale CRL cache, re-download and still validate failed", func(t *testing.T) {
 		// save to cache
-		if err := memoryCache.Set(context.Background(), "http://example.com", bundle); err != nil {
+		if err := memoryCache.Set(context.Background(), "http://localhost.test", bundle); err != nil {
 			t.Fatal(err)
 		}
 
@@ -301,7 +301,7 @@ func TestCertCheckStatus(t *testing.T) {
 
 	t.Run("invalid stale CRL cache, re-download and validate seccessfully", func(t *testing.T) {
 		// save to cache
-		if err := memoryCache.Set(context.Background(), "http://example.com", bundle); err != nil {
+		if err := memoryCache.Set(context.Background(), "http://localhost.test", bundle); err != nil {
 			t.Fatal(err)
 		}
 
@@ -722,7 +722,7 @@ func marshalGeneralizedTimeToBytes(t time.Time) ([]byte, error) {
 func TestSupported(t *testing.T) {
 	t.Run("supported", func(t *testing.T) {
 		cert := &x509.Certificate{
-			CRLDistributionPoints: []string{"http://example.com"},
+			CRLDistributionPoints: []string{"http://localhost.test"},
 		}
 		if !Supported(cert) {
 			t.Fatal("expected supported")

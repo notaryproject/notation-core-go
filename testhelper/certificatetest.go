@@ -182,7 +182,7 @@ func getRSACertTuple(cn string, issuer *RSACertTuple) RSACertTuple {
 
 func getRevokableRSACertTuple(cn string, issuer *RSACertTuple) RSACertTuple {
 	template := getCertTemplate(issuer == nil, true, false, cn)
-	template.OCSPServer = []string{"http://example.com/ocsp"}
+	template.OCSPServer = []string{"http://localhost.test/ocsp"}
 	return getRSACertTupleWithTemplate(template, issuer.PrivateKey, issuer)
 }
 
@@ -192,11 +192,11 @@ func getRevokableRSAChainCertTuple(cn string, previous *RSACertTuple, index int,
 	template.IsCA = true
 	template.KeyUsage = x509.KeyUsageCertSign
 	if enabledOCSP {
-		template.OCSPServer = []string{fmt.Sprintf("http://example.com/chain_ocsp/%d", index)}
+		template.OCSPServer = []string{fmt.Sprintf("http://localhost.test/chain_ocsp/%d", index)}
 	}
 	if enabledCRL {
 		template.KeyUsage |= x509.KeyUsageCRLSign
-		template.CRLDistributionPoints = []string{fmt.Sprintf("http://example.com/chain_crl/%d", index)}
+		template.CRLDistributionPoints = []string{fmt.Sprintf("http://localhost.test/chain_crl/%d", index)}
 	}
 	return getRSACertTupleWithTemplate(template, previous.PrivateKey, previous)
 }
@@ -220,10 +220,10 @@ func getRevokableRSALeafChainCertTuple(cn string, issuer *RSACertTuple, index in
 	template.IsCA = false
 	template.KeyUsage = x509.KeyUsageDigitalSignature
 	if enabledOCSP {
-		template.OCSPServer = []string{fmt.Sprintf("http://example.com/chain_ocsp/%d", index)}
+		template.OCSPServer = []string{fmt.Sprintf("http://localhost.test/chain_ocsp/%d", index)}
 	}
 	if enabledCRL {
-		template.CRLDistributionPoints = []string{fmt.Sprintf("http://example.com/chain_crl/%d", index)}
+		template.CRLDistributionPoints = []string{fmt.Sprintf("http://localhost.test/chain_crl/%d", index)}
 	}
 	return getRSACertTupleWithTemplate(template, issuer.PrivateKey, issuer)
 }
