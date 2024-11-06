@@ -22,7 +22,6 @@ import (
 	"os"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/notaryproject/notation-core-go/signature"
 	nx509 "github.com/notaryproject/notation-core-go/x509"
@@ -49,7 +48,6 @@ func TestTimestamp(t *testing.T) {
 	req := &signature.SignRequest{
 		Timestamper: timestamper,
 		TSARootCAs:  rootCAs,
-		SigningTime: time.Now(),
 	}
 	opts := tspclient.RequestOptions{
 		Content:       []byte("notation"),
@@ -72,7 +70,6 @@ func TestTimestamp(t *testing.T) {
 	req = &signature.SignRequest{
 		Timestamper: dummyTimestamper{},
 		TSARootCAs:  rootCAs,
-		SigningTime: time.Now(),
 	}
 	opts = tspclient.RequestOptions{
 		Content:       []byte("notation"),
@@ -88,8 +85,7 @@ func TestTimestamp(t *testing.T) {
 		Timestamper: dummyTimestamper{
 			respWithRejectedStatus: true,
 		},
-		TSARootCAs:  rootCAs,
-		SigningTime: time.Now(),
+		TSARootCAs: rootCAs,
 	}
 	expectedErr = "invalid timestamping response: invalid response with status code 2: rejected"
 	_, err = Timestamp(req, opts)
@@ -103,27 +99,11 @@ func TestTimestamp(t *testing.T) {
 		Timestamper: dummyTimestamper{
 			invalidSignature: true,
 		},
-		TSARootCAs:  rootCAs,
-		SigningTime: time.Now(),
+		TSARootCAs: rootCAs,
 	}
 	expectedErr = "failed to verify signed token: cms verification failure: crypto/rsa: verification error"
 	_, err = Timestamp(req, opts)
 	assertErrorEqual(expectedErr, err, t)
-
-	req = &signature.SignRequest{
-		Timestamper: timestamper,
-		TSARootCAs:  rootCAs,
-		SigningTime: time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC),
-	}
-	opts = tspclient.RequestOptions{
-		Content:       []byte("notation"),
-		HashAlgorithm: crypto.SHA256,
-	}
-	expectedErr = "failed to verify signed token: cms verification failure: x509: certificate has expired or is not yet valid: current time 2009-11-10T23:00:00Z"
-	_, err = Timestamp(req, opts)
-	if err == nil || !strings.Contains(err.Error(), expectedErr) {
-		t.Fatalf("expected error to include %s, but got %s", expectedErr, err)
-	}
 }
 
 func assertErrorEqual(expected string, err error, t *testing.T) {

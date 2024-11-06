@@ -44,8 +44,7 @@ func Timestamp(req *signature.SignRequest, opts tspclient.RequestOptions) ([]byt
 		return nil, err
 	}
 	tsaCertChain, err := token.Verify(ctx, x509.VerifyOptions{
-		CurrentTime: req.SigningTime,
-		Roots:       req.TSARootCAs,
+		Roots: req.TSARootCAs,
 	})
 	if err != nil {
 		return nil, err
