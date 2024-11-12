@@ -14,6 +14,7 @@
 package jws
 
 import (
+	"context"
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/rand"
@@ -266,11 +267,8 @@ func TestSignFailed(t *testing.T) {
 		signReq, err := getSignReq(signature.SigningSchemeX509, signer, nil)
 		checkNoError(t, err)
 
-		signReq.Timestamper, err = tspclient.NewHTTPTimestamper(nil, "invalid")
-		if err != nil {
-			t.Fatal(err)
-		}
-		expected := errors.New("timestamp: Post \"invalid\": unsupported protocol scheme \"\"")
+		signReq.Timestamper = &dummyTimestamper{}
+		expected := errors.New("timestamp: failed to timestamp")
 		encoded, err := env.Sign(signReq)
 		if !isErrEqual(expected, err) {
 			t.Fatalf("Sign() expects error: %v, but got: %v.", expected, err)
@@ -686,4 +684,10 @@ func isErrEqual(wanted, got error) bool {
 		return wanted.Error() == got.Error()
 	}
 	return false
+}
+
+type dummyTimestamper tspclient.Timestamp
+
+func (dts *dummyTimestamper) Timestamp(context.Context, *tspclient.Request) (*tspclient.Response, error) {
+	return nil, errors.New("failed to timestamp")
 }

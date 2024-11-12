@@ -74,7 +74,6 @@ func TestTimestamp(t *testing.T) {
 	opts = tspclient.RequestOptions{
 		Content:       []byte("notation"),
 		HashAlgorithm: crypto.SHA256,
-		NoNonce:       true,
 	}
 	expectedErr = "failed to timestamp"
 	_, err = Timestamp(req, opts)
@@ -92,35 +91,9 @@ func TestTimestamp(t *testing.T) {
 	_, err = Timestamp(req, opts)
 	assertErrorEqual(expectedErr, err, t)
 
-	req = &signature.SignRequest{
-		Timestamper: dummyTimestamper{
-			invalidTSTInfo: true,
-		},
-		TSARootCAs: rootCAs,
-	}
-	expectedErr = "cannot unmarshal TSTInfo from timestamp token: asn1: structure error: tags don't match (23 vs {class:0 tag:16 length:3 isCompound:true}) {optional:false explicit:false application:false private:false defaultValue:<nil> tag:<nil> stringType:0 timeType:24 set:false omitEmpty:false} Time @89"
-	_, err = Timestamp(req, opts)
-	assertErrorEqual(expectedErr, err, t)
-
-	opts = tspclient.RequestOptions{
-		Content:       []byte("mismatch"),
-		HashAlgorithm: crypto.SHA256,
-		NoNonce:       true,
-	}
-	req = &signature.SignRequest{
-		Timestamper: dummyTimestamper{
-			failValidate: true,
-		},
-		TSARootCAs: rootCAs,
-	}
-	expectedErr = "invalid TSTInfo: mismatched message"
-	_, err = Timestamp(req, opts)
-	assertErrorEqual(expectedErr, err, t)
-
 	opts = tspclient.RequestOptions{
 		Content:       []byte("notation"),
 		HashAlgorithm: crypto.SHA256,
-		NoNonce:       true,
 	}
 	req = &signature.SignRequest{
 		Timestamper: dummyTimestamper{
@@ -141,8 +114,6 @@ func assertErrorEqual(expected string, err error, t *testing.T) {
 
 type dummyTimestamper struct {
 	respWithRejectedStatus bool
-	invalidTSTInfo         bool
-	failValidate           bool
 	invalidSignature       bool
 }
 
@@ -151,34 +122,6 @@ func (d dummyTimestamper) Timestamp(context.Context, *tspclient.Request) (*tspcl
 		return &tspclient.Response{
 			Status: pki.StatusInfo{
 				Status: pki.StatusRejection,
-			},
-		}, nil
-	}
-	if d.invalidTSTInfo {
-		token, err := os.ReadFile("testdata/TimeStampTokenWithInvalidTSTInfo.p7s")
-		if err != nil {
-			return nil, err
-		}
-		return &tspclient.Response{
-			Status: pki.StatusInfo{
-				Status: pki.StatusGranted,
-			},
-			TimestampToken: asn1.RawValue{
-				FullBytes: token,
-			},
-		}, nil
-	}
-	if d.failValidate {
-		token, err := os.ReadFile("testdata/TimeStampToken.p7s")
-		if err != nil {
-			return nil, err
-		}
-		return &tspclient.Response{
-			Status: pki.StatusInfo{
-				Status: pki.StatusGranted,
-			},
-			TimestampToken: asn1.RawValue{
-				FullBytes: token,
 			},
 		}, nil
 	}
