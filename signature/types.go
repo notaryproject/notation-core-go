@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/notaryproject/notation-core-go/revocation"
 	"github.com/notaryproject/tspclient-go"
 )
 
@@ -111,6 +112,11 @@ type SignRequest struct {
 
 	// TSARootCAs is the set of caller trusted TSA root certificates
 	TSARootCAs *x509.CertPool
+
+	// RevocationTimestampingValidator is used for timestamping certificate
+	// chain revocation check after signing.
+	// When present, only used when timestamping is performed.
+	RevocationTimestampingValidator revocation.Validator
 
 	// ctx is the caller context. It should only be modified via WithContext.
 	// It is unexported to prevent people from using Context wrong

@@ -15,12 +15,12 @@ package x509
 
 import (
 	"bytes"
+	"crypto/ecdsa"
+	"crypto/rsa"
 	"crypto/x509"
 	"fmt"
 	"strings"
 	"time"
-
-	"github.com/notaryproject/notation-core-go/signature"
 )
 
 func isSelfSigned(cert *x509.Certificate) (bool, error) {
@@ -95,14 +95,23 @@ func validateLeafKeyUsage(cert *x509.Certificate) error {
 }
 
 func validateSignatureAlgorithm(cert *x509.Certificate) error {
-	keySpec, err := signature.ExtractKeySpec(cert)
-	if err != nil {
-		return fmt.Errorf("certificate with subject %q: %w", cert.Subject, err)
+	switch key := cert.PublicKey.(type) {
+	case *rsa.PublicKey:
+		switch bitSize := key.Size() << 3; bitSize {
+		case 2048, 3072, 4096:
+			return nil
+		default:
+			return fmt.Errorf("certificate with subject %q: rsa key size %d bits is not supported", cert.Subject, bitSize)
+		}
+	case *ecdsa.PublicKey:
+		switch bitSize := key.Curve.Params().BitSize; bitSize {
+		case 256, 384, 521:
+			return nil
+		default:
+			return fmt.Errorf("certificate with subject %q: ecdsa key size %d bits is not supported", cert.Subject, bitSize)
+		}
 	}
-	if keySpec.SignatureAlgorithm() == 0 {
-		return fmt.Errorf("certificate with subject %q: unsupported signature algorithm with key spec %+v", cert.Subject, keySpec)
-	}
-	return nil
+	return fmt.Errorf("certificate with subject %q: unsupported public key type", cert.Subject)
 }
 
 func ekuToString(eku x509.ExtKeyUsage) string {

@@ -16,7 +16,10 @@ package timestamp
 
 import (
 	"crypto/x509"
+	"fmt"
 
+	"github.com/notaryproject/notation-core-go/revocation"
+	"github.com/notaryproject/notation-core-go/revocation/result"
 	"github.com/notaryproject/notation-core-go/signature"
 	nx509 "github.com/notaryproject/notation-core-go/x509"
 	"github.com/notaryproject/tspclient-go"
@@ -52,5 +55,59 @@ func Timestamp(req *signature.SignRequest, opts tspclient.RequestOptions) ([]byt
 	if err := nx509.ValidateTimestampingCertChain(tsaCertChain); err != nil {
 		return nil, err
 	}
+	// certificate chain revocation check after timestamping
+	if req.RevocationTimestampingValidator != nil {
+		certResults, err := req.RevocationTimestampingValidator.ValidateContext(ctx, revocation.ValidateContextOptions{
+			CertChain: tsaCertChain,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("after timestamping: failed to check timestamping certificate chain revocation with error: %w", err)
+		}
+		if err := revocationFinalResult(certResults, tsaCertChain); err != nil {
+			return nil, fmt.Errorf("after timestamping: %w", err)
+		}
+	}
 	return resp.TimestampToken.FullBytes, nil
+}
+
+// revocationFinalResult returns an error if the final revocation result is
+// not ResultOK
+func revocationFinalResult(certResults []*result.CertRevocationResult, certChain []*x509.Certificate) error {
+	finalResult := result.ResultUnknown
+	numOKResults := 0
+	var problematicCertSubject string
+	revokedFound := false
+	var revokedCertSubject string
+	for i := len(certResults) - 1; i >= 0; i-- {
+		cert := certChain[i]
+		certResult := certResults[i]
+		if certResult.Result == result.ResultOK || certResult.Result == result.ResultNonRevokable {
+			numOKResults++
+		} else {
+			finalResult = certResult.Result
+			problematicCertSubject = cert.Subject.String()
+			if certResult.Result == result.ResultRevoked {
+				revokedFound = true
+				revokedCertSubject = problematicCertSubject
+			}
+		}
+	}
+	if revokedFound {
+		problematicCertSubject = revokedCertSubject
+		finalResult = result.ResultRevoked
+	}
+	if numOKResults == len(certResults) {
+		finalResult = result.ResultOK
+	}
+
+	// process final result
+	switch finalResult {
+	case result.ResultOK:
+		return nil
+	case result.ResultRevoked:
+		return fmt.Errorf("timestamping certificate with subject %q is revoked", problematicCertSubject)
+	default:
+		// revocationresult.ResultUnknown
+		return fmt.Errorf("timestamping certificate with subject %q revocation status is unknown", problematicCertSubject)
+	}
 }
