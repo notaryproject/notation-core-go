@@ -56,8 +56,8 @@ func Timestamp(req *signature.SignRequest, opts tspclient.RequestOptions) ([]byt
 		return nil, err
 	}
 	// certificate chain revocation check after timestamping
-	if req.RevocationTimestampingValidator != nil {
-		certResults, err := req.RevocationTimestampingValidator.ValidateContext(ctx, revocation.ValidateContextOptions{
+	if req.TSARevocationValidator != nil {
+		certResults, err := req.TSARevocationValidator.ValidateContext(ctx, revocation.ValidateContextOptions{
 			CertChain: tsaCertChain,
 		})
 		if err != nil {

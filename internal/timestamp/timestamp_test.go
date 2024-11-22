@@ -138,7 +138,7 @@ func TestTimestamp(t *testing.T) {
 		req := &signature.SignRequest{
 			Timestamper: timestamper,
 			TSARootCAs:  rootCAs,
-			RevocationTimestampingValidator: &dummyTimestampRevocationValidator{
+			TSARevocationValidator: &dummyTSARevocationValidator{
 				failOnValidate: true,
 			},
 		}
@@ -159,7 +159,7 @@ func TestTimestamp(t *testing.T) {
 		req := &signature.SignRequest{
 			Timestamper: timestamper,
 			TSARootCAs:  rootCAs,
-			RevocationTimestampingValidator: &dummyTimestampRevocationValidator{
+			TSARevocationValidator: &dummyTSARevocationValidator{
 				revoked: true,
 			},
 		}
@@ -324,12 +324,12 @@ func (d dummyTimestamper) Timestamp(context.Context, *tspclient.Request) (*tspcl
 	return nil, errors.New("failed to timestamp")
 }
 
-type dummyTimestampRevocationValidator struct {
+type dummyTSARevocationValidator struct {
 	failOnValidate bool
 	revoked        bool
 }
 
-func (v *dummyTimestampRevocationValidator) ValidateContext(ctx context.Context, validateContextOpts revocation.ValidateContextOptions) ([]*result.CertRevocationResult, error) {
+func (v *dummyTSARevocationValidator) ValidateContext(ctx context.Context, validateContextOpts revocation.ValidateContextOptions) ([]*result.CertRevocationResult, error) {
 	if v.failOnValidate {
 		return nil, errors.New("failed in ValidateContext")
 	}
