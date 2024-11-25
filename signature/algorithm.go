@@ -15,10 +15,9 @@ package signature
 
 import (
 	"crypto"
-	"crypto/ecdsa"
-	"crypto/rsa"
 	"crypto/x509"
-	"fmt"
+
+	"github.com/notaryproject/notation-core-go/internal/algorithm"
 )
 
 // Algorithm defines the signature algorithm.
@@ -68,35 +67,16 @@ func (alg Algorithm) Hash() crypto.Hash {
 
 // ExtractKeySpec extracts KeySpec from the signing certificate.
 func ExtractKeySpec(signingCert *x509.Certificate) (KeySpec, error) {
-	switch key := signingCert.PublicKey.(type) {
-	case *rsa.PublicKey:
-		switch bitSize := key.Size() << 3; bitSize {
-		case 2048, 3072, 4096:
-			return KeySpec{
-				Type: KeyTypeRSA,
-				Size: bitSize,
-			}, nil
-		default:
-			return KeySpec{}, &UnsupportedSigningKeyError{
-				Msg: fmt.Sprintf("rsa key size %d bits is not supported", bitSize),
-			}
-		}
-	case *ecdsa.PublicKey:
-		switch bitSize := key.Curve.Params().BitSize; bitSize {
-		case 256, 384, 521:
-			return KeySpec{
-				Type: KeyTypeEC,
-				Size: bitSize,
-			}, nil
-		default:
-			return KeySpec{}, &UnsupportedSigningKeyError{
-				Msg: fmt.Sprintf("ecdsa key size %d bits is not supported", bitSize),
-			}
+	ks, err := algorithm.ExtractKeySpec(signingCert)
+	if err != nil {
+		return KeySpec{}, &UnsupportedSigningKeyError{
+			Msg: err.Error(),
 		}
 	}
-	return KeySpec{}, &UnsupportedSigningKeyError{
-		Msg: "unsupported public key type",
-	}
+	return KeySpec{
+		Type: KeyType(ks.Type),
+		Size: ks.Size,
+	}, nil
 }
 
 // SignatureAlgorithm returns the signing algorithm associated with the KeySpec.

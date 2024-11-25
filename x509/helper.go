@@ -15,12 +15,12 @@ package x509
 
 import (
 	"bytes"
-	"crypto/ecdsa"
-	"crypto/rsa"
 	"crypto/x509"
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/notaryproject/notation-core-go/internal/algorithm"
 )
 
 func isSelfSigned(cert *x509.Certificate) (bool, error) {
@@ -95,23 +95,11 @@ func validateLeafKeyUsage(cert *x509.Certificate) error {
 }
 
 func validateSignatureAlgorithm(cert *x509.Certificate) error {
-	switch key := cert.PublicKey.(type) {
-	case *rsa.PublicKey:
-		switch bitSize := key.Size() << 3; bitSize {
-		case 2048, 3072, 4096:
-			return nil
-		default:
-			return fmt.Errorf("certificate with subject %q: rsa key size %d bits is not supported", cert.Subject, bitSize)
-		}
-	case *ecdsa.PublicKey:
-		switch bitSize := key.Curve.Params().BitSize; bitSize {
-		case 256, 384, 521:
-			return nil
-		default:
-			return fmt.Errorf("certificate with subject %q: ecdsa key size %d bits is not supported", cert.Subject, bitSize)
-		}
+	_, err := algorithm.ExtractKeySpec(cert)
+	if err != nil {
+		return fmt.Errorf("certificate with subject %q: %w", cert.Subject, err)
 	}
-	return fmt.Errorf("certificate with subject %q: unsupported public key type", cert.Subject)
+	return nil
 }
 
 func ekuToString(eku x509.ExtKeyUsage) string {
