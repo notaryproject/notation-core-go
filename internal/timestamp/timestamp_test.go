@@ -32,10 +32,10 @@ import (
 	"github.com/notaryproject/tspclient-go/pki"
 )
 
-const rfc3161TSAurl = "http://rfc3161timestamp.globalsign.com/advanced"
+const rfc3161TSAurl = "http://timestamp.digicert.com"
 
 func TestTimestamp(t *testing.T) {
-	rootCerts, err := nx509.ReadCertificateFile("testdata/tsaRootCert.crt")
+	rootCerts, err := nx509.ReadCertificateFile("testdata/tsaRootCert.cer")
 	if err != nil || len(rootCerts) == 0 {
 		t.Fatal("failed to read root CA certificate:", err)
 	}
@@ -114,7 +114,7 @@ func TestTimestamp(t *testing.T) {
 		assertErrorEqual(expectedErr, err, t)
 	})
 
-	t.Run("Timestamping cms verification failure", func(t *testing.T) {
+	t.Run("Timestamping with cms verification failure", func(t *testing.T) {
 		opts := tspclient.RequestOptions{
 			Content:       []byte("notation"),
 			HashAlgorithm: crypto.SHA256,
@@ -125,7 +125,7 @@ func TestTimestamp(t *testing.T) {
 			},
 			TSARootCAs: rootCAs,
 		}
-		expectedErr := "failed to verify signed token: cms verification failure: crypto/rsa: verification error"
+		expectedErr := "failed to verify signed token: cms verification failure: x509: certificate signed by unknown authority"
 		_, err = Timestamp(req, opts)
 		assertErrorEqual(expectedErr, err, t)
 	})
@@ -167,7 +167,7 @@ func TestTimestamp(t *testing.T) {
 			Content:       []byte("notation"),
 			HashAlgorithm: crypto.SHA256,
 		}
-		expectedErr := `after timestamping: timestamping certificate with subject "CN=Globalsign TSA for Advanced - G4 - 202311,O=GlobalSign nv-sa,C=BE" is revoked`
+		expectedErr := `after timestamping: timestamping certificate with subject "CN=DigiCert Timestamp 2024,O=DigiCert,C=US" is revoked`
 		_, err = Timestamp(req, opts)
 		assertErrorEqual(expectedErr, err, t)
 	})
@@ -286,6 +286,19 @@ func TestRevocationFinalResult(t *testing.T) {
 		err := revocationFinalResult(certResult, certChain)
 		assertErrorEqual(`timestamping certificate with subject "CN=leafCert" revocation status is unknown`, err, t)
 	})
+
+	t.Run("empty cert result", func(t *testing.T) {
+		err := revocationFinalResult([]*result.CertRevocationResult{}, certChain)
+		assertErrorEqual("certificate revocation result cannot be empty", err, t)
+	})
+
+	t.Run("cert result length does not equal to cert chain", func(t *testing.T) {
+		err := revocationFinalResult([]*result.CertRevocationResult{
+			certResult[1],
+		}, certChain)
+		assertErrorEqual("length of certificate revocation result 1 does not match length of the certificate chain 2", err, t)
+	})
+
 }
 
 func assertErrorEqual(expected string, err error, t *testing.T) {
@@ -334,8 +347,19 @@ func (v *dummyTSARevocationValidator) ValidateContext(ctx context.Context, valid
 		return nil, errors.New("failed in ValidateContext")
 	}
 	if v.revoked {
-		var certResult []*result.CertRevocationResult
-		certResult = append(certResult, &result.CertRevocationResult{
+		certResults := make([]*result.CertRevocationResult, len(validateContextOpts.CertChain))
+		for i := range certResults {
+			certResults[i] = &result.CertRevocationResult{
+				Result: result.ResultOK,
+				ServerResults: []*result.ServerResult{
+					{
+						Result:           result.ResultOK,
+						RevocationMethod: result.RevocationMethodOCSP,
+					},
+				},
+			}
+		}
+		certResults[0] = &result.CertRevocationResult{
 			Result: result.ResultRevoked,
 			ServerResults: []*result.ServerResult{
 				{
@@ -344,8 +368,16 @@ func (v *dummyTSARevocationValidator) ValidateContext(ctx context.Context, valid
 					RevocationMethod: result.RevocationMethodCRL,
 				},
 			},
-		})
-		return certResult, nil
+		}
+		certResults[len(certResults)-1] = &result.CertRevocationResult{
+			Result: result.ResultNonRevokable,
+			ServerResults: []*result.ServerResult{
+				{
+					Result: result.ResultNonRevokable,
+				},
+			},
+		}
+		return certResults, nil
 	}
 	return nil, nil
 }
