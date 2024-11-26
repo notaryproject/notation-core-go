@@ -54,7 +54,7 @@ type Fetcher interface {
 type FetcherWithCertificateExtensions interface {
 	// FetchWithCertificateExtensions retrieves the CRL from the given URL with
 	// certificate extensions.
-	FetchWithCertificateExtensions(ctx context.Context, url string, certExtension *[]pkix.Extension) (*Bundle, error)
+	FetchWithCertificateExtensions(ctx context.Context, url string, certificateExtensions *[]pkix.Extension) (*Bundle, error)
 }
 
 // HTTPFetcher is a Fetcher implementation that fetches CRL from the given URL
@@ -93,7 +93,7 @@ func (f *HTTPFetcher) Fetch(ctx context.Context, url string) (*Bundle, error) {
 	return f.FetchWithCertificateExtensions(ctx, url, nil)
 }
 
-func (f *HTTPFetcher) FetchWithCertificateExtensions(ctx context.Context, url string, certExtension *[]pkix.Extension) (*Bundle, error) {
+func (f *HTTPFetcher) FetchWithCertificateExtensions(ctx context.Context, url string, certificateExtensions *[]pkix.Extension) (*Bundle, error) {
 	if url == "" {
 		return nil, errors.New("CRL URL cannot be empty")
 	}
@@ -111,7 +111,7 @@ func (f *HTTPFetcher) FetchWithCertificateExtensions(ctx context.Context, url st
 		}
 	}
 
-	bundle, err := f.fetch(ctx, url, certExtension)
+	bundle, err := f.fetch(ctx, url, certificateExtensions)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve CRL: %w", err)
 	}
@@ -131,7 +131,7 @@ func isEffective(nextUpdate time.Time) bool {
 }
 
 // fetch downloads the CRL from the given URL.
-func (f *HTTPFetcher) fetch(ctx context.Context, url string, certificateExtension *[]pkix.Extension) (*Bundle, error) {
+func (f *HTTPFetcher) fetch(ctx context.Context, url string, certificateExtensions *[]pkix.Extension) (*Bundle, error) {
 	// fetch base CRL
 	base, err := fetchCRL(ctx, url, f.httpClient)
 	if err != nil {
@@ -143,9 +143,9 @@ func (f *HTTPFetcher) fetch(ctx context.Context, url string, certificateExtensio
 	if err != nil {
 		return nil, err
 	}
-	if certificateExtension != nil && deltaCRL == nil {
+	if certificateExtensions != nil && deltaCRL == nil {
 		// fallback to fetch delta CRL from certificate extension
-		deltaCRL, err = f.processDeltaCRL(certificateExtension)
+		deltaCRL, err = f.processDeltaCRL(certificateExtensions)
 		if err != nil {
 			return nil, err
 		}
