@@ -18,6 +18,7 @@ package crl
 import (
 	"context"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/asn1"
 	"errors"
 	"fmt"
@@ -25,6 +26,9 @@ import (
 	"net/http"
 	"net/url"
 	"time"
+
+	"golang.org/x/crypto/cryptobyte"
+	cryptobyte_asn1 "golang.org/x/crypto/cryptobyte/asn1"
 )
 
 // oidFreshestCRL is the object identifier for the distribution point
@@ -42,6 +46,15 @@ const maxCRLSize = 32 * 1024 * 1024 // 32 MiB
 type Fetcher interface {
 	// Fetch retrieves the CRL from the given URL.
 	Fetch(ctx context.Context, url string) (*Bundle, error)
+}
+
+// FetcherWithCertificateExtensions is an interface that specifies methods used
+// for fetching CRL from the given URL with certificate extensions to identify
+// the Freshest CRL extension (Delta CRL) from certificate.
+type FetcherWithCertificateExtensions interface {
+	// FetchWithCertificateExtensions retrieves the CRL from the given URL with
+	// certificate extensions.
+	FetchWithCertificateExtensions(ctx context.Context, url string, certExtension *[]pkix.Extension) (*Bundle, error)
 }
 
 // HTTPFetcher is a Fetcher implementation that fetches CRL from the given URL
@@ -77,6 +90,10 @@ func NewHTTPFetcher(httpClient *http.Client) (*HTTPFetcher, error) {
 // (e.g. cache miss), it will download the CRL from the URL and store it to the
 // cache.
 func (f *HTTPFetcher) Fetch(ctx context.Context, url string) (*Bundle, error) {
+	return f.FetchWithCertificateExtensions(ctx, url, nil)
+}
+
+func (f *HTTPFetcher) FetchWithCertificateExtensions(ctx context.Context, url string, certExtension *[]pkix.Extension) (*Bundle, error) {
 	if url == "" {
 		return nil, errors.New("CRL URL cannot be empty")
 	}
@@ -84,9 +101,9 @@ func (f *HTTPFetcher) Fetch(ctx context.Context, url string) (*Bundle, error) {
 	if f.Cache != nil {
 		bundle, err := f.Cache.Get(ctx, url)
 		if err == nil {
-			// check expiry
-			nextUpdate := bundle.BaseCRL.NextUpdate
-			if !nextUpdate.IsZero() && !time.Now().After(nextUpdate) {
+			// check expiry of base CRL and delta CRL
+			if isEffective(bundle.BaseCRL.NextUpdate) &&
+				(bundle.DeltaCRL == nil || isEffective(bundle.DeltaCRL.NextUpdate)) {
 				return bundle, nil
 			}
 		} else if !errors.Is(err, ErrCacheMiss) && !f.DiscardCacheError {
@@ -94,7 +111,7 @@ func (f *HTTPFetcher) Fetch(ctx context.Context, url string) (*Bundle, error) {
 		}
 	}
 
-	bundle, err := f.fetch(ctx, url)
+	bundle, err := f.fetch(ctx, url, certExtension)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve CRL: %w", err)
 	}
@@ -109,25 +126,110 @@ func (f *HTTPFetcher) Fetch(ctx context.Context, url string) (*Bundle, error) {
 	return bundle, nil
 }
 
+func isEffective(nextUpdate time.Time) bool {
+	return !nextUpdate.IsZero() && !time.Now().After(nextUpdate)
+}
+
 // fetch downloads the CRL from the given URL.
-func (f *HTTPFetcher) fetch(ctx context.Context, url string) (*Bundle, error) {
+func (f *HTTPFetcher) fetch(ctx context.Context, url string, certificateExtension *[]pkix.Extension) (*Bundle, error) {
 	// fetch base CRL
 	base, err := fetchCRL(ctx, url, f.httpClient)
 	if err != nil {
 		return nil, err
 	}
 
-	// check delta CRL
-	// TODO: support delta CRL https://github.com/notaryproject/notation-core-go/issues/228
-	for _, ext := range base.Extensions {
-		if ext.Id.Equal(oidFreshestCRL) {
-			return nil, errors.New("delta CRL is not supported")
+	// fetch delta CRL from CRL extension
+	deltaCRL, err := f.processDeltaCRL(&base.Extensions)
+	if err != nil {
+		return nil, err
+	}
+	if certificateExtension != nil && deltaCRL == nil {
+		// fallback to fetch delta CRL from certificate extension
+		deltaCRL, err = f.processDeltaCRL(certificateExtension)
+		if err != nil {
+			return nil, err
 		}
 	}
 
 	return &Bundle{
-		BaseCRL: base,
+		BaseCRL:  base,
+		DeltaCRL: deltaCRL,
 	}, nil
+}
+
+func (f *HTTPFetcher) processDeltaCRL(extensions *[]pkix.Extension) (*x509.RevocationList, error) {
+	for _, ext := range *extensions {
+		if ext.Id.Equal(oidFreshestCRL) {
+			cdp, err := parseFreshestCRL(ext)
+			if err != nil {
+				return nil, err
+			}
+			if len(cdp) == 0 {
+				return nil, nil
+			}
+			if len(cdp) > 1 {
+				// to simplify the implementation, we only support one
+				// Freshest CRL URL for now which is the common case
+				return nil, errors.New("multiple Freshest CRL distribution points are not supported")
+			}
+			return fetchCRL(context.Background(), cdp[0], f.httpClient)
+		}
+	}
+	return nil, nil
+}
+
+// parseFreshestCRL parses the Freshest CRL extension and returns the CRL URLs
+func parseFreshestCRL(ext pkix.Extension) ([]string, error) {
+	var cdp []string
+	// RFC 5280, 4.2.1.15
+	//    id-ce-freshestCRL OBJECT IDENTIFIER ::=  { id-ce 46 }
+	//
+	//    FreshestCRL ::= CRLDistributionPoints
+	//
+	// RFC 5280, 4.2.1.13
+	//
+	// CRLDistributionPoints ::= SEQUENCE SIZE (1..MAX) OF DistributionPoint
+	//
+	// DistributionPoint ::= SEQUENCE {
+	//     distributionPoint       [0]     DistributionPointName OPTIONAL,
+	//     reasons                 [1]     ReasonFlags OPTIONAL,
+	//     cRLIssuer               [2]     GeneralNames OPTIONAL }
+	//
+	// DistributionPointName ::= CHOICE {
+	//     fullName                [0]     GeneralNames,
+	//     nameRelativeToCRLIssuer [1]     RelativeDistinguishedName }
+	val := cryptobyte.String(ext.Value)
+	if !val.ReadASN1(&val, cryptobyte_asn1.SEQUENCE) {
+		return nil, errors.New("x509: invalid CRL distribution points")
+	}
+	for !val.Empty() {
+		var dpDER cryptobyte.String
+		if !val.ReadASN1(&dpDER, cryptobyte_asn1.SEQUENCE) {
+			return nil, errors.New("x509: invalid CRL distribution point")
+		}
+		var dpNameDER cryptobyte.String
+		var dpNamePresent bool
+		if !dpDER.ReadOptionalASN1(&dpNameDER, &dpNamePresent, cryptobyte_asn1.Tag(0).Constructed().ContextSpecific()) {
+			return nil, errors.New("x509: invalid CRL distribution point")
+		}
+		if !dpNamePresent {
+			continue
+		}
+		if !dpNameDER.ReadASN1(&dpNameDER, cryptobyte_asn1.Tag(0).Constructed().ContextSpecific()) {
+			return nil, errors.New("x509: invalid CRL distribution point")
+		}
+		for !dpNameDER.Empty() {
+			if !dpNameDER.PeekASN1Tag(cryptobyte_asn1.Tag(6).ContextSpecific()) {
+				break
+			}
+			var uri cryptobyte.String
+			if !dpNameDER.ReadASN1(&uri, cryptobyte_asn1.Tag(6).ContextSpecific()) {
+				return nil, errors.New("x509: invalid CRL distribution point")
+			}
+			cdp = append(cdp, string(uri))
+		}
+	}
+	return cdp, nil
 }
 
 func fetchCRL(ctx context.Context, crlURL string, client *http.Client) (*x509.RevocationList, error) {

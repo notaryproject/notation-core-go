@@ -203,38 +203,6 @@ func TestCertCheckStatus(t *testing.T) {
 		}
 	})
 
-	t.Run("CRL with delta CRL is not checked", func(t *testing.T) {
-		memoryCache := &memoryCache{}
-
-		crlBytes, err := x509.CreateRevocationList(rand.Reader, &x509.RevocationList{
-			NextUpdate: time.Now().Add(time.Hour),
-			Number:     big.NewInt(20240720),
-			ExtraExtensions: []pkix.Extension{
-				{
-					Id:       oidFreshestCRL,
-					Critical: false,
-				},
-			},
-		}, issuerCert, issuerKey)
-		if err != nil {
-			t.Fatal(err)
-		}
-		fetcher, err := crlutils.NewHTTPFetcher(
-			&http.Client{Transport: expectedRoundTripperMock{Body: crlBytes}},
-		)
-		if err != nil {
-			t.Fatal(err)
-		}
-		fetcher.Cache = memoryCache
-		fetcher.DiscardCacheError = true
-		r := CertCheckStatus(context.Background(), chain[0].Cert, issuerCert, CertCheckStatusOptions{
-			Fetcher: fetcher,
-		})
-		if !strings.Contains(r.ServerResults[0].Error.Error(), "delta CRL is not supported") {
-			t.Fatalf("unexpected error, got %v, expected %v", r.ServerResults[0].Error, "delta CRL is not supported")
-		}
-	})
-
 	memoryCache := &memoryCache{}
 
 	// create a stale CRL
@@ -423,35 +391,6 @@ func TestValidate(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
-
-	t.Run("delta CRL is not supported", func(t *testing.T) {
-		chain := testhelper.GetRevokableRSAChainWithRevocations(1, false, true)
-		issuerCert := chain[0].Cert
-		issuerKey := chain[0].PrivateKey
-
-		crlBytes, err := x509.CreateRevocationList(rand.Reader, &x509.RevocationList{
-			NextUpdate: time.Now().Add(time.Hour),
-			Number:     big.NewInt(20240720),
-			ExtraExtensions: []pkix.Extension{
-				{
-					Id:       oidFreshestCRL,
-					Critical: false,
-				},
-			},
-		}, issuerCert, issuerKey)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		crl, err := x509.ParseRevocationList(crlBytes)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		if err := validate(crl, issuerCert); err.Error() != "delta CRL is not supported" {
-			t.Fatalf("got %v, expected delta CRL is not supported", err)
-		}
-	})
 }
 
 func TestCheckRevocation(t *testing.T) {
@@ -461,14 +400,14 @@ func TestCheckRevocation(t *testing.T) {
 	signingTime := time.Now()
 
 	t.Run("certificate is nil", func(t *testing.T) {
-		_, err := checkRevocation(nil, &x509.RevocationList{}, signingTime, "")
+		_, err := checkRevocation(nil, &crlutils.Bundle{BaseCRL: &x509.RevocationList{}}, signingTime, "")
 		if err == nil {
 			t.Fatal("expected error")
 		}
 	})
 
 	t.Run("CRL is nil", func(t *testing.T) {
-		_, err := checkRevocation(cert, nil, signingTime, "")
+		_, err := checkRevocation(cert, &crlutils.Bundle{}, signingTime, "")
 		if err == nil {
 			t.Fatal("expected error")
 		}
@@ -482,7 +421,7 @@ func TestCheckRevocation(t *testing.T) {
 				},
 			},
 		}
-		r, err := checkRevocation(cert, baseCRL, signingTime, "")
+		r, err := checkRevocation(cert, &crlutils.Bundle{BaseCRL: baseCRL}, signingTime, "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -500,7 +439,7 @@ func TestCheckRevocation(t *testing.T) {
 				},
 			},
 		}
-		r, err := checkRevocation(cert, baseCRL, signingTime, "")
+		r, err := checkRevocation(cert, &crlutils.Bundle{BaseCRL: baseCRL}, signingTime, "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -533,7 +472,7 @@ func TestCheckRevocation(t *testing.T) {
 				},
 			},
 		}
-		r, err := checkRevocation(cert, baseCRL, signingTime, "")
+		r, err := checkRevocation(cert, &crlutils.Bundle{BaseCRL: baseCRL}, signingTime, "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -566,7 +505,7 @@ func TestCheckRevocation(t *testing.T) {
 				},
 			},
 		}
-		r, err := checkRevocation(cert, baseCRL, signingTime, "")
+		r, err := checkRevocation(cert, &crlutils.Bundle{BaseCRL: baseCRL}, signingTime, "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -584,7 +523,7 @@ func TestCheckRevocation(t *testing.T) {
 				},
 			},
 		}
-		r, err := checkRevocation(cert, baseCRL, time.Time{}, "")
+		r, err := checkRevocation(cert, &crlutils.Bundle{BaseCRL: baseCRL}, time.Time{}, "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -607,7 +546,7 @@ func TestCheckRevocation(t *testing.T) {
 				},
 			},
 		}
-		_, err := checkRevocation(cert, baseCRL, signingTime, "")
+		_, err := checkRevocation(cert, &crlutils.Bundle{BaseCRL: baseCRL}, signingTime, "")
 		if err == nil {
 			t.Fatal("expected error")
 		}

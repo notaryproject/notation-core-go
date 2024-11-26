@@ -18,6 +18,7 @@ package crl
 import (
 	"context"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/asn1"
 	"errors"
 	"fmt"
@@ -86,9 +87,10 @@ func CertCheckStatus(ctx context.Context, cert, issuer *x509.Certificate, opts C
 	}
 
 	var (
-		serverResults = make([]*result.ServerResult, 0, len(cert.CRLDistributionPoints))
-		lastErr       error
-		crlURL        string
+		serverResults  = make([]*result.ServerResult, 0, len(cert.CRLDistributionPoints))
+		lastErr        error
+		crlURL         string
+		hasFreshestCRL = hasFreshestCRL(&cert.Extensions)
 	)
 
 	// The CRLDistributionPoints contains the URIs of all the CRL distribution
@@ -99,18 +101,41 @@ func CertCheckStatus(ctx context.Context, cert, issuer *x509.Certificate, opts C
 	// point with one CRL URI, which will be cached, so checking all the URIs is
 	// not a performance issue.
 	for _, crlURL = range cert.CRLDistributionPoints {
-		bundle, err := opts.Fetcher.Fetch(ctx, crlURL)
-		if err != nil {
-			lastErr = fmt.Errorf("failed to download CRL from %s: %w", crlURL, err)
-			break
+		var (
+			bundle *crl.Bundle
+			err    error
+		)
+		if !hasFreshestCRL {
+			bundle, err = opts.Fetcher.Fetch(ctx, crlURL)
+			if err != nil {
+				lastErr = fmt.Errorf("failed to download CRL from %s: %w", crlURL, err)
+				break
+			}
+		} else {
+			fetcher, ok := opts.Fetcher.(crl.FetcherWithCertificateExtensions)
+			if !ok {
+				lastErr = fmt.Errorf("fetcher does not support fetching delta CRL from certificate extension")
+				break
+			}
+			bundle, err = fetcher.FetchWithCertificateExtensions(ctx, crlURL, &cert.Extensions)
+			if err != nil {
+				lastErr = fmt.Errorf("failed to download CRL from %s: %w", crlURL, err)
+				break
+			}
 		}
 
 		if err = validate(bundle.BaseCRL, issuer); err != nil {
 			lastErr = fmt.Errorf("failed to validate CRL from %s: %w", crlURL, err)
 			break
 		}
+		if bundle.DeltaCRL != nil {
+			if err = validate(bundle.DeltaCRL, issuer); err != nil {
+				lastErr = fmt.Errorf("failed to validate delta CRL from %s: %w", crlURL, err)
+				break
+			}
+		}
 
-		crlResult, err := checkRevocation(cert, bundle.BaseCRL, opts.SigningTime, crlURL)
+		crlResult, err := checkRevocation(cert, bundle, opts.SigningTime, crlURL)
 		if err != nil {
 			lastErr = fmt.Errorf("failed to check revocation status from %s: %w", crlURL, err)
 			break
@@ -153,6 +178,15 @@ func Supported(cert *x509.Certificate) bool {
 	return cert != nil && len(cert.CRLDistributionPoints) > 0
 }
 
+func hasFreshestCRL(extensions *[]pkix.Extension) bool {
+	for _, ext := range *extensions {
+		if ext.Id.Equal(oidFreshestCRL) {
+			return true
+		}
+	}
+	return false
+}
+
 func validate(crl *x509.RevocationList, issuer *x509.Certificate) error {
 	// check signature
 	if err := crl.CheckSignatureFrom(issuer); err != nil {
@@ -170,8 +204,6 @@ func validate(crl *x509.RevocationList, issuer *x509.Certificate) error {
 
 	for _, ext := range crl.Extensions {
 		switch {
-		case ext.Id.Equal(oidFreshestCRL):
-			return errors.New("delta CRL is not supported")
 		case ext.Id.Equal(oidIssuingDistributionPoint):
 			// IssuingDistributionPoint is a critical extension that identifies
 			// the scope of the CRL. Since we will check all the CRL
@@ -188,37 +220,74 @@ func validate(crl *x509.RevocationList, issuer *x509.Certificate) error {
 }
 
 // checkRevocation checks if the certificate is revoked or not
-func checkRevocation(cert *x509.Certificate, baseCRL *x509.RevocationList, signingTime time.Time, crlURL string) (*result.ServerResult, error) {
+func checkRevocation(cert *x509.Certificate, bundle *crl.Bundle, signingTime time.Time, crlURL string) (*result.ServerResult, error) {
 	if cert == nil {
 		return nil, errors.New("certificate cannot be nil")
 	}
-
+	if bundle == nil {
+		return nil, errors.New("CRL bundle cannot be nil")
+	}
+	baseCRL := bundle.BaseCRL
 	if baseCRL == nil {
 		return nil, errors.New("baseCRL cannot be nil")
 	}
 
-	for _, revocationEntry := range baseCRL.RevokedCertificateEntries {
-		if revocationEntry.SerialNumber.Cmp(cert.SerialNumber) == 0 {
-			extensions, err := parseEntryExtensions(revocationEntry)
-			if err != nil {
-				return nil, err
-			}
+	deltaCRL := bundle.DeltaCRL
+	entriesArray := []*[]x509.RevocationListEntry{&baseCRL.RevokedCertificateEntries}
+	if deltaCRL != nil {
+		entriesArray = append(entriesArray, &deltaCRL.RevokedCertificateEntries)
+	}
 
-			// validate signingTime and invalidityDate
-			if !signingTime.IsZero() && !extensions.invalidityDate.IsZero() &&
-				signingTime.Before(extensions.invalidityDate) {
-				// signing time is before the invalidity date which means the
-				// certificate is not revoked at the time of signing.
-				break
-			}
+	// latestTempRevokedEntry contains the most recent revocation entry with
+	// reasons such as CertificateHold or RemoveFromCRL.
+	//
+	// If the certificate is revoked with CertificateHold, it is temporarily
+	// revoked. If the certificate is shown in the CRL with RemoveFromCRL,
+	// it is unrevoked.
+	var latestTempRevokedEntry *x509.RevocationListEntry
 
-			// revoked
-			return &result.ServerResult{
-				Result:           result.ResultRevoked,
-				Server:           crlURL,
-				RevocationMethod: result.RevocationMethodCRL,
-			}, nil
+	// iterate over all the entries in the base and delta CRLs
+	for _, entries := range entriesArray {
+		for i, revocationEntry := range *entries {
+			if revocationEntry.SerialNumber.Cmp(cert.SerialNumber) == 0 {
+				extensions, err := parseEntryExtensions(revocationEntry)
+				if err != nil {
+					return nil, err
+				}
+
+				// validate signingTime and invalidityDate
+				if !signingTime.IsZero() && !extensions.invalidityDate.IsZero() &&
+					signingTime.Before(extensions.invalidityDate) {
+					// signing time is before the invalidity date which means the
+					// certificate is not revoked at the time of signing.
+					break
+				}
+
+				switch revocationEntry.ReasonCode {
+				case int(reasonCodeCertificateHold), int(reasonCodeRemoveFromCRL):
+					// temporarily revoked or unrevoked
+					if latestTempRevokedEntry == nil || latestTempRevokedEntry.RevocationTime.Before(revocationEntry.RevocationTime) {
+						// the revocation status depends on the most recent reason
+						latestTempRevokedEntry = &baseCRL.RevokedCertificateEntries[i]
+					}
+				default:
+					// permanently revoked
+					return &result.ServerResult{
+						Result:           result.ResultRevoked,
+						Server:           crlURL,
+						RevocationMethod: result.RevocationMethodCRL,
+					}, nil
+				}
+			}
 		}
+	}
+	if latestTempRevokedEntry != nil && latestTempRevokedEntry.ReasonCode == reasonCodeCertificateHold {
+		// revoked with CertificateHold
+		return &result.ServerResult{
+			Result:           result.ResultRevoked,
+			Server:           crlURL,
+			RevocationMethod: result.RevocationMethodCRL,
+		}, nil
 	}
 
 	return &result.ServerResult{

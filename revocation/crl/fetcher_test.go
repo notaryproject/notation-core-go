@@ -18,7 +18,6 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/x509"
-	"crypto/x509/pkix"
 	"errors"
 	"fmt"
 	"io"
@@ -192,39 +191,6 @@ func TestFetch(t *testing.T) {
 		// should re-download the CRL
 		if !bytes.Equal(bundle.BaseCRL.Raw, baseCRL.Raw) {
 			t.Errorf("Fetcher.Fetch() base.Raw = %v, want %v", bundle.BaseCRL.Raw, baseCRL.Raw)
-		}
-	})
-
-	t.Run("delta CRL is not supported", func(t *testing.T) {
-		c := &memoryCache{}
-		// prepare a CRL with refresh CRL extension
-		certChain := testhelper.GetRevokableRSAChainWithRevocations(2, false, true)
-		expiredCRLBytes, err := x509.CreateRevocationList(rand.Reader, &x509.RevocationList{
-			Number:     big.NewInt(1),
-			NextUpdate: time.Now().Add(-1 * time.Hour),
-			ExtraExtensions: []pkix.Extension{
-				{
-					Id:    oidFreshestCRL,
-					Value: []byte{0x01, 0x02, 0x03},
-				},
-			},
-		}, certChain[1].Cert, certChain[1].PrivateKey)
-		if err != nil {
-			t.Fatalf("failed to create base CRL: %v", err)
-		}
-
-		httpClient := &http.Client{
-			Transport: expectedRoundTripperMock{Body: expiredCRLBytes},
-		}
-		f, err := NewHTTPFetcher(httpClient)
-		if err != nil {
-			t.Errorf("NewHTTPFetcher() error = %v, want nil", err)
-		}
-		f.Cache = c
-		f.DiscardCacheError = true
-		_, err = f.Fetch(context.Background(), uncachedURL)
-		if !strings.Contains(err.Error(), "delta CRL is not supported") {
-			t.Errorf("Fetcher.Fetch() error = %v, want delta CRL is not supported", err)
 		}
 	})
 
