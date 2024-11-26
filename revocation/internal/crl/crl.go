@@ -18,7 +18,6 @@ package crl
 import (
 	"context"
 	"crypto/x509"
-	"crypto/x509/pkix"
 	"encoding/asn1"
 	"errors"
 	"fmt"
@@ -87,10 +86,10 @@ func CertCheckStatus(ctx context.Context, cert, issuer *x509.Certificate, opts C
 	}
 
 	var (
-		serverResults  = make([]*result.ServerResult, 0, len(cert.CRLDistributionPoints))
-		lastErr        error
-		crlURL         string
-		hasFreshestCRL = hasFreshestCRL(&cert.Extensions)
+		serverResults = make([]*result.ServerResult, 0, len(cert.CRLDistributionPoints))
+		lastErr       error
+		crlURL        string
+		hasDeltaCRL   = hasDeltaCRL(cert)
 	)
 
 	// The CRLDistributionPoints contains the URIs of all the CRL distribution
@@ -105,7 +104,7 @@ func CertCheckStatus(ctx context.Context, cert, issuer *x509.Certificate, opts C
 			bundle *crl.Bundle
 			err    error
 		)
-		if !hasFreshestCRL {
+		if !hasDeltaCRL {
 			bundle, err = opts.Fetcher.Fetch(ctx, crlURL)
 			if err != nil {
 				lastErr = fmt.Errorf("failed to download CRL from %s: %w", crlURL, err)
@@ -178,8 +177,8 @@ func Supported(cert *x509.Certificate) bool {
 	return cert != nil && len(cert.CRLDistributionPoints) > 0
 }
 
-func hasFreshestCRL(extensions *[]pkix.Extension) bool {
-	for _, ext := range *extensions {
+func hasDeltaCRL(cert *x509.Certificate) bool {
+	for _, ext := range cert.Extensions {
 		if ext.Id.Equal(oidFreshestCRL) {
 			return true
 		}

@@ -102,8 +102,8 @@ func (f *HTTPFetcher) FetchWithCertificateExtensions(ctx context.Context, url st
 		bundle, err := f.Cache.Get(ctx, url)
 		if err == nil {
 			// check expiry of base CRL and delta CRL
-			if isEffective(bundle.BaseCRL.NextUpdate) &&
-				(bundle.DeltaCRL == nil || isEffective(bundle.DeltaCRL.NextUpdate)) {
+			if (bundle.BaseCRL != nil && isEffective(bundle.BaseCRL)) &&
+				(bundle.DeltaCRL == nil || isEffective(bundle.DeltaCRL)) {
 				return bundle, nil
 			}
 		} else if !errors.Is(err, ErrCacheMiss) && !f.DiscardCacheError {
@@ -126,8 +126,9 @@ func (f *HTTPFetcher) FetchWithCertificateExtensions(ctx context.Context, url st
 	return bundle, nil
 }
 
-func isEffective(nextUpdate time.Time) bool {
-	return !nextUpdate.IsZero() && !time.Now().After(nextUpdate)
+// isEffective checks if the CRL is effective by checking the NextUpdate time.
+func isEffective(crl *x509.RevocationList) bool {
+	return !crl.NextUpdate.IsZero() && !time.Now().After(crl.NextUpdate)
 }
 
 // fetch downloads the CRL from the given URL.
