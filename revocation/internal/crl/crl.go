@@ -258,22 +258,20 @@ func validateCRL(crl *x509.RevocationList, issuer *x509.Certificate) error {
 }
 
 // checkRevocation checks if the certificate is revoked or not
-func checkRevocation(cert *x509.Certificate, bundle *crl.Bundle, signingTime time.Time, crlURL string) (*result.ServerResult, error) {
+func checkRevocation(cert *x509.Certificate, b *crl.Bundle, signingTime time.Time, crlURL string) (*result.ServerResult, error) {
 	if cert == nil {
 		return nil, errors.New("certificate cannot be nil")
 	}
-	if bundle == nil {
+	if b == nil {
 		return nil, errors.New("CRL bundle cannot be nil")
 	}
-	baseCRL := bundle.BaseCRL
-	if baseCRL == nil {
+	if b.BaseCRL == nil {
 		return nil, errors.New("baseCRL cannot be nil")
 	}
 
-	deltaCRL := bundle.DeltaCRL
-	entriesArray := []*[]x509.RevocationListEntry{&baseCRL.RevokedCertificateEntries}
-	if deltaCRL != nil {
-		entriesArray = append(entriesArray, &deltaCRL.RevokedCertificateEntries)
+	entriesArray := []*[]x509.RevocationListEntry{&b.BaseCRL.RevokedCertificateEntries}
+	if b.DeltaCRL != nil {
+		entriesArray = append(entriesArray, &b.DeltaCRL.RevokedCertificateEntries)
 	}
 
 	// latestTempRevokedEntry contains the most recent revocation entry with
@@ -306,7 +304,7 @@ func checkRevocation(cert *x509.Certificate, bundle *crl.Bundle, signingTime tim
 					// temporarily revoked or unrevoked
 					if latestTempRevokedEntry == nil || latestTempRevokedEntry.RevocationTime.Before(revocationEntry.RevocationTime) {
 						// the revocation status depends on the most recent reason
-						latestTempRevokedEntry = &baseCRL.RevokedCertificateEntries[i]
+						latestTempRevokedEntry = &(*entries)[i]
 					}
 				default:
 					// permanently revoked
