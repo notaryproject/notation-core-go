@@ -317,7 +317,7 @@ func TestValidate(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if err := validate(crl, issuerCert); err == nil {
+		if err := validateCRL(crl, issuerCert); err == nil {
 			t.Fatal("expected error")
 		}
 	})
@@ -327,7 +327,7 @@ func TestValidate(t *testing.T) {
 			NextUpdate: time.Now().Add(time.Hour),
 		}
 
-		if err := validate(crl, &x509.Certificate{}); err == nil {
+		if err := validateCRL(crl, &x509.Certificate{}); err == nil {
 			t.Fatal("expected error")
 		}
 	})
@@ -358,7 +358,7 @@ func TestValidate(t *testing.T) {
 			},
 		}
 
-		if err := validate(crl, issuerCert); err == nil {
+		if err := validateCRL(crl, issuerCert); err == nil {
 			t.Fatal("expected error")
 		}
 	})
@@ -387,7 +387,7 @@ func TestValidate(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if err := validate(crl, issuerCert); err != nil {
+		if err := validateCRL(crl, issuerCert); err != nil {
 			t.Fatal(err)
 		}
 	})

@@ -18,11 +18,14 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
 	"math/big"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -255,6 +258,51 @@ func TestFetch(t *testing.T) {
 			t.Errorf("Fetcher.Fetch() error = %v, want failed to store CRL to cache:", err)
 		}
 	})
+}
+
+func TestParseFreshestCRL(t *testing.T) {
+	certPath := "testdata/certificateWithDeltaCRL.cer"
+	certData, err := os.ReadFile(certPath)
+	if err != nil {
+		t.Fatalf("failed to read certificate: %v", err)
+	}
+
+	block, _ := pem.Decode(certData)
+	if block == nil {
+		t.Fatalf("failed to decode PEM block")
+	}
+
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		t.Fatalf("failed to parse certificate: %v", err)
+	}
+
+	var freshestCRLExtension pkix.Extension
+	found := false
+	for _, ext := range cert.Extensions {
+		if ext.Id.Equal([]int{2, 5, 29, 46}) { // id-ce-freshestCRL
+			freshestCRLExtension = ext
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		t.Fatalf("freshest CRL extension not found in certificate")
+	}
+
+	urls, err := parseFreshestCRL(freshestCRLExtension)
+	if err != nil {
+		t.Fatalf("failed to parse freshest CRL: %v", err)
+	}
+
+	if len(urls) != 1 {
+		t.Fatalf("expected 1 URL, got %d", len(urls))
+	}
+
+	if !strings.HasPrefix(urls[0], "http://localhost:80") {
+		t.Fatalf("unexpected URL: %s", urls[0])
+	}
 }
 
 func TestDownload(t *testing.T) {

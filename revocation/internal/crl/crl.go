@@ -21,10 +21,12 @@ import (
 	"encoding/asn1"
 	"errors"
 	"fmt"
+	"math/big"
 	"time"
 
 	"github.com/notaryproject/notation-core-go/revocation/crl"
 	"github.com/notaryproject/notation-core-go/revocation/result"
+	"golang.org/x/crypto/cryptobyte"
 )
 
 var (
@@ -35,6 +37,10 @@ var (
 	// oidIssuingDistributionPoint is the object identifier for the issuing
 	// distribution point CRL extension. (See RFC 5280, Section 5.2.5)
 	oidIssuingDistributionPoint = asn1.ObjectIdentifier{2, 5, 29, 28}
+
+	// oidDeltaCRLIndicator is the object identifier for the delta CRL indicator
+	// (See RFC 5280, Section 5.2.4)
+	oidDeltaCRLIndicator = asn1.ObjectIdentifier{2, 5, 29, 27}
 
 	// oidInvalidityDate is the object identifier for the invalidity date
 	// CRL entry extension. (See RFC 5280, Section 5.3.2)
@@ -123,15 +129,9 @@ func CertCheckStatus(ctx context.Context, cert, issuer *x509.Certificate, opts C
 			}
 		}
 
-		if err = validate(bundle.BaseCRL, issuer); err != nil {
+		if err = validate(bundle, issuer); err != nil {
 			lastErr = fmt.Errorf("failed to validate CRL from %s: %w", crlURL, err)
 			break
-		}
-		if bundle.DeltaCRL != nil {
-			if err = validate(bundle.DeltaCRL, issuer); err != nil {
-				lastErr = fmt.Errorf("failed to validate delta CRL from %s: %w", crlURL, err)
-				break
-			}
 		}
 
 		crlResult, err := checkRevocation(cert, bundle, opts.SigningTime, crlURL)
@@ -186,7 +186,46 @@ func hasDeltaCRL(cert *x509.Certificate) bool {
 	return false
 }
 
-func validate(crl *x509.RevocationList, issuer *x509.Certificate) error {
+func validate(bundle *crl.Bundle, issuer *x509.Certificate) error {
+	// validate base CRL
+	baseCRL := bundle.BaseCRL
+	if err := validateCRL(baseCRL, issuer); err != nil {
+		return err
+	}
+
+	if bundle.DeltaCRL != nil {
+		// validate delta CRL
+		// RFC 5280, Section 5.2.4
+		deltaCRL := bundle.DeltaCRL
+		if err := validateCRL(bundle.DeltaCRL, issuer); err != nil {
+			return err
+		}
+
+		if deltaCRL.Number.Cmp(baseCRL.Number) <= 0 {
+			return fmt.Errorf("delta CRL number %d is not greater than the base CRL number %d", deltaCRL.Number, baseCRL.Number)
+		}
+		// check delta CRL indicator extension
+		var minimumBaseCRLNumber *big.Int
+		for _, ext := range deltaCRL.Extensions {
+			if ext.Id.Equal(oidDeltaCRLIndicator) {
+				minimumBaseCRLNumber = new(big.Int)
+				value := cryptobyte.String(ext.Value)
+				if !value.ReadASN1Integer(minimumBaseCRLNumber) {
+					return errors.New("failed to parse delta CRL indicator extension")
+				}
+			}
+		}
+		if minimumBaseCRLNumber == nil {
+			return errors.New("delta CRL indicator extension is not found")
+		}
+		if minimumBaseCRLNumber.Cmp(baseCRL.Number) > 0 {
+			return fmt.Errorf("delta CRL indicator %d is not less than or equal to the base CRL number %d", minimumBaseCRLNumber, baseCRL.Number)
+		}
+	}
+	return nil
+}
+
+func validateCRL(crl *x509.RevocationList, issuer *x509.Certificate) error {
 	// check signature
 	if err := crl.CheckSignatureFrom(issuer); err != nil {
 		return fmt.Errorf("CRL is not signed by CA %s: %w,", issuer.Subject, err)
