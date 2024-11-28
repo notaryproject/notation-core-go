@@ -261,48 +261,209 @@ func TestFetch(t *testing.T) {
 }
 
 func TestParseFreshestCRL(t *testing.T) {
-	certPath := "testdata/certificateWithDeltaCRL.cer"
-	certData, err := os.ReadFile(certPath)
-	if err != nil {
-		t.Fatalf("failed to read certificate: %v", err)
-	}
-
-	block, _ := pem.Decode(certData)
-	if block == nil {
-		t.Fatalf("failed to decode PEM block")
-	}
-
-	cert, err := x509.ParseCertificate(block.Bytes)
-	if err != nil {
-		t.Fatalf("failed to parse certificate: %v", err)
-	}
-
-	var freshestCRLExtension pkix.Extension
-	found := false
-	for _, ext := range cert.Extensions {
-		if ext.Id.Equal([]int{2, 5, 29, 46}) { // id-ce-freshestCRL
-			freshestCRLExtension = ext
-			found = true
-			break
+	loadExtentsion := func(certPath string) pkix.Extension {
+		certData, err := os.ReadFile(certPath)
+		if err != nil {
+			t.Fatalf("failed to read certificate: %v", err)
 		}
+
+		block, _ := pem.Decode(certData)
+		if block == nil {
+			t.Fatalf("failed to decode PEM block")
+		}
+
+		cert, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			t.Fatalf("failed to parse certificate: %v", err)
+		}
+
+		for _, ext := range cert.Extensions {
+			if ext.Id.Equal([]int{2, 5, 29, 46}) { // id-ce-freshestCRL
+				return ext
+			}
+		}
+
+		t.Fatalf("freshestCRL extension not found")
+		return pkix.Extension{}
 	}
 
-	if !found {
-		t.Fatalf("freshest CRL extension not found in certificate")
+	t.Run("valid 1 delta CRL URL", func(t *testing.T) {
+		certPath := "testdata/certificateWithDeltaCRL.cer"
+		freshestCRLExtension := loadExtentsion(certPath)
+		urls, err := parseFreshestCRL(freshestCRLExtension)
+		if err != nil {
+			t.Fatalf("failed to parse freshest CRL: %v", err)
+		}
+
+		if len(urls) != 1 {
+			t.Fatalf("expected 1 URL, got %d", len(urls))
+		}
+
+		if !strings.HasPrefix(urls[0], "http://localhost:80") {
+			t.Fatalf("unexpected URL: %s", urls[0])
+		}
+	})
+
+	t.Run("empty extension", func(t *testing.T) {
+		_, err := parseFreshestCRL(pkix.Extension{})
+		if err == nil {
+			t.Fatalf("expected error")
+		}
+	})
+
+	t.Run("URL doesn't exist", func(t *testing.T) {
+		certPath := "testdata/certificateWithZeroDeltaCRLURL.cer"
+		freshestCRLExtension := loadExtentsion(certPath)
+		url, err := parseFreshestCRL(freshestCRLExtension)
+		if err != nil {
+			t.Fatalf("failed to parse freshest CRL: %v", err)
+		}
+		if len(url) != 0 {
+			t.Fatalf("expected 0 URL, got %d", len(url))
+		}
+	})
+
+	t.Run("non URI freshest CRL extension", func(t *testing.T) {
+		certPath := "testdata/certificateWithNonURIDeltaCRL.cer"
+		freshestCRLExtension := loadExtentsion(certPath)
+		url, err := parseFreshestCRL(freshestCRLExtension)
+		if err != nil {
+			t.Fatalf("failed to parse freshest CRL: %v", err)
+		}
+		if len(url) != 0 {
+			t.Fatalf("expected 0 URL, got %d", len(url))
+		}
+	})
+
+	t.Run("certificate with incomplete freshest CRL extension", func(t *testing.T) {
+		certPath := "testdata/certificateWithIncompleteFreshestCRL.cer"
+		freshestCRLExtension := loadExtentsion(certPath)
+		_, err := parseFreshestCRL(freshestCRLExtension)
+		expectErrorMsg := "x509: invalid CRL distribution point"
+		if err == nil || err.Error() != expectErrorMsg {
+			t.Fatalf("expected error %q, got %v", expectErrorMsg, err)
+		}
+	})
+
+	t.Run("certificate with incomplete freshest CRL extension2", func(t *testing.T) {
+		certPath := "testdata/certificateWithIncompleteFreshestCRL2.cer"
+		freshestCRLExtension := loadExtentsion(certPath)
+		url, err := parseFreshestCRL(freshestCRLExtension)
+		if err != nil {
+			t.Fatalf("failed to parse freshest CRL: %v", err)
+		}
+		if len(url) != 0 {
+			t.Fatalf("expected 0 URL, got %d", len(url))
+		}
+	})
+}
+
+func TestProcessDeltaCRL(t *testing.T) {
+	loadExtentsion := func(certPath string) *[]pkix.Extension {
+		certData, err := os.ReadFile(certPath)
+		if err != nil {
+			t.Fatalf("failed to read certificate: %v", err)
+		}
+
+		block, _ := pem.Decode(certData)
+		if block == nil {
+			t.Fatalf("failed to decode PEM block")
+		}
+
+		cert, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			t.Fatalf("failed to parse certificate: %v", err)
+		}
+
+		return &cert.Extensions
 	}
 
-	urls, err := parseFreshestCRL(freshestCRLExtension)
+	deltaCRL, err := os.ReadFile("testdata/delta.crl")
 	if err != nil {
-		t.Fatalf("failed to parse freshest CRL: %v", err)
+		t.Fatalf("failed to read delta CRL: %v", err)
 	}
 
-	if len(urls) != 1 {
-		t.Fatalf("expected 1 URL, got %d", len(urls))
+	fetcher, err := NewHTTPFetcher(&http.Client{
+		Transport: expectedRoundTripperMock{Body: deltaCRL},
+	})
+	if err != nil {
+		t.Fatalf("failed to create fetcher: %v", err)
 	}
 
-	if !strings.HasPrefix(urls[0], "http://localhost:80") {
-		t.Fatalf("unexpected URL: %s", urls[0])
+	t.Run("parse freshest CRL failed", func(t *testing.T) {
+		certPath := "testdata/certificateWithIncompleteFreshestCRL.cer"
+		extensions := loadExtentsion(certPath)
+		_, err := fetcher.processDeltaCRL(extensions)
+		expectedErrorMsg := "x509: invalid CRL distribution point"
+		if err == nil || err.Error() != expectedErrorMsg {
+			t.Fatalf("expected error %q, got %v", expectedErrorMsg, err)
+		}
+	})
+
+	t.Run("zero freshest CRL URL", func(t *testing.T) {
+		certPath := "testdata/certificateWithZeroDeltaCRLURL.cer"
+		extensions := loadExtentsion(certPath)
+		deltaCRL, err := fetcher.processDeltaCRL(extensions)
+		if err != nil {
+			t.Fatalf("failed to process delta CRL: %v", err)
+		}
+		if deltaCRL != nil {
+			t.Fatalf("expected nil delta CRL, got %v", deltaCRL)
+		}
+	})
+
+	t.Run("one freshest CRL URL", func(t *testing.T) {
+		certPath := "testdata/certificateWithDeltaCRL.cer"
+		extensions := loadExtentsion(certPath)
+		deltaCRL, err := fetcher.processDeltaCRL(extensions)
+		if err != nil {
+			t.Fatalf("failed to process delta CRL: %v", err)
+		}
+		if deltaCRL == nil {
+			t.Fatalf("expected non-nil delta CRL")
+		}
+	})
+
+	t.Run("multiple freshest CRL URLs", func(t *testing.T) {
+		certPath := "testdata/certificateWith2DeltaCRL.cer"
+		extensions := loadExtentsion(certPath)
+		_, err := fetcher.processDeltaCRL(extensions)
+		expectedErrorMsg := "multiple Freshest CRL distribution points are not supported"
+		if err == nil || err.Error() != expectedErrorMsg {
+			t.Fatalf("expected error %q, got %v", expectedErrorMsg, err)
+		}
+	})
+
+	t.Run("process delta crl from certificate extension failed", func(t *testing.T) {
+		certPath := "testdata/certificateWithIncompleteFreshestCRL.cer"
+		extensions := loadExtentsion(certPath)
+		_, err := fetcher.fetch(context.Background(), "http://localhost.test", extensions)
+		expectedErrorMsg := "x509: invalid CRL distribution point"
+		if err == nil || err.Error() != expectedErrorMsg {
+			t.Fatalf("expected error %q, got %v", expectedErrorMsg, err)
+		}
+	})
+
+	crlFile, err := os.ReadFile("testdata/crlWithMultipleFreshestCRLs.crl")
+	if err != nil {
+		t.Fatalf("failed to read CRL file: %v", err)
 	}
+	fetcher, err = NewHTTPFetcher(&http.Client{
+		Transport: expectedRoundTripperMock{Body: crlFile},
+	})
+	if err != nil {
+		t.Fatalf("failed to create fetcher: %v", err)
+	}
+
+	t.Run("fetch delta CRL from CRL failed", func(t *testing.T) {
+		certPath := "testdata/certificateWithDeltaCRL.cer"
+		extensions := loadExtentsion(certPath)
+		_, err := fetcher.fetch(context.Background(), "http://localhost.test", extensions)
+		expectErrorMsg := "multiple Freshest CRL distribution points are not supported"
+		if err == nil || err.Error() != expectErrorMsg {
+			t.Fatalf("expected error %q, got %v", expectErrorMsg, err)
+		}
+	})
 }
 
 func TestDownload(t *testing.T) {
