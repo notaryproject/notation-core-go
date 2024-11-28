@@ -394,7 +394,7 @@ func TestProcessDeltaCRL(t *testing.T) {
 		certPath := "testdata/certificateWithIncompleteFreshestCRL.cer"
 		extensions := loadExtentsion(certPath)
 		_, err := fetcher.processDeltaCRL(extensions)
-		expectedErrorMsg := "x509: invalid CRL distribution point"
+		expectedErrorMsg := "failed to parse Freshest CRL extension: x509: invalid CRL distribution point"
 		if err == nil || err.Error() != expectedErrorMsg {
 			t.Fatalf("expected error %q, got %v", expectedErrorMsg, err)
 		}
@@ -438,7 +438,7 @@ func TestProcessDeltaCRL(t *testing.T) {
 		certPath := "testdata/certificateWithIncompleteFreshestCRL.cer"
 		extensions := loadExtentsion(certPath)
 		_, err := fetcher.fetch(context.Background(), "http://localhost.test", extensions)
-		expectedErrorMsg := "x509: invalid CRL distribution point"
+		expectedErrorMsg := "failed to parse Freshest CRL extension: x509: invalid CRL distribution point"
 		if err == nil || err.Error() != expectedErrorMsg {
 			t.Fatalf("expected error %q, got %v", expectedErrorMsg, err)
 		}

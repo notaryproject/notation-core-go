@@ -190,15 +190,15 @@ func validate(bundle *crl.Bundle, issuer *x509.Certificate) error {
 	// validate base CRL
 	baseCRL := bundle.BaseCRL
 	if err := validateCRL(baseCRL, issuer); err != nil {
-		return err
+		return fmt.Errorf("failed to validate base CRL: %w", err)
 	}
 
 	if bundle.DeltaCRL != nil {
 		// validate delta CRL
 		// RFC 5280, Section 5.2.4
 		deltaCRL := bundle.DeltaCRL
-		if err := validateCRL(bundle.DeltaCRL, issuer); err != nil {
-			return err
+		if err := validateCRL(deltaCRL, issuer); err != nil {
+			return fmt.Errorf("failed to validate delta CRL: %w", err)
 		}
 
 		if deltaCRL.Number.Cmp(baseCRL.Number) <= 0 {
@@ -213,6 +213,7 @@ func validate(bundle *crl.Bundle, issuer *x509.Certificate) error {
 				if !value.ReadASN1Integer(minimumBaseCRLNumber) {
 					return errors.New("failed to parse delta CRL indicator extension")
 				}
+				break
 			}
 		}
 		if minimumBaseCRLNumber == nil {
@@ -246,6 +247,8 @@ func validateCRL(crl *x509.RevocationList, issuer *x509.Certificate) error {
 			// IssuingDistributionPoint is a critical extension that identifies
 			// the scope of the CRL. Since we will check all the CRL
 			// distribution points, it is not necessary to check this extension.
+		case ext.Id.Equal(oidDeltaCRLIndicator):
+			// will be checked in validate()
 		default:
 			if ext.Critical {
 				// unsupported critical extensions is not allowed. (See RFC 5280, Section 5.2)
@@ -269,9 +272,9 @@ func checkRevocation(cert *x509.Certificate, b *crl.Bundle, signingTime time.Tim
 		return nil, errors.New("baseCRL cannot be nil")
 	}
 
-	entriesArray := []*[]x509.RevocationListEntry{&b.BaseCRL.RevokedCertificateEntries}
+	entriesBundle := []*[]x509.RevocationListEntry{&b.BaseCRL.RevokedCertificateEntries}
 	if b.DeltaCRL != nil {
-		entriesArray = append(entriesArray, &b.DeltaCRL.RevokedCertificateEntries)
+		entriesBundle = append(entriesBundle, &b.DeltaCRL.RevokedCertificateEntries)
 	}
 
 	// latestTempRevokedEntry contains the most recent revocation entry with
@@ -283,7 +286,7 @@ func checkRevocation(cert *x509.Certificate, b *crl.Bundle, signingTime time.Tim
 	var latestTempRevokedEntry *x509.RevocationListEntry
 
 	// iterate over all the entries in the base and delta CRLs
-	for _, entries := range entriesArray {
+	for _, entries := range entriesBundle {
 		for i, revocationEntry := range *entries {
 			if revocationEntry.SerialNumber.Cmp(cert.SerialNumber) == 0 {
 				extensions, err := parseEntryExtensions(revocationEntry)

@@ -163,7 +163,7 @@ func (f *HTTPFetcher) processDeltaCRL(extensions *[]pkix.Extension) (*x509.Revoc
 		if ext.Id.Equal(oidFreshestCRL) {
 			cdp, err := parseFreshestCRL(ext)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("failed to parse Freshest CRL extension: %w", err)
 			}
 			if len(cdp) == 0 {
 				return nil, nil
