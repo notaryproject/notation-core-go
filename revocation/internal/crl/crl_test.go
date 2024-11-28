@@ -296,6 +296,74 @@ func TestCertCheckStatus(t *testing.T) {
 			t.Fatalf("expected OK, got %s", r.Result)
 		}
 	})
+
+	t.Run("certificate with invalid freshest crl extension", func(t *testing.T) {
+		chain[0].Cert.Extensions = []pkix.Extension{
+			{
+				Id:    oidFreshestCRL,
+				Value: []byte("invalid"),
+			},
+		}
+
+		crlBytes, err := x509.CreateRevocationList(rand.Reader, &x509.RevocationList{
+			NextUpdate: time.Now().Add(time.Hour),
+			Number:     big.NewInt(20240720),
+		}, issuerCert, issuerKey)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		fetcher, err := crlutils.NewHTTPFetcher(
+			&http.Client{Transport: expectedRoundTripperMock{Body: crlBytes}},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		fetcher.DiscardCacheError = true
+		r := CertCheckStatus(context.Background(), chain[0].Cert, issuerCert, CertCheckStatusOptions{
+			Fetcher: fetcher,
+		})
+		if r.Result != result.ResultUnknown {
+			t.Fatalf("expected Unknown, got %s", r.Result)
+		}
+		expectedErrorMsg := "failed to download CRL from http://localhost.test: failed to retrieve CRL: failed to parse Freshest CRL extension: x509: invalid CRL distribution points"
+		if r.ServerResults[0].Error == nil || r.ServerResults[0].Error.Error() != expectedErrorMsg {
+			t.Fatalf("expected error %q, got %v", expectedErrorMsg, r.ServerResults[0].Error)
+		}
+	})
+
+	t.Run("fetcher doesn't support delta CRL", func(t *testing.T) {
+		chain[0].Cert.CRLDistributionPoints = []string{"http://localhost.test"}
+		chain[0].Cert.Extensions = []pkix.Extension{
+			{
+				Id:    oidFreshestCRL,
+				Value: []byte{0x00},
+			},
+		}
+
+		fetcher := &fetcherMock{}
+		if err != nil {
+			t.Fatal(err)
+		}
+		r := CertCheckStatus(context.Background(), chain[0].Cert, issuerCert, CertCheckStatusOptions{
+			Fetcher: fetcher,
+		})
+		if r.Result != result.ResultUnknown {
+			t.Fatalf("expected Unknown, got %s", r.Result)
+		}
+
+		expectedErrorMsg := "fetcher does not support fetching delta CRL from certificate extension"
+		if r.ServerResults[0].Error == nil || r.ServerResults[0].Error.Error() != expectedErrorMsg {
+			t.Fatalf("expected error %q, got %v", expectedErrorMsg, r.ServerResults[0].Error)
+		}
+	})
+
+}
+
+type fetcherMock struct{}
+
+func (f *fetcherMock) Fetch(ctx context.Context, url string) (*crlutils.Bundle, error) {
+	return nil, fmt.Errorf("fetch error")
 }
 
 func TestValidate(t *testing.T) {
@@ -613,6 +681,14 @@ func TestCheckRevocation(t *testing.T) {
 		}
 	})
 
+	t.Run("bundle is nil", func(t *testing.T) {
+		_, err := checkRevocation(cert, nil, signingTime, "")
+		expectedErrorMsg := "CRL bundle cannot be nil"
+		if err == nil || err.Error() != expectedErrorMsg {
+			t.Fatalf("expected error %q, got %v", expectedErrorMsg, err)
+		}
+	})
+
 	t.Run("CRL is nil", func(t *testing.T) {
 		_, err := checkRevocation(cert, &crlutils.Bundle{}, signingTime, "")
 		if err == nil {
@@ -758,6 +834,86 @@ func TestCheckRevocation(t *testing.T) {
 			t.Fatal("expected error")
 		}
 	})
+
+	t.Run("delta crl with certificate hold", func(t *testing.T) {
+		baseCRL := &x509.RevocationList{}
+		deltaCRL := &x509.RevocationList{
+			RevokedCertificateEntries: []x509.RevocationListEntry{
+				{
+					SerialNumber: big.NewInt(1),
+					ReasonCode:   reasonCodeCertificateHold,
+				},
+			},
+		}
+		r, err := checkRevocation(cert, &crlutils.Bundle{BaseCRL: baseCRL, DeltaCRL: deltaCRL}, signingTime, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if r.Result != result.ResultRevoked {
+			t.Fatalf("expected revoked, got %s", r.Result)
+		}
+	})
+
+	t.Run("certificate hold and remove hold", func(t *testing.T) {
+		baseCRL := &x509.RevocationList{
+			RevokedCertificateEntries: []x509.RevocationListEntry{
+				{
+					SerialNumber:   big.NewInt(1),
+					ReasonCode:     reasonCodeCertificateHold,
+					RevocationTime: time.Now().Add(-time.Hour),
+				},
+			},
+		}
+		deltaCRL := &x509.RevocationList{
+			RevokedCertificateEntries: []x509.RevocationListEntry{
+				{
+					SerialNumber:   big.NewInt(1),
+					ReasonCode:     reasonCodeRemoveFromCRL,
+					RevocationTime: time.Now(),
+				},
+			},
+		}
+		r, err := checkRevocation(cert, &crlutils.Bundle{BaseCRL: baseCRL, DeltaCRL: deltaCRL}, signingTime, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if r.Result != result.ResultOK {
+			t.Fatalf("expected OK, got %s", r.Result)
+		}
+	})
+
+	t.Run("certificate hold, remove hold and hold again", func(t *testing.T) {
+		baseCRL := &x509.RevocationList{
+			RevokedCertificateEntries: []x509.RevocationListEntry{
+				{
+					SerialNumber:   big.NewInt(1),
+					ReasonCode:     reasonCodeCertificateHold,
+					RevocationTime: time.Now().Add(-2 * time.Hour),
+				},
+			},
+		}
+		deltaCRL := &x509.RevocationList{
+			RevokedCertificateEntries: []x509.RevocationListEntry{
+				{
+					SerialNumber:   big.NewInt(1),
+					ReasonCode:     reasonCodeRemoveFromCRL,
+					RevocationTime: time.Now().Add(-time.Hour),
+				},
+				{
+					SerialNumber:   big.NewInt(1),
+					ReasonCode:     reasonCodeCertificateHold,
+					RevocationTime: time.Now(),
+				},
+			},
+		}
+		r, err := checkRevocation(cert, &crlutils.Bundle{BaseCRL: baseCRL, DeltaCRL: deltaCRL}, signingTime, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if r.Result != result.ResultRevoked {
+			t.Fatalf("expected revoked, got %s", r.Result)
+		}
+	})
 }
 
 func TestParseEntryExtension(t *testing.T) {
@@ -881,6 +1037,19 @@ func TestSupported(t *testing.T) {
 			t.Fatal("expected unsupported")
 		}
 	})
+}
+
+func TestHasDeltaCRL(t *testing.T) {
+	cert := &x509.Certificate{
+		Extensions: []pkix.Extension{
+			{
+				Id: oidFreshestCRL,
+			},
+		},
+	}
+	if !hasDeltaCRL(cert) {
+		t.Fatal("expected has delta CRL")
+	}
 }
 
 type errorRoundTripperMock struct{}
