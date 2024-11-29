@@ -34,7 +34,7 @@ import (
 const (
 	payloadString = "{\"targetArtifact\":{\"mediaType\":\"application/vnd.oci.image.manifest.v1+json\",\"digest\":\"sha256:73c803930ea3ba1e54bc25c2bdc53edd0284c62ed651fe7b00369da519a3c333\",\"size\":16724,\"annotations\":{\"io.wabbit-networks.buildId\":\"123\"}}}"
 
-	rfc3161TSAurl = "http://rfc3161timestamp.globalsign.com/advanced"
+	rfc3161TSAurl = "http://timestamp.digicert.com"
 )
 
 var (
@@ -129,7 +129,7 @@ func TestSign(t *testing.T) {
 		}
 	}
 
-	t.Run("with timestmap countersignature request", func(t *testing.T) {
+	t.Run("with timestamp countersignature request", func(t *testing.T) {
 		signRequest, err := newSignRequest("notary.x509", signature.KeyTypeRSA, 3072)
 		if err != nil {
 			t.Fatalf("newSignRequest() failed. Error = %s", err)
@@ -138,7 +138,7 @@ func TestSign(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		rootCerts, err := nx509.ReadCertificateFile("../../internal/timestamp/testdata/tsaRootCert.crt")
+		rootCerts, err := nx509.ReadCertificateFile("../../internal/timestamp/testdata/tsaRootCert.cer")
 		if err != nil || len(rootCerts) == 0 {
 			t.Fatal("failed to read root CA certificate:", err)
 		}

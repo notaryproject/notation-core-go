@@ -37,7 +37,7 @@ import (
 	"github.com/notaryproject/tspclient-go"
 )
 
-const rfc3161TSAurl = "http://rfc3161timestamp.globalsign.com/advanced"
+const rfc3161TSAurl = "http://timestamp.digicert.com"
 
 // remoteMockSigner is used to mock remote signer
 type remoteMockSigner struct {
@@ -341,7 +341,7 @@ func TestSignWithTimestamp(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rootCerts, err := nx509.ReadCertificateFile("../../internal/timestamp/testdata/tsaRootCert.crt")
+	rootCerts, err := nx509.ReadCertificateFile("../../internal/timestamp/testdata/tsaRootCert.cer")
 	if err != nil || len(rootCerts) == 0 {
 		t.Fatal("failed to read root CA certificate:", err)
 	}
