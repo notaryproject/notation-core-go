@@ -62,19 +62,19 @@ func Timestamp(req *signature.SignRequest, opts tspclient.RequestOptions) ([]byt
 			CertChain: tsaCertChain,
 		})
 		if err != nil {
-			return nil, fmt.Errorf("after timestamping: failed to check timestamping certificate chain revocation with error: %w", err)
+			return nil, fmt.Errorf("failed to validate the revocation status of timestamping certificate chain with error: %w", err)
 		}
-		if err := revocationFinalResult(certResults, tsaCertChain); err != nil {
-			return nil, fmt.Errorf("after timestamping: %w", err)
+		if err := revocationResult(certResults, tsaCertChain); err != nil {
+			return nil, err
 		}
 	}
 	return resp.TimestampToken.FullBytes, nil
 }
 
-// revocationFinalResult returns an error if any cert in the cert chain has
+// revocationResult returns an error if any cert in the cert chain has
 // a revocation status other than ResultOK or ResultNonRevokable.
 // When ResultRevoked presents, always return the revoked error.
-func revocationFinalResult(certResults []*result.CertRevocationResult, certChain []*x509.Certificate) error {
+func revocationResult(certResults []*result.CertRevocationResult, certChain []*x509.Certificate) error {
 	//sanity check
 	if len(certResults) == 0 {
 		return errors.New("certificate revocation result cannot be empty")

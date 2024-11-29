@@ -146,7 +146,7 @@ func TestTimestamp(t *testing.T) {
 			Content:       []byte("notation"),
 			HashAlgorithm: crypto.SHA256,
 		}
-		expectedErr := "after timestamping: failed to check timestamping certificate chain revocation with error: failed in ValidateContext"
+		expectedErr := "failed to validate the revocation status of timestamping certificate chain with error: failed in ValidateContext"
 		_, err = Timestamp(req, opts)
 		assertErrorEqual(expectedErr, err, t)
 	})
@@ -167,14 +167,14 @@ func TestTimestamp(t *testing.T) {
 			Content:       []byte("notation"),
 			HashAlgorithm: crypto.SHA256,
 		}
-		expectedErr := `after timestamping: timestamping certificate with subject "CN=DigiCert Timestamp 2024,O=DigiCert,C=US" is revoked`
+		expectedErr := `timestamping certificate with subject "CN=DigiCert Timestamp 2024,O=DigiCert,C=US" is revoked`
 		_, err = Timestamp(req, opts)
 		assertErrorEqual(expectedErr, err, t)
 	})
 
 }
 
-func TestRevocationFinalResult(t *testing.T) {
+func TestRevocationResult(t *testing.T) {
 	certResult := []*result.CertRevocationResult{
 		{
 			// update leaf cert result in each sub-test
@@ -211,7 +211,7 @@ func TestRevocationFinalResult(t *testing.T) {
 				},
 			},
 		}
-		err := revocationFinalResult(certResult, certChain)
+		err := revocationResult(certResult, certChain)
 		assertErrorEqual(`timestamping certificate with subject "CN=leafCert" revocation status is unknown`, err, t)
 	})
 
@@ -231,7 +231,7 @@ func TestRevocationFinalResult(t *testing.T) {
 			},
 			RevocationMethod: result.RevocationMethodOCSPFallbackCRL,
 		}
-		if err := revocationFinalResult(certResult, certChain); err != nil {
+		if err := revocationResult(certResult, certChain); err != nil {
 			t.Fatal(err)
 		}
 	})
@@ -253,7 +253,7 @@ func TestRevocationFinalResult(t *testing.T) {
 			},
 			RevocationMethod: result.RevocationMethodOCSPFallbackCRL,
 		}
-		err := revocationFinalResult(certResult, certChain)
+		err := revocationResult(certResult, certChain)
 		assertErrorEqual(`timestamping certificate with subject "CN=leafCert" revocation status is unknown`, err, t)
 	})
 
@@ -268,7 +268,7 @@ func TestRevocationFinalResult(t *testing.T) {
 				},
 			},
 		}
-		err := revocationFinalResult(certResult, certChain)
+		err := revocationResult(certResult, certChain)
 		assertErrorEqual(`timestamping certificate with subject "CN=leafCert" is revoked`, err, t)
 	})
 
@@ -283,17 +283,17 @@ func TestRevocationFinalResult(t *testing.T) {
 				},
 			},
 		}
-		err := revocationFinalResult(certResult, certChain)
+		err := revocationResult(certResult, certChain)
 		assertErrorEqual(`timestamping certificate with subject "CN=leafCert" revocation status is unknown`, err, t)
 	})
 
 	t.Run("empty cert result", func(t *testing.T) {
-		err := revocationFinalResult([]*result.CertRevocationResult{}, certChain)
+		err := revocationResult([]*result.CertRevocationResult{}, certChain)
 		assertErrorEqual("certificate revocation result cannot be empty", err, t)
 	})
 
 	t.Run("cert result length does not equal to cert chain", func(t *testing.T) {
-		err := revocationFinalResult([]*result.CertRevocationResult{
+		err := revocationResult([]*result.CertRevocationResult{
 			certResult[1],
 		}, certChain)
 		assertErrorEqual("length of certificate revocation result 1 does not match length of the certificate chain 2", err, t)
