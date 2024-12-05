@@ -120,10 +120,10 @@ func CertCheckStatus(ctx context.Context, cert, issuer *x509.Certificate, opts C
 		if hasFreshestCRLInCertificate && bundle.DeltaCRL == nil {
 			// deltaCRL URL in cert        deltaCRL URL in baseCRL support it?
 			// --------------------------- ----------------------- ---------
-			//        True						True                 Yes
-			//        True						False                No
-			//        False					    True                 Yes
-			//        False					    False                Yes
+			//        True                      True                 Yes
+			//        True                      False                No
+			//        False                     True                 Yes
+			//        False                     False                Yes
 			//
 			// if only the certificate has the freshest CRL, the bundle.DeltaCRL
 			// should be nil. We don't support this case now because the delta
