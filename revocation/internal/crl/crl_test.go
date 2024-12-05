@@ -297,11 +297,10 @@ func TestCertCheckStatus(t *testing.T) {
 		}
 	})
 
-	t.Run("certificate with invalid freshest crl extension", func(t *testing.T) {
+	t.Run("freshest CRL from certificate extension is not supported", func(t *testing.T) {
 		chain[0].Cert.Extensions = []pkix.Extension{
 			{
-				Id:    oidFreshestCRL,
-				Value: []byte("invalid"),
+				Id: oidFreshestCRL,
 			},
 		}
 
@@ -326,38 +325,11 @@ func TestCertCheckStatus(t *testing.T) {
 		if r.Result != result.ResultUnknown {
 			t.Fatalf("expected Unknown, got %s", r.Result)
 		}
-		expectedErrorMsg := "failed to download CRL from http://localhost.test: failed to retrieve CRL: failed to parse Freshest CRL extension: x509: invalid CRL distribution points"
+		expectedErrorMsg := "freshest CRL from certificate extension is not supported"
 		if r.ServerResults[0].Error == nil || r.ServerResults[0].Error.Error() != expectedErrorMsg {
 			t.Fatalf("expected error %q, got %v", expectedErrorMsg, r.ServerResults[0].Error)
 		}
 	})
-
-	t.Run("fetcher doesn't support delta CRL", func(t *testing.T) {
-		chain[0].Cert.CRLDistributionPoints = []string{"http://localhost.test"}
-		chain[0].Cert.Extensions = []pkix.Extension{
-			{
-				Id:    oidFreshestCRL,
-				Value: []byte{0x00},
-			},
-		}
-
-		fetcher := &fetcherMock{}
-		if err != nil {
-			t.Fatal(err)
-		}
-		r := CertCheckStatus(context.Background(), chain[0].Cert, issuerCert, CertCheckStatusOptions{
-			Fetcher: fetcher,
-		})
-		if r.Result != result.ResultUnknown {
-			t.Fatalf("expected Unknown, got %s", r.Result)
-		}
-
-		expectedErrorMsg := "fetcher does not support fetching delta CRL from certificate extension"
-		if r.ServerResults[0].Error == nil || r.ServerResults[0].Error.Error() != expectedErrorMsg {
-			t.Fatalf("expected error %q, got %v", expectedErrorMsg, r.ServerResults[0].Error)
-		}
-	})
-
 }
 
 type fetcherMock struct{}
@@ -1047,7 +1019,7 @@ func TestHasDeltaCRL(t *testing.T) {
 			},
 		},
 	}
-	if !hasDeltaCRL(cert) {
+	if !hasFreshestCRL(&cert.Extensions) {
 		t.Fatal("expected has delta CRL")
 	}
 }

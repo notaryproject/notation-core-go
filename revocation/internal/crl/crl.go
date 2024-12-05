@@ -18,6 +18,7 @@ package crl
 import (
 	"context"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/asn1"
 	"errors"
 	"fmt"
@@ -92,10 +93,10 @@ func CertCheckStatus(ctx context.Context, cert, issuer *x509.Certificate, opts C
 	}
 
 	var (
-		serverResults = make([]*result.ServerResult, 0, len(cert.CRLDistributionPoints))
-		lastErr       error
-		crlURL        string
-		hasDeltaCRL   = hasDeltaCRL(cert)
+		serverResults               = make([]*result.ServerResult, 0, len(cert.CRLDistributionPoints))
+		lastErr                     error
+		crlURL                      string
+		hasFreshestCRLInCertificate = hasFreshestCRL(&cert.Extensions)
 	)
 
 	// The CRLDistributionPoints contains the URIs of all the CRL distribution
@@ -110,23 +111,26 @@ func CertCheckStatus(ctx context.Context, cert, issuer *x509.Certificate, opts C
 			bundle *crl.Bundle
 			err    error
 		)
-		if !hasDeltaCRL {
-			bundle, err = opts.Fetcher.Fetch(ctx, crlURL)
-			if err != nil {
-				lastErr = fmt.Errorf("failed to download CRL from %s: %w", crlURL, err)
-				break
-			}
-		} else {
-			fetcher, ok := opts.Fetcher.(crl.FetcherWithCertificateExtensions)
-			if !ok {
-				lastErr = fmt.Errorf("fetcher does not support fetching delta CRL from certificate extension")
-				break
-			}
-			bundle, err = fetcher.FetchWithCertificateExtensions(ctx, crlURL, &cert.Extensions)
-			if err != nil {
-				lastErr = fmt.Errorf("failed to download CRL from %s: %w", crlURL, err)
-				break
-			}
+		bundle, err = opts.Fetcher.Fetch(ctx, crlURL)
+		if err != nil {
+			lastErr = fmt.Errorf("failed to download CRL from %s: %w", crlURL, err)
+			break
+		}
+
+		if hasFreshestCRLInCertificate && bundle.DeltaCRL == nil {
+			// deltaCRL URL in cert        deltaCRL URL in baseCRL support it?
+			// --------------------------- ----------------------- ---------
+			//        True						True                 Yes
+			//        True						False                No
+			//        False					    True                 Yes
+			//        False					    False                Yes
+			//
+			// if only the certificate has the freshest CRL, the bundle.DeltaCRL
+			// should be nil. We don't support this case now because the delta
+			// CRLs may have different scopes, but the Go built-in function
+			// skips the scope of the base CRL when parsing the certificate.
+			lastErr = errors.New("freshest CRL from certificate extension is not supported")
+			break
 		}
 
 		if err = validate(bundle, issuer); err != nil {
@@ -177,8 +181,8 @@ func Supported(cert *x509.Certificate) bool {
 	return cert != nil && len(cert.CRLDistributionPoints) > 0
 }
 
-func hasDeltaCRL(cert *x509.Certificate) bool {
-	for _, ext := range cert.Extensions {
+func hasFreshestCRL(extensions *[]pkix.Extension) bool {
+	for _, ext := range *extensions {
 		if ext.Id.Equal(oidFreshestCRL) {
 			return true
 		}

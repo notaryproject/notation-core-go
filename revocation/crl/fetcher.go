@@ -48,15 +48,6 @@ type Fetcher interface {
 	Fetch(ctx context.Context, url string) (*Bundle, error)
 }
 
-// FetcherWithCertificateExtensions is an interface that specifies methods used
-// for fetching CRL from the given URL with certificate extensions to identify
-// the Freshest CRL extension (Delta CRL) from certificate.
-type FetcherWithCertificateExtensions interface {
-	// FetchWithCertificateExtensions retrieves the CRL from the given URL with
-	// certificate extensions.
-	FetchWithCertificateExtensions(ctx context.Context, url string, certificateExtensions *[]pkix.Extension) (*Bundle, error)
-}
-
 // HTTPFetcher is a Fetcher implementation that fetches CRL from the given URL
 type HTTPFetcher struct {
 	// Cache stores fetched CRLs and reuses them until the CRL reaches the
@@ -90,10 +81,6 @@ func NewHTTPFetcher(httpClient *http.Client) (*HTTPFetcher, error) {
 // (e.g. cache miss), it will download the CRL from the URL and store it to the
 // cache.
 func (f *HTTPFetcher) Fetch(ctx context.Context, url string) (*Bundle, error) {
-	return f.FetchWithCertificateExtensions(ctx, url, nil)
-}
-
-func (f *HTTPFetcher) FetchWithCertificateExtensions(ctx context.Context, url string, certificateExtensions *[]pkix.Extension) (*Bundle, error) {
 	if url == "" {
 		return nil, errors.New("CRL URL cannot be empty")
 	}
@@ -111,7 +98,7 @@ func (f *HTTPFetcher) FetchWithCertificateExtensions(ctx context.Context, url st
 		}
 	}
 
-	bundle, err := f.fetch(ctx, url, certificateExtensions)
+	bundle, err := f.fetch(ctx, url)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve CRL: %w", err)
 	}
@@ -132,24 +119,17 @@ func isEffective(crl *x509.RevocationList) bool {
 }
 
 // fetch downloads the CRL from the given URL.
-func (f *HTTPFetcher) fetch(ctx context.Context, url string, certificateExtensions *[]pkix.Extension) (*Bundle, error) {
+func (f *HTTPFetcher) fetch(ctx context.Context, url string) (*Bundle, error) {
 	// fetch base CRL
 	base, err := fetchCRL(ctx, url, f.httpClient)
 	if err != nil {
 		return nil, err
 	}
 
-	// fetch delta CRL from CRL extension
+	// fetch delta CRL from base CRL extension
 	deltaCRL, err := f.processDeltaCRL(&base.Extensions)
 	if err != nil {
 		return nil, err
-	}
-	if certificateExtensions != nil && deltaCRL == nil {
-		// fallback to fetch delta CRL from certificate extension
-		deltaCRL, err = f.processDeltaCRL(certificateExtensions)
-		if err != nil {
-			return nil, err
-		}
 	}
 
 	return &Bundle{
@@ -158,34 +138,46 @@ func (f *HTTPFetcher) fetch(ctx context.Context, url string, certificateExtensio
 	}, nil
 }
 
+// processDeltaCRL processes the delta CRL from the given extensions of base CRL.
 func (f *HTTPFetcher) processDeltaCRL(extensions *[]pkix.Extension) (*x509.RevocationList, error) {
 	for _, ext := range *extensions {
 		if ext.Id.Equal(oidFreshestCRL) {
-			cdp, err := parseFreshestCRL(ext)
+			// RFC 5280, 4.2.1.15
+			//    id-ce-freshestCRL OBJECT IDENTIFIER ::=  { id-ce 46 }
+			//
+			//    FreshestCRL ::= CRLDistributionPoints
+			urls, err := parseCRLDistributionPoint(ext.Value)
 			if err != nil {
 				return nil, fmt.Errorf("failed to parse Freshest CRL extension: %w", err)
 			}
-			if len(cdp) == 0 {
+			if len(urls) == 0 {
 				return nil, nil
 			}
-			if len(cdp) > 1 {
-				// to simplify the implementation, we only support one
-				// Freshest CRL URL for now which is the common case
-				return nil, errors.New("multiple Freshest CRL distribution points are not supported")
+
+			var lastError error
+			var deltaCRL *x509.RevocationList
+			for _, cdpURL := range urls {
+				// Delta CRLs from the base CRL have the same scope as the base
+				// CRL, so the URLs are for redundancy and should be tried in
+				// order until one succeeds.
+				deltaCRL, lastError = fetchCRL(context.Background(), cdpURL, f.httpClient)
+				if lastError != nil {
+					continue
+				}
+				return deltaCRL, nil
 			}
-			return fetchCRL(context.Background(), cdp[0], f.httpClient)
+			return nil, lastError
 		}
 	}
 	return nil, nil
 }
 
-// parseFreshestCRL parses the Freshest CRL extension and returns the CRL URLs
-func parseFreshestCRL(ext pkix.Extension) ([]string, error) {
+// parseCRLDistributionPoint parses the CRL extension and returns the CRL URLs
+//
+// value is the raw value of the CRL distribution point extension
+func parseCRLDistributionPoint(value []byte) ([]string, error) {
 	var cdp []string
-	// RFC 5280, 4.2.1.15
-	//    id-ce-freshestCRL OBJECT IDENTIFIER ::=  { id-ce 46 }
-	//
-	//    FreshestCRL ::= CRLDistributionPoints
+	// borrowed from crypto/x509: https://cs.opensource.google/go/go/+/refs/tags/go1.23.4:src/crypto/x509/parser.go;l=700-743
 	//
 	// RFC 5280, 4.2.1.13
 	//
@@ -199,7 +191,7 @@ func parseFreshestCRL(ext pkix.Extension) ([]string, error) {
 	// DistributionPointName ::= CHOICE {
 	//     fullName                [0]     GeneralNames,
 	//     nameRelativeToCRLIssuer [1]     RelativeDistinguishedName }
-	val := cryptobyte.String(ext.Value)
+	val := cryptobyte.String(value)
 	if !val.ReadASN1(&val, cryptobyte_asn1.SEQUENCE) {
 		return nil, errors.New("x509: invalid CRL distribution points")
 	}
