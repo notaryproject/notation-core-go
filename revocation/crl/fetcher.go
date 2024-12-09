@@ -142,6 +142,10 @@ func (f *HTTPFetcher) fetch(ctx context.Context, url string) (*Bundle, error) {
 //
 // It returns errDeltaCRLNotFound if the delta CRL is not found.
 func (f *HTTPFetcher) fetchDeltaCRL(extensions *[]pkix.Extension) (*x509.RevocationList, error) {
+	var (
+		lastError error
+		deltaCRL  *x509.RevocationList
+	)
 	for _, ext := range *extensions {
 		if ext.Id.Equal(oidFreshestCRL) {
 			// RFC 5280, 4.2.1.15
@@ -152,27 +156,22 @@ func (f *HTTPFetcher) fetchDeltaCRL(extensions *[]pkix.Extension) (*x509.Revocat
 			if err != nil {
 				return nil, fmt.Errorf("failed to parse Freshest CRL extension: %w", err)
 			}
-			if len(urls) == 0 {
-				return nil, errDeltaCRLNotFound
-			}
 
-			var (
-				lastError error
-				deltaCRL  *x509.RevocationList
-			)
 			for _, cdpURL := range urls {
 				// RFC 5280, 5.2.6
 				// Delta CRLs from the base CRL have the same scope as the base
 				// CRL, so the URLs are for redundancy and should be tried in
 				// order until one succeeds.
 				deltaCRL, lastError = fetchCRL(context.Background(), cdpURL, f.httpClient)
-				if lastError != nil {
-					continue
+				if lastError == nil {
+					return deltaCRL, nil
 				}
-				return deltaCRL, nil
 			}
-			return nil, lastError
+			break
 		}
+	}
+	if lastError != nil {
+		return nil, lastError
 	}
 	return nil, errDeltaCRLNotFound
 }
