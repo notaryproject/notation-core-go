@@ -380,7 +380,7 @@ func TestParseFreshestCRL(t *testing.T) {
 	})
 }
 
-func TestProcessDeltaCRL(t *testing.T) {
+func TestFetchDeltaCRL(t *testing.T) {
 	loadExtentsion := func(certPath string) *[]pkix.Extension {
 		certData, err := os.ReadFile(certPath)
 		if err != nil {
@@ -415,7 +415,7 @@ func TestProcessDeltaCRL(t *testing.T) {
 	t.Run("parse freshest CRL failed", func(t *testing.T) {
 		certPath := "testdata/certificateWithIncompleteFreshestCRL.cer"
 		extensions := loadExtentsion(certPath)
-		_, err := fetcher.processDeltaCRL(extensions)
+		_, err := fetcher.fetchDeltaCRL(extensions)
 		expectedErrorMsg := "failed to parse Freshest CRL extension: x509: invalid CRL distribution point"
 		if err == nil || err.Error() != expectedErrorMsg {
 			t.Fatalf("expected error %q, got %v", expectedErrorMsg, err)
@@ -425,19 +425,17 @@ func TestProcessDeltaCRL(t *testing.T) {
 	t.Run("zero freshest CRL URL", func(t *testing.T) {
 		certPath := "testdata/certificateWithZeroDeltaCRLURL.cer"
 		extensions := loadExtentsion(certPath)
-		deltaCRL, err := fetcher.processDeltaCRL(extensions)
-		if err != nil {
-			t.Fatalf("failed to process delta CRL: %v", err)
-		}
-		if deltaCRL != nil {
-			t.Fatalf("expected nil delta CRL, got %v", deltaCRL)
+		_, err := fetcher.fetchDeltaCRL(extensions)
+		expectedErr := errDeltaCRLNotFound
+		if err == nil || !errors.Is(err, expectedErr) {
+			t.Fatalf("expected error %v, got %v", expectedErr, err)
 		}
 	})
 
 	t.Run("one freshest CRL URL", func(t *testing.T) {
 		certPath := "testdata/certificateWithDeltaCRL.cer"
 		extensions := loadExtentsion(certPath)
-		deltaCRL, err := fetcher.processDeltaCRL(extensions)
+		deltaCRL, err := fetcher.fetchDeltaCRL(extensions)
 		if err != nil {
 			t.Fatalf("failed to process delta CRL: %v", err)
 		}
@@ -455,7 +453,7 @@ func TestProcessDeltaCRL(t *testing.T) {
 		}
 		certPath := "testdata/certificateWith2DeltaCRL.cer"
 		extensions := loadExtentsion(certPath)
-		_, err = fetcherWithError.processDeltaCRL(extensions)
+		_, err = fetcherWithError.fetchDeltaCRL(extensions)
 		expectedErrorMsg := "request failed"
 		if err == nil || !strings.Contains(err.Error(), expectedErrorMsg) {
 			t.Fatalf("expected error %q, got %v", expectedErrorMsg, err)
@@ -465,7 +463,7 @@ func TestProcessDeltaCRL(t *testing.T) {
 	t.Run("process delta crl from certificate extension failed", func(t *testing.T) {
 		certPath := "testdata/certificateWithIncompleteFreshestCRL.cer"
 		extensions := loadExtentsion(certPath)
-		_, err := fetcher.processDeltaCRL(extensions)
+		_, err := fetcher.fetchDeltaCRL(extensions)
 		expectedErrorMsg := "failed to parse Freshest CRL extension: x509: invalid CRL distribution point"
 		if err == nil || err.Error() != expectedErrorMsg {
 			t.Fatalf("expected error %q, got %v", expectedErrorMsg, err)

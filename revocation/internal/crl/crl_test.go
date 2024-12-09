@@ -332,12 +332,6 @@ func TestCertCheckStatus(t *testing.T) {
 	})
 }
 
-type fetcherMock struct{}
-
-func (f *fetcherMock) Fetch(ctx context.Context, url string) (*crlutils.Bundle, error) {
-	return nil, fmt.Errorf("fetch error")
-}
-
 func TestValidate(t *testing.T) {
 	t.Run("expired CRL", func(t *testing.T) {
 		chain := testhelper.GetRevokableRSAChainWithRevocations(1, false, true)

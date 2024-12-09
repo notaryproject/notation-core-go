@@ -107,23 +107,19 @@ func CertCheckStatus(ctx context.Context, cert, issuer *x509.Certificate, opts C
 	// point with one CRL URI, which will be cached, so checking all the URIs is
 	// not a performance issue.
 	for _, crlURL = range cert.CRLDistributionPoints {
-		var (
-			bundle *crl.Bundle
-			err    error
-		)
-		bundle, err = opts.Fetcher.Fetch(ctx, crlURL)
+		bundle, err := opts.Fetcher.Fetch(ctx, crlURL)
 		if err != nil {
 			lastErr = fmt.Errorf("failed to download CRL from %s: %w", crlURL, err)
 			break
 		}
 
 		if hasFreshestCRLInCertificate && bundle.DeltaCRL == nil {
-			// deltaCRL URL in cert        deltaCRL URL in baseCRL support it?
-			// --------------------------- ----------------------- ---------
-			//        True                      True                 Yes
-			//        True                      False                No
-			//        False                     True                 Yes
-			//        False                     False                Yes
+			// deltaCRL URL in cert        deltaCRL URL in baseCRL  support it?
+			// --------------------------- ----------------------- -------------
+			//        True                      True                    Yes
+			//        True                      False                   No
+			//        False                     True                    Yes
+			//        False                     False                   Yes
 			//
 			// if only the certificate has the freshest CRL, the bundle.DeltaCRL
 			// should be nil. We don't support this case now because the delta

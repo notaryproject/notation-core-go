@@ -127,8 +127,8 @@ func (f *HTTPFetcher) fetch(ctx context.Context, url string) (*Bundle, error) {
 	}
 
 	// fetch delta CRL from base CRL extension
-	deltaCRL, err := f.processDeltaCRL(&base.Extensions)
-	if err != nil {
+	deltaCRL, err := f.fetchDeltaCRL(&base.Extensions)
+	if err != nil && !errors.Is(err, errDeltaCRLNotFound) {
 		return nil, err
 	}
 
@@ -138,8 +138,10 @@ func (f *HTTPFetcher) fetch(ctx context.Context, url string) (*Bundle, error) {
 	}, nil
 }
 
-// processDeltaCRL processes the delta CRL from the given extensions of base CRL.
-func (f *HTTPFetcher) processDeltaCRL(extensions *[]pkix.Extension) (*x509.RevocationList, error) {
+// fetchDeltaCRL fetches the delta CRL from the given extensions of base CRL.
+//
+// It returns errDeltaCRLNotFound if the delta CRL is not found.
+func (f *HTTPFetcher) fetchDeltaCRL(extensions *[]pkix.Extension) (*x509.RevocationList, error) {
 	for _, ext := range *extensions {
 		if ext.Id.Equal(oidFreshestCRL) {
 			// RFC 5280, 4.2.1.15
@@ -151,12 +153,15 @@ func (f *HTTPFetcher) processDeltaCRL(extensions *[]pkix.Extension) (*x509.Revoc
 				return nil, fmt.Errorf("failed to parse Freshest CRL extension: %w", err)
 			}
 			if len(urls) == 0 {
-				return nil, nil
+				return nil, errDeltaCRLNotFound
 			}
 
-			var lastError error
-			var deltaCRL *x509.RevocationList
+			var (
+				lastError error
+				deltaCRL  *x509.RevocationList
+			)
 			for _, cdpURL := range urls {
+				// RFC 5280, 5.2.6
 				// Delta CRLs from the base CRL have the same scope as the base
 				// CRL, so the URLs are for redundancy and should be tried in
 				// order until one succeeds.
@@ -169,14 +174,14 @@ func (f *HTTPFetcher) processDeltaCRL(extensions *[]pkix.Extension) (*x509.Revoc
 			return nil, lastError
 		}
 	}
-	return nil, nil
+	return nil, errDeltaCRLNotFound
 }
 
 // parseCRLDistributionPoint parses the CRL extension and returns the CRL URLs
 //
 // value is the raw value of the CRL distribution point extension
 func parseCRLDistributionPoint(value []byte) ([]string, error) {
-	var cdp []string
+	var urls []string
 	// borrowed from crypto/x509: https://cs.opensource.google/go/go/+/refs/tags/go1.23.4:src/crypto/x509/parser.go;l=700-743
 	//
 	// RFC 5280, 4.2.1.13
@@ -219,10 +224,10 @@ func parseCRLDistributionPoint(value []byte) ([]string, error) {
 			if !dpNameDER.ReadASN1(&uri, cryptobyte_asn1.Tag(6).ContextSpecific()) {
 				return nil, errors.New("x509: invalid CRL distribution point")
 			}
-			cdp = append(cdp, string(uri))
+			urls = append(urls, string(uri))
 		}
 	}
-	return cdp, nil
+	return urls, nil
 }
 
 func fetchCRL(ctx context.Context, crlURL string, client *http.Client) (*x509.RevocationList, error) {
