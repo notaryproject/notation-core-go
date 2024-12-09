@@ -7,7 +7,7 @@ require (
 	github.com/golang-jwt/jwt/v4 v4.5.1
 	github.com/notaryproject/tspclient-go v1.0.0-rc.1
 	github.com/veraison/go-cose v1.3.0
-	golang.org/x/crypto v0.29.0
+	golang.org/x/crypto v0.30.0
 )
 
 require github.com/x448/float16 v0.8.4 // indirect
