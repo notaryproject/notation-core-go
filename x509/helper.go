@@ -20,7 +20,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/notaryproject/notation-core-go/signature"
+	"github.com/notaryproject/notation-core-go/internal/algorithm"
 )
 
 func isSelfSigned(cert *x509.Certificate) (bool, error) {
@@ -95,12 +95,9 @@ func validateLeafKeyUsage(cert *x509.Certificate) error {
 }
 
 func validateSignatureAlgorithm(cert *x509.Certificate) error {
-	keySpec, err := signature.ExtractKeySpec(cert)
+	_, err := algorithm.ExtractKeySpec(cert)
 	if err != nil {
 		return fmt.Errorf("certificate with subject %q: %w", cert.Subject, err)
-	}
-	if keySpec.SignatureAlgorithm() == 0 {
-		return fmt.Errorf("certificate with subject %q: unsupported signature algorithm with key spec %+v", cert.Subject, keySpec)
 	}
 	return nil
 }
