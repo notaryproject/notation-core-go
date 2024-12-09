@@ -272,9 +272,9 @@ func checkRevocation(cert *x509.Certificate, b *crl.Bundle, signingTime time.Tim
 		return nil, errors.New("baseCRL cannot be nil")
 	}
 
-	entriesBundle := []*[]x509.RevocationListEntry{&b.BaseCRL.RevokedCertificateEntries}
+	revocationListBundle := []*[]x509.RevocationListEntry{&b.BaseCRL.RevokedCertificateEntries}
 	if b.DeltaCRL != nil {
-		entriesBundle = append(entriesBundle, &b.DeltaCRL.RevokedCertificateEntries)
+		revocationListBundle = append(revocationListBundle, &b.DeltaCRL.RevokedCertificateEntries)
 	}
 
 	// latestTempRevokedEntry contains the most recent revocation entry with
@@ -286,8 +286,8 @@ func checkRevocation(cert *x509.Certificate, b *crl.Bundle, signingTime time.Tim
 	var latestTempRevokedEntry *x509.RevocationListEntry
 
 	// iterate over all the entries in the base and delta CRLs
-	for _, entries := range entriesBundle {
-		for i, revocationEntry := range *entries {
+	for _, revocationList := range revocationListBundle {
+		for i, revocationEntry := range *revocationList {
 			if revocationEntry.SerialNumber.Cmp(cert.SerialNumber) == 0 {
 				extensions, err := parseEntryExtensions(revocationEntry)
 				if err != nil {
@@ -307,7 +307,7 @@ func checkRevocation(cert *x509.Certificate, b *crl.Bundle, signingTime time.Tim
 					// temporarily revoked or unrevoked
 					if latestTempRevokedEntry == nil || latestTempRevokedEntry.RevocationTime.Before(revocationEntry.RevocationTime) {
 						// the revocation status depends on the most recent reason
-						latestTempRevokedEntry = &(*entries)[i]
+						latestTempRevokedEntry = &(*revocationList)[i]
 					}
 				default:
 					// permanently revoked
