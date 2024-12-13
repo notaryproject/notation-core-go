@@ -90,8 +90,7 @@ func (f *HTTPFetcher) Fetch(ctx context.Context, url string) (*Bundle, error) {
 		bundle, err := f.Cache.Get(ctx, url)
 		if err == nil {
 			// check expiry of base CRL and delta CRL
-			if (bundle.BaseCRL != nil && isEffective(bundle.BaseCRL)) &&
-				(bundle.DeltaCRL == nil || isEffective(bundle.DeltaCRL)) {
+			if isEffective(bundle.BaseCRL) && (bundle.DeltaCRL == nil || isEffective(bundle.DeltaCRL)) {
 				return bundle, nil
 			}
 		} else if !errors.Is(err, ErrCacheMiss) && !f.DiscardCacheError {
@@ -143,7 +142,6 @@ func (f *HTTPFetcher) fetch(ctx context.Context, url string) (*Bundle, error) {
 //
 // It returns errDeltaCRLNotFound if the delta CRL is not found.
 func (f *HTTPFetcher) fetchDeltaCRL(ctx context.Context, extensions []pkix.Extension) (*x509.RevocationList, error) {
-
 	idx := slices.IndexFunc(extensions, func(ext pkix.Extension) bool {
 		return ext.Id.Equal(oidFreshestCRL)
 	})
