@@ -1013,7 +1013,7 @@ func TestHasDeltaCRL(t *testing.T) {
 			},
 		},
 	}
-	if !hasFreshestCRL(&cert.Extensions) {
+	if !hasFreshestCRL(cert.Extensions) {
 		t.Fatal("expected has delta CRL")
 	}
 }

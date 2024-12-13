@@ -25,6 +25,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"slices"
 	"time"
 
 	"golang.org/x/crypto/cryptobyte"
@@ -127,7 +128,7 @@ func (f *HTTPFetcher) fetch(ctx context.Context, url string) (*Bundle, error) {
 	}
 
 	// fetch delta CRL from base CRL extension
-	deltaCRL, err := f.fetchDeltaCRL(&base.Extensions)
+	deltaCRL, err := f.fetchDeltaCRL(ctx, base.Extensions)
 	if err != nil && !errors.Is(err, errDeltaCRLNotFound) {
 		return nil, err
 	}
@@ -141,39 +142,41 @@ func (f *HTTPFetcher) fetch(ctx context.Context, url string) (*Bundle, error) {
 // fetchDeltaCRL fetches the delta CRL from the given extensions of base CRL.
 //
 // It returns errDeltaCRLNotFound if the delta CRL is not found.
-func (f *HTTPFetcher) fetchDeltaCRL(extensions *[]pkix.Extension) (*x509.RevocationList, error) {
+func (f *HTTPFetcher) fetchDeltaCRL(ctx context.Context, extensions []pkix.Extension) (*x509.RevocationList, error) {
+
+	idx := slices.IndexFunc(extensions, func(ext pkix.Extension) bool {
+		return ext.Id.Equal(oidFreshestCRL)
+	})
+	if idx == -1 {
+		return nil, errDeltaCRLNotFound
+	}
+	// RFC 5280, 4.2.1.15
+	//    id-ce-freshestCRL OBJECT IDENTIFIER ::=  { id-ce 46 }
+	//
+	//    FreshestCRL ::= CRLDistributionPoints
+	urls, err := parseCRLDistributionPoint(extensions[idx].Value)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse Freshest CRL extension: %w", err)
+	}
+	if len(urls) == 0 {
+		return nil, errDeltaCRLNotFound
+	}
+
 	var (
 		lastError error
 		deltaCRL  *x509.RevocationList
 	)
-	for _, ext := range *extensions {
-		if ext.Id.Equal(oidFreshestCRL) {
-			// RFC 5280, 4.2.1.15
-			//    id-ce-freshestCRL OBJECT IDENTIFIER ::=  { id-ce 46 }
-			//
-			//    FreshestCRL ::= CRLDistributionPoints
-			urls, err := parseCRLDistributionPoint(ext.Value)
-			if err != nil {
-				return nil, fmt.Errorf("failed to parse Freshest CRL extension: %w", err)
-			}
-
-			for _, cdpURL := range urls {
-				// RFC 5280, 5.2.6
-				// Delta CRLs from the base CRL have the same scope as the base
-				// CRL, so the URLs are for redundancy and should be tried in
-				// order until one succeeds.
-				deltaCRL, lastError = fetchCRL(context.Background(), cdpURL, f.httpClient)
-				if lastError == nil {
-					return deltaCRL, nil
-				}
-			}
-			break
+	for _, cdpURL := range urls {
+		// RFC 5280, 5.2.6
+		// Delta CRLs from the base CRL have the same scope as the base
+		// CRL, so the URLs are for redundancy and should be tried in
+		// order until one succeeds.
+		deltaCRL, lastError = fetchCRL(ctx, cdpURL, f.httpClient)
+		if lastError == nil {
+			return deltaCRL, nil
 		}
 	}
-	if lastError != nil {
-		return nil, lastError
-	}
-	return nil, errDeltaCRLNotFound
+	return nil, lastError
 }
 
 // parseCRLDistributionPoint parses the CRL extension and returns the CRL URLs

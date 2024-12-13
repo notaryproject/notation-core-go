@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"slices"
 	"time"
 
 	"github.com/notaryproject/notation-core-go/revocation/crl"
@@ -114,7 +115,7 @@ func CertCheckStatus(ctx context.Context, cert, issuer *x509.Certificate, opts C
 		serverResults               = make([]*result.ServerResult, 0, len(cert.CRLDistributionPoints))
 		lastErr                     error
 		crlURL                      string
-		hasFreshestCRLInCertificate = hasFreshestCRL(&cert.Extensions)
+		hasFreshestCRLInCertificate = hasFreshestCRL(cert.Extensions)
 	)
 
 	// The CRLDistributionPoints contains the URIs of all the CRL distribution
@@ -195,13 +196,10 @@ func Supported(cert *x509.Certificate) bool {
 	return cert != nil && len(cert.CRLDistributionPoints) > 0
 }
 
-func hasFreshestCRL(extensions *[]pkix.Extension) bool {
-	for _, ext := range *extensions {
-		if ext.Id.Equal(oidFreshestCRL) {
-			return true
-		}
-	}
-	return false
+func hasFreshestCRL(extensions []pkix.Extension) bool {
+	return slices.ContainsFunc(extensions, func(ext pkix.Extension) bool {
+		return ext.Id.Equal(oidFreshestCRL)
+	})
 }
 
 func validate(bundle *crl.Bundle, issuer *x509.Certificate) error {
@@ -211,35 +209,34 @@ func validate(bundle *crl.Bundle, issuer *x509.Certificate) error {
 		return fmt.Errorf("failed to validate base CRL: %w", err)
 	}
 
-	if bundle.DeltaCRL != nil {
-		// validate delta CRL
-		// RFC 5280, Section 5.2.4
-		deltaCRL := bundle.DeltaCRL
-		if err := validateCRL(deltaCRL, issuer); err != nil {
-			return fmt.Errorf("failed to validate delta CRL: %w", err)
-		}
+	if bundle.DeltaCRL == nil {
+		return nil
+	}
 
-		if deltaCRL.Number.Cmp(baseCRL.Number) <= 0 {
-			return fmt.Errorf("delta CRL number %d is not greater than the base CRL number %d", deltaCRL.Number, baseCRL.Number)
-		}
-		// check delta CRL indicator extension
-		var minimumBaseCRLNumber *big.Int
-		for _, ext := range deltaCRL.Extensions {
-			if ext.Id.Equal(oidDeltaCRLIndicator) {
-				minimumBaseCRLNumber = new(big.Int)
-				value := cryptobyte.String(ext.Value)
-				if !value.ReadASN1Integer(minimumBaseCRLNumber) {
-					return errors.New("failed to parse delta CRL indicator extension")
-				}
-				break
-			}
-		}
-		if minimumBaseCRLNumber == nil {
-			return errors.New("delta CRL indicator extension is not found")
-		}
-		if minimumBaseCRLNumber.Cmp(baseCRL.Number) > 0 {
-			return fmt.Errorf("delta CRL indicator %d is not less than or equal to the base CRL number %d", minimumBaseCRLNumber, baseCRL.Number)
-		}
+	// validate delta CRL
+	// RFC 5280, Section 5.2.4
+	deltaCRL := bundle.DeltaCRL
+	if err := validateCRL(deltaCRL, issuer); err != nil {
+		return fmt.Errorf("failed to validate delta CRL: %w", err)
+	}
+	if deltaCRL.Number.Cmp(baseCRL.Number) <= 0 {
+		return fmt.Errorf("delta CRL number %d is not greater than the base CRL number %d", deltaCRL.Number, baseCRL.Number)
+	}
+
+	// check delta CRL indicator extension
+	idx := slices.IndexFunc(deltaCRL.Extensions, func(ext pkix.Extension) bool {
+		return ext.Id.Equal(oidDeltaCRLIndicator)
+	})
+	if idx == -1 {
+		return errors.New("delta CRL indicator extension is not found")
+	}
+	minimumBaseCRLNumber := new(big.Int)
+	value := cryptobyte.String(deltaCRL.Extensions[idx].Value)
+	if !value.ReadASN1Integer(minimumBaseCRLNumber) {
+		return errors.New("failed to parse delta CRL indicator extension")
+	}
+	if minimumBaseCRLNumber.Cmp(baseCRL.Number) > 0 {
+		return fmt.Errorf("delta CRL indicator %d is not less than or equal to the base CRL number %d", minimumBaseCRLNumber, baseCRL.Number)
 	}
 	return nil
 }
@@ -290,9 +287,9 @@ func checkRevocation(cert *x509.Certificate, b *crl.Bundle, signingTime time.Tim
 		return nil, errors.New("baseCRL cannot be nil")
 	}
 
-	revocationListBundle := []*[]x509.RevocationListEntry{&b.BaseCRL.RevokedCertificateEntries}
+	revocationListBundle := [][]x509.RevocationListEntry{b.BaseCRL.RevokedCertificateEntries}
 	if b.DeltaCRL != nil {
-		revocationListBundle = append(revocationListBundle, &b.DeltaCRL.RevokedCertificateEntries)
+		revocationListBundle = append(revocationListBundle, b.DeltaCRL.RevokedCertificateEntries)
 	}
 
 	// latestTempRevokedEntry contains the most recent revocation entry with
@@ -305,7 +302,7 @@ func checkRevocation(cert *x509.Certificate, b *crl.Bundle, signingTime time.Tim
 
 	// iterate over all the entries in the base and delta CRLs
 	for _, revocationList := range revocationListBundle {
-		for i, revocationEntry := range *revocationList {
+		for i, revocationEntry := range revocationList {
 			if revocationEntry.SerialNumber.Cmp(cert.SerialNumber) == 0 {
 				extensions, err := parseEntryExtensions(revocationEntry)
 				if err != nil {
@@ -321,11 +318,11 @@ func checkRevocation(cert *x509.Certificate, b *crl.Bundle, signingTime time.Tim
 				}
 
 				switch revocationEntry.ReasonCode {
-				case int(reasonCodeCertificateHold), int(reasonCodeRemoveFromCRL):
+				case reasonCodeCertificateHold, reasonCodeRemoveFromCRL:
 					// temporarily revoked or unrevoked
 					if latestTempRevokedEntry == nil || latestTempRevokedEntry.RevocationTime.Before(revocationEntry.RevocationTime) {
 						// the revocation status depends on the most recent reason
-						latestTempRevokedEntry = &(*revocationList)[i]
+						latestTempRevokedEntry = &revocationList[i]
 					}
 				default:
 					// permanently revoked
