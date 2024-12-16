@@ -17,3 +17,6 @@ import "errors"
 
 // ErrCacheMiss is returned when a cache miss occurs.
 var ErrCacheMiss = errors.New("cache miss")
+
+// errDeltaCRLNotFound is returned when a delta CRL is not found.
+var errDeltaCRLNotFound = errors.New("delta CRL not found")
