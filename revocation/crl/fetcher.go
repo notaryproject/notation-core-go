@@ -145,7 +145,7 @@ func (f *HTTPFetcher) fetchDeltaCRL(ctx context.Context, extensions []pkix.Exten
 	idx := slices.IndexFunc(extensions, func(ext pkix.Extension) bool {
 		return ext.Id.Equal(oidFreshestCRL)
 	})
-	if idx == -1 {
+	if idx < 0 {
 		return nil, errDeltaCRLNotFound
 	}
 	// RFC 5280, 4.2.1.15

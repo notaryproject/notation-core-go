@@ -227,7 +227,7 @@ func validate(bundle *crl.Bundle, issuer *x509.Certificate) error {
 	idx := slices.IndexFunc(deltaCRL.Extensions, func(ext pkix.Extension) bool {
 		return ext.Id.Equal(oidDeltaCRLIndicator)
 	})
-	if idx == -1 {
+	if idx < 0 {
 		return errors.New("delta CRL indicator extension is not found")
 	}
 	minimumBaseCRLNumber := new(big.Int)
@@ -315,6 +315,11 @@ func checkRevocation(cert *x509.Certificate, b *crl.Bundle, signingTime time.Tim
 					// signing time is before the invalidity date which means the
 					// certificate is not revoked at the time of signing.
 					break
+					return &result.ServerResult{
+						Result:           result.ResultOK,
+						Server:           crlURL,
+						RevocationMethod: result.RevocationMethodCRL,
+					}, nil
 				}
 
 				switch revocationEntry.ReasonCode {
