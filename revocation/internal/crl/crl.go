@@ -314,7 +314,6 @@ func checkRevocation(cert *x509.Certificate, b *crl.Bundle, signingTime time.Tim
 					signingTime.Before(extensions.invalidityDate) {
 					// signing time is before the invalidity date which means the
 					// certificate is not revoked at the time of signing.
-					break
 					return &result.ServerResult{
 						Result:           result.ResultOK,
 						Server:           crlURL,
