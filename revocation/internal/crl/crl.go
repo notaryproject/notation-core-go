@@ -23,30 +23,34 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	"slices"
 	"time"
 
 	"github.com/notaryproject/notation-core-go/revocation/crl"
+	"github.com/notaryproject/notation-core-go/revocation/internal/x509util"
 	"github.com/notaryproject/notation-core-go/revocation/result"
 	"golang.org/x/crypto/cryptobyte"
 )
 
+// RFC 5280, 5.3.1
+//
+//	CRLReason ::= ENUMERATED {
+//	  unspecified             (0),
+//	  keyCompromise           (1),
+//	  cACompromise            (2),
+//	  affiliationChanged      (3),
+//	  superseded              (4),
+//	  cessationOfOperation    (5),
+//	  certificateHold         (6),
+//	       -- value 7 is not used
+//	  removeFromCRL           (8),
+//	  privilegeWithdrawn      (9),
+//	  aACompromise           (10) }
 const (
-	// RFC 5280, 5.3.1
-	// CRLReason ::= ENUMERATED {
-	//   unspecified             (0),
-	//   keyCompromise           (1),
-	//   cACompromise            (2),
-	//   affiliationChanged      (3),
-	//   superseded              (4),
-	//   cessationOfOperation    (5),
-	//   certificateHold         (6),
-	//        -- value 7 is not used
-	//   removeFromCRL           (8),
-	//   privilegeWithdrawn      (9),
-	//   aACompromise           (10) }
+	// certificateHold
 	reasonCodeCertificateHold = 6
-	reasonCodeRemoveFromCRL   = 8
+
+	// removeFromCRL
+	reasonCodeRemoveFromCRL = 8
 )
 
 var (
@@ -197,9 +201,7 @@ func Supported(cert *x509.Certificate) bool {
 }
 
 func hasFreshestCRL(extensions []pkix.Extension) bool {
-	return slices.ContainsFunc(extensions, func(ext pkix.Extension) bool {
-		return ext.Id.Equal(oidFreshestCRL)
-	})
+	return x509util.FindExtensionByOID(oidFreshestCRL, extensions) != nil
 }
 
 func validate(bundle *crl.Bundle, issuer *x509.Certificate) error {
@@ -224,14 +226,12 @@ func validate(bundle *crl.Bundle, issuer *x509.Certificate) error {
 	}
 
 	// check delta CRL indicator extension
-	idx := slices.IndexFunc(deltaCRL.Extensions, func(ext pkix.Extension) bool {
-		return ext.Id.Equal(oidDeltaCRLIndicator)
-	})
-	if idx < 0 {
+	extension := x509util.FindExtensionByOID(oidDeltaCRLIndicator, deltaCRL.Extensions)
+	if extension == nil {
 		return errors.New("delta CRL indicator extension is not found")
 	}
 	minimumBaseCRLNumber := new(big.Int)
-	value := cryptobyte.String(deltaCRL.Extensions[idx].Value)
+	value := cryptobyte.String(extension.Value)
 	if !value.ReadASN1Integer(minimumBaseCRLNumber) {
 		return errors.New("failed to parse delta CRL indicator extension")
 	}

@@ -25,11 +25,11 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"slices"
 	"time"
 
+	"github.com/notaryproject/notation-core-go/revocation/internal/x509util"
 	"golang.org/x/crypto/cryptobyte"
-	cryptobyte_asn1 "golang.org/x/crypto/cryptobyte/asn1"
+	cbasn1 "golang.org/x/crypto/cryptobyte/asn1"
 )
 
 // oidFreshestCRL is the object identifier for the distribution point
@@ -142,17 +142,16 @@ func (f *HTTPFetcher) fetch(ctx context.Context, url string) (*Bundle, error) {
 //
 // It returns errDeltaCRLNotFound if the delta CRL is not found.
 func (f *HTTPFetcher) fetchDeltaCRL(ctx context.Context, extensions []pkix.Extension) (*x509.RevocationList, error) {
-	idx := slices.IndexFunc(extensions, func(ext pkix.Extension) bool {
-		return ext.Id.Equal(oidFreshestCRL)
-	})
-	if idx < 0 {
+	extension := x509util.FindExtensionByOID(oidFreshestCRL, extensions)
+	if extension == nil {
 		return nil, errDeltaCRLNotFound
 	}
+
 	// RFC 5280, 4.2.1.15
 	//    id-ce-freshestCRL OBJECT IDENTIFIER ::=  { id-ce 46 }
 	//
 	//    FreshestCRL ::= CRLDistributionPoints
-	urls, err := parseCRLDistributionPoint(extensions[idx].Value)
+	urls, err := parseCRLDistributionPoint(extension.Value)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse Freshest CRL extension: %w", err)
 	}
@@ -197,31 +196,31 @@ func parseCRLDistributionPoint(value []byte) ([]string, error) {
 	//     fullName                [0]     GeneralNames,
 	//     nameRelativeToCRLIssuer [1]     RelativeDistinguishedName }
 	val := cryptobyte.String(value)
-	if !val.ReadASN1(&val, cryptobyte_asn1.SEQUENCE) {
+	if !val.ReadASN1(&val, cbasn1.SEQUENCE) {
 		return nil, errors.New("x509: invalid CRL distribution points")
 	}
 	for !val.Empty() {
 		var dpDER cryptobyte.String
-		if !val.ReadASN1(&dpDER, cryptobyte_asn1.SEQUENCE) {
+		if !val.ReadASN1(&dpDER, cbasn1.SEQUENCE) {
 			return nil, errors.New("x509: invalid CRL distribution point")
 		}
 		var dpNameDER cryptobyte.String
 		var dpNamePresent bool
-		if !dpDER.ReadOptionalASN1(&dpNameDER, &dpNamePresent, cryptobyte_asn1.Tag(0).Constructed().ContextSpecific()) {
+		if !dpDER.ReadOptionalASN1(&dpNameDER, &dpNamePresent, cbasn1.Tag(0).Constructed().ContextSpecific()) {
 			return nil, errors.New("x509: invalid CRL distribution point")
 		}
 		if !dpNamePresent {
 			continue
 		}
-		if !dpNameDER.ReadASN1(&dpNameDER, cryptobyte_asn1.Tag(0).Constructed().ContextSpecific()) {
+		if !dpNameDER.ReadASN1(&dpNameDER, cbasn1.Tag(0).Constructed().ContextSpecific()) {
 			return nil, errors.New("x509: invalid CRL distribution point")
 		}
 		for !dpNameDER.Empty() {
-			if !dpNameDER.PeekASN1Tag(cryptobyte_asn1.Tag(6).ContextSpecific()) {
+			if !dpNameDER.PeekASN1Tag(cbasn1.Tag(6).ContextSpecific()) {
 				break
 			}
 			var uri cryptobyte.String
-			if !dpNameDER.ReadASN1(&uri, cryptobyte_asn1.Tag(6).ContextSpecific()) {
+			if !dpNameDER.ReadASN1(&uri, cbasn1.Tag(6).ContextSpecific()) {
 				return nil, errors.New("x509: invalid CRL distribution point")
 			}
 			urls = append(urls, string(uri))
