@@ -18,7 +18,6 @@ package crl
 import (
 	"context"
 	"crypto/x509"
-	"crypto/x509/pkix"
 	"encoding/asn1"
 	"errors"
 	"fmt"
@@ -119,7 +118,7 @@ func CertCheckStatus(ctx context.Context, cert, issuer *x509.Certificate, opts C
 		serverResults               = make([]*result.ServerResult, 0, len(cert.CRLDistributionPoints))
 		lastErr                     error
 		crlURL                      string
-		hasFreshestCRLInCertificate = hasFreshestCRL(cert.Extensions)
+		hasFreshestCRLInCertificate = x509util.FindExtensionByOID(oidFreshestCRL, cert.Extensions) != nil
 	)
 
 	// The CRLDistributionPoints contains the URIs of all the CRL distribution
@@ -198,10 +197,6 @@ func CertCheckStatus(ctx context.Context, cert, issuer *x509.Certificate, opts C
 // Supported checks if the certificate supports CRL.
 func Supported(cert *x509.Certificate) bool {
 	return cert != nil && len(cert.CRLDistributionPoints) > 0
-}
-
-func hasFreshestCRL(extensions []pkix.Extension) bool {
-	return x509util.FindExtensionByOID(oidFreshestCRL, extensions) != nil
 }
 
 func validate(bundle *crl.Bundle, issuer *x509.Certificate) error {
