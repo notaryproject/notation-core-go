@@ -1005,19 +1005,6 @@ func TestSupported(t *testing.T) {
 	})
 }
 
-func TestHasDeltaCRL(t *testing.T) {
-	cert := &x509.Certificate{
-		Extensions: []pkix.Extension{
-			{
-				Id: oidFreshestCRL,
-			},
-		},
-	}
-	if !hasFreshestCRL(cert.Extensions) {
-		t.Fatal("expected has delta CRL")
-	}
-}
-
 type errorRoundTripperMock struct{}
 
 func (rt errorRoundTripperMock) RoundTrip(req *http.Request) (*http.Response, error) {
