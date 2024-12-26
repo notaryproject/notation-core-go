@@ -29,7 +29,6 @@ clean:
 .PHONY: check-line-endings
 check-line-endings: ## check line endings
 	! find . -name "*.go" -type f -exec file "{}" ";" | grep CRLF
-	! find scripts -name "*.sh" -type f -exec file "{}" ";" | grep CRLF
 
 .PHONY: fix-line-endings
 fix-line-endings: ## fix line endings
