@@ -30,21 +30,21 @@ import (
 	"golang.org/x/crypto/cryptobyte"
 )
 
-// RFC 5280, 5.3.1
-//
-//	CRLReason ::= ENUMERATED {
-//	  unspecified             (0),
-//	  keyCompromise           (1),
-//	  cACompromise            (2),
-//	  affiliationChanged      (3),
-//	  superseded              (4),
-//	  cessationOfOperation    (5),
-//	  certificateHold         (6),
-//	       -- value 7 is not used
-//	  removeFromCRL           (8),
-//	  privilegeWithdrawn      (9),
-//	  aACompromise           (10) }
 const (
+	// RFC 5280, 5.3.1
+	//
+	//	CRLReason ::= ENUMERATED {
+	//	  unspecified             (0),
+	//	  keyCompromise           (1),
+	//	  cACompromise            (2),
+	//	  affiliationChanged      (3),
+	//	  superseded              (4),
+	//	  cessationOfOperation    (5),
+	//	  certificateHold         (6),
+	//	       -- value 7 is not used
+	//	  removeFromCRL           (8),
+	//	  privilegeWithdrawn      (9),
+	//	  aACompromise           (10) }
 	// certificateHold
 	reasonCodeCertificateHold = 6
 
@@ -118,7 +118,7 @@ func CertCheckStatus(ctx context.Context, cert, issuer *x509.Certificate, opts C
 		serverResults               = make([]*result.ServerResult, 0, len(cert.CRLDistributionPoints))
 		lastErr                     error
 		crlURL                      string
-		hasFreshestCRLInCertificate = x509util.FindExtensionByOID(oidFreshestCRL, cert.Extensions) != nil
+		hasFreshestCRLInCertificate = x509util.FindExtensionByOID(cert.Extensions, oidFreshestCRL) != nil
 	)
 
 	// The CRLDistributionPoints contains the URIs of all the CRL distribution
@@ -221,7 +221,7 @@ func validate(bundle *crl.Bundle, issuer *x509.Certificate) error {
 	}
 
 	// check delta CRL indicator extension
-	extension := x509util.FindExtensionByOID(oidDeltaCRLIndicator, deltaCRL.Extensions)
+	extension := x509util.FindExtensionByOID(deltaCRL.Extensions, oidDeltaCRLIndicator)
 	if extension == nil {
 		return errors.New("delta CRL indicator extension is not found")
 	}

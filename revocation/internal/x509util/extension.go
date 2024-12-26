@@ -20,7 +20,7 @@ import (
 )
 
 // FindExtensionByOID finds the extension by the given OID.
-func FindExtensionByOID(oid asn1.ObjectIdentifier, extensions []pkix.Extension) *pkix.Extension {
+func FindExtensionByOID(extensions []pkix.Extension, oid asn1.ObjectIdentifier) *pkix.Extension {
 	idx := slices.IndexFunc(extensions, func(ext pkix.Extension) bool {
 		return ext.Id.Equal(oid)
 	})

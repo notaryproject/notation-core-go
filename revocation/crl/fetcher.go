@@ -142,7 +142,7 @@ func (f *HTTPFetcher) fetch(ctx context.Context, url string) (*Bundle, error) {
 //
 // It returns errDeltaCRLNotFound if the delta CRL is not found.
 func (f *HTTPFetcher) fetchDeltaCRL(ctx context.Context, extensions []pkix.Extension) (*x509.RevocationList, error) {
-	extension := x509util.FindExtensionByOID(oidFreshestCRL, extensions)
+	extension := x509util.FindExtensionByOID(extensions, oidFreshestCRL)
 	if extension == nil {
 		return nil, errDeltaCRLNotFound
 	}
