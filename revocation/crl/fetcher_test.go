@@ -19,11 +19,13 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
 	"math/big"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -78,7 +80,7 @@ func TestFetch(t *testing.T) {
 
 	t.Run("fetch without cache", func(t *testing.T) {
 		httpClient := &http.Client{
-			Transport: expectedRoundTripperMock{Body: baseCRL.Raw},
+			Transport: &expectedRoundTripperMock{Body: baseCRL.Raw},
 		}
 		f, err := NewHTTPFetcher(httpClient)
 		if err != nil {
@@ -134,7 +136,7 @@ func TestFetch(t *testing.T) {
 	t.Run("cache miss", func(t *testing.T) {
 		c := &memoryCache{}
 		httpClient := &http.Client{
-			Transport: expectedRoundTripperMock{Body: baseCRL.Raw},
+			Transport: &expectedRoundTripperMock{Body: baseCRL.Raw},
 		}
 		f, err := NewHTTPFetcher(httpClient)
 		if err != nil {
@@ -177,7 +179,7 @@ func TestFetch(t *testing.T) {
 
 		// fetch the expired CRL
 		httpClient := &http.Client{
-			Transport: expectedRoundTripperMock{Body: baseCRL.Raw},
+			Transport: &expectedRoundTripperMock{Body: baseCRL.Raw},
 		}
 		f, err := NewHTTPFetcher(httpClient)
 		if err != nil {
@@ -195,46 +197,13 @@ func TestFetch(t *testing.T) {
 		}
 	})
 
-	t.Run("delta CRL is not supported", func(t *testing.T) {
-		c := &memoryCache{}
-		// prepare a CRL with refresh CRL extension
-		certChain := testhelper.GetRevokableRSAChainWithRevocations(2, false, true)
-		expiredCRLBytes, err := x509.CreateRevocationList(rand.Reader, &x509.RevocationList{
-			Number:     big.NewInt(1),
-			NextUpdate: time.Now().Add(-1 * time.Hour),
-			ExtraExtensions: []pkix.Extension{
-				{
-					Id:    oidFreshestCRL,
-					Value: []byte{0x01, 0x02, 0x03},
-				},
-			},
-		}, certChain[1].Cert, certChain[1].PrivateKey)
-		if err != nil {
-			t.Fatalf("failed to create base CRL: %v", err)
-		}
-
-		httpClient := &http.Client{
-			Transport: expectedRoundTripperMock{Body: expiredCRLBytes},
-		}
-		f, err := NewHTTPFetcher(httpClient)
-		if err != nil {
-			t.Errorf("NewHTTPFetcher() error = %v, want nil", err)
-		}
-		f.Cache = c
-		f.DiscardCacheError = true
-		_, err = f.Fetch(context.Background(), uncachedURL)
-		if !strings.Contains(err.Error(), "delta CRL is not supported") {
-			t.Errorf("Fetcher.Fetch() error = %v, want delta CRL is not supported", err)
-		}
-	})
-
 	t.Run("Set cache error", func(t *testing.T) {
 		c := &errorCache{
 			GetError: ErrCacheMiss,
 			SetError: errors.New("cache error"),
 		}
 		httpClient := &http.Client{
-			Transport: expectedRoundTripperMock{Body: baseCRL.Raw},
+			Transport: &expectedRoundTripperMock{Body: baseCRL.Raw},
 		}
 		f, err := NewHTTPFetcher(httpClient)
 		if err != nil {
@@ -256,7 +225,7 @@ func TestFetch(t *testing.T) {
 			GetError: errors.New("cache error"),
 		}
 		httpClient := &http.Client{
-			Transport: expectedRoundTripperMock{Body: baseCRL.Raw},
+			Transport: &expectedRoundTripperMock{Body: baseCRL.Raw},
 		}
 		f, err := NewHTTPFetcher(httpClient)
 		if err != nil {
@@ -276,7 +245,7 @@ func TestFetch(t *testing.T) {
 			SetError: errors.New("cache error"),
 		}
 		httpClient := &http.Client{
-			Transport: expectedRoundTripperMock{Body: baseCRL.Raw},
+			Transport: &expectedRoundTripperMock{Body: baseCRL.Raw},
 		}
 		f, err := NewHTTPFetcher(httpClient)
 		if err != nil {
@@ -287,6 +256,217 @@ func TestFetch(t *testing.T) {
 		_, err = f.Fetch(context.Background(), exampleURL)
 		if !strings.HasPrefix(err.Error(), "failed to store CRL to cache:") {
 			t.Errorf("Fetcher.Fetch() error = %v, want failed to store CRL to cache:", err)
+		}
+	})
+
+	t.Run("test fetch delta CRL from base CRL extension failed", func(t *testing.T) {
+		crlWithDeltaCRL, err := os.ReadFile("testdata/crlWithMultipleFreshestCRLs.crl")
+		if err != nil {
+			t.Fatalf("failed to read CRL: %v", err)
+		}
+		httpClient := &http.Client{
+			Transport: &expectedRoundTripperMock{
+				Body:            crlWithDeltaCRL,
+				SecondRoundBody: []byte("invalid crl"),
+			},
+		}
+		f, err := NewHTTPFetcher(httpClient)
+		if err != nil {
+			t.Errorf("NewHTTPFetcher() error = %v, want nil", err)
+		}
+		_, err = f.Fetch(context.Background(), exampleURL)
+		expectedErrorMsg := "failed to retrieve CRL: x509: malformed crl"
+		if err == nil || err.Error() != expectedErrorMsg {
+			t.Fatalf("expected error %q, got %v", expectedErrorMsg, err)
+		}
+	})
+}
+
+func TestParseFreshestCRL(t *testing.T) {
+	loadExtentsion := func(certPath string) pkix.Extension {
+		certData, err := os.ReadFile(certPath)
+		if err != nil {
+			t.Fatalf("failed to read certificate: %v", err)
+		}
+
+		block, _ := pem.Decode(certData)
+		if block == nil {
+			t.Fatalf("failed to decode PEM block")
+		}
+
+		cert, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			t.Fatalf("failed to parse certificate: %v", err)
+		}
+
+		for _, ext := range cert.Extensions {
+			if ext.Id.Equal([]int{2, 5, 29, 46}) { // id-ce-freshestCRL
+				return ext
+			}
+		}
+
+		t.Fatalf("freshestCRL extension not found")
+		return pkix.Extension{}
+	}
+
+	t.Run("valid 1 delta CRL URL", func(t *testing.T) {
+		certPath := "testdata/certificateWithDeltaCRL.cer"
+		freshestCRLExtension := loadExtentsion(certPath)
+		urls, err := parseCRLDistributionPoint(freshestCRLExtension.Value)
+		if err != nil {
+			t.Fatalf("failed to parse freshest CRL: %v", err)
+		}
+
+		if len(urls) != 1 {
+			t.Fatalf("expected 1 URL, got %d", len(urls))
+		}
+
+		if !strings.HasPrefix(urls[0], "http://localhost:80") {
+			t.Fatalf("unexpected URL: %s", urls[0])
+		}
+	})
+
+	t.Run("empty extension", func(t *testing.T) {
+		_, err := parseCRLDistributionPoint(nil)
+		if err == nil {
+			t.Fatalf("expected error")
+		}
+	})
+
+	t.Run("URL doesn't exist", func(t *testing.T) {
+		certPath := "testdata/certificateWithZeroDeltaCRLURL.cer"
+		freshestCRLExtension := loadExtentsion(certPath)
+		url, err := parseCRLDistributionPoint(freshestCRLExtension.Value)
+		if err != nil {
+			t.Fatalf("failed to parse freshest CRL: %v", err)
+		}
+		if len(url) != 0 {
+			t.Fatalf("expected 0 URL, got %d", len(url))
+		}
+	})
+
+	t.Run("non URI freshest CRL extension", func(t *testing.T) {
+		certPath := "testdata/certificateWithNonURIDeltaCRL.cer"
+		freshestCRLExtension := loadExtentsion(certPath)
+		url, err := parseCRLDistributionPoint(freshestCRLExtension.Value)
+		if err != nil {
+			t.Fatalf("failed to parse freshest CRL: %v", err)
+		}
+		if len(url) != 0 {
+			t.Fatalf("expected 0 URL, got %d", len(url))
+		}
+	})
+
+	t.Run("certificate with incomplete freshest CRL extension", func(t *testing.T) {
+		certPath := "testdata/certificateWithIncompleteFreshestCRL.cer"
+		freshestCRLExtension := loadExtentsion(certPath)
+		_, err := parseCRLDistributionPoint(freshestCRLExtension.Value)
+		expectErrorMsg := "x509: invalid CRL distribution point"
+		if err == nil || err.Error() != expectErrorMsg {
+			t.Fatalf("expected error %q, got %v", expectErrorMsg, err)
+		}
+	})
+
+	t.Run("certificate with incomplete freshest CRL extension2", func(t *testing.T) {
+		certPath := "testdata/certificateWithIncompleteFreshestCRL2.cer"
+		freshestCRLExtension := loadExtentsion(certPath)
+		url, err := parseCRLDistributionPoint(freshestCRLExtension.Value)
+		if err != nil {
+			t.Fatalf("failed to parse freshest CRL: %v", err)
+		}
+		if len(url) != 0 {
+			t.Fatalf("expected 0 URL, got %d", len(url))
+		}
+	})
+}
+
+func TestFetchDeltaCRL(t *testing.T) {
+	loadExtentsion := func(certPath string) []pkix.Extension {
+		certData, err := os.ReadFile(certPath)
+		if err != nil {
+			t.Fatalf("failed to read certificate: %v", err)
+		}
+
+		block, _ := pem.Decode(certData)
+		if block == nil {
+			t.Fatalf("failed to decode PEM block")
+		}
+
+		cert, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			t.Fatalf("failed to parse certificate: %v", err)
+		}
+
+		return cert.Extensions
+	}
+
+	deltaCRL, err := os.ReadFile("testdata/delta.crl")
+	if err != nil {
+		t.Fatalf("failed to read delta CRL: %v", err)
+	}
+
+	fetcher, err := NewHTTPFetcher(&http.Client{
+		Transport: &expectedRoundTripperMock{Body: deltaCRL},
+	})
+	if err != nil {
+		t.Fatalf("failed to create fetcher: %v", err)
+	}
+
+	t.Run("parse freshest CRL failed", func(t *testing.T) {
+		certPath := "testdata/certificateWithIncompleteFreshestCRL.cer"
+		extensions := loadExtentsion(certPath)
+		_, err := fetcher.fetchDeltaCRL(context.Background(), extensions)
+		expectedErrorMsg := "failed to parse Freshest CRL extension: x509: invalid CRL distribution point"
+		if err == nil || err.Error() != expectedErrorMsg {
+			t.Fatalf("expected error %q, got %v", expectedErrorMsg, err)
+		}
+	})
+
+	t.Run("zero freshest CRL URL", func(t *testing.T) {
+		certPath := "testdata/certificateWithZeroDeltaCRLURL.cer"
+		extensions := loadExtentsion(certPath)
+		_, err := fetcher.fetchDeltaCRL(context.Background(), extensions)
+		expectedErr := errDeltaCRLNotFound
+		if err == nil || !errors.Is(err, expectedErr) {
+			t.Fatalf("expected error %v, got %v", expectedErr, err)
+		}
+	})
+
+	t.Run("one freshest CRL URL", func(t *testing.T) {
+		certPath := "testdata/certificateWithDeltaCRL.cer"
+		extensions := loadExtentsion(certPath)
+		deltaCRL, err := fetcher.fetchDeltaCRL(context.Background(), extensions)
+		if err != nil {
+			t.Fatalf("failed to process delta CRL: %v", err)
+		}
+		if deltaCRL == nil {
+			t.Fatalf("expected non-nil delta CRL")
+		}
+	})
+
+	t.Run("multiple freshest CRL URLs failed", func(t *testing.T) {
+		fetcherWithError, err := NewHTTPFetcher(&http.Client{
+			Transport: errorRoundTripperMock{},
+		})
+		if err != nil {
+			t.Fatalf("failed to create fetcher: %v", err)
+		}
+		certPath := "testdata/certificateWith2DeltaCRL.cer"
+		extensions := loadExtentsion(certPath)
+		_, err = fetcherWithError.fetchDeltaCRL(context.Background(), extensions)
+		expectedErrorMsg := "request failed"
+		if err == nil || !strings.Contains(err.Error(), expectedErrorMsg) {
+			t.Fatalf("expected error %q, got %v", expectedErrorMsg, err)
+		}
+	})
+
+	t.Run("process delta crl from certificate extension failed", func(t *testing.T) {
+		certPath := "testdata/certificateWithIncompleteFreshestCRL.cer"
+		extensions := loadExtentsion(certPath)
+		_, err := fetcher.fetchDeltaCRL(context.Background(), extensions)
+		expectedErrorMsg := "failed to parse Freshest CRL extension: x509: invalid CRL distribution point"
+		if err == nil || err.Error() != expectedErrorMsg {
+			t.Fatalf("expected error %q, got %v", expectedErrorMsg, err)
 		}
 	})
 }
@@ -343,7 +523,7 @@ func TestDownload(t *testing.T) {
 
 	t.Run("exceed the size limit", func(t *testing.T) {
 		_, err := fetchCRL(context.Background(), "http://localhost.test", &http.Client{
-			Transport: expectedRoundTripperMock{Body: make([]byte, maxCRLSize+1)},
+			Transport: &expectedRoundTripperMock{Body: make([]byte, maxCRLSize+1)},
 		})
 		if err == nil {
 			t.Fatal("expected error")
@@ -352,7 +532,7 @@ func TestDownload(t *testing.T) {
 
 	t.Run("invalid crl", func(t *testing.T) {
 		_, err := fetchCRL(context.Background(), "http://localhost.test", &http.Client{
-			Transport: expectedRoundTripperMock{Body: []byte("invalid crl")},
+			Transport: &expectedRoundTripperMock{Body: []byte("invalid crl")},
 		})
 		if err == nil {
 			t.Fatal("expected error")
@@ -395,14 +575,24 @@ func (r errorReaderMock) Close() error {
 }
 
 type expectedRoundTripperMock struct {
-	Body []byte
+	Body            []byte
+	SecondRoundBody []byte
+	count           int
 }
 
-func (rt expectedRoundTripperMock) RoundTrip(req *http.Request) (*http.Response, error) {
+func (rt *expectedRoundTripperMock) RoundTrip(req *http.Request) (*http.Response, error) {
+	if rt.count == 0 {
+		rt.count += 1
+		return &http.Response{
+			Request:    req,
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(bytes.NewBuffer(rt.Body)),
+		}, nil
+	}
 	return &http.Response{
 		Request:    req,
 		StatusCode: http.StatusOK,
-		Body:       io.NopCloser(bytes.NewBuffer(rt.Body)),
+		Body:       io.NopCloser(bytes.NewBuffer(rt.SecondRoundBody)),
 	}, nil
 }
 
