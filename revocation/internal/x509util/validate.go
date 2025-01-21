@@ -12,7 +12,8 @@
 // limitations under the License.
 
 // Package x509util provides the method to validate the certificate chain for a
-// specific purpose, including code signing and timestamping.
+// specific purpose, including code signing and timestamping. It also provides
+// the method to find the extension by the given OID.
 package x509util
 
 import (

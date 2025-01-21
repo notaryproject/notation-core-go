@@ -11,12 +11,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package crl
+package x509util
 
-import "errors"
+import (
+	"crypto/x509/pkix"
+	"encoding/asn1"
+	"slices"
+)
 
-// ErrCacheMiss is returned when a cache miss occurs.
-var ErrCacheMiss = errors.New("cache miss")
-
-// errDeltaCRLNotFound is returned when a delta CRL is not found.
-var errDeltaCRLNotFound = errors.New("delta CRL not found")
+// FindExtensionByOID finds the extension by the given OID.
+func FindExtensionByOID(extensions []pkix.Extension, oid asn1.ObjectIdentifier) *pkix.Extension {
+	idx := slices.IndexFunc(extensions, func(ext pkix.Extension) bool {
+		return ext.Id.Equal(oid)
+	})
+	if idx < 0 {
+		return nil
+	}
+	return &extensions[idx]
+}
