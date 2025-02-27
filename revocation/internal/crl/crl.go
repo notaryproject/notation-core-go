@@ -280,15 +280,15 @@ func checkRevocation(cert *x509.Certificate, b *crl.Bundle, signingTime time.Tim
 	}
 
 	// merge the base and delta CRLs in a single iterator
-	revocationListIter := func(yield func(x509.RevocationListEntry) bool) {
-		for _, revocationEntry := range b.BaseCRL.RevokedCertificateEntries {
-			if !yield(revocationEntry) {
+	revocationListIter := func(yield func(*x509.RevocationListEntry) bool) {
+		for i := range b.BaseCRL.RevokedCertificateEntries {
+			if !yield(&b.BaseCRL.RevokedCertificateEntries[i]) {
 				return
 			}
 		}
 		if b.DeltaCRL != nil {
-			for _, revocationEntry := range b.DeltaCRL.RevokedCertificateEntries {
-				if !yield(revocationEntry) {
+			for i := range b.DeltaCRL.RevokedCertificateEntries {
+				if !yield(&b.DeltaCRL.RevokedCertificateEntries[i]) {
 					return
 				}
 			}
@@ -327,11 +327,8 @@ func checkRevocation(cert *x509.Certificate, b *crl.Bundle, signingTime time.Tim
 			case reasonCodeCertificateHold, reasonCodeRemoveFromCRL:
 				// temporarily revoked or unrevoked
 				if latestTempRevokedEntry == nil || latestTempRevokedEntry.RevocationTime.Before(revocationEntry.RevocationTime) {
-					// create a copy for the entry to avoid the value of the
-					// address being changed in the next iteration
-					entryCopy := revocationEntry
 					// the revocation status depends on the most recent reason
-					latestTempRevokedEntry = &entryCopy
+					latestTempRevokedEntry = revocationEntry
 				}
 			default:
 				// permanently revoked
@@ -364,7 +361,7 @@ type entryExtensions struct {
 	invalidityDate time.Time
 }
 
-func parseEntryExtensions(entry x509.RevocationListEntry) (entryExtensions, error) {
+func parseEntryExtensions(entry *x509.RevocationListEntry) (entryExtensions, error) {
 	var extensions entryExtensions
 	for _, ext := range entry.Extensions {
 		switch {

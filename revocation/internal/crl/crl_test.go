@@ -936,7 +936,7 @@ func TestCheckRevocation(t *testing.T) {
 
 func TestParseEntryExtension(t *testing.T) {
 	t.Run("unsupported critical extension", func(t *testing.T) {
-		entry := x509.RevocationListEntry{
+		entry := &x509.RevocationListEntry{
 			Extensions: []pkix.Extension{
 				{
 					Id:       []int{1, 2, 3},
@@ -950,7 +950,7 @@ func TestParseEntryExtension(t *testing.T) {
 	})
 
 	t.Run("valid extension", func(t *testing.T) {
-		entry := x509.RevocationListEntry{
+		entry := &x509.RevocationListEntry{
 			Extensions: []pkix.Extension{
 				{
 					Id:       []int{1, 2, 3},
@@ -972,7 +972,7 @@ func TestParseEntryExtension(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		entry := x509.RevocationListEntry{
+		entry := &x509.RevocationListEntry{
 			Extensions: []pkix.Extension{
 				{
 					Id:       oidInvalidityDate,
@@ -993,7 +993,7 @@ func TestParseEntryExtension(t *testing.T) {
 
 	t.Run("parse invalidityDate with error", func(t *testing.T) {
 		// invalid invalidityDate extension
-		entry := x509.RevocationListEntry{
+		entry := &x509.RevocationListEntry{
 			Extensions: []pkix.Extension{
 				{
 					Id:       oidInvalidityDate,
@@ -1015,7 +1015,7 @@ func TestParseEntryExtension(t *testing.T) {
 		}
 		invalidityDateBytes = append(invalidityDateBytes, 0x00)
 
-		entry = x509.RevocationListEntry{
+		entry = &x509.RevocationListEntry{
 			Extensions: []pkix.Extension{
 				{
 					Id:       oidInvalidityDate,
