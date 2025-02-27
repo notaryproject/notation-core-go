@@ -697,6 +697,25 @@ func TestCheckRevocation(t *testing.T) {
 		}
 	})
 
+	t.Run("revoked in delta CRL", func(t *testing.T) {
+		baseCRL := &x509.RevocationList{}
+		deltaCRL := &x509.RevocationList{
+			RevokedCertificateEntries: []x509.RevocationListEntry{
+				{
+					SerialNumber:   big.NewInt(1),
+					RevocationTime: time.Now().Add(-time.Hour),
+				},
+			},
+		}
+		r, err := checkRevocation(cert, &crlutils.Bundle{BaseCRL: baseCRL, DeltaCRL: deltaCRL}, signingTime, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if r.Result != result.ResultRevoked {
+			t.Fatalf("expected revoked, got %s", r.Result)
+		}
+	})
+
 	t.Run("revoked but signing time is before invalidityDate", func(t *testing.T) {
 		invalidityDate := time.Now().Add(time.Hour)
 		invalidityDateBytes, err := marshalGeneralizedTimeToBytes(invalidityDate)
@@ -848,6 +867,39 @@ func TestCheckRevocation(t *testing.T) {
 		}
 	})
 
+	t.Run("certificate hold and remove hold with other other certificate hold", func(t *testing.T) {
+		baseCRL := &x509.RevocationList{
+			RevokedCertificateEntries: []x509.RevocationListEntry{
+				{
+					SerialNumber:   big.NewInt(1),
+					ReasonCode:     reasonCodeCertificateHold,
+					RevocationTime: time.Now().Add(-time.Hour),
+				},
+			},
+		}
+		deltaCRL := &x509.RevocationList{
+			RevokedCertificateEntries: []x509.RevocationListEntry{
+				{
+					SerialNumber:   big.NewInt(1),
+					ReasonCode:     reasonCodeRemoveFromCRL,
+					RevocationTime: time.Now(),
+				},
+				{
+					SerialNumber:   big.NewInt(2),
+					ReasonCode:     reasonCodeCertificateHold,
+					RevocationTime: time.Now(),
+				},
+			},
+		}
+		r, err := checkRevocation(cert, &crlutils.Bundle{BaseCRL: baseCRL, DeltaCRL: deltaCRL}, signingTime, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if r.Result != result.ResultOK {
+			t.Fatalf("expected OK, got %s", r.Result)
+		}
+	})
+
 	t.Run("certificate hold, remove hold and hold again", func(t *testing.T) {
 		baseCRL := &x509.RevocationList{
 			RevokedCertificateEntries: []x509.RevocationListEntry{
@@ -884,7 +936,7 @@ func TestCheckRevocation(t *testing.T) {
 
 func TestParseEntryExtension(t *testing.T) {
 	t.Run("unsupported critical extension", func(t *testing.T) {
-		entry := x509.RevocationListEntry{
+		entry := &x509.RevocationListEntry{
 			Extensions: []pkix.Extension{
 				{
 					Id:       []int{1, 2, 3},
@@ -898,7 +950,7 @@ func TestParseEntryExtension(t *testing.T) {
 	})
 
 	t.Run("valid extension", func(t *testing.T) {
-		entry := x509.RevocationListEntry{
+		entry := &x509.RevocationListEntry{
 			Extensions: []pkix.Extension{
 				{
 					Id:       []int{1, 2, 3},
@@ -920,7 +972,7 @@ func TestParseEntryExtension(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		entry := x509.RevocationListEntry{
+		entry := &x509.RevocationListEntry{
 			Extensions: []pkix.Extension{
 				{
 					Id:       oidInvalidityDate,
@@ -941,7 +993,7 @@ func TestParseEntryExtension(t *testing.T) {
 
 	t.Run("parse invalidityDate with error", func(t *testing.T) {
 		// invalid invalidityDate extension
-		entry := x509.RevocationListEntry{
+		entry := &x509.RevocationListEntry{
 			Extensions: []pkix.Extension{
 				{
 					Id:       oidInvalidityDate,
@@ -963,7 +1015,7 @@ func TestParseEntryExtension(t *testing.T) {
 		}
 		invalidityDateBytes = append(invalidityDateBytes, 0x00)
 
-		entry = x509.RevocationListEntry{
+		entry = &x509.RevocationListEntry{
 			Extensions: []pkix.Extension{
 				{
 					Id:       oidInvalidityDate,

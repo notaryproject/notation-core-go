@@ -279,9 +279,20 @@ func checkRevocation(cert *x509.Certificate, b *crl.Bundle, signingTime time.Tim
 		return nil, errors.New("baseCRL cannot be nil")
 	}
 
-	revocationListBundle := [][]x509.RevocationListEntry{b.BaseCRL.RevokedCertificateEntries}
-	if b.DeltaCRL != nil {
-		revocationListBundle = append(revocationListBundle, b.DeltaCRL.RevokedCertificateEntries)
+	// merge the base and delta CRLs in a single iterator
+	revocationListIter := func(yield func(*x509.RevocationListEntry) bool) {
+		for i := range b.BaseCRL.RevokedCertificateEntries {
+			if !yield(&b.BaseCRL.RevokedCertificateEntries[i]) {
+				return
+			}
+		}
+		if b.DeltaCRL != nil {
+			for i := range b.DeltaCRL.RevokedCertificateEntries {
+				if !yield(&b.DeltaCRL.RevokedCertificateEntries[i]) {
+					return
+				}
+			}
+		}
 	}
 
 	// latestTempRevokedEntry contains the most recent revocation entry with
@@ -293,41 +304,39 @@ func checkRevocation(cert *x509.Certificate, b *crl.Bundle, signingTime time.Tim
 	var latestTempRevokedEntry *x509.RevocationListEntry
 
 	// iterate over all the entries in the base and delta CRLs
-	for _, revocationList := range revocationListBundle {
-		for i, revocationEntry := range revocationList {
-			if revocationEntry.SerialNumber.Cmp(cert.SerialNumber) == 0 {
-				extensions, err := parseEntryExtensions(revocationEntry)
-				if err != nil {
-					return nil, err
-				}
+	for revocationEntry := range revocationListIter {
+		if revocationEntry.SerialNumber.Cmp(cert.SerialNumber) == 0 {
+			extensions, err := parseEntryExtensions(revocationEntry)
+			if err != nil {
+				return nil, err
+			}
 
-				// validate signingTime and invalidityDate
-				if !signingTime.IsZero() && !extensions.invalidityDate.IsZero() &&
-					signingTime.Before(extensions.invalidityDate) {
-					// signing time is before the invalidity date which means the
-					// certificate is not revoked at the time of signing.
-					return &result.ServerResult{
-						Result:           result.ResultOK,
-						Server:           crlURL,
-						RevocationMethod: result.RevocationMethodCRL,
-					}, nil
-				}
+			// validate signingTime and invalidityDate
+			if !signingTime.IsZero() && !extensions.invalidityDate.IsZero() &&
+				signingTime.Before(extensions.invalidityDate) {
+				// signing time is before the invalidity date which means the
+				// certificate is not revoked at the time of signing.
+				return &result.ServerResult{
+					Result:           result.ResultOK,
+					Server:           crlURL,
+					RevocationMethod: result.RevocationMethodCRL,
+				}, nil
+			}
 
-				switch revocationEntry.ReasonCode {
-				case reasonCodeCertificateHold, reasonCodeRemoveFromCRL:
-					// temporarily revoked or unrevoked
-					if latestTempRevokedEntry == nil || latestTempRevokedEntry.RevocationTime.Before(revocationEntry.RevocationTime) {
-						// the revocation status depends on the most recent reason
-						latestTempRevokedEntry = &revocationList[i]
-					}
-				default:
-					// permanently revoked
-					return &result.ServerResult{
-						Result:           result.ResultRevoked,
-						Server:           crlURL,
-						RevocationMethod: result.RevocationMethodCRL,
-					}, nil
+			switch revocationEntry.ReasonCode {
+			case reasonCodeCertificateHold, reasonCodeRemoveFromCRL:
+				// temporarily revoked or unrevoked
+				if latestTempRevokedEntry == nil || latestTempRevokedEntry.RevocationTime.Before(revocationEntry.RevocationTime) {
+					// the revocation status depends on the most recent reason
+					latestTempRevokedEntry = revocationEntry
 				}
+			default:
+				// permanently revoked
+				return &result.ServerResult{
+					Result:           result.ResultRevoked,
+					Server:           crlURL,
+					RevocationMethod: result.RevocationMethodCRL,
+				}, nil
 			}
 		}
 	}
@@ -352,7 +361,7 @@ type entryExtensions struct {
 	invalidityDate time.Time
 }
 
-func parseEntryExtensions(entry x509.RevocationListEntry) (entryExtensions, error) {
+func parseEntryExtensions(entry *x509.RevocationListEntry) (entryExtensions, error) {
 	var extensions entryExtensions
 	for _, ext := range entry.Extensions {
 		switch {
