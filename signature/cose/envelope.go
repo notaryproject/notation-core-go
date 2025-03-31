@@ -231,11 +231,6 @@ func (e *envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 	msg.Headers.Protected[cose.HeaderLabelContentType] = req.Payload.ContentType
 	msg.Payload = req.Payload.Content
 
-	// core sign process, generate signature of COSE envelope
-	if err := msg.Sign(rand.Reader, nil, signer); err != nil {
-		return nil, &signature.InvalidSignRequestError{Msg: err.Error()}
-	}
-
 	// generate unprotected headers of COSE envelope.
 	generateUnprotectedHeaders(req, signer, msg.Headers.Unprotected)
 
@@ -253,8 +248,26 @@ func (e *envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 		if err != nil {
 			return nil, &signature.TimestampError{Detail: err}
 		}
+
 		// on success, embed the timestamp token to Unprotected header
 		msg.Headers.Unprotected[headerLabelTimestampSignature] = timestampToken
+	}
+
+	// core sign process, generate signature of COSE envelope
+	// blob signing
+	if req.BlobSign {
+		// blob signing returns a COSE hash envelope
+		hashEnvelopePayload := cose.HashEnvelopePayload{
+			HashAlgorithm:       signer.Algorithm(),
+			HashValue:           req.Payload.Content,
+			PreimageContentType: req.Payload.BlobContentMediaType,
+		}
+		return cose.SignHashEnvelope(rand.Reader, signer, msg.Headers, hashEnvelopePayload)
+	}
+
+	// oci signing
+	if err := msg.Sign(rand.Reader, nil, signer); err != nil {
+		return nil, &signature.InvalidSignRequestError{Msg: err.Error()}
 	}
 
 	// encode Sign1Message into COSE_Sign1_Tagged object

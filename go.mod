@@ -11,3 +11,5 @@ require (
 )
 
 require github.com/x448/float16 v0.8.4 // indirect
+
+replace github.com/veraison/go-cose => github.com/shizhMSFT/go-cose v1.0.0-alpha.1.0.20250331071113-87052d1999cc

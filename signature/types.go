@@ -118,6 +118,12 @@ type SignRequest struct {
 	// When present, only used when timestamping is performed.
 	TSARevocationValidator revocation.Validator
 
+	// BlobSign denotes signing an arbitrary blob.
+	// When blob signing in COSE format, a COSE hash envelope is returned.
+	//
+	// Reference: <COSE hash envelope>
+	BlobSign bool
+
 	// ctx is the caller context. It should only be modified via WithContext.
 	// It is unexported to prevent people from using Context wrong
 	// and mutating the contexts held by callers of the same request.
@@ -190,7 +196,19 @@ type Payload struct {
 	// Content contains the raw bytes of the payload.
 	//
 	// For JWS envelope, Content is limited to be JSON format.
+	//
+	// For blob signing under COSE format, Content MUST be the hash of the
+	// target blob. The hash algorithm MUST be the same as the one used in
+	// signing certificate's public key.
 	Content []byte
+
+	// BlobContentMediaType is the media-type of the target blob whose
+	// content is hashed to produce [Payload.Content] during blob signing.
+	//
+	// It is only used and required during blob signing under the COSE format.
+	//
+	// Reference: <COSE hash envelope>
+	BlobContentMediaType string
 }
 
 // ExtendedAttribute fetches the specified Attribute with provided key from
