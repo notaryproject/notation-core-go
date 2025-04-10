@@ -905,6 +905,92 @@ func TestHashFunc(t *testing.T) {
 	if err == nil || err.Error() != expectedErrMsg {
 		t.Fatalf("expected %s, but got %s", expectedErrMsg, err)
 	}
+
+	hash, err = hashFromCOSEAlgorithm(cose.AlgorithmSHA256)
+	if err != nil || hash.String() != "SHA-256" {
+		t.Fatalf("expected SHA-256, but got %s", hash)
+	}
+
+	hash, err = hashFromCOSEAlgorithm(cose.AlgorithmSHA384)
+	if err != nil || hash.String() != "SHA-384" {
+		t.Fatalf("expected SHA-384, but got %s", hash)
+	}
+
+	hash, err = hashFromCOSEAlgorithm(cose.AlgorithmSHA512)
+	if err != nil || hash.String() != "SHA-512" {
+		t.Fatalf("expected SHA-512, but got %s", hash)
+	}
+}
+
+func TestCanUint(t *testing.T) {
+	tests := []struct {
+		name  string
+		input any
+		want  bool
+	}{
+		// Unsigned types always return true.
+		{"uint", uint(10), true},
+		{"uint8", uint8(10), true},
+		{"uint16", uint16(10), true},
+		{"uint32", uint32(10), true},
+		{"uint64", uint64(10), true},
+
+		// Signed ints that are positive and zero return true.
+		{"int positive", int(10), true},
+		{"int zero", int(0), true},
+		{"int8 positive", int8(10), true},
+		{"int8 zero", int8(0), true},
+		{"int16 positive", int16(10), true},
+		{"int16 zero", int16(0), true},
+		{"int32 positive", int32(10), true},
+		{"int32 zero", int32(0), true},
+		{"int64 positive", int64(10), true},
+		{"int64 zero", int64(0), true},
+
+		// Signed ints that are negative return false.
+		{"int negative", int(-1), false},
+		{"int8 negative", int8(-1), false},
+		{"int16 negative", int16(-1), false},
+		{"int32 negative", int32(-1), false},
+		{"int64 negative", int64(-1), false},
+
+		// Other types should return false.
+		{"string", "hello", false},
+		{"float", 3.14, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := canUint(tt.input)
+			if got != tt.want {
+				t.Errorf("canUint(%v) = %v, want %v", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestCanTstr(t *testing.T) {
+	tests := []struct {
+		name  string
+		input any
+		want  bool
+	}{
+		{"string value", "hello", true},
+		{"empty string", "", true},
+		{"integer value", 123, false},
+		{"float value", 3.14, false},
+		{"boolean value", true, false},
+		{"nil", nil, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := canTstr(tt.input)
+			if got != tt.want {
+				t.Errorf("canTstr(%v) = %v, want %v", tt.input, got, tt.want)
+			}
+		})
+	}
 }
 
 func newSignRequest(signingScheme string, keyType signature.KeyType, size int) (*signature.SignRequest, error) {

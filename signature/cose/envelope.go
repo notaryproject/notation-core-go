@@ -185,7 +185,7 @@ func (signer *localSigner) CertificateChain() []*x509.Certificate {
 type envelope struct {
 	base               *cose.Sign1Message
 	isCoseHashEnvelope bool   // set to true if base represents a COSE hash envelope
-	raw                []byte // raw COSE hash envelope bytes
+	rawHashEnvelope    []byte // raw COSE hash envelope bytes
 }
 
 // NewEnvelope initializes an empty COSE signature envelope.
@@ -208,7 +208,7 @@ func ParseEnvelope(envelopeBytes []byte) (signature.Envelope, error) {
 			Envelope: &envelope{
 				base:               &msg,
 				isCoseHashEnvelope: true,
-				raw:                envelopeBytes,
+				rawHashEnvelope:    envelopeBytes,
 			},
 			Raw: envelopeBytes,
 		}, nil
@@ -263,8 +263,19 @@ func (e *envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 	}
 
 	// core sign process
-	if req.CoseHashEnvelope { // COSE hash envelope is required
-		return cose.SignHashEnvelope(rand.Reader, signer, msg.Headers, req.CoseHashEnvelopePayload)
+	// COSE hash envelope
+	if req.CoseHashEnvelope {
+		encoded, err := cose.SignHashEnvelope(rand.Reader, signer, msg.Headers, req.CoseHashEnvelopePayload)
+		if err != nil {
+			return nil, &signature.InvalidSignatureError{Msg: err.Error()}
+		}
+		if err := msg.UnmarshalCBOR(encoded); err != nil {
+			return nil, &signature.InvalidSignatureError{Msg: err.Error()}
+		}
+		e.base = msg
+		e.isCoseHashEnvelope = true
+		e.rawHashEnvelope = encoded
+		return encoded, nil
 	}
 
 	// COSE envelope
@@ -316,7 +327,7 @@ func (e *envelope) Verify() (*signature.EnvelopeContent, error) {
 	}
 	if e.isCoseHashEnvelope {
 		// verify integrity of COSE hash envelope
-		if _, err := cose.VerifyHashEnvelope(verifier, e.raw); err != nil {
+		if _, err := cose.VerifyHashEnvelope(verifier, e.rawHashEnvelope); err != nil {
 			return nil, &signature.SignatureIntegrityError{Err: err}
 		}
 

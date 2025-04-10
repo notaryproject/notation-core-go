@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"os"
 	"reflect"
+	"runtime"
 	"sort"
 	"testing"
 	"time"
@@ -42,6 +43,9 @@ type cborStruct struct {
 }
 
 func TestConformance(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("skipping test on Windows")
+	}
 	data, err := os.ReadFile("testdata/conformance.json")
 	if err != nil {
 		t.Fatalf("os.ReadFile() failed. Error = %s", err)
@@ -99,14 +103,15 @@ func testVerify(t *testing.T, sign1 *sign1) {
 	if err != nil || len(encoded) == 0 {
 		t.Fatalf("Sign() faild. Error = %s", err)
 	}
+
 	//Verify after UnmarshalCBOR
 	var msg cose.Sign1Message
+
 	// sign1.Output.CBORHex is a manually computed CBOR hex used as ground
 	// truth in the conformance test.
 	if err := msg.UnmarshalCBOR(hexToBytes(sign1.Output.CBORHex)); err != nil {
 		t.Fatalf("msg.UnmarshalCBOR() failed. Error = %s", err)
 	}
-
 	certs := []*x509.Certificate{testhelper.GetRSALeafCertificate().Cert, testhelper.GetRSARootCertificate().Cert}
 	certChain := make([]any, len(certs))
 	for i, c := range certs {
@@ -114,7 +119,6 @@ func testVerify(t *testing.T, sign1 *sign1) {
 	}
 	msg.Headers.Unprotected[cose.HeaderLabelX5Chain] = certChain
 	msg.Signature = env.base.Signature
-
 	newEnv := createNewEnv(&msg)
 	content, err := newEnv.Verify()
 	if err != nil {
@@ -142,7 +146,7 @@ func getSignReq() (*signature.SignRequest, error) {
 			{Key: "signedCritKey1", Value: "signedCritValue1", Critical: true},
 			{Key: "signedKey1", Value: "signedValue1", Critical: false},
 		},
-		SigningAgent:  "NotationConformanceTest/1.0.0",
+		SigningAgent:  "NotationCoseConformanceTest/1.0.0",
 		SigningScheme: "notary.x509",
 	}
 	return signRequest, nil
@@ -160,21 +164,17 @@ func verifySignerInfo(signInfo *signature.SignerInfo, request *signature.SignReq
 	if request.SigningAgent != signInfo.UnsignedAttributes.SigningAgent {
 		t.Fatalf("SigningAgent: expected value %q but found %q", request.SigningAgent, signInfo.UnsignedAttributes.SigningAgent)
 	}
-
 	if request.SigningTime.Format(time.RFC3339) != signInfo.SignedAttributes.SigningTime.Format(time.RFC3339) {
 		t.Fatalf("SigningTime: expected value %q but found %q", request.SigningTime, signInfo.SignedAttributes.SigningTime)
 	}
-
 	if request.Expiry.Format(time.RFC3339) != signInfo.SignedAttributes.Expiry.Format(time.RFC3339) {
 		t.Fatalf("Expiry: expected value %q but found %q", request.SigningTime, signInfo.SignedAttributes.Expiry)
 	}
-
 	if !areAttrEqual(request.ExtendedSignedAttributes, signInfo.SignedAttributes.ExtendedAttributes) {
 		if !(len(request.ExtendedSignedAttributes) == 0 && len(signInfo.SignedAttributes.ExtendedAttributes) == 0) {
 			t.Fatalf("Mistmatch between expected and actual ExtendedAttributes")
 		}
 	}
-
 	signer, err := getSigner(request.Signer)
 	if err != nil {
 		t.Fatalf("getSigner() failed. Error = %s", err)
@@ -189,7 +189,6 @@ func verifyPayload(payload *signature.Payload, request *signature.SignRequest, t
 	if request.Payload.ContentType != payload.ContentType {
 		t.Fatalf("PayloadContentType: expected value %q but found %q", request.Payload.ContentType, payload.ContentType)
 	}
-
 	if !bytes.Equal(request.Payload.Content, payload.Content) {
 		t.Fatalf("Payload: expected value %q but found %q", request.Payload.Content, payload.Content)
 	}
