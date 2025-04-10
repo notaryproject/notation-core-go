@@ -334,7 +334,9 @@ func (e *envelope) Verify() (*signature.EnvelopeContent, error) {
 	return e.Content()
 }
 
-// Content implements signature.Envelope interface.
+// Content returns the payload and signer information of the envelope.
+// Content is trusted only after the successful call to `Verify()`.
+// It implements the signature.Envelope interface.
 func (e *envelope) Content() (*signature.EnvelopeContent, error) {
 	// sanity check
 	if e.base == nil {
@@ -348,17 +350,30 @@ func (e *envelope) Content() (*signature.EnvelopeContent, error) {
 
 	// COSE hash envelope
 	if e.isCoseHashEnvelope {
+		var coseHashEnvelopPayload cose.HashEnvelopePayload
+		payloadHashAlg, err := e.base.Headers.Protected.PayloadHashAlgorithm()
+		if err != nil {
+			return nil, &signature.InvalidSignatureError{Msg: fmt.Sprintf("failed to get payload hash algorithm: %v", err)}
+		}
+		coseHashEnvelopPayload.HashAlgorithm = payloadHashAlg
+		coseHashEnvelopPayload.HashValue = e.base.Payload
 		payloadPreImageCty, ok := e.base.Headers.Protected[cose.HeaderLabelPayloadPreimageContentType]
 		if ok {
 			if !canUint(payloadPreImageCty) && !canTstr(payloadPreImageCty) {
 				return nil, &signature.InvalidSignatureError{Msg: "payload preimage content type should be uint or tstr type"}
 			}
+			coseHashEnvelopPayload.PreimageContentType = payloadPreImageCty
+		}
+		payloadLocation, ok := e.base.Headers.Unprotected[cose.HeaderLabelPayloadLocation]
+		if ok {
+			if !canTstr(payloadLocation) {
+				return nil, &signature.InvalidSignatureError{Msg: "payload location should be tstr type"}
+			}
+			coseHashEnvelopPayload.Location = payloadLocation.(string)
 		}
 		return &signature.EnvelopeContent{
 			SignerInfo:              *signerInfo,
-			CoseHashEnvelopePayload: cose.HashEnvelopePayload{
-				// TODO: add cose.HashEnvelopePayload
-			},
+			CoseHashEnvelopePayload: coseHashEnvelopPayload,
 		}, nil
 	}
 
@@ -765,11 +780,11 @@ func generateRawProtectedCBORMap(rawProtected cbor.RawMessage) (map[any]cbor.Raw
 // hashFromCOSEAlgorithm maps the cose algorithm supported by go-cose to hash
 func hashFromCOSEAlgorithm(alg cose.Algorithm) (crypto.Hash, error) {
 	switch alg {
-	case cose.AlgorithmPS256, cose.AlgorithmES256:
+	case cose.AlgorithmPS256, cose.AlgorithmES256, cose.AlgorithmSHA256:
 		return crypto.SHA256, nil
-	case cose.AlgorithmPS384, cose.AlgorithmES384:
+	case cose.AlgorithmPS384, cose.AlgorithmES384, cose.AlgorithmSHA384:
 		return crypto.SHA384, nil
-	case cose.AlgorithmPS512, cose.AlgorithmES512:
+	case cose.AlgorithmPS512, cose.AlgorithmES512, cose.AlgorithmSHA512:
 		return crypto.SHA512, nil
 	default:
 		return 0, fmt.Errorf("unsupported cose algorithm %s", alg)
