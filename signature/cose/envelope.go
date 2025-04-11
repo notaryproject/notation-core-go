@@ -823,9 +823,10 @@ func canTstr(v any) bool {
 }
 
 // mergeCoseHashEnvelopeProtectedHeader merges the hash envelope specific
-// protected hearders to the message protected header.
+// protected headers in hashEnvProtected to the protected header map
+// of msgProtected.
 //
-// hashEnvProtected MUST be a valid hash envelope protected header.
+// hashEnvProtected MUST be a valid COSE hash envelope protected header.
 func mergeCoseHashEnvelopeProtectedHeader(msgProtected cose.ProtectedHeader, hashEnvProtected cose.ProtectedHeader) {
 	msgProtected[cose.HeaderLabelPayloadHashAlgorithm] = hashEnvProtected[cose.HeaderLabelPayloadHashAlgorithm]
 	if _, ok := hashEnvProtected[cose.HeaderLabelPayloadPreimageContentType]; ok {
