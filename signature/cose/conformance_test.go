@@ -20,7 +20,6 @@ import (
 	"encoding/json"
 	"os"
 	"reflect"
-	"runtime"
 	"sort"
 	"testing"
 	"time"
@@ -43,9 +42,6 @@ type cborStruct struct {
 }
 
 func TestConformance(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("skipping test on Windows")
-	}
 	data, err := os.ReadFile("testdata/conformance.json")
 	if err != nil {
 		t.Fatalf("os.ReadFile() failed. Error = %s", err)
@@ -146,7 +142,7 @@ func getSignReq() (*signature.SignRequest, error) {
 			{Key: "signedCritKey1", Value: "signedCritValue1", Critical: true},
 			{Key: "signedKey1", Value: "signedValue1", Critical: false},
 		},
-		SigningAgent:  "NotationCoseConformanceTest/1.0.0",
+		SigningAgent:  "NotationConformanceTest/1.0.0",
 		SigningScheme: "notary.x509",
 	}
 	return signRequest, nil

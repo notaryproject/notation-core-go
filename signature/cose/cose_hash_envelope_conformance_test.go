@@ -17,7 +17,6 @@ import (
 	"bytes"
 	"crypto/sha512"
 	"crypto/x509"
-	"runtime"
 	"testing"
 	"time"
 
@@ -27,9 +26,6 @@ import (
 )
 
 func TestConformanceCOSEHashEnvelope(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("skipping test on Windows")
-	}
 	digested := sha512.Sum512([]byte("hello COSE Hash Envelope"))
 	hashEnvelopePayload := cose.HashEnvelopePayload{
 		HashAlgorithm:       cose.AlgorithmSHA512,
