@@ -67,7 +67,7 @@ type SignatureAuthenticityError struct{}
 
 // Error returns the default error message.
 func (e *SignatureAuthenticityError) Error() string {
-	return "signature is not produced by a trusted signer"
+	return "the signature's certificate chain does not cotain any trusted certificate"
 }
 
 // UnsupportedSigningKeyError is used when a signing key is not supported.
