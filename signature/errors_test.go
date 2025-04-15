@@ -162,7 +162,7 @@ func TestSignatureEnvelopeNotFoundError(t *testing.T) {
 
 func TestSignatureAuthenticityError(t *testing.T) {
 	err := &SignatureAuthenticityError{}
-	expectMsg := "the signature's certificate chain does not cotain any trusted certificate"
+	expectMsg := "the signature's certificate chain does not contain any trusted certificate"
 
 	if err.Error() != expectMsg {
 		t.Errorf("Expected %v but got %v", expectMsg, err.Error())
