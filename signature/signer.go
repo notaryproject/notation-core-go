@@ -132,13 +132,11 @@ func VerifyAuthenticity(signerInfo *SignerInfo, trustedCerts []*x509.Certificate
 	if len(trustedCerts) == 0 {
 		return nil, &InvalidArgumentError{Param: "trustedCerts"}
 	}
-
 	if signerInfo == nil {
 		return nil, &InvalidArgumentError{Param: "signerInfo"}
 	}
-
-	for _, trust := range trustedCerts {
-		for _, cert := range signerInfo.CertificateChain {
+	for _, cert := range signerInfo.CertificateChain {
+		for _, trust := range trustedCerts {
 			if trust.Equal(cert) {
 				return trust, nil
 			}
