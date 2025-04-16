@@ -122,22 +122,21 @@ func (s *localSigner) PrivateKey() crypto.PrivateKey {
 	return s.key
 }
 
-// VerifyAuthenticity verifies the certificate chain in the given SignerInfo
-// with one of the trusted certificates and returns a certificate that matches
-// with one of the certificates in the SignerInfo.
+// VerifyAuthenticity iterates the certificate chain in signerInfo, for each
+// certificate in the chain, it checks if the certificate matches with one of
+// the trusted certificates in trustedCerts. It returns the first matching
+// certificate. If no match is found, it returns an error.
 //
 // Reference: https://github.com/notaryproject/notaryproject/blob/main/specs/trust-store-trust-policy.md#steps
 func VerifyAuthenticity(signerInfo *SignerInfo, trustedCerts []*x509.Certificate) (*x509.Certificate, error) {
 	if len(trustedCerts) == 0 {
 		return nil, &InvalidArgumentError{Param: "trustedCerts"}
 	}
-
 	if signerInfo == nil {
 		return nil, &InvalidArgumentError{Param: "signerInfo"}
 	}
-
-	for _, trust := range trustedCerts {
-		for _, cert := range signerInfo.CertificateChain {
+	for _, cert := range signerInfo.CertificateChain {
+		for _, trust := range trustedCerts {
 			if trust.Equal(cert) {
 				return trust, nil
 			}
