@@ -87,7 +87,7 @@ type SignRequest struct {
 	//
 	// For JWS envelope, Payload.Content is limited to be JSON format.
 	//
-	// It is ignored when [SignRequest.CoseHashEnvelope] is set to true.
+	// It is ignored if and only if [SignRequest.CoseHashEnvelope] is set to true.
 	// In that case, [SignRequest.CoseHashEnvelopePayload] is the payload to be
 	// signed.
 	Payload Payload
@@ -125,13 +125,16 @@ type SignRequest struct {
 
 	// CoseHashEnvelope is set to true when signing under the COSE format with
 	// COSE hash envelope as result.
+	//
+	// It is ignored when signing under the JWS format.
 	CoseHashEnvelope bool
 
 	// CoseHashEnvelopePayload is the payload to be signed and REQUIRED
 	// when [SignRequest.CoseHashEnvelope] is set to true.
 	//
-	// It is ignored when [SignRequest.CoseHashEnvelope] is set to false.
-	// In that case, [SignRequest.Payload] is the payload to be signed.
+	// It is ignored when signing under the JWS format or
+	// [SignRequest.CoseHashEnvelope] is set to false.
+	// When ignored, [SignRequest.Payload] is the payload to be signed.
 	CoseHashEnvelopePayload cose.HashEnvelopePayload
 
 	// ctx is the caller context. It should only be modified via WithContext.
