@@ -16,6 +16,7 @@ package cose
 import (
 	"context"
 	"crypto"
+	"crypto/sha256"
 	"crypto/x509"
 	"errors"
 	"fmt"
@@ -356,6 +357,20 @@ func TestSignErrors(t *testing.T) {
 			t.Fatal("expected nil signature envelope")
 		}
 	})
+
+	// Testing COSE hash envelope
+	t.Run("when fail to sign COSE hash envelope", func(t *testing.T) {
+		signRequest, err := newCoseHashEnvelopeSignRequest("notary.x509")
+		if err != nil {
+			t.Fatalf("getSignRequest() failed. Error = %v", err)
+		}
+		signRequest.CoseHashEnvelopePayload.HashAlgorithm = cose.AlgorithmSHA512
+		_, err = env.Sign(signRequest)
+		expected := errors.New("SHA-512: size mismatch: expected 64, got 32")
+		if !isErrEqual(expected, err) {
+			t.Fatalf("Sign() expects error: %v, but got: %v", expected, err)
+		}
+	})
 }
 
 func TestVerifyErrors(t *testing.T) {
@@ -437,7 +452,7 @@ func TestVerifyErrors(t *testing.T) {
 	})
 
 	// Testing core verify process
-	t.Run("when tempered signature envelope is provided", func(t *testing.T) {
+	t.Run("when tampered signature envelope is provided", func(t *testing.T) {
 		signRequest, err := getSignRequest()
 		if err != nil {
 			t.Fatalf("getSignRequest() failed. Error = %s", err)
@@ -482,6 +497,82 @@ func TestVerifyErrors(t *testing.T) {
 		expected := errors.New("empty crit header")
 		if !isErrEqual(expected, err) {
 			t.Fatalf("Verify() expects error: %v, but got: %v.", expected, err)
+		}
+	})
+
+	t.Run("when COSE hash envelope is malformed", func(t *testing.T) {
+		env, err := getVerifyCoseHashEnvelope()
+		if err != nil {
+			t.Fatal(err)
+		}
+		env.base.Signature = nil
+		_, err = env.Verify()
+		expected := errors.New("signature is invalid. Error: empty signature")
+		if !isErrEqual(expected, err) {
+			t.Fatalf("Verify() expects error: %v, but got: %v", expected, err)
+		}
+	})
+
+	t.Run("when tampered COSE hash envelope is provided", func(t *testing.T) {
+		signRequest, err := newCoseHashEnvelopeSignRequest("notary.x509")
+		if err != nil {
+			t.Fatalf("getSignRequest() failed. Error = %s", err)
+		}
+		env := NewEnvelope()
+		encoded, err := env.Sign(signRequest)
+		if err != nil {
+			t.Fatalf("Sign() failed. Error = %s", err)
+		}
+		encoded[len(encoded)-10] += 'A'
+		newEnv, err := ParseEnvelope(encoded)
+		if err != nil {
+			t.Fatalf("ParseEnvelope() failed. Error = %s", err)
+		}
+		_, err = newEnv.Verify()
+		expected := errors.New("signature is invalid. Error: verification error")
+		if !isErrEqual(expected, err) {
+			t.Fatalf("Verify() expects error: %v, but got: %v.", expected, err)
+		}
+	})
+}
+
+func TestCoseHashEnvelopeContentErrors(t *testing.T) {
+	t.Run("when COSE hash envelope with invalid payload hash algorithm", func(t *testing.T) {
+		env, err := getVerifyCoseHashEnvelope()
+		if err != nil {
+			t.Fatalf("getVerifyCoseHashEnvelope() failed. Error = %s", err)
+		}
+		env.base.Headers.Protected[cose.HeaderLabelPayloadHashAlgorithm] = nil
+		_, err = env.Content()
+		expected := errors.New("failed to get payload hash algorithm: invalid algorithm")
+		if !isErrEqual(expected, err) {
+			t.Fatalf("Content() expects error: %v, but got: %v", expected, err)
+		}
+	})
+
+	t.Run("when COSE hash envelope with malformed payload preimage content type", func(t *testing.T) {
+		env, err := getVerifyCoseHashEnvelope()
+		if err != nil {
+			t.Fatalf("getVerifyCoseHashEnvelope() failed. Error = %s", err)
+		}
+		env.base.Headers.Protected[cose.HeaderLabelPayloadPreimageContentType] = true
+		_, err = env.Content()
+		expected := errors.New("payload preimage content type should be uint or tstr type")
+		if !isErrEqual(expected, err) {
+			t.Fatalf("Content() expects error: %v, but got: %v", expected, err)
+		}
+	})
+
+	t.Run("when COSE hash envelope with malformed payload location", func(t *testing.T) {
+		env, err := getVerifyCoseHashEnvelope()
+		if err != nil {
+			t.Fatalf("getVerifyCoseHashEnvelope() failed. Error = %s", err)
+		}
+		env.base.Headers.Protected[cose.HeaderLabelPayloadLocation] = true
+		_, err = env.Content()
+		expected := errors.New("payload location should be tstr type")
+		if !isErrEqual(expected, err) {
+			t.Fatalf("Content() expects error: %v, but got: %v", expected, err)
 		}
 	})
 }
@@ -905,6 +996,92 @@ func TestHashFunc(t *testing.T) {
 	if err == nil || err.Error() != expectedErrMsg {
 		t.Fatalf("expected %s, but got %s", expectedErrMsg, err)
 	}
+
+	hash, err = hashFromCOSEAlgorithm(cose.AlgorithmSHA256)
+	if err != nil || hash.String() != "SHA-256" {
+		t.Fatalf("expected SHA-256, but got %s", hash)
+	}
+
+	hash, err = hashFromCOSEAlgorithm(cose.AlgorithmSHA384)
+	if err != nil || hash.String() != "SHA-384" {
+		t.Fatalf("expected SHA-384, but got %s", hash)
+	}
+
+	hash, err = hashFromCOSEAlgorithm(cose.AlgorithmSHA512)
+	if err != nil || hash.String() != "SHA-512" {
+		t.Fatalf("expected SHA-512, but got %s", hash)
+	}
+}
+
+func TestCanUint(t *testing.T) {
+	tests := []struct {
+		name  string
+		input any
+		want  bool
+	}{
+		// Unsigned types always return true.
+		{"uint", uint(10), true},
+		{"uint8", uint8(10), true},
+		{"uint16", uint16(10), true},
+		{"uint32", uint32(10), true},
+		{"uint64", uint64(10), true},
+
+		// Signed ints that are positive and zero return true.
+		{"int positive", int(10), true},
+		{"int zero", int(0), true},
+		{"int8 positive", int8(10), true},
+		{"int8 zero", int8(0), true},
+		{"int16 positive", int16(10), true},
+		{"int16 zero", int16(0), true},
+		{"int32 positive", int32(10), true},
+		{"int32 zero", int32(0), true},
+		{"int64 positive", int64(10), true},
+		{"int64 zero", int64(0), true},
+
+		// Signed ints that are negative return false.
+		{"int negative", int(-1), false},
+		{"int8 negative", int8(-1), false},
+		{"int16 negative", int16(-1), false},
+		{"int32 negative", int32(-1), false},
+		{"int64 negative", int64(-1), false},
+
+		// Other types should return false.
+		{"string", "hello", false},
+		{"float", 3.14, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := canUint(tt.input)
+			if got != tt.want {
+				t.Errorf("canUint(%v) = %v, want %v", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestCanTstr(t *testing.T) {
+	tests := []struct {
+		name  string
+		input any
+		want  bool
+	}{
+		{"string value", "hello", true},
+		{"empty string", "", true},
+		{"integer value", 123, false},
+		{"float value", 3.14, false},
+		{"boolean value", true, false},
+		{"nil", nil, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := canTstr(tt.input)
+			if got != tt.want {
+				t.Errorf("canTstr(%v) = %v, want %v", tt.input, got, tt.want)
+			}
+		})
+	}
 }
 
 func newSignRequest(signingScheme string, keyType signature.KeyType, size int) (*signature.SignRequest, error) {
@@ -916,6 +1093,31 @@ func newSignRequest(signingScheme string, keyType signature.KeyType, size int) (
 		Payload: signature.Payload{
 			ContentType: "application/vnd.cncf.notary.payload.v1+json",
 			Content:     []byte(payloadString),
+		},
+		Signer:      signer,
+		SigningTime: time.Now().Truncate(time.Second),
+		Expiry:      time.Now().AddDate(0, 0, 1).Truncate(time.Second),
+		ExtendedSignedAttributes: []signature.Attribute{
+			{Key: "signedCritKey1", Value: "signedCritValue1", Critical: true},
+			{Key: "signedKey1", Value: "signedValue1", Critical: false},
+		},
+		SigningAgent:  "NotationUnitTest/1.0.0",
+		SigningScheme: signature.SigningScheme(signingScheme),
+	}, nil
+}
+
+func newCoseHashEnvelopeSignRequest(signingScheme string) (*signature.SignRequest, error) {
+	signer, err := signaturetest.GetTestLocalSigner(signature.KeyTypeRSA, 2048)
+	if err != nil {
+		return nil, err
+	}
+	digested := sha256.Sum256([]byte("COSE hash envelope"))
+	return &signature.SignRequest{
+		CoseHashEnvelope: true,
+		CoseHashEnvelopePayload: cose.HashEnvelopePayload{
+			HashAlgorithm:       cose.AlgorithmSHA256,
+			HashValue:           digested[:],
+			PreimageContentType: "text/plain",
 		},
 		Signer:      signer,
 		SigningTime: time.Now().Truncate(time.Second),
@@ -948,6 +1150,25 @@ func getVerifyCOSE(signingScheme string, keyType signature.KeyType, size int) (e
 		return createNewEnv(nil), err
 	}
 	newEnv := createNewEnv(&msg)
+	return newEnv, nil
+}
+
+func getVerifyCoseHashEnvelope() (envelope, error) {
+	signRequest, err := newCoseHashEnvelopeSignRequest("notary.x509")
+	if err != nil {
+		return envelope{}, err
+	}
+	env := NewEnvelope()
+	encoded, err := env.Sign(signRequest)
+	if err != nil {
+		return envelope{}, err
+	}
+	var msg cose.Sign1Message
+	if err := msg.UnmarshalCBOR(encoded); err != nil {
+		return envelope{}, err
+	}
+	newEnv := createNewEnv(&msg)
+	newEnv.isCoseHashEnvelope = true
 	return newEnv, nil
 }
 

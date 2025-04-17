@@ -113,22 +113,20 @@ func (e *Envelope) Content() (*signature.EnvelopeContent, error) {
 
 // validateSignRequest performs basic set of validations on SignRequest struct.
 func validateSignRequest(req *signature.SignRequest) error {
-	if err := validatePayload(&req.Payload); err != nil {
-		return &signature.InvalidSignRequestError{Msg: err.Error()}
+	if !req.CoseHashEnvelope {
+		if err := validatePayload(&req.Payload); err != nil {
+			return &signature.InvalidSignRequestError{Msg: err.Error()}
+		}
 	}
-
 	if err := validateSigningAndExpiryTime(req.SigningTime, req.Expiry); err != nil {
 		return err
 	}
-
 	if req.Signer == nil {
 		return &signature.InvalidSignRequestError{Msg: "signer is nil"}
 	}
-
 	if _, err := req.Signer.KeySpec(); err != nil {
 		return err
 	}
-
 	return validateSigningSchema(req.SigningScheme)
 }
 
@@ -144,7 +142,9 @@ func validateSigningSchema(schema signature.SigningScheme) error {
 // payload.
 func validateEnvelopeContent(content *signature.EnvelopeContent) error {
 	if err := validatePayload(&content.Payload); err != nil {
-		return &signature.InvalidSignatureError{Msg: err.Error()}
+		if len(content.CoseHashEnvelopePayload.HashValue) == 0 {
+			return &signature.InvalidSignatureError{Msg: err.Error()}
+		}
 	}
 	return validateSignerInfo(&content.SignerInfo)
 }
@@ -193,7 +193,6 @@ func validatePayload(payload *signature.Payload) error {
 	if len(payload.Content) == 0 {
 		return errors.New("content not present")
 	}
-
 	return nil
 }
 

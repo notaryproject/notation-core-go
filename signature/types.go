@@ -22,6 +22,7 @@ import (
 
 	"github.com/notaryproject/notation-core-go/revocation"
 	"github.com/notaryproject/tspclient-go"
+	"github.com/veraison/go-cose"
 )
 
 // SignatureMediaType list the supported media-type for signatures.
@@ -85,6 +86,10 @@ type SignRequest struct {
 	// Payload is the payload to be signed.
 	//
 	// For JWS envelope, Payload.Content is limited to be JSON format.
+	//
+	// It is ignored if and only if [SignRequest.CoseHashEnvelope] is set to true.
+	// In that case, [SignRequest.CoseHashEnvelopePayload] is the payload to be
+	// signed.
 	Payload Payload
 
 	// Signer is the signer used to sign the digest.
@@ -117,6 +122,20 @@ type SignRequest struct {
 	// chain revocation check after signing.
 	// When present, only used when timestamping is performed.
 	TSARevocationValidator revocation.Validator
+
+	// CoseHashEnvelope is set to true when signing under the COSE format with
+	// COSE hash envelope as result.
+	//
+	// It is ignored when signing under the JWS format.
+	CoseHashEnvelope bool
+
+	// CoseHashEnvelopePayload is the payload to be signed and REQUIRED
+	// when [SignRequest.CoseHashEnvelope] is set to true.
+	//
+	// It is ignored when signing under the JWS format or
+	// [SignRequest.CoseHashEnvelope] is set to false.
+	// When ignored, [SignRequest.Payload] is the payload to be signed.
+	CoseHashEnvelopePayload cose.HashEnvelopePayload
 
 	// ctx is the caller context. It should only be modified via WithContext.
 	// It is unexported to prevent people from using Context wrong
@@ -155,7 +174,15 @@ type EnvelopeContent struct {
 	SignerInfo SignerInfo
 
 	// Payload is payload to be signed.
+	//
+	// It is ignored when [EnvelopeContent.CoseHashEnvelopePayload] is present.
 	Payload Payload
+
+	// CoseHashEnvelopePayload is the payload to be signed with
+	// COSE hash envelope as result.
+	//
+	// When present, [EnvelopeContent.Payload] is ignored.
+	CoseHashEnvelopePayload cose.HashEnvelopePayload
 }
 
 // SignerInfo represents a parsed signature envelope that is agnostic to

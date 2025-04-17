@@ -47,7 +47,6 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
-
 	encOpts := cbor.EncOptions{
 		Time:    cbor.TimeUnix,
 		TimeTag: cbor.EncTagRequired,
@@ -56,7 +55,6 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
-
 	decOpts := cbor.DecOptions{
 		TimeTag: cbor.DecTagRequired,
 	}
@@ -185,7 +183,8 @@ func (signer *localSigner) CertificateChain() []*x509.Certificate {
 }
 
 type envelope struct {
-	base *cose.Sign1Message
+	base               *cose.Sign1Message
+	isCoseHashEnvelope bool // set to true if base represents a COSE hash envelope
 }
 
 // NewEnvelope initializes an empty COSE signature envelope.
@@ -195,11 +194,22 @@ func NewEnvelope() signature.Envelope {
 	}
 }
 
-// ParseEnvelope parses envelopeBytes to a COSE signature envelope.
+// ParseEnvelope parses envelopeBytes to a COSE signature envelope or
+// a COSE hash envelope.
 func ParseEnvelope(envelopeBytes []byte) (signature.Envelope, error) {
 	var msg cose.Sign1Message
 	if err := msg.UnmarshalCBOR(envelopeBytes); err != nil {
 		return nil, &signature.InvalidSignatureError{Msg: err.Error()}
+	}
+	if _, ok := msg.Headers.Protected[cose.HeaderLabelPayloadHashAlgorithm]; ok {
+		// COSE hash envelope
+		return &base.Envelope{
+			Envelope: &envelope{
+				base:               &msg,
+				isCoseHashEnvelope: true,
+			},
+			Raw: envelopeBytes,
+		}, nil
 	}
 	return &base.Envelope{
 		Envelope: &envelope{
@@ -211,6 +221,7 @@ func ParseEnvelope(envelopeBytes []byte) (signature.Envelope, error) {
 
 // Sign implements signature.Envelope interface.
 // On success, this function returns the COSE signature envelope byte slice.
+// When req.CoseHashEnvelope is true, it returns a COSE hash envelope byte slice.
 func (e *envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 	// get built-in signer from go-cose or remote signer based on req.Signer
 	signer, err := getSigner(req.Signer)
@@ -227,13 +238,26 @@ func (e *envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 		return nil, &signature.InvalidSignRequestError{Msg: err.Error()}
 	}
 
-	// generate payload of COSE envelope
-	msg.Headers.Protected[cose.HeaderLabelContentType] = req.Payload.ContentType
-	msg.Payload = req.Payload.Content
-
-	// core sign process, generate signature of COSE envelope
-	if err := msg.Sign(rand.Reader, nil, signer); err != nil {
-		return nil, &signature.InvalidSignRequestError{Msg: err.Error()}
+	// core sign process
+	if req.CoseHashEnvelope { // COSE hash envelope
+		hashEnvMsg := cose.NewSign1Message()
+		hashEnv, err := cose.SignHashEnvelope(rand.Reader, signer, msg.Headers, req.CoseHashEnvelopePayload)
+		if err != nil {
+			return nil, &signature.InvalidSignatureError{Msg: err.Error()}
+		}
+		if err := hashEnvMsg.UnmarshalCBOR(hashEnv); err != nil {
+			return nil, &signature.InvalidSignatureError{Msg: err.Error()}
+		}
+		msg.Payload = hashEnvMsg.Payload
+		msg.Signature = hashEnvMsg.Signature
+		mergeCoseHashEnvelopeProtectedHeader(msg.Headers.Protected, hashEnvMsg.Headers.Protected)
+		e.isCoseHashEnvelope = true
+	} else { // COSE envelope
+		msg.Headers.Protected[cose.HeaderLabelContentType] = req.Payload.ContentType
+		msg.Payload = req.Payload.Content
+		if err := msg.Sign(rand.Reader, nil, signer); err != nil {
+			return nil, &signature.InvalidSignRequestError{Msg: err.Error()}
+		}
 	}
 
 	// generate unprotected headers of COSE envelope.
@@ -253,6 +277,7 @@ func (e *envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 		if err != nil {
 			return nil, &signature.TimestampError{Detail: err}
 		}
+
 		// on success, embed the timestamp token to Unprotected header
 		msg.Headers.Unprotected[headerLabelTimestampSignature] = timestampToken
 	}
@@ -263,7 +288,6 @@ func (e *envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 		return nil, &signature.InvalidSignatureError{Msg: err.Error()}
 	}
 	e.base = msg
-
 	return encoded, nil
 }
 
@@ -288,7 +312,7 @@ func (e *envelope) Verify() (*signature.EnvelopeContent, error) {
 		return nil, &signature.InvalidSignatureError{Msg: "malformed leaf certificate"}
 	}
 
-	// core verify process, verify integrity of COSE envelope
+	// core verify process
 	publicKeyAlg, err := getSignatureAlgorithm(cert)
 	if err != nil {
 		return nil, &signature.InvalidSignatureError{Msg: err.Error()}
@@ -297,27 +321,69 @@ func (e *envelope) Verify() (*signature.EnvelopeContent, error) {
 	if err != nil {
 		return nil, &signature.InvalidSignatureError{Msg: err.Error()}
 	}
-	err = e.base.Verify(nil, verifier)
-	if err != nil {
-		return nil, &signature.SignatureIntegrityError{Err: err}
+	if e.isCoseHashEnvelope { // verify integrity of COSE hash envelope
+		hashEnv, err := e.base.MarshalCBOR()
+		if err != nil {
+			return nil, &signature.SignatureIntegrityError{Err: err}
+		}
+		if _, err := cose.VerifyHashEnvelope(verifier, hashEnv); err != nil {
+			return nil, &signature.SignatureIntegrityError{Err: err}
+		}
+	} else { // verify integrity of COSE envelope
+		if err := e.base.Verify(nil, verifier); err != nil {
+			return nil, &signature.SignatureIntegrityError{Err: err}
+		}
 	}
 
 	// extract content
 	return e.Content()
 }
 
-// Content implements signature.Envelope interface.
+// Content returns the payload and signer information of the envelope.
+// Content is trusted only after the successful call to `Verify()`.
+// It implements the signature.Envelope interface.
 func (e *envelope) Content() (*signature.EnvelopeContent, error) {
 	// sanity check
 	if e.base == nil {
 		return nil, &signature.SignatureEnvelopeNotFoundError{}
 	}
 
-	payload, err := e.payload()
+	signerInfo, err := e.signerInfo()
 	if err != nil {
 		return nil, err
 	}
-	signerInfo, err := e.signerInfo()
+
+	// COSE hash envelope
+	if e.isCoseHashEnvelope {
+		var coseHashEnvelopPayload cose.HashEnvelopePayload
+		payloadHashAlg, err := e.base.Headers.Protected.PayloadHashAlgorithm()
+		if err != nil {
+			return nil, &signature.InvalidSignatureError{Msg: fmt.Sprintf("failed to get payload hash algorithm: %v", err)}
+		}
+		coseHashEnvelopPayload.HashAlgorithm = payloadHashAlg
+		coseHashEnvelopPayload.HashValue = e.base.Payload
+		payloadPreImageCty, ok := e.base.Headers.Protected[cose.HeaderLabelPayloadPreimageContentType]
+		if ok {
+			if !canUint(payloadPreImageCty) && !canTstr(payloadPreImageCty) {
+				return nil, &signature.InvalidSignatureError{Msg: "payload preimage content type should be uint or tstr type"}
+			}
+			coseHashEnvelopPayload.PreimageContentType = payloadPreImageCty
+		}
+		payloadLocation, ok := e.base.Headers.Protected[cose.HeaderLabelPayloadLocation]
+		if ok {
+			if !canTstr(payloadLocation) {
+				return nil, &signature.InvalidSignatureError{Msg: "payload location should be tstr type"}
+			}
+			coseHashEnvelopPayload.Location = payloadLocation.(string)
+		}
+		return &signature.EnvelopeContent{
+			SignerInfo:              *signerInfo,
+			CoseHashEnvelopePayload: coseHashEnvelopPayload,
+		}, nil
+	}
+
+	// COSE envelope
+	payload, err := e.payload()
 	if err != nil {
 		return nil, err
 	}
@@ -390,7 +456,6 @@ func (e *envelope) signerInfo() (*signature.SignerInfo, error) {
 	if timestamepToken, ok := e.base.Headers.Unprotected[headerLabelTimestampSignature].([]byte); ok {
 		signerInfo.UnsignedAttributes.TimestampSignature = timestamepToken
 	}
-
 	return &signerInfo, nil
 }
 
@@ -488,7 +553,6 @@ func generateProtectedHeaders(req *signature.SignRequest, protected cose.Protect
 
 	// critical headers
 	protected[cose.HeaderLabelCritical] = crit
-
 	return nil
 }
 
@@ -606,7 +670,8 @@ func validateCritHeaders(protected cose.ProtectedHeader) ([]any, error) {
 
 	// fetch all the extended signed attributes
 	systemHeaders := []any{cose.HeaderLabelAlgorithm, cose.HeaderLabelCritical, cose.HeaderLabelContentType,
-		headerLabelExpiry, headerLabelSigningScheme, headerLabelSigningTime, headerLabelAuthenticSigningTime}
+		headerLabelExpiry, headerLabelSigningScheme, headerLabelSigningTime, headerLabelAuthenticSigningTime,
+		cose.HeaderLabelPayloadHashAlgorithm, cose.HeaderLabelPayloadPreimageContentType, cose.HeaderLabelPayloadLocation}
 	var extendedAttributeKeys []any
 	for label := range protected {
 		if contains(systemHeaders, label) {
@@ -614,7 +679,6 @@ func validateCritHeaders(protected cose.ProtectedHeader) ([]any, error) {
 		}
 		extendedAttributeKeys = append(extendedAttributeKeys, label)
 	}
-
 	return extendedAttributeKeys, nil
 }
 
@@ -653,7 +717,6 @@ func encodeTime(t time.Time) (cbor.RawMessage, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	return cbor.RawMessage(timeCBOR), nil
 }
 
@@ -667,7 +730,6 @@ func decodeTime(timeRaw cbor.RawMessage) (time.Time, error) {
 	if err != nil {
 		return time.Time{}, err
 	}
-
 	return t, nil
 }
 
@@ -697,7 +759,6 @@ func parseTime(headerMap map[any]cbor.RawMessage, label string, protected cose.P
 	case nil:
 		return time.Time{}, fmt.Errorf("protected header %q is missing", label)
 	}
-
 	return time.Time{}, errors.New("invalid timeValue type")
 }
 
@@ -719,20 +780,59 @@ func generateRawProtectedCBORMap(rawProtected cbor.RawMessage) (map[any]cbor.Raw
 	if err != nil {
 		return nil, err
 	}
-
 	return headerMap, nil
 }
 
 // hashFromCOSEAlgorithm maps the cose algorithm supported by go-cose to hash
 func hashFromCOSEAlgorithm(alg cose.Algorithm) (crypto.Hash, error) {
 	switch alg {
-	case cose.AlgorithmPS256, cose.AlgorithmES256:
+	case cose.AlgorithmPS256, cose.AlgorithmES256, cose.AlgorithmSHA256:
 		return crypto.SHA256, nil
-	case cose.AlgorithmPS384, cose.AlgorithmES384:
+	case cose.AlgorithmPS384, cose.AlgorithmES384, cose.AlgorithmSHA384:
 		return crypto.SHA384, nil
-	case cose.AlgorithmPS512, cose.AlgorithmES512:
+	case cose.AlgorithmPS512, cose.AlgorithmES512, cose.AlgorithmSHA512:
 		return crypto.SHA512, nil
 	default:
 		return 0, fmt.Errorf("unsupported cose algorithm %s", alg)
+	}
+}
+
+// canUint reports whether v can be used as a CBOR uint type.
+func canUint(v any) bool {
+	switch v := v.(type) {
+	case uint, uint8, uint16, uint32, uint64:
+		return true
+	case int:
+		return v >= 0
+	case int8:
+		return v >= 0
+	case int16:
+		return v >= 0
+	case int32:
+		return v >= 0
+	case int64:
+		return v >= 0
+	}
+	return false
+}
+
+// canTstr reports whether v can be used as a CBOR tstr type.
+func canTstr(v any) bool {
+	_, ok := v.(string)
+	return ok
+}
+
+// mergeCoseHashEnvelopeProtectedHeader merges the hash envelope specific
+// protected headers in hashEnvProtected to the protected header map
+// of msgProtected.
+//
+// hashEnvProtected MUST be a valid COSE hash envelope protected header.
+func mergeCoseHashEnvelopeProtectedHeader(msgProtected cose.ProtectedHeader, hashEnvProtected cose.ProtectedHeader) {
+	msgProtected[cose.HeaderLabelPayloadHashAlgorithm] = hashEnvProtected[cose.HeaderLabelPayloadHashAlgorithm]
+	if _, ok := hashEnvProtected[cose.HeaderLabelPayloadPreimageContentType]; ok {
+		msgProtected[cose.HeaderLabelPayloadPreimageContentType] = hashEnvProtected[cose.HeaderLabelPayloadPreimageContentType]
+	}
+	if _, ok := hashEnvProtected[cose.HeaderLabelPayloadLocation]; ok {
+		msgProtected[cose.HeaderLabelPayloadLocation] = hashEnvProtected[cose.HeaderLabelPayloadLocation]
 	}
 }
