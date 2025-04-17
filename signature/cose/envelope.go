@@ -369,7 +369,7 @@ func (e *envelope) Content() (*signature.EnvelopeContent, error) {
 			}
 			coseHashEnvelopPayload.PreimageContentType = payloadPreImageCty
 		}
-		payloadLocation, ok := e.base.Headers.Unprotected[cose.HeaderLabelPayloadLocation]
+		payloadLocation, ok := e.base.Headers.Protected[cose.HeaderLabelPayloadLocation]
 		if ok {
 			if !canTstr(payloadLocation) {
 				return nil, &signature.InvalidSignatureError{Msg: "payload location should be tstr type"}

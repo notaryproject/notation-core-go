@@ -15,7 +15,7 @@ package cose
 
 import (
 	"bytes"
-	"crypto/sha512"
+	"crypto/sha256"
 	"crypto/x509"
 	"testing"
 	"time"
@@ -26,23 +26,11 @@ import (
 )
 
 func TestConformanceCOSEHashEnvelope(t *testing.T) {
-	digested := sha512.Sum512([]byte("hello COSE Hash Envelope"))
-	hashEnvelopePayload := cose.HashEnvelopePayload{
-		HashAlgorithm:       cose.AlgorithmSHA512,
-		HashValue:           digested[:],
-		PreimageContentType: "text/plain",
-	}
-	signReq, err := getCoseHashEnvelopeSignReq()
+	digested := sha256.Sum256([]byte("COSE hash envelope"))
+	signReq, err := getCoseHashEnvelopeSignReq(digested[:])
 	if err != nil {
 		t.Fatalf("getSignReq() failed. Error = %s", err)
 	}
-
-	// enable signing with COSE Hash Envelope as result
-	signReq.CoseHashEnvelope = true
-
-	// set the COSE hash envelope payload to be signed
-	signReq.CoseHashEnvelopePayload = hashEnvelopePayload
-	signReq.Payload = signature.Payload{}
 
 	// create a new COSE envelope
 	sigEnv, err := signature.NewEnvelope(MediaTypeEnvelope)
@@ -72,18 +60,27 @@ func TestConformanceCOSEHashEnvelope(t *testing.T) {
 	verifySignerInfo(&envContent.SignerInfo, signReq, t)
 
 	// verify COSE hash envelope payload
-	if envContent.CoseHashEnvelopePayload.HashAlgorithm != cose.AlgorithmSHA512 {
-		t.Fatalf("expected hash algorithm %s, got %s", cose.AlgorithmSHA512, envContent.CoseHashEnvelopePayload.HashAlgorithm)
+	if envContent.CoseHashEnvelopePayload.HashAlgorithm != cose.AlgorithmSHA256 {
+		t.Fatalf("expected hash algorithm %s, got %s", cose.AlgorithmSHA256, envContent.CoseHashEnvelopePayload.HashAlgorithm)
 	}
 	if envContent.CoseHashEnvelopePayload.PreimageContentType != "text/plain" {
 		t.Fatalf("expected preimage content type %s, got %s", "text/plain", envContent.CoseHashEnvelopePayload.PreimageContentType)
+	}
+	if envContent.CoseHashEnvelopePayload.Location != "http://localhost.test" {
+		t.Fatalf("expected location %s, got %s", "http://localhost.test", envContent.CoseHashEnvelopePayload.Location)
 	}
 	if !bytes.Equal(envContent.CoseHashEnvelopePayload.HashValue, digested[:]) {
 		t.Fatalf("expected hash value %x, got %x", digested[:], envContent.CoseHashEnvelopePayload.HashValue)
 	}
 }
 
-func getCoseHashEnvelopeSignReq() (*signature.SignRequest, error) {
+func getCoseHashEnvelopeSignReq(hashValue []byte) (*signature.SignRequest, error) {
+	hashEnvelopePayload := cose.HashEnvelopePayload{
+		HashAlgorithm:       cose.AlgorithmSHA256,
+		HashValue:           hashValue,
+		PreimageContentType: "text/plain",
+		Location:            "http://localhost.test",
+	}
 	leaf := testhelper.GetRSALeafCertificate().Cert
 	root := testhelper.GetRSARootCertificate().Cert
 	signer, err := signature.NewLocalSigner([]*x509.Certificate{leaf, root}, testhelper.GetRSALeafCertificate().PrivateKey)
@@ -91,13 +88,11 @@ func getCoseHashEnvelopeSignReq() (*signature.SignRequest, error) {
 		return &signature.SignRequest{}, err
 	}
 	signRequest := &signature.SignRequest{
-		Payload: signature.Payload{
-			ContentType: "application/vnd.cncf.notary.payload.v1+json",
-			Content:     []byte("hello COSE"),
-		},
-		Signer:      signer,
-		SigningTime: leaf.NotBefore.Add(time.Minute * 1).Local(),
-		Expiry:      time.Unix(1902017214, 0),
+		CoseHashEnvelope:        true,
+		CoseHashEnvelopePayload: hashEnvelopePayload,
+		Signer:                  signer,
+		SigningTime:             leaf.NotBefore.Add(time.Minute * 1).Local(),
+		Expiry:                  time.Unix(1902017214, 0),
 		ExtendedSignedAttributes: []signature.Attribute{
 			{Key: "signedCritKey1", Value: "signedCritValue1", Critical: true},
 			{Key: "signedKey1", Value: "signedValue1", Critical: false},
