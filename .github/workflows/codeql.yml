@@ -17,11 +17,11 @@ on:
   push:
     branches: 
       - main
-      - cose*
+      - feature/*
   pull_request:
     branches: 
       - main
-      - cose*
+      - feature/*
   schedule:
     - cron: '38 15 * * 1'
 
