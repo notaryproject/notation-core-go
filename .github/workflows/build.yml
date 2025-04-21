@@ -15,9 +15,13 @@ name: Build
 
 on:
   push:
-    branches: main
+    branches: 
+      - main
+      - cose*
   pull_request:
-    branches: main
+    branches: 
+      - main
+      - cose*
 
 jobs:
   build:
