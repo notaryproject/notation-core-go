@@ -17,11 +17,11 @@ on:
   push:
     branches: 
       - main
-      - feat*
+      - feature/*
   pull_request:
     branches: 
       - main
-      - feat*
+      - feature/*
 
 permissions:
   contents: write
