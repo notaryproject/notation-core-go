@@ -10,6 +10,8 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+//
+// Portions (c) 2023 Xenit AB and 2024 The veraison/go-cose Authors.
 
 package cose
 
