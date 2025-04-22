@@ -237,7 +237,7 @@ func (e *envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 	}
 
 	// core sign process
-	if e.isCoseHashEnvelope() { // COSE hash envelope
+	if req.Payload.CoseHashEnvelopePayload != nil { // COSE hash envelope
 		hashEnvMsg := cose.NewSign1Message()
 		hashEnv, err := cose.SignHashEnvelope(rand.Reader, signer, msg.Headers, *req.Payload.CoseHashEnvelopePayload)
 		if err != nil {
