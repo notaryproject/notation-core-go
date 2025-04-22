@@ -664,17 +664,14 @@ func TestValidatePayload(t *testing.T) {
 		expectErr bool
 	}{
 		{
-			name: "invalid payload content type",
-			payload: &signature.Payload{
-				ContentType: invalidContentType,
-			},
+			name:      "empty payload",
+			payload:   &signature.Payload{},
 			expectErr: true,
 		},
 		{
-			name: "payload content is empty",
+			name: "invalid payload content type",
 			payload: &signature.Payload{
-				ContentType: validContentType,
-				Content:     []byte{},
+				ContentType: invalidContentType,
 			},
 			expectErr: true,
 		},

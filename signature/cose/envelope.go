@@ -183,8 +183,7 @@ func (signer *localSigner) CertificateChain() []*x509.Certificate {
 }
 
 type envelope struct {
-	base               *cose.Sign1Message
-	isCoseHashEnvelope bool // set to true if base represents a COSE hash envelope
+	base *cose.Sign1Message
 }
 
 // NewEnvelope initializes an empty COSE signature envelope.
@@ -205,8 +204,7 @@ func ParseEnvelope(envelopeBytes []byte) (signature.Envelope, error) {
 		// COSE hash envelope
 		return &base.Envelope{
 			Envelope: &envelope{
-				base:               &msg,
-				isCoseHashEnvelope: true,
+				base: &msg,
 			},
 			Raw: envelopeBytes,
 		}, nil
@@ -239,9 +237,9 @@ func (e *envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 	}
 
 	// core sign process
-	if req.CoseHashEnvelope { // COSE hash envelope
+	if e.isCoseHashEnvelope() { // COSE hash envelope
 		hashEnvMsg := cose.NewSign1Message()
-		hashEnv, err := cose.SignHashEnvelope(rand.Reader, signer, msg.Headers, req.CoseHashEnvelopePayload)
+		hashEnv, err := cose.SignHashEnvelope(rand.Reader, signer, msg.Headers, *req.Payload.CoseHashEnvelopePayload)
 		if err != nil {
 			return nil, &signature.InvalidSignatureError{Msg: err.Error()}
 		}
@@ -251,7 +249,6 @@ func (e *envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 		msg.Payload = hashEnvMsg.Payload
 		msg.Signature = hashEnvMsg.Signature
 		mergeCoseHashEnvelopeProtectedHeader(msg.Headers.Protected, hashEnvMsg.Headers.Protected)
-		e.isCoseHashEnvelope = true
 	} else { // COSE envelope
 		msg.Headers.Protected[cose.HeaderLabelContentType] = req.Payload.ContentType
 		msg.Payload = req.Payload.Content
@@ -321,7 +318,7 @@ func (e *envelope) Verify() (*signature.EnvelopeContent, error) {
 	if err != nil {
 		return nil, &signature.InvalidSignatureError{Msg: err.Error()}
 	}
-	if e.isCoseHashEnvelope { // verify integrity of COSE hash envelope
+	if e.isCoseHashEnvelope() { // verify integrity of COSE hash envelope
 		hashEnv, err := e.base.MarshalCBOR()
 		if err != nil {
 			return nil, &signature.SignatureIntegrityError{Err: err}
@@ -354,7 +351,7 @@ func (e *envelope) Content() (*signature.EnvelopeContent, error) {
 	}
 
 	// COSE hash envelope
-	if e.isCoseHashEnvelope {
+	if e.isCoseHashEnvelope() {
 		var coseHashEnvelopPayload cose.HashEnvelopePayload
 		payloadHashAlg, err := e.base.Headers.Protected.PayloadHashAlgorithm()
 		if err != nil {
@@ -377,8 +374,10 @@ func (e *envelope) Content() (*signature.EnvelopeContent, error) {
 			coseHashEnvelopPayload.Location = payloadLocation.(string)
 		}
 		return &signature.EnvelopeContent{
-			SignerInfo:              *signerInfo,
-			CoseHashEnvelopePayload: coseHashEnvelopPayload,
+			SignerInfo: *signerInfo,
+			Payload: signature.Payload{
+				CoseHashEnvelopePayload: &coseHashEnvelopPayload,
+			},
 		}, nil
 	}
 
@@ -457,6 +456,15 @@ func (e *envelope) signerInfo() (*signature.SignerInfo, error) {
 		signerInfo.UnsignedAttributes.TimestampSignature = timestamepToken
 	}
 	return &signerInfo, nil
+}
+
+// isCoseHashEnvelope returns true if e.base is a COSE hash envelope.
+//
+// Reference: https://www.ietf.org/archive/id/draft-ietf-cose-hash-envelope-05.html
+func (e *envelope) isCoseHashEnvelope() bool {
+	_, ok1 := e.base.Headers.Protected[cose.HeaderLabelPayloadHashAlgorithm]
+	_, ok2 := e.base.Headers.Protected[cose.HeaderLabelContentType]
+	return ok1 && !ok2
 }
 
 // getSignatureAlgorithm picks up a recommended signing algorithm for given
