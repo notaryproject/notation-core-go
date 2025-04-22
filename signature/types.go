@@ -186,7 +186,11 @@ type SignerInfo struct {
 	Signature []byte
 }
 
-// Payload represents payload in bytes and its content type.
+// Payload is the payload to be signed.
+//
+// When CoseHashEnvelopePayload is provided, ContentType and Content are ignored.
+// In this case, the payload represents a COSE Hash Envelope payload.
+// Reference: https://www.ietf.org/archive/id/draft-ietf-cose-hash-envelope-05.html
 type Payload struct {
 	// ContentType specifies the content type of payload.
 	//
@@ -201,7 +205,7 @@ type Payload struct {
 	Content []byte
 
 	// CoseHashEnvelopePayload is the payload to be signed when signing
-	// under COSE format with COSE Hash Envelope as result.
+	// under the COSE format and COSE Hash Envelope is required as result.
 	//
 	// When present, [Payload.ContentType] and [Payload.Content] are ignored.
 	//

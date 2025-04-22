@@ -193,21 +193,11 @@ func NewEnvelope() signature.Envelope {
 	}
 }
 
-// ParseEnvelope parses envelopeBytes to a COSE signature envelope or
-// a COSE hash envelope.
+// ParseEnvelope parses envelopeBytes to a COSE signature envelope.
 func ParseEnvelope(envelopeBytes []byte) (signature.Envelope, error) {
 	var msg cose.Sign1Message
 	if err := msg.UnmarshalCBOR(envelopeBytes); err != nil {
 		return nil, &signature.InvalidSignatureError{Msg: err.Error()}
-	}
-	if _, ok := msg.Headers.Protected[cose.HeaderLabelPayloadHashAlgorithm]; ok {
-		// COSE hash envelope
-		return &base.Envelope{
-			Envelope: &envelope{
-				base: &msg,
-			},
-			Raw: envelopeBytes,
-		}, nil
 	}
 	return &base.Envelope{
 		Envelope: &envelope{
@@ -219,7 +209,8 @@ func ParseEnvelope(envelopeBytes []byte) (signature.Envelope, error) {
 
 // Sign implements signature.Envelope interface.
 // On success, this function returns the COSE signature envelope byte slice.
-// When req.CoseHashEnvelope is true, it returns a COSE hash envelope byte slice.
+// When req.Payload.CoseHashEnvelope is present, it returns a COSE hash envelope
+// byte slice.
 func (e *envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 	// get built-in signer from go-cose or remote signer based on req.Signer
 	signer, err := getSigner(req.Signer)
@@ -249,7 +240,7 @@ func (e *envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 		msg.Payload = hashEnvMsg.Payload
 		msg.Signature = hashEnvMsg.Signature
 		mergeCoseHashEnvelopeProtectedHeader(msg.Headers.Protected, hashEnvMsg.Headers.Protected)
-	} else { // COSE envelope
+	} else {
 		msg.Headers.Protected[cose.HeaderLabelContentType] = req.Payload.ContentType
 		msg.Payload = req.Payload.Content
 		if err := msg.Sign(rand.Reader, nil, signer); err != nil {
@@ -326,7 +317,7 @@ func (e *envelope) Verify() (*signature.EnvelopeContent, error) {
 		if _, err := cose.VerifyHashEnvelope(verifier, hashEnv); err != nil {
 			return nil, &signature.SignatureIntegrityError{Err: err}
 		}
-	} else { // verify integrity of COSE envelope
+	} else {
 		if err := e.base.Verify(nil, verifier); err != nil {
 			return nil, &signature.SignatureIntegrityError{Err: err}
 		}
