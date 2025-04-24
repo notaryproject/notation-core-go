@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-// Portions (c) 2023 Xenit AB and 2024 The veraison/go-cose Authors.
+// Portions (c) 2025 The veraison/go-cose Authors.
 
 package cose
 
