@@ -338,13 +338,24 @@ func (e *envelope) Content() (*signature.EnvelopeContent, error) {
 		return nil, &signature.SignatureEnvelopeNotFoundError{}
 	}
 
+	// core process
 	signerInfo, err := e.signerInfo()
 	if err != nil {
 		return nil, err
 	}
+	payload, err := e.payload()
+	if err != nil {
+		return nil, err
+	}
+	return &signature.EnvelopeContent{
+		SignerInfo: *signerInfo,
+		Payload:    *payload,
+	}, nil
+}
 
-	// COSE hash envelope
-	if e.isCoseHashEnvelope() {
+// Given a COSE envelope, extracts its signature.Payload.
+func (e *envelope) payload() (*signature.Payload, error) {
+	if e.isCoseHashEnvelope() { // COSE hash envelope
 		var coseHashEnvelopPayload cose.HashEnvelopePayload
 		payloadHashAlg, err := e.base.Headers.Protected.PayloadHashAlgorithm()
 		if err != nil {
@@ -366,27 +377,10 @@ func (e *envelope) Content() (*signature.EnvelopeContent, error) {
 			}
 			coseHashEnvelopPayload.Location = payloadLocation.(string)
 		}
-		return &signature.EnvelopeContent{
-			SignerInfo: *signerInfo,
-			Payload: signature.Payload{
-				CoseHashEnvelopePayload: &coseHashEnvelopPayload,
-			},
+		return &signature.Payload{
+			CoseHashEnvelopePayload: &coseHashEnvelopPayload,
 		}, nil
 	}
-
-	// COSE envelope
-	payload, err := e.payload()
-	if err != nil {
-		return nil, err
-	}
-	return &signature.EnvelopeContent{
-		SignerInfo: *signerInfo,
-		Payload:    *payload,
-	}, nil
-}
-
-// Given a COSE envelope, extracts its signature.Payload.
-func (e *envelope) payload() (*signature.Payload, error) {
 	cty, ok := e.base.Headers.Protected[cose.HeaderLabelContentType]
 	if !ok {
 		return nil, &signature.InvalidSignatureError{Msg: "missing content type"}
