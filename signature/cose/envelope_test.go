@@ -10,8 +10,6 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-//
-// Portions (c) 2025 The veraison/go-cose Authors.
 
 package cose
 
@@ -1054,7 +1052,7 @@ func TestCanUint(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := canUint(tt.input)
+			got := isCBORUint(tt.input)
 			if got != tt.want {
 				t.Errorf("canUint(%v) = %v, want %v", tt.input, got, tt.want)
 			}
@@ -1078,7 +1076,7 @@ func TestCanTstr(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := canTstr(tt.input)
+			got := isString(tt.input)
 			if got != tt.want {
 				t.Errorf("canTstr(%v) = %v, want %v", tt.input, got, tt.want)
 			}

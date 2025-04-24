@@ -10,8 +10,6 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-//
-// Portions (c) 2025 The veraison/go-cose Authors.
 
 package cose
 
@@ -365,14 +363,14 @@ func (e *envelope) payload() (*signature.Payload, error) {
 		coseHashEnvelopPayload.HashValue = e.base.Payload
 		payloadPreImageCty, ok := e.base.Headers.Protected[cose.HeaderLabelPayloadPreimageContentType]
 		if ok {
-			if !canUint(payloadPreImageCty) && !canTstr(payloadPreImageCty) {
+			if !isCBORUint(payloadPreImageCty) && !isString(payloadPreImageCty) {
 				return nil, &signature.InvalidSignatureError{Msg: "payload preimage content type should be uint or tstr type"}
 			}
 			coseHashEnvelopPayload.PreimageContentType = payloadPreImageCty
 		}
 		payloadLocation, ok := e.base.Headers.Protected[cose.HeaderLabelPayloadLocation]
 		if ok {
-			if !canTstr(payloadLocation) {
+			if !isString(payloadLocation) {
 				return nil, &signature.InvalidSignatureError{Msg: "payload location should be tstr type"}
 			}
 			coseHashEnvelopPayload.Location = payloadLocation.(string)
@@ -792,28 +790,28 @@ func hashFromCOSEAlgorithm(alg cose.Algorithm) (crypto.Hash, error) {
 	}
 }
 
-// canUint reports whether v can be used as a CBOR uint type.
-func canUint(v any) bool {
-	switch v := v.(type) {
+// isCBORUint returns true if d can be used as a CBOR uint.
+func isCBORUint(d any) bool {
+	switch d := d.(type) {
 	case uint, uint8, uint16, uint32, uint64:
 		return true
 	case int:
-		return v >= 0
+		return d >= 0
 	case int8:
-		return v >= 0
+		return d >= 0
 	case int16:
-		return v >= 0
+		return d >= 0
 	case int32:
-		return v >= 0
+		return d >= 0
 	case int64:
-		return v >= 0
+		return d >= 0
 	}
 	return false
 }
 
-// canTstr reports whether v can be used as a CBOR tstr type.
-func canTstr(v any) bool {
-	_, ok := v.(string)
+// isString returns true if d is a string.
+func isString(d any) bool {
+	_, ok := d.(string)
 	return ok
 }
 
