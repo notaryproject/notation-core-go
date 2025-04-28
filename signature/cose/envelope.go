@@ -430,8 +430,8 @@ func (e *envelope) isCoseHashEnvelope() bool {
 }
 
 // coseHashEnvelopePayload extracts the signature.Payload with
-// COSEHashEnvelopePayload. It should only be used when e.isCoseHashEnvelope()
-// returns true.
+// COSEHashEnvelopePayload.
+// It should only be used when e.isCoseHashEnvelope() returns true.
 func (e *envelope) coseHashEnvelopePayload() (*signature.Payload, error) {
 	var coseHashEnvelopPayload cose.HashEnvelopePayload
 	payloadHashAlg, err := e.base.Headers.Protected.PayloadHashAlgorithm()
