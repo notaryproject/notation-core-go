@@ -364,7 +364,7 @@ func TestSignErrors(t *testing.T) {
 		if err != nil {
 			t.Fatalf("getSignRequest() failed. Error = %v", err)
 		}
-		signRequest.Payload.CoseHashEnvelopePayload.HashAlgorithm = cose.AlgorithmSHA512
+		signRequest.Payload.COSEHashEnvelopePayload.HashAlgorithm = cose.AlgorithmSHA512
 		_, err = env.Sign(signRequest)
 		expected := errors.New("SHA-512: size mismatch: expected 64, got 32")
 		if !isErrEqual(expected, err) {
@@ -1114,7 +1114,7 @@ func newCoseHashEnvelopeSignRequest(signingScheme string) (*signature.SignReques
 	digested := sha256.Sum256([]byte("COSE hash envelope"))
 	return &signature.SignRequest{
 		Payload: signature.Payload{
-			CoseHashEnvelopePayload: &cose.HashEnvelopePayload{
+			COSEHashEnvelopePayload: &cose.HashEnvelopePayload{
 				HashAlgorithm:       cose.AlgorithmSHA256,
 				HashValue:           digested[:],
 				PreimageContentType: "text/plain",

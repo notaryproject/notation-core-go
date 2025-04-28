@@ -175,8 +175,8 @@ func validateSigningAndExpiryTime(signingTime, expireTime time.Time) error {
 
 // validatePayload performs validation of the payload.
 func validatePayload(payload *signature.Payload) error {
-	if payload.CoseHashEnvelopePayload == nil && len(payload.Content) == 0 {
-		return errors.New("at least one of payload.Content and payload.CoseHashEnvelopePayload is required")
+	if payload.COSEHashEnvelopePayload == nil && len(payload.Content) == 0 {
+		return errors.New("one of payload.Content and payload.COSEHashEnvelopePayload is required")
 	}
 	return nil
 }

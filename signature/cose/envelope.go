@@ -209,8 +209,8 @@ func ParseEnvelope(envelopeBytes []byte) (signature.Envelope, error) {
 
 // Sign implements signature.Envelope interface.
 // On success, this function returns the COSE signature envelope byte slice.
-// When req.Payload.CoseHashEnvelope is present, it returns a COSE hash envelope
-// byte slice.
+// When req.Payload.COSEHashEnvelopePayload is present, Sign returns a
+// COSE hash envelope byte slice.
 func (e *envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 	// get built-in signer from go-cose or remote signer based on req.Signer
 	signer, err := getSigner(req.Signer)
@@ -228,9 +228,9 @@ func (e *envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 	}
 
 	// core sign process
-	if req.Payload.CoseHashEnvelopePayload != nil { // COSE hash envelope
+	if req.Payload.COSEHashEnvelopePayload != nil { // COSE hash envelope
 		hashEnvMsg := cose.NewSign1Message()
-		hashEnv, err := cose.SignHashEnvelope(rand.Reader, signer, msg.Headers, *req.Payload.CoseHashEnvelopePayload)
+		hashEnv, err := cose.SignHashEnvelope(rand.Reader, signer, msg.Headers, *req.Payload.COSEHashEnvelopePayload)
 		if err != nil {
 			return nil, &signature.InvalidSignatureError{Msg: err.Error()}
 		}
@@ -351,33 +351,10 @@ func (e *envelope) Content() (*signature.EnvelopeContent, error) {
 	}, nil
 }
 
-// Given a COSE envelope, extracts its signature.Payload.
+// payload extracts signature.Payload from e.base.
 func (e *envelope) payload() (*signature.Payload, error) {
 	if e.isCoseHashEnvelope() { // COSE hash envelope
-		var coseHashEnvelopPayload cose.HashEnvelopePayload
-		payloadHashAlg, err := e.base.Headers.Protected.PayloadHashAlgorithm()
-		if err != nil {
-			return nil, &signature.InvalidSignatureError{Msg: fmt.Sprintf("failed to get payload hash algorithm: %v", err)}
-		}
-		coseHashEnvelopPayload.HashAlgorithm = payloadHashAlg
-		coseHashEnvelopPayload.HashValue = e.base.Payload
-		payloadPreImageCty, ok := e.base.Headers.Protected[cose.HeaderLabelPayloadPreimageContentType]
-		if ok {
-			if !isCBORUint(payloadPreImageCty) && !isString(payloadPreImageCty) {
-				return nil, &signature.InvalidSignatureError{Msg: "payload preimage content type should be uint or tstr type"}
-			}
-			coseHashEnvelopPayload.PreimageContentType = payloadPreImageCty
-		}
-		payloadLocation, ok := e.base.Headers.Protected[cose.HeaderLabelPayloadLocation]
-		if ok {
-			if !isString(payloadLocation) {
-				return nil, &signature.InvalidSignatureError{Msg: "payload location should be tstr type"}
-			}
-			coseHashEnvelopPayload.Location = payloadLocation.(string)
-		}
-		return &signature.Payload{
-			CoseHashEnvelopePayload: &coseHashEnvelopPayload,
-		}, nil
+		return e.coseHashEnvelopePayload()
 	}
 	cty, ok := e.base.Headers.Protected[cose.HeaderLabelContentType]
 	if !ok {
@@ -393,7 +370,7 @@ func (e *envelope) payload() (*signature.Payload, error) {
 	}, nil
 }
 
-// Given a COSE envelope, extracts its signature.SignerInfo.
+// signerInfo extracts signature.SignerInfo from e.base.
 func (e *envelope) signerInfo() (*signature.SignerInfo, error) {
 	var signerInfo signature.SignerInfo
 
@@ -447,9 +424,39 @@ func (e *envelope) signerInfo() (*signature.SignerInfo, error) {
 //
 // Reference: https://www.ietf.org/archive/id/draft-ietf-cose-hash-envelope-05.html
 func (e *envelope) isCoseHashEnvelope() bool {
-	_, ok1 := e.base.Headers.Protected[cose.HeaderLabelPayloadHashAlgorithm]
-	_, ok2 := e.base.Headers.Protected[cose.HeaderLabelContentType]
-	return ok1 && !ok2
+	_, payloadHashAlgExists := e.base.Headers.Protected[cose.HeaderLabelPayloadHashAlgorithm]
+	_, ctyExists := e.base.Headers.Protected[cose.HeaderLabelContentType]
+	return payloadHashAlgExists && !ctyExists
+}
+
+// coseHashEnvelopePayload extracts the signature.Payload with
+// COSEHashEnvelopePayload. It should only be used when e.isCoseHashEnvelope()
+// returns true.
+func (e *envelope) coseHashEnvelopePayload() (*signature.Payload, error) {
+	var coseHashEnvelopPayload cose.HashEnvelopePayload
+	payloadHashAlg, err := e.base.Headers.Protected.PayloadHashAlgorithm()
+	if err != nil {
+		return nil, &signature.InvalidSignatureError{Msg: fmt.Sprintf("failed to get payload hash algorithm: %v", err)}
+	}
+	coseHashEnvelopPayload.HashAlgorithm = payloadHashAlg
+	coseHashEnvelopPayload.HashValue = e.base.Payload
+	payloadPreImageCty, ok := e.base.Headers.Protected[cose.HeaderLabelPayloadPreimageContentType]
+	if ok {
+		if !isCBORUint(payloadPreImageCty) && !isString(payloadPreImageCty) {
+			return nil, &signature.InvalidSignatureError{Msg: "payload preimage content type should be uint or tstr type"}
+		}
+		coseHashEnvelopPayload.PreimageContentType = payloadPreImageCty
+	}
+	payloadLocation, ok := e.base.Headers.Protected[cose.HeaderLabelPayloadLocation]
+	if ok {
+		if !isString(payloadLocation) {
+			return nil, &signature.InvalidSignatureError{Msg: "payload location should be tstr type"}
+		}
+		coseHashEnvelopPayload.Location = payloadLocation.(string)
+	}
+	return &signature.Payload{
+		COSEHashEnvelopePayload: &coseHashEnvelopPayload,
+	}, nil
 }
 
 // getSignatureAlgorithm picks up a recommended signing algorithm for given

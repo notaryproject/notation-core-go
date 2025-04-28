@@ -60,17 +60,17 @@ func TestConformanceCOSEHashEnvelope(t *testing.T) {
 	verifySignerInfo(&envContent.SignerInfo, signReq, t)
 
 	// verify COSE hash envelope payload
-	if envContent.Payload.CoseHashEnvelopePayload.HashAlgorithm != cose.AlgorithmSHA256 {
-		t.Fatalf("expected hash algorithm %s, got %s", cose.AlgorithmSHA256, envContent.Payload.CoseHashEnvelopePayload.HashAlgorithm)
+	if envContent.Payload.COSEHashEnvelopePayload.HashAlgorithm != cose.AlgorithmSHA256 {
+		t.Fatalf("expected hash algorithm %s, got %s", cose.AlgorithmSHA256, envContent.Payload.COSEHashEnvelopePayload.HashAlgorithm)
 	}
-	if envContent.Payload.CoseHashEnvelopePayload.PreimageContentType != "text/plain" {
-		t.Fatalf("expected preimage content type %s, got %s", "text/plain", envContent.Payload.CoseHashEnvelopePayload.PreimageContentType)
+	if envContent.Payload.COSEHashEnvelopePayload.PreimageContentType != "text/plain" {
+		t.Fatalf("expected preimage content type %s, got %s", "text/plain", envContent.Payload.COSEHashEnvelopePayload.PreimageContentType)
 	}
-	if envContent.Payload.CoseHashEnvelopePayload.Location != "http://localhost.test" {
-		t.Fatalf("expected location %s, got %s", "http://localhost.test", envContent.Payload.CoseHashEnvelopePayload.Location)
+	if envContent.Payload.COSEHashEnvelopePayload.Location != "http://localhost.test" {
+		t.Fatalf("expected location %s, got %s", "http://localhost.test", envContent.Payload.COSEHashEnvelopePayload.Location)
 	}
-	if !bytes.Equal(envContent.Payload.CoseHashEnvelopePayload.HashValue, digested[:]) {
-		t.Fatalf("expected hash value %x, got %x", digested[:], envContent.Payload.CoseHashEnvelopePayload.HashValue)
+	if !bytes.Equal(envContent.Payload.COSEHashEnvelopePayload.HashValue, digested[:]) {
+		t.Fatalf("expected hash value %x, got %x", digested[:], envContent.Payload.COSEHashEnvelopePayload.HashValue)
 	}
 }
 
@@ -89,7 +89,7 @@ func getCoseHashEnvelopeSignReq(hashValue []byte) (*signature.SignRequest, error
 	}
 	signRequest := &signature.SignRequest{
 		Payload: signature.Payload{
-			CoseHashEnvelopePayload: &hashEnvelopePayload,
+			COSEHashEnvelopePayload: &hashEnvelopePayload,
 		},
 		Signer:      signer,
 		SigningTime: leaf.NotBefore.Add(time.Minute * 1).Local(),
