@@ -22,6 +22,7 @@ import (
 
 	"github.com/notaryproject/notation-core-go/revocation"
 	"github.com/notaryproject/tspclient-go"
+	"github.com/veraison/go-cose"
 )
 
 // SignatureMediaType list the supported media-type for signatures.
@@ -84,7 +85,10 @@ type Attribute struct {
 type SignRequest struct {
 	// Payload is the payload to be signed.
 	//
-	// For JWS envelope, Payload.Content is limited to be JSON format.
+	// For JWS envelope, [Payload.Content] is limited to be JSON format.
+	//
+	// For COSE envelope with COSE Hash Envelope as result,
+	// [Payload.COSEHashEnvelopePayload] MUST be provided.
 	Payload Payload
 
 	// Signer is the signer used to sign the digest.
@@ -182,15 +186,31 @@ type SignerInfo struct {
 	Signature []byte
 }
 
-// Payload represents payload in bytes and its content type.
+// Payload is the payload to be signed.
+//
+// When COSEHashEnvelopePayload is provided, ContentType and Content are ignored.
+// In this case, the payload represents a COSE Hash Envelope payload.
+// Reference: https://www.ietf.org/archive/id/draft-ietf-cose-hash-envelope-05.html
 type Payload struct {
 	// ContentType specifies the content type of payload.
+	//
+	// It is ignored, when [Payload.COSEHashEnvelopePayload] is present.
 	ContentType string
 
 	// Content contains the raw bytes of the payload.
 	//
 	// For JWS envelope, Content is limited to be JSON format.
+	//
+	// It is ignored, when [Payload.COSEHashEnvelopePayload] is present.
 	Content []byte
+
+	// COSEHashEnvelopePayload is the payload to be signed when signing
+	// under the COSE format and COSE Hash Envelope is required as result.
+	//
+	// When present, [Payload.ContentType] and [Payload.Content] are ignored.
+	//
+	// Reference: https://www.ietf.org/archive/id/draft-ietf-cose-hash-envelope-05.html
+	COSEHashEnvelopePayload *cose.HashEnvelopePayload
 }
 
 // ExtendedAttribute fetches the specified Attribute with provided key from
