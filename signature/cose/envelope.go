@@ -237,6 +237,11 @@ func (e *envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 		if err := hashEnvMsg.UnmarshalCBOR(hashEnv); err != nil {
 			return nil, &signature.InvalidSignatureError{Msg: err.Error()}
 		}
+
+		// signing requires the time type to be cbor.RawMessage representing
+		// a Tag1 Datetime CBOR object. The unmarshalled Sign1Message
+		// hashEnvMsg has time type time.Time in its protected header.
+		// Therefore, it's not directly used to replace msg.
 		msg.Payload = hashEnvMsg.Payload
 		msg.Signature = hashEnvMsg.Signature
 		mergeCoseHashEnvelopeProtectedHeader(msg.Headers.Protected, hashEnvMsg.Headers.Protected)
