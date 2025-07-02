@@ -686,6 +686,7 @@ func parseTime(headerMap map[any]cbor.RawMessage, label string, protected cose.P
 			return time.Time{}, fmt.Errorf("headerMap is missing label %q", label)
 		}
 		rawTag := &cbor.RawTag{}
+		//lint:ignore SA1019 we keep it for backwards compatibility
 		err := rawTag.UnmarshalCBOR([]byte(rawMsg))
 		if err != nil {
 			return time.Time{}, fmt.Errorf("header %q time value does not have a tag", label)

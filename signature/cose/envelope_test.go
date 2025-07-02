@@ -612,7 +612,7 @@ func TestSignerInfoErrors(t *testing.T) {
 		if err != nil {
 			t.Fatalf("getVerifyCOSE() failed. Error = %s", err)
 		}
-		env.base.Headers.Protected.SetAlgorithm(cose.AlgorithmEd25519)
+		env.base.Headers.Protected.SetAlgorithm(cose.AlgorithmEdDSA)
 		_, err = env.Content()
 		expected := errors.New("signature algorithm not supported: -8")
 		if !isErrEqual(expected, err) {
@@ -900,7 +900,7 @@ func TestHashFunc(t *testing.T) {
 		t.Fatalf("expected SHA-512, but got %s", hash)
 	}
 
-	_, err = hashFromCOSEAlgorithm(cose.AlgorithmEd25519)
+	_, err = hashFromCOSEAlgorithm(cose.AlgorithmEdDSA)
 	expectedErrMsg := "unsupported cose algorithm EdDSA"
 	if err == nil || err.Error() != expectedErrMsg {
 		t.Fatalf("expected %s, but got %s", expectedErrMsg, err)
