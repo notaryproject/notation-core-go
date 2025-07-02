@@ -3,6 +3,7 @@
 [![Build Status](https://github.com/notaryproject/notation-core-go/actions/workflows/build.yml/badge.svg?event=push&branch=main)](https://github.com/notaryproject/notation-core-go/actions/workflows/build.yml?query=workflow%3Abuild+event%3Apush+branch%3Amain)
 [![codecov](https://codecov.io/gh/notaryproject/notation-core-go/branch/main/graph/badge.svg)](https://codecov.io/gh/notaryproject/notation-core-go)
 [![Go Reference](https://pkg.go.dev/badge/github.com/notaryproject/notation-core-go.svg)](https://pkg.go.dev/github.com/notaryproject/notation-core-go@main)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/notaryproject/notation-core-go/badge)](https://scorecard.dev/viewer/?uri=github.com/notaryproject/notation-core-go)
 
 notation-core-go provides core crypto functionality for notation-go and implements signature generation, parsing and revocation related functionalities based on the [Notary Project specifications](https://github.com/notaryproject/specifications). It also provides validation functionality for certificate and certificate chain.
 
