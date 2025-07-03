@@ -50,6 +50,7 @@ func TestSignRequestWithContext(t *testing.T) {
 			t.Errorf("expected to be panic")
 		}
 	}()
+	//lint:ignore SA1012 nil context is used for testing
 	r.WithContext(nil) // should panic
 }
 

@@ -196,6 +196,7 @@ func TestCheckStatusFromServer(t *testing.T) {
 	t.Run("ocsp request roundtrip failed", func(t *testing.T) {
 		client := testhelper.MockClient([]testhelper.RSACertTuple{revokableCertTuple, revokableIssuerTuple}, []ocsp.ResponseStatus{ocsp.Good}, nil, true)
 		server := "http://localhost.test"
+		//lint:ignore SA1012 nil context is used for testing
 		serverResult := checkStatusFromServer(nil, revokableCertTuple.Cert, revokableIssuerTuple.Cert, server, CertCheckStatusOptions{
 			HTTPClient: client,
 		})
@@ -224,6 +225,7 @@ func TestCheckStatusFromServer(t *testing.T) {
 
 func TestPostRequest(t *testing.T) {
 	t.Run("failed to generate request", func(t *testing.T) {
+		//lint:ignore SA1012 nil context is used for testing
 		_, err := postRequest(nil, nil, "http://localhost.test", &http.Client{
 			Transport: &failedTransport{},
 		})
