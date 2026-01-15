@@ -10,4 +10,7 @@ require (
 	golang.org/x/crypto v0.37.0
 )
 
-require github.com/x448/float16 v0.8.4 // indirect
+require (
+	github.com/x448/float16 v0.8.4 // indirect
+	go.mozilla.org/pkcs7 v0.9.0 // indirect
+)
