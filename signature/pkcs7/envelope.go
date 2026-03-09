@@ -199,9 +199,14 @@ func (e *envelope) Content() (*signature.EnvelopeContent, error) {
 		return nil, &signature.SignatureEnvelopeNotFoundError{}
 	}
 
+	alg, err := extractAlgorithm(e.certs)
+	if err != nil {
+		return nil, &signature.InvalidSignatureError{Msg: err.Error()}
+	}
+
 	return &signature.EnvelopeContent{
 		SignerInfo: signature.SignerInfo{
-			SignatureAlgorithm: signature.AlgorithmPS256,
+			SignatureAlgorithm: alg,
 			CertificateChain:   e.certs,
 			Signature:          e.sigBytes,
 		},
@@ -209,4 +214,16 @@ func (e *envelope) Content() (*signature.EnvelopeContent, error) {
 			ContentType: MediaTypeEnvelope,
 		},
 	}, nil
+}
+
+// extractAlgorithm derives the signature algorithm from the leaf certificate.
+func extractAlgorithm(certs []*x509.Certificate) (signature.Algorithm, error) {
+	if len(certs) == 0 {
+		return 0, fmt.Errorf("no certificates available to determine algorithm")
+	}
+	keySpec, err := signature.ExtractKeySpec(certs[0])
+	if err != nil {
+		return 0, err
+	}
+	return keySpec.SignatureAlgorithm(), nil
 }
