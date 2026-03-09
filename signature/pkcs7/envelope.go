@@ -24,7 +24,6 @@ import (
 	"io"
 
 	"github.com/notaryproject/notation-core-go/signature"
-	"github.com/notaryproject/notation-core-go/signature/internal/base"
 	gopkcs7 "go.mozilla.org/pkcs7"
 )
 
@@ -45,10 +44,10 @@ type envelope struct {
 }
 
 // NewEnvelope creates a new PKCS#7 envelope.
+// Note: Unlike JWS/COSE, PKCS#7 for dm-verity does NOT use base.Envelope wrapper
+// because dm-verity signatures must not have signing-time (kernel requirement).
 func NewEnvelope() signature.Envelope {
-	return &base.Envelope{
-		Envelope: &envelope{},
-	}
+	return &envelope{}
 }
 
 // ParseEnvelope parses PKCS#7 DER bytes into an envelope.
@@ -63,14 +62,11 @@ func ParseEnvelope(envelopeBytes []byte) (signature.Envelope, error) {
 		sigBytes = p7.Signers[0].EncryptedDigest
 	}
 
-	return &base.Envelope{
-		Envelope: &envelope{
-			raw:      envelopeBytes,
-			p7:       p7,
-			certs:    p7.Certificates,
-			sigBytes: sigBytes,
-		},
-		Raw: envelopeBytes,
+	return &envelope{
+		raw:      envelopeBytes,
+		p7:       p7,
+		certs:    p7.Certificates,
+		sigBytes: sigBytes,
 	}, nil
 }
 
