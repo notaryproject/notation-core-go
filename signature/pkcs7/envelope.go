@@ -11,21 +11,28 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package pkcs7 provides PKCS#7/CMS signature envelope for dm-verity signing.
-// Supports both local keys and remote signers (Azure Key Vault, plugins) via
-// the signerAdapter pattern.
+// Package pkcs7 provides a PKCS#7/CMS signature envelope for dm-verity
+// signing.
 package pkcs7
 
 import (
 	"crypto"
+	"crypto/rsa"
+	"crypto/sha256"
 	"crypto/x509"
-	"encoding/asn1"
+	"errors"
 	"fmt"
 	"io"
 
 	"github.com/notaryproject/notation-core-go/signature"
 	gopkcs7 "go.mozilla.org/pkcs7"
 )
+
+// ErrDetachedNotVerifiable is returned by Envelope.Verify. The dm-verity
+// PKCS#7 envelope is detached and Envelope.Verify takes no payload, so it
+// cannot perform cryptographic verification. Verify the dm-verity root
+// hash out-of-band.
+var ErrDetachedNotVerifiable = errors.New("PKCS#7 dm-verity envelope is detached; verify against the dm-verity root hash out-of-band")
 
 // MediaTypeEnvelope is the PKCS#7 signature envelope media type.
 const MediaTypeEnvelope = "application/pkcs7-signature"
@@ -36,22 +43,32 @@ func init() {
 	}
 }
 
+// envelope holds a parsed PKCS#7 signature. raw is canonical; certs and
+// sigBytes are caches derived from raw.
 type envelope struct {
 	raw      []byte
-	p7       *gopkcs7.PKCS7
 	certs    []*x509.Certificate
 	sigBytes []byte
 }
 
 // NewEnvelope creates a new PKCS#7 envelope.
-// Note: Unlike JWS/COSE, PKCS#7 for dm-verity does NOT use base.Envelope wrapper
-// because dm-verity signatures must not have signing-time (kernel requirement).
+//
+// The dm-verity profile requires a SignerInfo with no signed attributes,
+// so this envelope is not wrapped with base.Envelope (which injects a
+// signing-time signed attribute).
 func NewEnvelope() signature.Envelope {
 	return &envelope{}
 }
 
 // ParseEnvelope parses PKCS#7 DER bytes into an envelope.
-func ParseEnvelope(envelopeBytes []byte) (signature.Envelope, error) {
+func ParseEnvelope(envelopeBytes []byte) (env signature.Envelope, err error) {
+	// Convert any panic from the underlying parser to a typed error.
+	defer func() {
+		if r := recover(); r != nil {
+			env = nil
+			err = &signature.InvalidSignatureError{Msg: fmt.Sprintf("malformed PKCS#7 envelope: %v", r)}
+		}
+	}()
 	p7, err := gopkcs7.Parse(envelopeBytes)
 	if err != nil {
 		return nil, &signature.InvalidSignatureError{Msg: err.Error()}
@@ -64,64 +81,45 @@ func ParseEnvelope(envelopeBytes []byte) (signature.Envelope, error) {
 
 	return &envelope{
 		raw:      envelopeBytes,
-		p7:       p7,
 		certs:    p7.Certificates,
 		sigBytes: sigBytes,
 	}, nil
 }
 
-// Sign implements signature.Envelope interface.
-// Uses signerAdapter pattern to support both local and remote signers (AKV, plugins).
+// Sign implements signature.Envelope for the dm-verity profile: RSA-2048 +
+// SHA-256 + RSASSA-PKCS#1 v1.5, detached, no signed attributes. The actual
+// signing is done by req.Signer; gopkcs7 only wraps the resulting bytes in
+// CMS SignedData. Sign verifies the signer's output against certs[0]
+// before wrapping.
 func (e *envelope) Sign(req *signature.SignRequest) ([]byte, error) {
-	// Get key spec to determine algorithm
-	keySpec, err := req.Signer.KeySpec()
-	if err != nil {
-		return nil, &signature.InvalidSignRequestError{Msg: err.Error()}
+	if err := validateSignRequest(req); err != nil {
+		return nil, err
 	}
 
-	// Sign the content using the underlying signer (works with AKV, local keys, etc.)
 	sig, certs, err := req.Signer.Sign(req.Payload.Content)
 	if err != nil {
 		return nil, &signature.InvalidSignatureError{Msg: fmt.Sprintf("signing failed: %v", err)}
 	}
-
-	if len(certs) == 0 {
-		return nil, &signature.InvalidSignatureError{Msg: "no certificates returned from signer"}
+	if err := verifySignerOutput(req.Payload.Content, sig, certs); err != nil {
+		return nil, err
 	}
 
-	// Create a crypto.Signer adapter that returns our pre-computed signature
-	adapter := &signerAdapter{
-		sig:   sig,
-		certs: certs,
-	}
-
-	// Build PKCS#7 SignedData using mozilla library
 	sd, err := gopkcs7.NewSignedData(req.Payload.Content)
 	if err != nil {
 		return nil, &signature.InvalidSignatureError{Msg: err.Error()}
 	}
 
-	// Set digest algorithm to SHA-256 (kernel dm-verity requirement)
+	// dm-verity profile: SHA-256 digest, RSASSA-PKCS#1 v1.5 signature,
+	// no signed attributes, detached content.
 	sd.SetDigestAlgorithm(gopkcs7.OIDDigestAlgorithmSHA256)
-
-	// Set encryption algorithm based on key type
-	encryptionOID, err := getEncryptionOID(keySpec)
-	if err != nil {
-		return nil, &signature.UnsupportedSigningKeyError{Msg: err.Error()}
-	}
-	sd.SetEncryptionAlgorithm(encryptionOID)
-
-	// Sign without authenticated attributes (kernel dm-verity requirement)
+	sd.SetEncryptionAlgorithm(gopkcs7.OIDEncryptionAlgorithmRSA)
+	adapter := &signerAdapter{sig: sig, certs: certs}
 	if err := sd.SignWithoutAttr(certs[0], adapter, gopkcs7.SignerInfoConfig{}); err != nil {
 		return nil, &signature.InvalidSignatureError{Msg: err.Error()}
 	}
-
-	// Add intermediate/CA certificates to the chain
 	for i := 1; i < len(certs); i++ {
 		sd.AddCertificate(certs[i])
 	}
-
-	// Create detached signature (content not embedded)
 	sd.Detach()
 
 	encoded, err := sd.Finish()
@@ -129,86 +127,131 @@ func (e *envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 		return nil, &signature.InvalidSignatureError{Msg: err.Error()}
 	}
 
-	// Parse the result to populate envelope fields
-	p7, _ := gopkcs7.Parse(encoded)
+	// Re-parse to populate caches.
+	p7, err := gopkcs7.Parse(encoded)
+	if err != nil {
+		return nil, &signature.InvalidSignatureError{
+			Msg: fmt.Sprintf("self-parse failed after Sign: %v", err),
+		}
+	}
 	e.raw = encoded
-	e.p7 = p7
 	e.certs = certs
-	if p7 != nil && len(p7.Signers) > 0 {
+	if len(p7.Signers) > 0 {
 		e.sigBytes = p7.Signers[0].EncryptedDigest
 	}
-
 	return encoded, nil
 }
 
-// getEncryptionOID returns the encryption algorithm OID for the key spec.
-func getEncryptionOID(keySpec signature.KeySpec) (asn1.ObjectIdentifier, error) {
-	switch keySpec.Type {
-	case signature.KeyTypeRSA:
-		return gopkcs7.OIDEncryptionAlgorithmRSA, nil
-	case signature.KeyTypeEC:
-		switch keySpec.Size {
-		case 256:
-			return gopkcs7.OIDEncryptionAlgorithmECDSAP256, nil
-		case 384:
-			return gopkcs7.OIDEncryptionAlgorithmECDSAP384, nil
-		case 521:
-			return gopkcs7.OIDEncryptionAlgorithmECDSAP521, nil
-		default:
-			return nil, fmt.Errorf("unsupported EC key size: %d", keySpec.Size)
-		}
-	default:
-		return nil, fmt.Errorf("unsupported key type: %v", keySpec.Type)
+// validateSignRequest enforces the dm-verity profile: no signed-attribute
+// fields, RSA-2048 key only.
+func validateSignRequest(req *signature.SignRequest) error {
+	if !req.SigningTime.IsZero() {
+		return &signature.InvalidSignRequestError{Msg: "dm-verity PKCS#7 envelope does not support SigningTime"}
 	}
-}
+	if !req.Expiry.IsZero() {
+		return &signature.InvalidSignRequestError{Msg: "dm-verity PKCS#7 envelope does not support Expiry"}
+	}
+	if req.SigningScheme != "" {
+		return &signature.InvalidSignRequestError{Msg: "dm-verity PKCS#7 envelope does not support SigningScheme"}
+	}
+	if req.SigningAgent != "" {
+		return &signature.InvalidSignRequestError{Msg: "dm-verity PKCS#7 envelope does not support SigningAgent"}
+	}
+	if len(req.ExtendedSignedAttributes) > 0 {
+		return &signature.InvalidSignRequestError{Msg: "dm-verity PKCS#7 envelope does not support ExtendedSignedAttributes"}
+	}
 
-// signerAdapter wraps a pre-computed signature to satisfy crypto.Signer interface.
-// This enables remote signers (Azure Key Vault, plugins) to work with the
-// mozilla pkcs7 library which expects crypto.Signer.
-type signerAdapter struct {
-	sig   []byte              // pre-computed signature from actual signer
-	certs []*x509.Certificate // certificate chain
-}
+	if req.Signer == nil {
+		return &signature.InvalidSignRequestError{Msg: "dm-verity PKCS#7 envelope requires a non-nil Signer"}
+	}
+	keySpec, err := req.Signer.KeySpec()
+	if err != nil {
+		return &signature.InvalidSignRequestError{Msg: err.Error()}
+	}
 
-// Public returns the public key from the leaf certificate.
-func (a *signerAdapter) Public() crypto.PublicKey {
-	if len(a.certs) > 0 {
-		return a.certs[0].PublicKey
+	// dm-verity profile: RSA-2048 + SHA-256 + RSASSA-PKCS#1 v1.5 only.
+	if keySpec.Type != signature.KeyTypeRSA {
+		return &signature.UnsupportedSigningKeyError{
+			Msg: fmt.Sprintf("dm-verity PKCS#7 envelope requires an RSA key; got %v", keySpec.Type),
+		}
+	}
+	if keySpec.Size != 2048 {
+		return &signature.UnsupportedSigningKeyError{
+			Msg: fmt.Sprintf("dm-verity PKCS#7 envelope requires RSA-2048; got RSA-%d", keySpec.Size),
+		}
 	}
 	return nil
 }
 
-// Sign returns the pre-computed signature.
-// The digest parameter is ignored since signing already happened via req.Signer.Sign().
+// verifySignerOutput checks that sig is RSASSA-PKCS#1 v1.5 over SHA-256 of
+// payload under certs[0]'s public key.
+func verifySignerOutput(payload, sig []byte, certs []*x509.Certificate) error {
+	if len(certs) == 0 {
+		return &signature.InvalidSignatureError{Msg: "no certificates returned from signer"}
+	}
+	pub, ok := certs[0].PublicKey.(*rsa.PublicKey)
+	if !ok {
+		return &signature.UnsupportedSigningKeyError{
+			Msg: fmt.Sprintf("leaf certificate public key is %T, want *rsa.PublicKey", certs[0].PublicKey),
+		}
+	}
+	digest := sha256.Sum256(payload)
+	if err := rsa.VerifyPKCS1v15(pub, crypto.SHA256, digest[:], sig); err != nil {
+		return &signature.InvalidSignatureError{
+			Msg: fmt.Sprintf("signer did not produce RSASSA-PKCS#1 v1.5 over SHA-256: %v", err),
+		}
+	}
+	return nil
+}
+
+// signerAdapter wraps a pre-computed signature so it can be passed to a
+// gopkcs7.SignedData (which expects a crypto.Signer). It is single-use:
+// Sign must be called at most once.
+type signerAdapter struct {
+	sig   []byte              // pre-computed signature from actual signer
+	certs []*x509.Certificate // certificate chain
+	used  bool                // set on first Sign call
+}
+
+// Public returns the leaf certificate's public key.
+func (a *signerAdapter) Public() crypto.PublicKey {
+	if len(a.certs) == 0 {
+		panic("pkcs7: signerAdapter constructed with empty cert chain")
+	}
+	return a.certs[0].PublicKey
+}
+
+// Sign returns the pre-computed signature. The digest and opts arguments
+// are ignored. Panics if called more than once.
 func (a *signerAdapter) Sign(rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
+	if a.used {
+		panic("pkcs7: signerAdapter.Sign called more than once")
+	}
+	a.used = true
 	return a.sig, nil
 }
 
-// Verify implements signature.Envelope interface.
+// Verify always returns ErrDetachedNotVerifiable for a populated envelope.
 func (e *envelope) Verify() (*signature.EnvelopeContent, error) {
 	if e.raw == nil {
 		return nil, &signature.SignatureEnvelopeNotFoundError{}
 	}
-	// For detached signatures, the kernel does dm-verity verification
-	return e.Content()
+	return nil, ErrDetachedNotVerifiable
 }
 
-// Content implements signature.Envelope interface.
+// Content implements signature.Envelope.
+//
+// SignerInfo.SignatureAlgorithm is the zero value: signature.Algorithm has
+// no constant for RSASSA-PKCS#1 v1.5. Read the certificate chain or the
+// CMS digestEncryptionAlgorithm OID instead.
 func (e *envelope) Content() (*signature.EnvelopeContent, error) {
 	if e.raw == nil {
 		return nil, &signature.SignatureEnvelopeNotFoundError{}
 	}
-
-	alg, err := extractAlgorithm(e.certs)
-	if err != nil {
-		return nil, &signature.InvalidSignatureError{Msg: err.Error()}
-	}
-
 	return &signature.EnvelopeContent{
 		SignerInfo: signature.SignerInfo{
-			SignatureAlgorithm: alg,
-			CertificateChain:   e.certs,
-			Signature:          e.sigBytes,
+			CertificateChain: e.certs,
+			Signature:        e.sigBytes,
 		},
 		Payload: signature.Payload{
 			ContentType: MediaTypeEnvelope,
@@ -216,14 +259,4 @@ func (e *envelope) Content() (*signature.EnvelopeContent, error) {
 	}, nil
 }
 
-// extractAlgorithm derives the signature algorithm from the leaf certificate.
-func extractAlgorithm(certs []*x509.Certificate) (signature.Algorithm, error) {
-	if len(certs) == 0 {
-		return 0, fmt.Errorf("no certificates available to determine algorithm")
-	}
-	keySpec, err := signature.ExtractKeySpec(certs[0])
-	if err != nil {
-		return 0, err
-	}
-	return keySpec.SignatureAlgorithm(), nil
-}
+var _ signature.Envelope = (*envelope)(nil)
