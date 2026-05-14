@@ -25,6 +25,7 @@ import (
 
 	"github.com/notaryproject/notation-core-go/signature"
 	"github.com/notaryproject/notation-core-go/testhelper"
+	gopkcs7 "go.mozilla.org/pkcs7"
 )
 
 const testPayload = "test dm-verity root hash payload"
@@ -94,8 +95,10 @@ func TestSignParseVerifyRoundTrip(t *testing.T) {
 	if len(content.SignerInfo.CertificateChain) == 0 {
 		t.Fatal("Content() returned no certificates")
 	}
-	if content.Payload.ContentType != MediaTypeEnvelope {
-		t.Fatalf("ContentType = %q, want %q", content.Payload.ContentType, MediaTypeEnvelope)
+	// PKCS#7 detached signatures don't carry the signed payload's content
+	// type, so Content() reports it as unknown.
+	if content.Payload.ContentType != "" {
+		t.Fatalf("ContentType = %q, want empty", content.Payload.ContentType)
 	}
 }
 
@@ -259,3 +262,68 @@ func (s *customSignSigner) Sign(payload []byte) ([]byte, []*x509.Certificate, er
 	return sig, s.certs, nil
 }
 func (s *customSignSigner) KeySpec() (signature.KeySpec, error) { return s.keySpec, nil }
+
+// TestSignRejectsEmptyPayload verifies that an empty Payload.Content is
+// rejected with InvalidSignRequestError.
+func TestSignRejectsEmptyPayload(t *testing.T) {
+	req := newSignRequest()
+	req.Payload.Content = nil
+	_, err := NewEnvelope().Sign(req)
+	var want *signature.InvalidSignRequestError
+	if !errors.As(err, &want) {
+		t.Fatalf("want InvalidSignRequestError, got %T: %v", err, err)
+	}
+}
+
+// TestSignRejectsNilLeafCertificate verifies that a signer returning a
+// nil leaf certificate is rejected with InvalidSignatureError.
+func TestSignRejectsNilLeafCertificate(t *testing.T) {
+	base := newRSATestSigner()
+	req := &signature.SignRequest{
+		Payload: signature.Payload{ContentType: MediaTypeEnvelope, Content: []byte(testPayload)},
+		Signer: &customSignSigner{
+			certs:   []*x509.Certificate{nil, base.certs[1]},
+			keySpec: base.keySpec,
+			sign: func(payload []byte) ([]byte, error) {
+				h := sha256.Sum256(payload)
+				return rsa.SignPKCS1v15(rand.Reader, base.key.(*rsa.PrivateKey), crypto.SHA256, h[:])
+			},
+		},
+	}
+	_, err := NewEnvelope().Sign(req)
+	var want *signature.InvalidSignatureError
+	if !errors.As(err, &want) {
+		t.Fatalf("want InvalidSignatureError, got %T: %v", err, err)
+	}
+}
+
+// TestParseEnvelopeRejectsMultipleSigners verifies that the dm-verity
+// profile's "exactly one signer" guard fires on multi-signer envelopes.
+// Empty-EncryptedDigest is also exercised by FuzzSignaturePkcs7.
+func TestParseEnvelopeRejectsMultipleSigners(t *testing.T) {
+	tuple := testhelper.GetRSACertTuple(2048)
+	sd, err := gopkcs7.NewSignedData([]byte(testPayload))
+	if err != nil {
+		t.Fatalf("NewSignedData() error: %v", err)
+	}
+	sd.SetDigestAlgorithm(gopkcs7.OIDDigestAlgorithmSHA256)
+	sd.SetEncryptionAlgorithm(gopkcs7.OIDEncryptionAlgorithmRSA)
+	cfg := gopkcs7.SignerInfoConfig{}
+	if err := sd.SignWithoutAttr(tuple.Cert, tuple.PrivateKey, cfg); err != nil {
+		t.Fatalf("SignWithoutAttr() #1 error: %v", err)
+	}
+	if err := sd.SignWithoutAttr(tuple.Cert, tuple.PrivateKey, cfg); err != nil {
+		t.Fatalf("SignWithoutAttr() #2 error: %v", err)
+	}
+	sd.Detach()
+	encoded, err := sd.Finish()
+	if err != nil {
+		t.Fatalf("Finish() error: %v", err)
+	}
+
+	_, err = ParseEnvelope(encoded)
+	var want *signature.InvalidSignatureError
+	if !errors.As(err, &want) {
+		t.Fatalf("want InvalidSignatureError, got %T: %v", err, err)
+	}
+}

@@ -74,9 +74,15 @@ func ParseEnvelope(envelopeBytes []byte) (env signature.Envelope, err error) {
 		return nil, &signature.InvalidSignatureError{Msg: err.Error()}
 	}
 
-	var sigBytes []byte
-	if len(p7.Signers) > 0 {
-		sigBytes = p7.Signers[0].EncryptedDigest
+	// dm-verity profile: exactly one signer with a non-empty signature.
+	if len(p7.Signers) != 1 {
+		return nil, &signature.InvalidSignatureError{
+			Msg: fmt.Sprintf("dm-verity PKCS#7 envelope requires exactly one signer; got %d", len(p7.Signers)),
+		}
+	}
+	sigBytes := p7.Signers[0].EncryptedDigest
+	if len(sigBytes) == 0 {
+		return nil, &signature.InvalidSignatureError{Msg: "dm-verity PKCS#7 envelope has empty signature"}
 	}
 
 	return &envelope{
@@ -142,9 +148,12 @@ func (e *envelope) Sign(req *signature.SignRequest) ([]byte, error) {
 	return encoded, nil
 }
 
-// validateSignRequest enforces the dm-verity profile: no signed-attribute
-// fields, RSA-2048 key only.
+// validateSignRequest enforces the dm-verity profile: non-empty payload,
+// no signed-attribute fields, RSA-2048 key only.
 func validateSignRequest(req *signature.SignRequest) error {
+	if len(req.Payload.Content) == 0 {
+		return &signature.InvalidSignRequestError{Msg: "dm-verity PKCS#7 envelope requires a non-empty Payload.Content"}
+	}
 	if !req.SigningTime.IsZero() {
 		return &signature.InvalidSignRequestError{Msg: "dm-verity PKCS#7 envelope does not support SigningTime"}
 	}
@@ -189,6 +198,9 @@ func verifySignerOutput(payload, sig []byte, certs []*x509.Certificate) error {
 	if len(certs) == 0 {
 		return &signature.InvalidSignatureError{Msg: "no certificates returned from signer"}
 	}
+	if certs[0] == nil {
+		return &signature.InvalidSignatureError{Msg: "signer returned a nil leaf certificate"}
+	}
 	pub, ok := certs[0].PublicKey.(*rsa.PublicKey)
 	if !ok {
 		return &signature.UnsupportedSigningKeyError{
@@ -222,10 +234,10 @@ func (a *signerAdapter) Public() crypto.PublicKey {
 }
 
 // Sign returns the pre-computed signature. The digest and opts arguments
-// are ignored. Panics if called more than once.
+// are ignored. Returns an error if called more than once.
 func (a *signerAdapter) Sign(rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
 	if a.used {
-		panic("pkcs7: signerAdapter.Sign called more than once")
+		return nil, errors.New("pkcs7: signerAdapter.Sign called more than once")
 	}
 	a.used = true
 	return a.sig, nil
@@ -253,9 +265,10 @@ func (e *envelope) Content() (*signature.EnvelopeContent, error) {
 			CertificateChain: e.certs,
 			Signature:        e.sigBytes,
 		},
-		Payload: signature.Payload{
-			ContentType: MediaTypeEnvelope,
-		},
+		// Payload.ContentType identifies the signed payload's media type,
+		// not the envelope format. PKCS#7 detached signatures don't carry
+		// the payload's content type, so it is unknown after parsing.
+		Payload: signature.Payload{},
 	}, nil
 }
 
