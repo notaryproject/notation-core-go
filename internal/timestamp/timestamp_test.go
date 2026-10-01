@@ -20,6 +20,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/asn1"
 	"errors"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -156,19 +157,23 @@ func TestTimestamp(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		validator := &dummyTSARevocationValidator{
+			revoked: true,
+		}
 		req := &signature.SignRequest{
-			Timestamper: timestamper,
-			TSARootCAs:  rootCAs,
-			TSARevocationValidator: &dummyTSARevocationValidator{
-				revoked: true,
-			},
+			Timestamper:            timestamper,
+			TSARootCAs:             rootCAs,
+			TSARevocationValidator: validator,
 		}
 		opts := tspclient.RequestOptions{
 			Content:       []byte("notation"),
 			HashAlgorithm: crypto.SHA256,
 		}
-		expectedErr := `timestamping certificate with subject "CN=DigiCert Timestamp 2024,O=DigiCert,C=US" is revoked`
 		_, err = Timestamp(req, opts)
+		if validator.revokedCert == nil {
+			t.Fatalf("expected certificate revocation validation, but got error: %v", err)
+		}
+		expectedErr := fmt.Sprintf("timestamping certificate with subject %q is revoked", validator.revokedCert.Subject.String())
 		assertErrorEqual(expectedErr, err, t)
 	})
 
@@ -340,6 +345,7 @@ func (d dummyTimestamper) Timestamp(context.Context, *tspclient.Request) (*tspcl
 type dummyTSARevocationValidator struct {
 	failOnValidate bool
 	revoked        bool
+	revokedCert    *x509.Certificate
 }
 
 func (v *dummyTSARevocationValidator) ValidateContext(ctx context.Context, validateContextOpts revocation.ValidateContextOptions) ([]*result.CertRevocationResult, error) {
@@ -347,6 +353,7 @@ func (v *dummyTSARevocationValidator) ValidateContext(ctx context.Context, valid
 		return nil, errors.New("failed in ValidateContext")
 	}
 	if v.revoked {
+		v.revokedCert = validateContextOpts.CertChain[0]
 		certResults := make([]*result.CertRevocationResult, len(validateContextOpts.CertChain))
 		for i := range certResults {
 			certResults[i] = &result.CertRevocationResult{
