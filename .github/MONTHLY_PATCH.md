@@ -2,13 +2,13 @@
 
 This runbook lists the repository settings a maintainer must configure before the monthly patch release worker in this repository is activated. The design proposal lives only in the [notation](https://github.com/notaryproject/notation) CLI repository.
 
-Core has no cross-Notation release prerequisite, but it still owns its own source and artifact quality gates. The central monthly timer and agent run only in the notation CLI repository. This repository contains only a worker that accepts a dispatch from an authorized controller. It holds no Copilot credential and has no assessment or controller schedule.
+Core has no cross-Notation release prerequisite, but it still owns its own source and artifact quality gates. The central monthly timer and agent run only in the notation CLI repository. This repository contains only a thin caller workflow (`.github/workflows/monthly-patch-release.yml`) that accepts a dispatch from an authorized controller and runs the shared reusable worker in notaryproject/notation, pinned to an exact commit SHA. No shared scripts or tests are copied here. It holds no Copilot credential and has no assessment or controller schedule.
 
 Nothing runs until `MONTHLY_PATCH_ENABLED` is set to `true`. Leave it `false` or unset until activation.
 
 ## Settings
 
-1. **Actions and issues.** Enable GitHub Actions and Issues for the repository.
+1. **Actions and issues.** Enable GitHub Actions and Issues for the repository. In Settings > Actions > General, allow the public reusable workflow `notaryproject/notation/.github/workflows/monthly-patch-worker.yml` at the pinned SHA (add it to the allowed actions and reusable workflows list if the organization restricts them).
 2. **Dependabot.** Keep Dependabot version updates for `gomod` and `github-actions` enabled on `main` (see `.github/dependabot.yml`).
 3. **Merge settings.** Allow merge commits. The release flow merges exact reviewed heads with normal merge commits.
 4. **Release branch.** Maintain the selected latest stable `release-X.Y` branch with a verified signed stable baseline. Protect it and `main` with the required status checks (the `Build`, `CodeQL`, and license checker workflows) and required reviews. Do not grant bypass to the automation identity.
@@ -23,4 +23,4 @@ Nothing runs until `MONTHLY_PATCH_ENABLED` is set to `true`. Leave it `false` or
 
 ## Activation
 
-After all settings are verified in every repository and maintainers have approved, set `MONTHLY_PATCH_ENABLED=true`. Disabling is the reverse: set it to `false`.
+The pin in the caller is a draft commit. Before this caller is merged or activated, rebind both the `uses:` ref and `worker_sha` to the final merged upstream notaryproject/notation commit. After all settings are verified in every repository and maintainers have approved, set `MONTHLY_PATCH_ENABLED=true`. Disabling is the reverse: set it to `false`.
