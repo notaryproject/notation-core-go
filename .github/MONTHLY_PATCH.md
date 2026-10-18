@@ -21,6 +21,17 @@ Nothing runs until `MONTHLY_PATCH_ENABLED` is set to `true`. Leave it `false` or
    - `MONTHLY_PATCH_ENABLED`: keep `false` or unset until activation.
 7. **Signing key.** Register only the PUBLIC key on the automation account. The token, the signing key, and the signer identity must all belong to the same actor (`MONTHLY_PATCH_ACTOR`).
 
+## Manual-first release lifecycle
+
+The first releases are published by a maintainer, not by automation. There is no auto-approval flag to set.
+
+1. **Plan review.** The controller stages the plan in the existing cycle issue in notaryproject/notation, which is the review surface. A current active maintainer of the notation CLI repository approves the plan with the exact, unedited comment `/approve-plan <plan_id>`. The approval binds the current issue body, the immutable plan, and the maintainer roster. Closing the issue, a manual approval input, or an old auto-approval flag does not bypass it. Later writes revalidate the comment, and a new plan needs a new approval.
+2. **Qualified draft.** After Core's own source and artifact quality gates pass, the worker stages the release as a real GitHub draft release and opens a draft review issue only after the draft passes native quality checks. The signed tag may already be public before the draft is visible, so a draft does not hide the tag.
+3. **Manual publish.** A maintainer reviews the draft and uses Publish release. Automation records the release ID and assets, observes that the same ID, tag, and assets were published manually, then runs anonymous public verification.
+4. **Downstream wait.** Consumers of the release stay blocked until public verification succeeds.
+
+Core's own branch reviews and required checks still apply. Reading draft releases needs a token with sufficient permission; this has been validated only with fixtures, not a live read, so it may block until maintainers finish setup. Automatic publishing is a separate future opt-in and is not implemented.
+
 ## Activation
 
 The pin in the caller is a draft commit. Before this caller is merged or activated, rebind both the `uses:` ref and `worker_sha` to the final merged upstream notaryproject/notation commit. After all settings are verified in every repository and maintainers have approved, set `MONTHLY_PATCH_ENABLED=true`. Disabling is the reverse: set it to `false`.
