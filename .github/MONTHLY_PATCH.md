@@ -25,23 +25,30 @@ Nothing runs until `MONTHLY_PATCH_ENABLED` is set to `true`. Leave it `false` or
 
 The first releases are published by a maintainer, not by automation. There is no auto-approval flag to set.
 
-1. **Plan review.** The controller stages the plan in the existing cycle issue in notaryproject/notation, which is the review surface. A current active maintainer of the notation CLI repository approves the plan with the exact, unedited comment `/approve-plan <plan_id>`. The approval binds the current issue body, the immutable plan, and the maintainer roster. Closing the issue, a manual approval input, or an old auto-approval flag does not bypass it. Later writes revalidate the comment, and a new plan needs a new approval.
-2. **Qualified draft.** After Core's own source and artifact quality gates pass, the worker stages the release as a real GitHub draft release and opens a draft review issue only after the draft passes native quality checks. The signed tag may already be public before the draft is visible, so a draft does not hide the tag.
+1. **Plan review.** Each repository has one release issue with its month, current/proposed versions, own changes, dependencies, status, and maintainer action. The CLI issue also provides overall status and links to the library issues without copying their changes. A current active CLI maintainer approves the overall plan with the exact, unedited comment `/approve`. The approval binds the displayed scope, immutable plan, and maintainer roster. Later writes revalidate it; a changed plan requires fresh approval. Closing the issue, a manual dispatch, or an old auto-approval flag does not bypass this gate.
+2. **Qualified draft.** After Core's own source and artifact quality gates pass, the worker stages a real GitHub draft release. Once native draft checks pass, it posts the review request and evidence to Core's existing release issue, not a second review issue.
 3. **Manual publish.** A maintainer reviews the draft and uses Publish release. Automation records the release ID and assets, observes that the same ID, tag, and assets were published manually, then runs anonymous public verification.
 4. **Downstream wait.** Consumers of the release stay blocked until public verification succeeds.
 
 Core's own branch reviews and required checks still apply. Reading draft releases needs a token with sufficient permission; this has been validated only with fixtures, not a live read, so it may block until maintainers finish setup. Automatic publishing is a separate future opt-in and is not implemented.
 
+Assessment also reviews new `main` commits for possible bug fixes applicable to the stable release line. It presents evidence-backed candidates separately for maintainer review, not as automatically approved backports. Features are excluded, and adding a fix to an approved scope requires a new approval.
+
+The current worker creates the signed tag before draft review. A GitHub draft does not hide that tag or prevent Go module downloads. The required maintainer approval before final stable-tag creation is not implemented; official stable releases must remain disabled until that separate gate is implemented and validated.
+
 ## Failure notifications
 
-The controller comments on the shared CLI release-plan issue when a gate fails,
-mentions maintainers, and links the repository, failed stage/run, evidence, and
-blocked consumers. Reconciliation deduplicates alerts; failed retries get a new
-comment. Approved scope stays unchanged. Subscribe to the issue for GitHub
-notifications; email delivery depends on account settings. A failure before a
-trusted issue exists remains visible in Actions. Notification never bypasses
-checks or publishes a draft.
+The controller reports errors and blockers in the affected repository's release
+issue, mentions its maintainers, and links the failed stage/run and evidence.
+Dependent issues receive only a concise blocker and a link to the affected issue.
+The same issue receives the draft-ready review request. Routine progress does not
+generate comments. Reconciliation deduplicates alerts; a new failed retry can
+produce a new alert without changing approved scope.
+
+Subscribe to Core's release issue for GitHub notifications; email delivery
+depends on account settings. A failure before a trusted issue exists remains
+visible in Actions. Notifications never bypass checks or publish a draft.
 
 ## Activation
 
-The pin in the caller is a draft commit. Before this caller is merged or activated, rebind both the `uses:` ref and `worker_sha` to the final merged upstream notaryproject/notation commit. After all settings are verified in every repository and maintainers have approved, set `MONTHLY_PATCH_ENABLED=true`. Disabling is the reverse: set it to `false`.
+The pin in the caller is a draft commit. Before this caller is merged or activated, rebind both the `uses:` ref and `worker_sha` to the final merged upstream notaryproject/notation commit. Keep official stable releases disabled until the pre-tag approval gap above is resolved. After that gate and all settings are verified and maintainers approve activation, set `MONTHLY_PATCH_ENABLED=true`. Set it to `false` to disable future execution.
