@@ -32,6 +32,16 @@ The first releases are published by a maintainer, not by automation. There is no
 
 Core's own branch reviews and required checks still apply. Reading draft releases needs a token with sufficient permission; this has been validated only with fixtures, not a live read, so it may block until maintainers finish setup. Automatic publishing is a separate future opt-in and is not implemented.
 
+## Failure notifications
+
+The controller comments on the shared CLI release-plan issue when a gate fails,
+mentions maintainers, and links the repository, failed stage/run, evidence, and
+blocked consumers. Reconciliation deduplicates alerts; failed retries get a new
+comment. Approved scope stays unchanged. Subscribe to the issue for GitHub
+notifications; email delivery depends on account settings. A failure before a
+trusted issue exists remains visible in Actions. Notification never bypasses
+checks or publishes a draft.
+
 ## Activation
 
 The pin in the caller is a draft commit. Before this caller is merged or activated, rebind both the `uses:` ref and `worker_sha` to the final merged upstream notaryproject/notation commit. After all settings are verified in every repository and maintainers have approved, set `MONTHLY_PATCH_ENABLED=true`. Disabling is the reverse: set it to `false`.
