@@ -19,7 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/golang-jwt/jwt/v4"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/notaryproject/notation-core-go/internal/timestamp"
 	"github.com/notaryproject/notation-core-go/signature"
 	"github.com/notaryproject/notation-core-go/signature/internal/base"
