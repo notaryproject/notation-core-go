@@ -396,7 +396,7 @@ func TestVerify(t *testing.T) {
 		env.Signature = ""
 
 		err = verifyEnvelope(env)
-		checkErrorEqual(t, "signature is invalid. Error: crypto/rsa: verification error", err.Error())
+		checkErrorEqual(t, "signature is invalid. Error: token signature is invalid: crypto/rsa: verification error", err.Error())
 	})
 
 	t.Run("empty certificate", func(t *testing.T) {
@@ -432,7 +432,7 @@ func TestVerify(t *testing.T) {
 		env.Protected = "$" + env.Protected
 
 		err = verifyEnvelope(env)
-		checkErrorEqual(t, "signature is invalid. Error: illegal base64 data at input byte 0", err.Error())
+		checkErrorEqual(t, "signature is invalid. Error: token is malformed: could not base64 decode header: illegal base64 data at input byte 0", err.Error())
 	})
 	t.Run("malformed protected header raw", func(t *testing.T) {
 		// get envelope
@@ -447,7 +447,7 @@ func TestVerify(t *testing.T) {
 		env.Protected = base64.RawURLEncoding.EncodeToString(rawProtected)
 
 		err = verifyEnvelope(env)
-		checkErrorEqual(t, "signature is invalid. Error: invalid character '}' looking for beginning of value", err.Error())
+		checkErrorEqual(t, "signature is invalid. Error: token is malformed: could not JSON decode header: invalid character '}' looking for beginning of value", err.Error())
 	})
 }
 

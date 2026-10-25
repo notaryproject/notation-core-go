@@ -16,11 +16,10 @@ package jws
 import (
 	"crypto"
 	"crypto/x509"
-	"encoding/base64"
 	"errors"
 	"fmt"
 
-	"github.com/golang-jwt/jwt/v4"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/notaryproject/notation-core-go/signature"
 )
 
@@ -57,19 +56,19 @@ func newRemoteSigningMethod(signer signature.Signer) (signingMethod, error) {
 }
 
 // Verify doesn't need to be implemented.
-func (s *remoteSigningMethod) Verify(signingString, signature string, key interface{}) error {
+func (s *remoteSigningMethod) Verify(signingString string, signature []byte, key interface{}) error {
 	return errors.New("not implemented")
 }
 
 // Sign hashes the signingString and call the remote signer to sign the digest.
-func (s *remoteSigningMethod) Sign(signingString string, key interface{}) (string, error) {
+func (s *remoteSigningMethod) Sign(signingString string, key interface{}) ([]byte, error) {
 	// sign by external signer
 	sig, certs, err := s.signer.Sign([]byte(signingString))
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	s.certs = certs
-	return base64.RawURLEncoding.EncodeToString(sig), nil
+	return sig, nil
 }
 
 // Alg implements jwt.SigningMethod interface.
